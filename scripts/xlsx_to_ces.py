@@ -1,22 +1,35 @@
 #!/usr/bin/env python3
-"""Convert the Chart Review Agent's Excel report into a CES bot batch.
+"""Convert the Chart Review Agent's chart_reviews.xlsx into CES bot batches.
 
-The Ninth Brain Chart Review Agent already writes its results to an .xlsx
-file (via openpyxl). This script reads that report and emits ces_batch.json
-in the CES bridge format (docs/bot-bridge.md) — no changes to the bot's
-app.py required:
+Reads the "Chart Reviews" sheet the Ninth Brain Chart Review Agent writes and
+emits the JSON the CES QA Review Queue imports (docs/bot-bridge.md):
 
-    python3 xlsx_to_ces.py ChartReview_Results.xlsx
-    python3 xlsx_to_ces.py results.xlsx -o july_batch.json --sheet "QA"
+    python3 xlsx_to_ces.py chart_reviews.xlsx
+    python3 xlsx_to_ces.py chart_reviews.xlsx --dry-run
 
-Then in CES: QA -> open the period -> Add charts -> Bot reviews -> load the
-JSON file.
+Because CES imports into one operation's period at a time, reviews are split
+by Business Unit — e.g. ces_batch_kc.json and ces_batch_linn.json — unless the
+report only contains one unit (then it's just ces_batch.json). Import each
+file into the matching operation's period: QA -> period -> Add charts -> Bot
+reviews.
 
-Column names are auto-detected with the same alias logic the CES importer
-uses, so the bot's exact headers don't matter. Columns that aren't core
-fields but whose values look like met / partial / not met / n/a are treated
-as per-criterion rubric results. Run with --dry-run to see the detected
-mapping without writing anything.
+What gets carried over per review:
+  - Run ID -> incident number (the match key), Run Date -> date,
+    Care Level -> acuity
+  - Q1–Q15 answers -> the CES rubric criteria q1–q15. Q14/Q15 are asked in
+    reverse on the Ninth Brain form, so their answers are inverted (a "No"
+    on "Were there any near misses…" imports as Met).
+  - CES computes the weighted score from the criteria.
+  - flagged = true when Q14 or Q15 was answered "Yes" on the form
+    (safety concern / needs leadership review).
+  - Synopsis, Findings, matched rules, any category follow-ups (STEMI /
+    Trauma / Stroke / AMS), and rationales for No answers -> notes.
+
+The "Code 3 Case Presentations" sheet is a different work product (CQMP
+ground-vs-air audit) and is not part of the QA queue; it is skipped.
+
+Files without the bot's columns fall back to a generic header auto-detect
+(incident/score/provider/notes columns), same aliases as the CES importer.
 
 Requires: openpyxl (already installed for the bot).
 """
@@ -34,35 +47,20 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("openpyxl is required (pip3 install openpyxl)")
 
+# Ninth Brain form questions asked in the negative — invert on import.
+INVERTED_QUESTIONS = {"Q14", "Q15"}
+NUM_QUESTIONS = 15
+
+# Business Unit -> CES operation id.
+UNIT_PATTERNS = [
+    ("kc", re.compile(r"kansas\s*city", re.I)),
+    ("linn", re.compile(r"linn", re.I)),
+    ("cass", re.compile(r"cass", re.I)),
+]
+
 
 def norm(s: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(s).lower())
-
-
-# Core-field aliases, mirrored from the CES importer (botBridge.ts).
-FIELD_ALIASES: dict[str, list[str]] = {
-    "incidentNumber": ["incidentnumber", "incident", "run", "runnumber", "pcr", "report", "callnumber", "call", "id"],
-    "date": ["date", "calldate", "servicedate", "dispatchdate"],
-    "provider": ["provider", "primary", "medic", "clinician", "author", "crewlead", "attendant"],
-    "crew": ["crew", "unit", "partner", "vehicle"],
-    "chiefComplaint": ["chiefcomplaint", "complaint", "chief", "impression", "reason", "nature"],
-    "acuity": ["acuity", "priority", "severity", "level"],
-    "scorePct": ["scorepct", "score", "qascore", "percent", "scorepercent", "overall", "grade"],
-    "flagged": ["flagged", "flag", "followup", "coaching"],
-    "notes": ["notes", "summary", "findings", "comment", "comments", "narrative", "feedback"],
-    "reviewer": ["reviewer", "agent", "model"],
-}
-
-STATUS_WORDS = {
-    "met", "yes", "y", "pass", "passed", "true", "1", "complete", "compliant", "ok",
-    "present", "documented", "satisfactory",
-    "partial", "partially", "part", "incomplete", "some",
-    "notmet", "no", "n", "fail", "failed", "false", "0", "missing", "absent",
-    "deficient", "noncompliant",
-    "na", "notapplicable", "none",
-}
-
-TRUTHY = {"true", "yes", "1", "y", "flag", "flagged"}
 
 
 def cell_str(v: Any) -> str:
@@ -75,20 +73,142 @@ def cell_str(v: Any) -> str:
     return str(v).strip()
 
 
-def detect_mapping(headers: list[str]) -> dict[str, int]:
-    """Map CES field -> column index. Exact alias match wins, then contains."""
+def iso_date(v: str) -> str:
+    """Normalize '6/11/2026' (and already-ISO strings) to yyyy-mm-dd."""
+    v = v.strip()
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", v)
+    if m:
+        return f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+    return v
+
+
+def split_answer(cell: str) -> tuple[str, str]:
+    """'Yes — rationale…' -> ('Yes', 'rationale…'); tolerate -, – and em-dash."""
+    m = re.match(r"^\s*(Yes|No)\s*[—–-]\s*(.*)$", cell, re.S)
+    if m:
+        return m.group(1), m.group(2).strip()
+    stripped = cell.strip()
+    if stripped.lower() in ("yes", "no"):
+        return stripped.capitalize(), ""
+    return "", stripped
+
+
+def unit_of(business_unit: str) -> str:
+    for op, pat in UNIT_PATTERNS:
+        if pat.search(business_unit):
+            return op
+    return "other"
+
+
+def read_sheet(ws) -> tuple[list[str], list[list[str]]]:
+    rows = [[cell_str(c) for c in row] for row in ws.iter_rows(values_only=True)]
+    rows = [r for r in rows if any(v for v in r)]
+    if not rows:
+        return [], []
+    return rows[0], rows[1:]
+
+
+# ── Bot-report parser ────────────────────────────────────────────────────────
+
+def parse_bot_report(headers: list[str], data: list[list[str]]) -> list[dict[str, Any]]:
+    col = {h: i for i, h in enumerate(headers)}
+
+    def get(row: list[str], header: str) -> str:
+        i = col.get(header)
+        return row[i] if i is not None and i < len(row) else ""
+
+    q_headers = [f"Q{i}" for i in range(1, NUM_QUESTIONS + 1) if f"Q{i}" in col]
+    core = {"Reviewed At", "Run ID", "Run Date", "Business Unit", "Matched Rules",
+            "Review Types", "Care Level", "Synopsis", "Findings", *q_headers}
+    followup_headers = [h for h in headers if h and h not in core]
+
+    reviews: list[dict[str, Any]] = []
+    for row in data:
+        inc = get(row, "Run ID")
+        if not inc:
+            continue
+
+        criteria: dict[str, str] = {}
+        no_rationales: list[str] = []
+        flagged = False
+        for qh in q_headers:
+            answer, rationale = split_answer(get(row, qh))
+            if not answer:
+                continue
+            good = answer == "Yes"
+            if qh in INVERTED_QUESTIONS:
+                if answer == "Yes":
+                    flagged = True  # safety concern / needs leadership review
+                good = not good
+            criteria[qh.lower()] = "met" if good else "not_met"
+            if not good and rationale:
+                no_rationales.append(f"{qh}: {rationale}")
+
+        note_parts: list[str] = []
+        synopsis = get(row, "Synopsis")
+        findings = get(row, "Findings")
+        rules = get(row, "Matched Rules")
+        if synopsis:
+            note_parts.append(synopsis)
+        if findings:
+            note_parts.append(f"Findings: {findings}")
+        if rules:
+            note_parts.append(f"Matched rules: {rules}")
+        if no_rationales:
+            note_parts.append("Deficiencies:\n" + "\n".join(no_rationales))
+        followups = [f"{h}: {get(row, h)}" for h in followup_headers if get(row, h)]
+        if followups:
+            note_parts.append("Category review:\n" + "\n".join(followups))
+
+        review: dict[str, Any] = {
+            "incidentNumber": inc,
+            "reviewer": "Chart Review Agent",
+            "_unit": unit_of(get(row, "Business Unit")),
+        }
+        d = get(row, "Run Date")
+        if d:
+            review["date"] = iso_date(d)
+        acuity = get(row, "Care Level")
+        if acuity:
+            review["acuity"] = acuity
+        if criteria:
+            review["criteria"] = criteria
+        review["flagged"] = flagged
+        if note_parts:
+            review["notes"] = "\n\n".join(note_parts)
+        reviews.append(review)
+    return reviews
+
+
+# ── Generic fallback parser (non-bot spreadsheets) ──────────────────────────
+
+FIELD_ALIASES: dict[str, list[str]] = {
+    "incidentNumber": ["incidentnumber", "incident", "run", "runnumber", "runid", "pcr", "report", "callnumber", "call", "id"],
+    "date": ["date", "calldate", "servicedate", "rundate", "dispatchdate"],
+    "provider": ["provider", "primary", "medic", "clinician", "author", "crewlead", "attendant"],
+    "crew": ["crew", "unit", "partner", "vehicle"],
+    "chiefComplaint": ["chiefcomplaint", "complaint", "chief", "impression", "reason", "nature"],
+    "acuity": ["acuity", "priority", "severity", "carelevel", "level"],
+    "scorePct": ["scorepct", "score", "qascore", "percent", "scorepercent", "overall", "grade"],
+    "flagged": ["flagged", "flag", "followup", "coaching"],
+    "notes": ["notes", "summary", "findings", "synopsis", "comment", "comments", "narrative", "feedback"],
+    "reviewer": ["reviewer", "agent", "model"],
+}
+
+TRUTHY = {"true", "yes", "1", "y", "flag", "flagged"}
+
+
+def parse_generic(headers: list[str], data: list[list[str]]) -> list[dict[str, Any]]:
+    normed = [norm(h) for h in headers]
     mapping: dict[str, int] = {}
     used: set[int] = set()
-    normed = [norm(h) for h in headers]
     for field, aliases in FIELD_ALIASES.items():
-        # pass 1: exact
         for i, h in enumerate(normed):
             if i not in used and h in aliases:
                 mapping[field] = i
                 used.add(i)
                 break
         else:
-            # pass 2: contains
             for i, h in enumerate(normed):
                 if i in used or not h:
                     continue
@@ -96,103 +216,95 @@ def detect_mapping(headers: list[str]) -> dict[str, int]:
                     mapping[field] = i
                     used.add(i)
                     break
-    return mapping
-
-
-def looks_like_criterion(values: list[str]) -> bool:
-    """A column is a rubric criterion if its non-empty values are status words."""
-    non_empty = [v for v in values if v]
-    if not non_empty:
-        return False
-    hits = sum(1 for v in non_empty if norm(v) in STATUS_WORDS)
-    return hits / len(non_empty) >= 0.8
-
-
-def convert(path: str, sheet: Optional[str]) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
-    wb = load_workbook(path, data_only=True, read_only=True)
-    ws = wb[sheet] if sheet else wb.worksheets[0]
-    rows = [[cell_str(c) for c in row] for row in ws.iter_rows(values_only=True)]
-    wb.close()
-    rows = [r for r in rows if any(v for v in r)]
-    if len(rows) < 2:
-        sys.exit(f"No data rows found in sheet '{ws.title}'.")
-
-    headers = rows[0]
-    data = rows[1:]
-    mapping = detect_mapping(headers)
     if "incidentNumber" not in mapping:
         sys.exit(
             "Could not find an incident / run number column.\n"
-            f"Headers seen: {headers}\n"
-            "Rename the column (e.g. to 'Incident #') or share the file so the aliases can be extended."
+            f"Headers seen: {headers}"
         )
-
-    # Leftover columns whose values look like statuses -> rubric criteria.
-    core_cols = set(mapping.values())
-    criterion_cols: dict[int, str] = {}
-    for i, h in enumerate(headers):
-        if i in core_cols or not h:
-            continue
-        col_values = [r[i] if i < len(r) else "" for r in data]
-        if looks_like_criterion(col_values):
-            criterion_cols[i] = h
-
     reviews: list[dict[str, Any]] = []
-    for r in data:
-        get = lambda f: cell_str(r[mapping[f]]) if f in mapping and mapping[f] < len(r) else ""
+    for row in data:
+        get = lambda f: row[mapping[f]] if f in mapping and mapping[f] < len(row) else ""
         inc = get("incidentNumber")
         if not inc:
             continue
-        review: dict[str, Any] = {"incidentNumber": inc}
+        review: dict[str, Any] = {"incidentNumber": inc, "_unit": "all"}
         for f in ("date", "provider", "crew", "chiefComplaint", "acuity", "notes", "reviewer"):
             v = get(f)
             if v:
-                review[f] = v
+                review[f] = iso_date(v) if f == "date" else v
         score = get("scorePct")
         if score:
             try:
-                n = float(score.rstrip("%"))
+                n = float(str(score).rstrip("%"))
                 review["scorePct"] = round(n * 100) if n <= 1 else round(n)
             except ValueError:
                 pass
         flag = get("flagged")
         if flag:
             review["flagged"] = norm(flag) in TRUTHY
-        criteria = {}
-        for i, name in criterion_cols.items():
-            v = r[i] if i < len(r) else ""
-            if v:
-                criteria[name] = v
-        if criteria:
-            review["criteria"] = criteria
         reviews.append(review)
+    return reviews
 
-    human_mapping = {f: headers[i] for f, i in mapping.items()}
-    return reviews, human_mapping, list(criterion_cols.values())
 
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Convert a Chart Review Agent .xlsx report to a CES bot batch.")
-    ap.add_argument("xlsx", help="Path to the bot's Excel report")
-    ap.add_argument("-o", "--out", default="ces_batch.json", help="Output JSON path (default ces_batch.json)")
-    ap.add_argument("--sheet", help="Worksheet name (default: first sheet)")
-    ap.add_argument("--dry-run", action="store_true", help="Show the detected mapping and row count, write nothing")
+    ap = argparse.ArgumentParser(description="Convert the Chart Review Agent's .xlsx into CES bot batches.")
+    ap.add_argument("xlsx", help="Path to chart_reviews.xlsx")
+    ap.add_argument("-o", "--out", default="ces_batch", help="Output basename (default ces_batch)")
+    ap.add_argument("--sheet", help="Worksheet name (default: auto)")
+    ap.add_argument("--unit", choices=["kc", "linn", "cass"], help="Only export this operation's reviews")
+    ap.add_argument("--dry-run", action="store_true", help="Report what would be written, write nothing")
     args = ap.parse_args()
 
-    reviews, mapping, criteria = convert(args.xlsx, args.sheet)
-    print(f"Detected columns: {json.dumps(mapping, indent=2)}")
-    if criteria:
-        print(f"Rubric criterion columns: {criteria}")
-    print(f"Reviews found: {len(reviews)}")
+    wb = load_workbook(args.xlsx, data_only=True, read_only=True)
+    if args.sheet:
+        ws = wb[args.sheet]
+    elif "Chart Reviews" in wb.sheetnames:
+        ws = wb["Chart Reviews"]
+    else:
+        ws = wb.worksheets[0]
+    headers, data = read_sheet(ws)
+    wb.close()
+    if not data:
+        sys.exit(f"No data rows found in sheet '{ws.title}'.")
+
+    is_bot_report = "Run ID" in headers and "Q1" in headers
+    if is_bot_report:
+        print(f"Detected Chart Review Agent report ({len(data)} rows).")
+        reviews = parse_bot_report(headers, data)
+    else:
+        print("Not a Chart Review Agent report — using generic column detection.")
+        reviews = parse_generic(headers, data)
+
+    # Group by operation.
+    by_unit: dict[str, list[dict[str, Any]]] = {}
+    for r in reviews:
+        unit = r.pop("_unit", "all")
+        by_unit.setdefault(unit, []).append(r)
+
+    if args.unit:
+        by_unit = {k: v for k, v in by_unit.items() if k == args.unit}
+        if not by_unit:
+            sys.exit(f"No reviews found for unit '{args.unit}'.")
+
+    single = len(by_unit) == 1
+    for unit, unit_reviews in sorted(by_unit.items()):
+        flagged = sum(1 for r in unit_reviews if r.get("flagged"))
+        out = f"{args.out}.json" if single else f"{args.out}_{unit}.json"
+        print(f"  {unit}: {len(unit_reviews)} reviews ({flagged} flagged) -> {out}")
+        if args.dry_run:
+            continue
+        with open(out, "w", encoding="utf-8") as fh:
+            json.dump(
+                {"source": "ninth-brain-chart-review-agent", "version": 1, "reviews": unit_reviews},
+                fh,
+                indent=2,
+            )
     if args.dry_run:
-        return
-    with open(args.out, "w", encoding="utf-8") as fh:
-        json.dump(
-            {"source": "ninth-brain-chart-review-agent", "version": 1, "reviews": reviews},
-            fh,
-            indent=2,
-        )
-    print(f"Wrote {args.out} — import it in CES under QA -> period -> Add charts -> Bot reviews.")
+        print("Dry run — nothing written.")
+    else:
+        print("Import each file into the matching operation's period: QA -> period -> Add charts -> Bot reviews.")
 
 
 if __name__ == "__main__":
