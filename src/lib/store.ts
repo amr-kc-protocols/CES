@@ -19,7 +19,7 @@ function emptyDB(): DBShape {
     ceClasses: [],
     qaPeriods: [],
     charts: [],
-    settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '' },
+    settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }
 

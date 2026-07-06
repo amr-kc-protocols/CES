@@ -2,7 +2,35 @@
 
 Connects the **Ninth Brain Chart Review Agent** ("the bot") to the CES **QA
 Review Queue** without a backend: the bot's reviews become a JSON batch, and
-CES imports it from **QA → open a period → Add charts → Bot reviews**.
+CES imports it — automatically via the **QA Bot tab's folder sync** (see
+below), or manually from **QA → open a period → Add charts → Bot reviews**.
+
+## Live sync & embedded bot (QA Bot tab)
+
+The **QA Bot** tab in CES does two things:
+
+1. **Embeds the bot's UI** — set the bot's local URL (e.g.
+   `http://localhost:5000`) in the tab or in Settings and review charts
+   without leaving CES. Works even when CES is served over HTTPS, because
+   browsers treat `http://localhost` as a trustworthy origin. "Open in new
+   tab" is always available as a fallback.
+2. **Watches the bot's batch folder** — pick the folder containing `app.py`
+   (where `ces_export.py` / `xlsx_to_ces.py` write `ces_batch_*.json`) once;
+   CES re-scans it every ~15 s while open and imports anything new or
+   changed. Unchanged files are skipped (tracked by modification time), and
+   re-imports are safe — reviews dedupe by incident number.
+
+Synced reviews are **auto-routed**: each review goes to the period matching
+its run date's month and the file's unit suffix (`ces_batch_kc.json` → KC),
+and the period is created automatically if it doesn't exist yet — with a
+monthly volume of 0, so open the period and enter the real volume for the
+20% target to be right. A plain `ces_batch.json` (single-unit export) routes
+to the unit chosen in the tab's sync settings.
+
+Folder sync needs Chrome or Edge (File System Access API) and, because the
+browser only remembers the folder — not unattended access — may ask you to
+click **Resume access** after a browser restart. On other browsers, use the
+manual import below.
 
 Imported reviews are matched to charts in that period **by incident number**
 (the bot's *Run ID*). A match attaches the score to the existing chart and

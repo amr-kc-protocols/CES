@@ -6,6 +6,7 @@ export default function Settings() {
   const [reviewer, setReviewer] = useState(db.settings.reviewer)
   const [pct, setPct] = useState(String(Math.round(db.settings.samplePercent * 100)))
   const [cbUrl, setCbUrl] = useState(db.settings.classBuilderUrl)
+  const [botUrl, setBotUrl] = useState(db.settings.botUrl)
   const [saved, setSaved] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -13,7 +14,13 @@ export default function Settings() {
     const p = Math.min(100, Math.max(1, Number(pct) || 20)) / 100
     setState((d) => ({
       ...d,
-      settings: { ...d.settings, reviewer: reviewer.trim(), samplePercent: p, classBuilderUrl: cbUrl.trim() },
+      settings: {
+        ...d.settings,
+        reviewer: reviewer.trim(),
+        samplePercent: p,
+        classBuilderUrl: cbUrl.trim(),
+        botUrl: botUrl.trim().replace(/\/+$/, ''),
+      },
     }))
     setSaved('Settings saved.')
     setTimeout(() => setSaved(''), 2000)
@@ -66,6 +73,14 @@ export default function Settings() {
           <input value={cbUrl} onChange={(e) => setCbUrl(e.target.value)} placeholder="https://…" />
           <div className="help-text">
             The CE tracker links here rather than duplicating the packet generator (spec §6 / §7).
+          </div>
+        </div>
+        <div className="field">
+          <label>QA bot URL (Chart Review Agent)</label>
+          <input value={botUrl} onChange={(e) => setBotUrl(e.target.value)} placeholder="http://localhost:5000" />
+          <div className="help-text">
+            The local address the Chart Review Agent prints when it starts. Shown embedded in the
+            QA Bot tab.
           </div>
         </div>
         <button className="btn primary" onClick={saveSettings}>
