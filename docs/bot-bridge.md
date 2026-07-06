@@ -60,7 +60,25 @@ human label — `"Vitals documented"` resolves to `vitals`.
 `incidentNumber,scorePct,provider,date,chiefComplaint,flagged,notes`
 (per-criterion detail isn't supported in CSV — use JSON for that).
 
-## Emitting the batch from the bot
+## Option 1 (no code changes): convert the bot's Excel report
+
+The bot already writes its results to an .xlsx file. `scripts/xlsx_to_ces.py`
+converts that report into a CES batch directly:
+
+```bash
+python3 xlsx_to_ces.py ChartReview_Results.xlsx          # writes ces_batch.json
+python3 xlsx_to_ces.py results.xlsx --dry-run            # show detected columns only
+python3 xlsx_to_ces.py results.xlsx --sheet "QA" -o july.json
+```
+
+Column headers are auto-detected (same aliases as the CES importer), scores
+written as fractions (0.96) or percents (96) are both handled, Excel dates
+become ISO dates, and any extra column whose values look like
+met / partial / not met / n/a is picked up as a rubric criterion. Use
+`--dry-run` first to sanity-check the mapping on a real report. Requires
+`openpyxl`, which the bot's launcher already installs.
+
+## Option 2 (one-line hook in app.py): emit the batch during scoring
 
 `scripts/ces_export.py` is a drop-in helper. In the bot, after you've scored a
 chart, append a dict and write the batch:
@@ -83,5 +101,6 @@ for chart in scored_charts:            # your existing loop
 batch.write("ces_batch.json")          # then import this in CES
 ```
 
-Once you share `app.py`, this can be wired directly into the bot's existing
-scoring loop and Excel export so the CES batch is produced in the same run.
+Once `app.py` is shared, Option 2 can be wired directly into the bot's existing
+scoring loop and Excel export so the CES batch is produced in the same run —
+and the column aliases in Option 1 can be pinned to the report's exact headers.
