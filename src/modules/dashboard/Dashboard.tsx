@@ -12,6 +12,8 @@ import {
   sortByUrgency,
 } from '../ce/ceStore'
 import { usePeriods, progressFor } from '../qa/qaStore'
+import { useCohorts, useAllTrainees, upcomingCohorts, releaseEligible } from '../academy/academyStore'
+import { operationShort } from '../../data/operations'
 
 function daysChip(days: number) {
   if (days < 0) return <span className="pill crit">{Math.abs(days)}d overdue</span>
@@ -32,7 +34,11 @@ export default function Dashboard() {
     .slice(0, 6)
 
   const activePeriods = periods.filter((p) => p.status === 'active')
-  const nothing = classes.length === 0 && periods.length === 0
+  const cohorts = useCohorts()
+  const trainees = useAllTrainees()
+  const nextCohort = upcomingCohorts(cohorts)[0]
+  const readyForRelease = trainees.filter(releaseEligible)
+  const nothing = classes.length === 0 && periods.length === 0 && cohorts.length === 0
 
   return (
     <div>
@@ -138,6 +144,43 @@ export default function Dashboard() {
                 </Link>
               )
             })}
+          </div>
+        </>
+      )}
+
+      {/* Academy */}
+      {(nextCohort || readyForRelease.length > 0) && (
+        <>
+          <div className="section-title" style={{ display: 'flex', alignItems: 'center' }}>
+            <span>Academy</span>
+            <Link to="/academy" className="link-btn" style={{ marginLeft: 'auto' }}>
+              All →
+            </Link>
+          </div>
+          <div className="list">
+            {nextCohort && (
+              <Link to={`/academy/${nextCohort.id}`} className="row" style={{ color: 'inherit' }}>
+                <div className="grow">
+                  <div className="title">🎓 {nextCohort.label}</div>
+                  <div className="meta">
+                    {formatDate(nextCohort.startDate)} – {formatDate(nextCohort.endDate)} ·{' '}
+                    {trainees.filter((t) => t.cohortId === nextCohort.id).length} on roster
+                  </div>
+                </div>
+                <span className="pill info">Next academy</span>
+              </Link>
+            )}
+            {readyForRelease.map((t) => (
+              <Link key={t.id} to={`/academy/${t.cohortId}`} className="row left-accent acc-ok" style={{ color: 'inherit' }}>
+                <div className="grow">
+                  <div className="title">{t.name}</div>
+                  <div className="meta">
+                    {operationShort(t.operation)} · {t.contacts}/{t.contactTarget} contacts
+                  </div>
+                </div>
+                <span className="pill ok">Ready for release</span>
+              </Link>
+            ))}
           </div>
         </>
       )}

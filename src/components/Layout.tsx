@@ -4,9 +4,10 @@ import { useBotSyncRunner } from '../modules/qa/botSync'
 
 const TABS = [
   { to: '/', label: 'Home', icon: '🏠', end: true },
-  { to: '/qa', label: 'QA Queue', icon: '🩺', end: false },
+  { to: '/qa', label: 'QA', icon: '🩺', end: false },
   { to: '/bot', label: 'QA Bot', icon: '🤖', end: false },
-  { to: '/ce', label: 'CE Deadlines', icon: '📅', end: false },
+  { to: '/ce', label: 'CE', icon: '📅', end: false },
+  { to: '/academy', label: 'Academy', icon: '🎓', end: false },
   { to: '/settings', label: 'Settings', icon: '⚙️', end: false },
 ]
 

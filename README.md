@@ -9,10 +9,13 @@ Hunter's head:
   structured rubric scoring, progress tracking, and CQMP-ready exports.
 - **Module B — Kansas CE Deadline Tracker:** guarantees no KBEMS CE submission
   passes its 30-day window unseen (color-coded urgency, overdue items pinned).
+- **Module D — New Hire Academy:** cohort rosters, the academy curriculum
+  checklist (general AMR block + KC paramedic critical-care specialization),
+  and post-academy FTO ride tracking to the 20–30 patient-contact release.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 
-Built as the MVP defined in the role map & build spec. Phase-2 modules (PODS
-intake, academy/onboarding) are intentionally out of scope for this build.
+Built from the role map & build spec. Remaining phase-2 module: PODS intake
+log (Module C).
 
 ## Tech stack
 
@@ -48,6 +51,7 @@ src/
     dashboard/    Module E — Today / at-risk view
     qa/           Module A — periods, CSV import, sampling, rubric review
     ce/           Module B — CE deadline tracker
+    academy/      Module D — cohorts, curriculum checklist, FTO release
     settings/     reviewer/sample defaults, data backup, about
 ```
 
