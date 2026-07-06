@@ -107,23 +107,53 @@ export interface ChartInput {
   raw?: Record<string, string>
 }
 
-export function addCharts(periodId: string, operation: OperationId, inputs: ChartInput[]): number {
-  const charts: Chart[] = inputs.map((i) => ({
-    id: uid('chart'),
-    periodId,
-    operation,
-    incidentNumber: i.incidentNumber,
-    date: i.date,
-    provider: i.provider,
-    crew: i.crew,
-    chiefComplaint: i.chiefComplaint,
-    acuity: i.acuity,
-    raw: i.raw,
-    sampled: false,
-    status: 'unreviewed',
-  }))
-  setState((db) => ({ ...db, charts: [...db.charts, ...charts] }))
-  return charts.length
+export interface AddChartsResult {
+  added: number
+  /** Rows skipped because their incident number is already in the period. */
+  skipped: number
+}
+
+export function addCharts(
+  periodId: string,
+  operation: OperationId,
+  inputs: ChartInput[],
+): AddChartsResult {
+  const key = (s: string) => s.trim().toLowerCase()
+  // Dedupe by incident number against the period and within the batch, so
+  // re-importing the same call list doesn't double the pool.
+  const seen = new Set(
+    getState()
+      .charts.filter((c) => c.periodId === periodId)
+      .map((c) => key(c.incidentNumber)),
+  )
+  const charts: Chart[] = []
+  let skipped = 0
+  for (const i of inputs) {
+    const k = key(i.incidentNumber)
+    if (!k || seen.has(k)) {
+      skipped++
+      continue
+    }
+    seen.add(k)
+    charts.push({
+      id: uid('chart'),
+      periodId,
+      operation,
+      incidentNumber: i.incidentNumber.trim(),
+      date: i.date,
+      provider: i.provider,
+      crew: i.crew,
+      chiefComplaint: i.chiefComplaint,
+      acuity: i.acuity,
+      raw: i.raw,
+      sampled: false,
+      status: 'unreviewed',
+    })
+  }
+  if (charts.length > 0) {
+    setState((db) => ({ ...db, charts: [...db.charts, ...charts] }))
+  }
+  return { added: charts.length, skipped }
 }
 
 export function deleteChart(id: string): void {
@@ -169,7 +199,7 @@ export function resetSample(periodId: string): void {
     ...db,
     charts: db.charts.map((c) =>
       c.periodId === periodId && c.sampled && c.status !== 'scored'
-        ? { ...c, sampled: false }
+        ? { ...c, sampled: false, status: 'unreviewed' }
         : c,
     ),
   }))

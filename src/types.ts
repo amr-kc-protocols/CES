@@ -98,6 +98,8 @@ export interface Settings {
   reviewer: string
   /** External link to the existing Kansas Class Builder tool (spec §6 Module B). */
   classBuilderUrl: string
+  /** Local URL of the Ninth Brain Chart Review Agent, embedded in the QA Bot tab. */
+  botUrl: string
 }
 
 export interface DBShape {
