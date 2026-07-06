@@ -1,0 +1,32 @@
+{
+  "source": "ninth-brain-chart-review-agent",
+  "version": 1,
+  "reviews": [
+    {
+      "incidentNumber": "73193106",
+      "date": "2026-06-11",
+      "acuity": "ALS",
+      "flagged": true,
+      "reviewer": "Chart Review Agent",
+      "notes": "A 65-year-old female was transferred non-emergently for a higher level of care after intentionally ingesting a non-prescribed medication.\n\nFindings: Overall documentation is thorough.\n\nDeficiencies:\nQ14: The ingestion of a non-prescribed medication is a patient safety concern that should be reported.",
+      "criteria": {
+        "q1": "met", "q2": "met", "q3": "met", "q4": "met", "q5": "met",
+        "q6": "met", "q7": "met", "q8": "met", "q9": "met", "q10": "met",
+        "q11": "met", "q12": "met", "q13": "met", "q14": "not_met", "q15": "not_met"
+      }
+    },
+    {
+      "incidentNumber": "73212243",
+      "date": "2026-06-11",
+      "acuity": "ALS",
+      "flagged": false,
+      "reviewer": "Chart Review Agent",
+      "notes": "An 81-year-old male with tracheostomy returning to his skilled nursing facility.\n\nFindings: Overall documentation quality is good.\n\nMatched rules: Advanced Airway, Altered Mental Status\n\nCategory review:\nAMS: Blood Glucose: Yes — 115 mg/dL documented.\nAMS: Oxygen/Airway: Yes — oxygen use documented.",
+      "criteria": {
+        "q1": "met", "q2": "met", "q3": "met", "q4": "met", "q5": "met",
+        "q6": "met", "q7": "met", "q8": "met", "q9": "met", "q10": "met",
+        "q11": "met", "q12": "met", "q13": "met", "q14": "met", "q15": "met"
+      }
+    }
+  ]
+}

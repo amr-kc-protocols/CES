@@ -67,9 +67,11 @@ ships; each is easy to revisit:
 2. **QA data source — both.** Module A imports a call-list **CSV** (with an
    auto-detecting column mapper that tolerates unknown Ninth Brain / ImageTrend
    export formats) **and** supports manual chart entry.
-3. **QA rubric — sensible EMS PCR default** encoded in `src/data/qaRubric.ts`
-   (weighted criteria, critical flags, KC critical-care items). Replace with
-   Hunter's official rubric when confirmed — it's a single data file.
+3. **QA rubric — the real Ninth Brain instrument.** `src/data/qaRubric.ts`
+   encodes the 15 standardized chart-review questions from the Ninth Brain QA
+   form (sourced from the Chart Review Agent), so manual CES reviews and
+   imported bot reviews score on the same scale. Q14/Q15 are stated positively
+   here (the form asks them in reverse); see `docs/bot-bridge.md`.
 4. **Cass & Linn volumes — entered per review period.** Still open items in the
    spec; the QA period form prompts for the month's actual volume to size the
    sample.
@@ -78,6 +80,14 @@ ships; each is easy to revisit:
    later.
 6. **Class Builder — linked, not rebuilt.** Set the Kansas Class Builder URL in
    Settings; the tracker/dashboard link out to it (spec §6 / §7).
+
+## QA bot bridge
+
+The Ninth Brain Chart Review Agent's reviews import straight into the QA
+queue (QA → period → Add charts → Bot reviews). Convert its existing
+`chart_reviews.xlsx` with `scripts/xlsx_to_ces.py`, or drop
+`scripts/ces_export.py` next to the bot's `app.py` for automatic per-review
+export. Details and payload schema: `docs/bot-bridge.md`.
 
 ## Key logic
 

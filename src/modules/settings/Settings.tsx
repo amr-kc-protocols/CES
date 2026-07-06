@@ -112,7 +112,7 @@ export default function Settings() {
         </p>
         <ul className="subtle" style={{ marginTop: 6, paddingLeft: 18, lineHeight: 1.6 }}>
           <li>Persistence is local-first (device-only) behind one storage module, so a shared backend can be added later without UI changes.</li>
-          <li>The QA rubric is a sensible EMS PCR default — swap in Hunter’s official rubric when confirmed.</li>
+          <li>The QA rubric is the real 15-question Ninth Brain chart-review form, shared with the Chart Review Agent so manual and bot reviews score alike.</li>
           <li>Cass &amp; Linn monthly volumes are entered per period (still open items in the spec).</li>
           <li>CE alerts are in-app; Teams/email push can layer on later via Power Automate.</li>
         </ul>
