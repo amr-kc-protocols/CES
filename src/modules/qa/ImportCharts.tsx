@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '../../components/ui'
 import { parseTable } from '../../lib/csv'
-import { addCharts, type ChartInput } from './qaStore'
+import { addCharts, importBotReviews, type ChartInput } from './qaStore'
+import { parseBotBatch, type ExternalReview } from './botBridge'
 import type { OperationId } from '../../types'
 
 // Fields we can pull out of a call-list export. incidentNumber is the only
@@ -34,7 +35,7 @@ function autoMap(headers: string[]): Record<string, string> {
   return map
 }
 
-type Tab = 'csv' | 'manual'
+type Tab = 'csv' | 'manual' | 'bot'
 
 export default function ImportCharts({
   periodId,
@@ -56,6 +57,11 @@ export default function ImportCharts({
 
   // Manual state
   const [manual, setManual] = useState<ChartInput>({ incidentNumber: '' })
+
+  // Bot-bridge state
+  const [botText, setBotText] = useState('')
+  const [botReviews, setBotReviews] = useState<ExternalReview[]>([])
+  const [botFileName, setBotFileName] = useState('')
 
   const previewCount = useMemo(() => {
     const col = mapping.incidentNumber
@@ -115,6 +121,42 @@ export default function ImportCharts({
     onClose()
   }
 
+  function parseBot(text: string) {
+    setError('')
+    const { reviews, error: err } = parseBotBatch(text)
+    if (err) {
+      setBotReviews([])
+      setError(err)
+      return
+    }
+    setBotReviews(reviews)
+  }
+
+  async function onBotFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBotFileName(file.name)
+    const text = await file.text()
+    setBotText(text)
+    parseBot(text)
+  }
+
+  function importBot() {
+    if (botReviews.length === 0) return setError('Nothing to import — load a bot batch first.')
+    const res = importBotReviews(periodId, operation, botReviews)
+    setError('')
+    onClose()
+    // Surface a quick summary of what landed where.
+    setTimeout(
+      () =>
+        alert(
+          `Imported ${res.total} bot review${res.total === 1 ? '' : 's'}: ` +
+            `${res.matched} matched to existing charts, ${res.created} added as new.`,
+        ),
+      50,
+    )
+  }
+
   return (
     <Modal title="Add charts" onClose={onClose}>
       <div className="segmented" style={{ marginBottom: 14 }}>
@@ -124,11 +166,14 @@ export default function ImportCharts({
         <button className={tab === 'manual' ? 'active' : ''} onClick={() => setTab('manual')}>
           Manual add
         </button>
+        <button className={tab === 'bot' ? 'active' : ''} onClick={() => setTab('bot')}>
+          Bot reviews
+        </button>
       </div>
 
       {error && <div className="banner crit">{error}</div>}
 
-      {tab === 'csv' ? (
+      {tab === 'csv' && (
         <div>
           <div className="field">
             <label>Call-list export (.csv)</label>
@@ -177,7 +222,9 @@ export default function ImportCharts({
             </>
           )}
         </div>
-      ) : (
+      )}
+
+      {tab === 'manual' && (
         <div>
           <div className="field">
             <label>Incident / Run # *</label>
@@ -214,6 +261,46 @@ export default function ImportCharts({
           <div className="btn-row">
             <button className="btn primary" onClick={addManual}>
               Add chart
+            </button>
+            <button className="btn" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === 'bot' && (
+        <div>
+          <div className="banner info">
+            Import scored reviews from the Ninth Brain Chart Review Agent. Reviews are matched to
+            charts in this period by incident number; anything new is added as a scored chart.
+          </div>
+          <div className="field">
+            <label>Bot batch (.json or .csv)</label>
+            <input type="file" accept=".json,.csv,application/json,text/csv" onChange={onBotFile} />
+            {botFileName && <div className="help-text">Loaded {botFileName}</div>}
+          </div>
+          <div className="field">
+            <label>…or paste the batch</label>
+            <textarea
+              value={botText}
+              onChange={(e) => {
+                setBotText(e.target.value)
+                parseBot(e.target.value)
+              }}
+              placeholder='{"reviews": [{"incidentNumber": "24001", "scorePct": 92, "notes": "…"}]}'
+              style={{ minHeight: 120, fontFamily: 'monospace', fontSize: 13 }}
+            />
+          </div>
+          {botReviews.length > 0 && (
+            <div className="banner info">
+              {botReviews.length} review{botReviews.length === 1 ? '' : 's'} parsed and ready to
+              import.
+            </div>
+          )}
+          <div className="btn-row">
+            <button className="btn primary" onClick={importBot} disabled={botReviews.length === 0}>
+              Import {botReviews.length || ''} reviews
             </button>
             <button className="btn" onClick={onClose}>
               Cancel

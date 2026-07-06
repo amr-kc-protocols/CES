@@ -2,6 +2,7 @@ import { setState, useSelector, getState } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { monthKey } from '../../lib/date'
 import { computeScore, rubricForOperation, LOW_SCORE_THRESHOLD } from '../../data/qaRubric'
+import { buildCriteriaResolver, normalizeStatus, type ExternalReview } from './botBridge'
 import type {
   Chart,
   ChartReview,
@@ -200,6 +201,110 @@ export function saveReview(
       c.id === chartId ? { ...c, status: 'scored', sampled: true, review } : c,
     ),
   }))
+}
+
+export interface BotImportResult {
+  matched: number
+  created: number
+  total: number
+}
+
+/**
+ * Import a batch of QA-bot reviews into a period (file bridge). Reviews are
+ * matched to existing charts by incident number; unmatched ones are added as
+ * scored charts so nothing the bot reviewed is lost. See botBridge.ts for the
+ * payload contract.
+ */
+export function importBotReviews(
+  periodId: string,
+  operation: OperationId,
+  reviews: ExternalReview[],
+): BotImportResult {
+  const db = getState()
+  const criteria = rubricForOperation(operation)
+  const resolve = buildCriteriaResolver(criteria)
+  const now = new Date().toISOString()
+  const key = (s: string) => s.trim().toLowerCase()
+
+  const existing = new Map<string, Chart>()
+  for (const c of db.charts) {
+    if (c.periodId === periodId) existing.set(key(c.incidentNumber), c)
+  }
+
+  const updates = new Map<string, Chart>()
+  const creates: Chart[] = []
+  let matched = 0
+  let created = 0
+
+  for (const r of reviews) {
+    const inc = (r.incidentNumber ?? '').trim()
+    if (!inc) continue
+
+    const scores: Record<string, CriterionStatus> = {}
+    if (r.criteria) {
+      for (const [k, v] of Object.entries(r.criteria)) {
+        const id = resolve(k)
+        const status = normalizeStatus(String(v))
+        if (id && status) scores[id] = status
+      }
+    }
+    const hasScores = Object.keys(scores).length > 0
+    const scorePct =
+      r.scorePct != null && Number.isFinite(r.scorePct)
+        ? Math.max(0, Math.min(100, Math.round(r.scorePct)))
+        : hasScores
+          ? computeScore(scores, criteria)
+          : 0
+    const flagged = r.flagged != null ? !!r.flagged : scorePct < LOW_SCORE_THRESHOLD
+    const review: ChartReview = {
+      scores,
+      scorePct,
+      notes: r.notes ?? '',
+      reviewer: r.reviewer || 'Chart Review Agent',
+      reviewedAt: now,
+      flagged,
+    }
+
+    const match = existing.get(key(inc))
+    if (match) {
+      updates.set(match.id, {
+        ...match,
+        provider: match.provider || r.provider,
+        date: match.date || r.date,
+        crew: match.crew || r.crew,
+        chiefComplaint: match.chiefComplaint || r.chiefComplaint,
+        acuity: match.acuity || r.acuity,
+        sampled: true,
+        status: 'scored',
+        review,
+      })
+      matched++
+    } else {
+      const chart: Chart = {
+        id: uid('chart'),
+        periodId,
+        operation,
+        incidentNumber: inc,
+        date: r.date,
+        provider: r.provider,
+        crew: r.crew,
+        chiefComplaint: r.chiefComplaint,
+        acuity: r.acuity,
+        sampled: true,
+        status: 'scored',
+        review,
+      }
+      creates.push(chart)
+      existing.set(key(inc), chart) // guard against duplicates within the batch
+      created++
+    }
+  }
+
+  setState((cur) => ({
+    ...cur,
+    charts: [...cur.charts.map((c) => updates.get(c.id) ?? c), ...creates],
+  }))
+  return { matched, created, total: matched + created }
 }
 
 export function setChartInProgress(chartId: string): void {

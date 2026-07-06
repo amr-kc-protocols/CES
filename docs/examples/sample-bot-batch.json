@@ -1,0 +1,34 @@
+{
+  "source": "ninth-brain-chart-review-agent",
+  "version": 1,
+  "reviews": [
+    {
+      "incidentNumber": "24001",
+      "date": "2026-07-03",
+      "provider": "Medic X",
+      "chiefComplaint": "Chest pain",
+      "acuity": "emergent",
+      "scorePct": 92,
+      "flagged": false,
+      "notes": "All critical elements documented; reassessment after NTG present.",
+      "criteria": { "vitals": "met", "meds": "partial", "handoff": "met" }
+    },
+    {
+      "incidentNumber": "24002",
+      "date": "2026-07-03",
+      "provider": "Medic Y",
+      "chiefComplaint": "Shortness of breath",
+      "scorePct": 71,
+      "notes": "Missing repeat vitals; no documented response to treatment.",
+      "criteria": { "vitals": "not_met", "reassess": "not_met" }
+    },
+    {
+      "incidentNumber": "24003",
+      "provider": "Medic X",
+      "chiefComplaint": "Interfacility — vent",
+      "scorePct": 96,
+      "notes": "Vent settings and infusion titration well documented.",
+      "criteria": { "vent": "met", "infusions": "met" }
+    }
+  ]
+}
