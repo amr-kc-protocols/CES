@@ -1,1 +1,89 @@
-# CES
+# AMR Clinical Education Suite (CES)
+
+An installable, offline-capable Progressive Web App for the AMR Clinical
+Education Specialist role (Kansas City · Cass County · Linn County). It gives a
+system to the two highest-volume / highest-risk workflows that otherwise live in
+Hunter's head:
+
+- **Module A — QA Review Queue:** monthly chart sampling at 20% per operation,
+  structured rubric scoring, progress tracking, and CQMP-ready exports.
+- **Module B — Kansas CE Deadline Tracker:** guarantees no KBEMS CE submission
+  passes its 30-day window unseen (color-coded urgency, overdue items pinned).
+- **Module E — Dashboard:** one glance at what's at risk right now.
+
+Built as the MVP defined in the role map & build spec. Phase-2 modules (PODS
+intake, academy/onboarding) are intentionally out of scope for this build.
+
+## Tech stack
+
+- **React 18 + TypeScript + Vite**
+- **vite-plugin-pwa** (Workbox) — installable, offline app shell, auto-update
+- **React Router** — client-side navigation
+- Local-first persistence (see below)
+
+## Getting started
+
+```bash
+npm install
+npm run dev        # local dev server
+npm run build      # type-check + production build to dist/
+npm run preview    # serve the production build locally
+npm run icons      # regenerate PWA icons from assets/logo.svg
+```
+
+## Deployment (Vercel)
+
+The repo is Vercel-ready. `vercel.json` provides the SPA rewrite so client-side
+routes (e.g. deep links into a QA period) resolve to `index.html`. Framework
+preset: **Vite**. Build command `npm run build`, output `dist/`.
+
+## Architecture
+
+```
+src/
+  lib/            storage (local-first store), csv, date, id helpers
+  data/           operations config + default QA rubric
+  components/     Layout (nav) + shared UI primitives
+  modules/
+    dashboard/    Module E — Today / at-risk view
+    qa/           Module A — periods, CSV import, sampling, rubric review
+    ce/           Module B — CE deadline tracker
+    settings/     reviewer/sample defaults, data backup, about
+```
+
+All state flows through `src/lib/store.ts`. Reads/writes go through that one
+module, so the persistence layer can be swapped without touching UI or domain
+logic.
+
+## Decisions made in this build (spec §8 open questions)
+
+The spec left several items open. Defensible defaults were chosen so the MVP
+ships; each is easy to revisit:
+
+1. **Persistence — local-first (device-only `localStorage`).** Zero-config
+   deploy and true offline support. The store is isolated behind one module, so
+   a shared backend (Supabase / Vercel Postgres) can be layered in later for
+   cross-device reporting. Settings → Data lets you export/import a JSON backup.
+2. **QA data source — both.** Module A imports a call-list **CSV** (with an
+   auto-detecting column mapper that tolerates unknown Ninth Brain / ImageTrend
+   export formats) **and** supports manual chart entry.
+3. **QA rubric — sensible EMS PCR default** encoded in `src/data/qaRubric.ts`
+   (weighted criteria, critical flags, KC critical-care items). Replace with
+   Hunter's official rubric when confirmed — it's a single data file.
+4. **Cass & Linn volumes — entered per review period.** Still open items in the
+   spec; the QA period form prompts for the month's actual volume to size the
+   sample.
+5. **CE alerts — in-app** (urgency colors, overdue pinning, tab badge). A
+   Teams/email push layer via the existing Power Automate setup can be added
+   later.
+6. **Class Builder — linked, not rebuilt.** Set the Kansas Class Builder URL in
+   Settings; the tracker/dashboard link out to it (spec §6 / §7).
+
+## Key logic
+
+- **CE due date** = `class date + 30 days`; urgency: green > 14d, amber 7–14d,
+  red < 7d or overdue. Overdue-unsubmitted items sort to the top and never hide.
+- **QA target** = `ceil(monthly_volume × 20%)` per operation. The sampler draws
+  that many charts at random (Fisher–Yates) from the imported pool into the
+  review queue. Chart state: unreviewed → in-progress → scored. Providers with
+  repeat low scores surface for coaching follow-up.
