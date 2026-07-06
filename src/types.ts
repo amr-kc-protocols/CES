@@ -100,10 +100,50 @@ export interface Settings {
   classBuilderUrl: string
 }
 
+// ----- Module D: New Hire Academy -------------------------------------------
+
+export type Credential = 'emt' | 'paramedic'
+
+/** Progression: academy checklist -> FTO rides -> released. Derived, not stored. */
+export type TraineePhase = 'academy' | 'fto' | 'released'
+
+export interface AcademyCohort {
+  id: string
+  /** Display label, e.g. 'September 2026 Academy'. */
+  label: string
+  /** ISO start date. */
+  startDate: string
+  /** ISO end date (academy runs ~1.5 weeks). */
+  endDate: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Trainee {
+  id: string
+  cohortId: string
+  name: string
+  /** Home operation the hire is being onboarded for. */
+  operation: OperationId
+  credential: Credential
+  /** moduleId -> ISO date completed. Absent key = not done. */
+  checklist: Record<string, string>
+  /** Post-academy FTO observational-ride patient contacts logged so far. */
+  contacts: number
+  /** Contacts needed for release (spec: roughly 20-30; default 25). */
+  contactTarget: number
+  /** Set when the provider is released to solo practice. */
+  releasedDate?: string
+  notes?: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
   qaPeriods: QAPeriod[]
   charts: Chart[]
+  academyCohorts: AcademyCohort[]
+  trainees: Trainee[]
   settings: Settings
 }

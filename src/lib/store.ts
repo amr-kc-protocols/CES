@@ -19,6 +19,8 @@ function emptyDB(): DBShape {
     ceClasses: [],
     qaPeriods: [],
     charts: [],
+    academyCohorts: [],
+    trainees: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '' },
   }
 }
