@@ -109,13 +109,31 @@ export default function ImportCharts({
       .filter((x): x is ChartInput => x !== null)
 
     if (inputs.length === 0) return setError('No rows had an incident number.')
-    addCharts(periodId, operation, inputs)
+    const res = addCharts(periodId, operation, inputs)
+    if (res.added === 0) {
+      return setError(
+        `All ${res.skipped} row${res.skipped === 1 ? ' is' : 's are'} already in this period — nothing imported.`,
+      )
+    }
     onClose()
+    if (res.skipped > 0) {
+      setTimeout(
+        () =>
+          alert(
+            `Imported ${res.added} chart${res.added === 1 ? '' : 's'}; ` +
+              `skipped ${res.skipped} duplicate${res.skipped === 1 ? '' : 's'} already in this period.`,
+          ),
+        50,
+      )
+    }
   }
 
   function addManual() {
     if (!manual.incidentNumber.trim()) return setError('Incident # is required.')
-    addCharts(periodId, operation, [manual])
+    const res = addCharts(periodId, operation, [manual])
+    if (res.added === 0) {
+      return setError(`#${manual.incidentNumber.trim()} is already in this period.`)
+    }
     setManual({ incidentNumber: '' })
     setError('')
     onClose()

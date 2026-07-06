@@ -21,7 +21,7 @@ function emptyDB(): DBShape {
     charts: [],
     academyCohorts: [],
     trainees: [],
-    settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '' },
+    settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }
 
@@ -114,8 +114,13 @@ export function exportDB(): string {
 }
 
 export function importDB(json: string): void {
-  const parsed = JSON.parse(json) as DBShape
-  setState(() => ({ ...emptyDB(), ...parsed }))
+  const parsed = JSON.parse(json) as Partial<DBShape>
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Not a CES backup file')
+  }
+  // Merge settings onto defaults, same as load(): a backup missing a settings
+  // field (e.g. samplePercent) must not leave it undefined until next reload.
+  setState(() => ({ ...emptyDB(), ...parsed, settings: { ...emptyDB().settings, ...parsed.settings } }))
 }
 
 export function resetDB(): void {

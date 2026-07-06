@@ -9,8 +9,10 @@ import type { RubricCriterion, CriterionStatus } from '../types'
 //
 // Two questions are phrased in reverse on the Ninth Brain form ("Were there
 // any near misses…?", "Does this chart need further review…?") — here they are
-// stated positively so Met is always the good answer; the bot bridge inverts
-// them on import. The original form wording is kept in `help`.
+// stated positively so Met is always the good answer. The Python converters
+// (scripts/xlsx_to_ces.py, scripts/ces_export.py) invert them before export;
+// batches must carry post-inversion values (docs/bot-bridge.md). The original
+// form wording is kept in `help`.
 // ---------------------------------------------------------------------------
 
 export const QA_RUBRIC: RubricCriterion[] = [

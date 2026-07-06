@@ -7,6 +7,7 @@ import QAPeriodView from './modules/qa/QAPeriodView'
 import ChartReviewScreen from './modules/qa/ChartReviewScreen'
 import AcademyList from './modules/academy/AcademyList'
 import CohortView from './modules/academy/CohortView'
+import BotTab from './modules/qa/BotTab'
 import Settings from './modules/settings/Settings'
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="qa/:periodId/chart/:chartId" element={<ChartReviewScreen />} />
         <Route path="academy" element={<AcademyList />} />
         <Route path="academy/:cohortId" element={<CohortView />} />
+        <Route path="bot" element={<BotTab />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />
       </Route>
