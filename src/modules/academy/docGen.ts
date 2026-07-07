@@ -18,7 +18,7 @@ import type { AcademyCohort, AcademyDay, Trainee } from '../../types'
 // keeps editable).
 // ---------------------------------------------------------------------------
 
-const esc = (s: string | undefined): string =>
+export const esc = (s: string | undefined): string =>
   (s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

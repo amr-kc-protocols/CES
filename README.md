@@ -17,9 +17,13 @@ Hunter's head:
   instructor availability) and a **document generator** that produces each
   new hire's packet from just their roster entry — personalized Field
   Training Objectives Page (EMT/Paramedic variants), folder cover label,
+  compliance & skills forms (Hep B registration/refusal, PPD skin test, mask
+  fit test, EVOC certificate + track skill sheet, GMR Safe Stretcher Handling
+  v3.2 — name/operation/employee # pre-filled, new-hire boxes pre-checked),
   Day-1 Welcome Kit checklist, facility cheat sheet, and printable schedule,
   all print-ready or downloadable as Word-openable .doc files
-  (content data: `src/data/ftObjectives.ts`, `src/data/academyTemplate.ts`).
+  (content data: `src/data/ftObjectives.ts`, `src/data/academyTemplate.ts`,
+  `src/modules/academy/complianceDocs.ts`).
 - **Module E — Dashboard:** one glance at what's at risk right now.
 
 Built from the role map & build spec. Remaining phase-2 module: PODS intake
