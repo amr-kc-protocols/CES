@@ -135,6 +135,10 @@ export interface Trainee {
   employment?: Employment
   /** Employee / Kronos number, printed on compliance and skills forms. */
   employeeNumber?: string
+  /** Contact email, captured at intake for the roster. */
+  email?: string
+  /** Contact phone, captured at intake for the roster. */
+  phone?: string
   /** ISO hire date, printed on the objectives page. */
   hireDate?: string
   /** FTO name(s) assigned for the ride-along shifts. */
