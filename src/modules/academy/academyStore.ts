@@ -1,6 +1,6 @@
 import { setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
-import { addDays, todayISO, fromISODate, monthKey } from '../../lib/date'
+import { addDays, todayISO, fromISODate, toISODate, monthKey } from '../../lib/date'
 import {
   ACADEMY_LENGTH_DAYS,
   DEFAULT_CONTACT_TARGET,
@@ -8,7 +8,15 @@ import {
   phaseOf,
   RELEASE_MIN_CONTACTS,
 } from '../../data/academy'
-import type { AcademyCohort, Credential, OperationId, Trainee } from '../../types'
+import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
+import type {
+  AcademyCohort,
+  AcademyDay,
+  Credential,
+  OperationId,
+  ScheduleBlock,
+  Trainee,
+} from '../../types'
 
 // ----- cohorts ---------------------------------------------------------------
 
@@ -55,6 +63,7 @@ export function deleteCohort(id: string): void {
     ...db,
     academyCohorts: db.academyCohorts.filter((c) => c.id !== id),
     trainees: db.trainees.filter((t) => t.cohortId !== id),
+    academyDays: db.academyDays.filter((d) => d.cohortId !== id),
   }))
 }
 
@@ -210,4 +219,126 @@ export function byStartDesc(a: AcademyCohort, b: AcademyCohort): number {
 
 export function cohortMonth(c: AcademyCohort): string {
   return monthKey(c.startDate)
+}
+
+// ----- schedule builder --------------------------------------------------------
+
+export function useCohortDays(cohortId: string | undefined): AcademyDay[] {
+  return useSelector((db) =>
+    db.academyDays
+      .filter((d) => d.cohortId === cohortId)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+  )
+}
+
+export function addDay(cohortId: string, date: string, title = ''): AcademyDay {
+  const day: AcademyDay = { id: uid('day'), cohortId, date, title, blocks: [] }
+  setState((db) => ({ ...db, academyDays: [...db.academyDays, day] }))
+  return day
+}
+
+export function updateDay(id: string, patch: Partial<AcademyDay>): void {
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+  }))
+}
+
+export function deleteDay(id: string): void {
+  setState((db) => ({ ...db, academyDays: db.academyDays.filter((d) => d.id !== id) }))
+}
+
+export function addBlock(dayId: string, block: Omit<ScheduleBlock, 'id'>): void {
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) =>
+      d.id === dayId ? { ...d, blocks: [...d.blocks, { ...block, id: uid('blk') }] } : d,
+    ),
+  }))
+}
+
+export function updateBlock(dayId: string, blockId: string, patch: Partial<ScheduleBlock>): void {
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) =>
+      d.id === dayId
+        ? { ...d, blocks: d.blocks.map((b) => (b.id === blockId ? { ...b, ...patch } : b)) }
+        : d,
+    ),
+  }))
+}
+
+export function deleteBlock(dayId: string, blockId: string): void {
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) =>
+      d.id === dayId ? { ...d, blocks: d.blocks.filter((b) => b.id !== blockId) } : d,
+    ),
+  }))
+}
+
+/** Move a block up/down within its day. */
+export function moveBlock(dayId: string, blockId: string, dir: -1 | 1): void {
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) => {
+      if (d.id !== dayId) return d
+      const i = d.blocks.findIndex((b) => b.id === blockId)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= d.blocks.length) return d
+      const blocks = [...d.blocks]
+      ;[blocks[i], blocks[j]] = [blocks[j], blocks[i]]
+      return { ...d, blocks }
+    }),
+  }))
+}
+
+/** Move a block to another day (appended at the end). */
+export function moveBlockToDay(fromDayId: string, blockId: string, toDayId: string): void {
+  setState((db) => {
+    const from = db.academyDays.find((d) => d.id === fromDayId)
+    const block = from?.blocks.find((b) => b.id === blockId)
+    if (!from || !block || fromDayId === toDayId) return db
+    return {
+      ...db,
+      academyDays: db.academyDays.map((d) => {
+        if (d.id === fromDayId) return { ...d, blocks: d.blocks.filter((b) => b.id !== blockId) }
+        if (d.id === toDayId) return { ...d, blocks: [...d.blocks, block] }
+        return d
+      }),
+    }
+  })
+}
+
+/** Next N weekdays (Mon-Fri) starting from `startISO` inclusive. */
+export function nextWeekdays(startISO: string, count: number): string[] {
+  const out: string[] = []
+  let d = fromISODate(startISO)
+  while (out.length < count) {
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) out.push(toISODate(d))
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
+  }
+  return out
+}
+
+/**
+ * Seed a cohort's schedule from the 5-day classroom template, mapped onto
+ * consecutive weekdays starting at the cohort start date. No-op days already
+ * scheduled are preserved; the template only adds.
+ */
+export function applyClassroomTemplate(cohortId: string, startISO: string): number {
+  const dates = nextWeekdays(startISO, CLASSROOM_TEMPLATE.length)
+  const days: AcademyDay[] = CLASSROOM_TEMPLATE.map((t, i) => ({
+    id: uid('day'),
+    cohortId,
+    date: dates[i],
+    title: t.title,
+    facilitators: t.facilitators,
+    location: t.location,
+    note: t.note,
+    blocks: t.blocks.map((b) => ({ ...b, id: uid('blk') })),
+  }))
+  setState((db) => ({ ...db, academyDays: [...db.academyDays, ...days] }))
+  return days.length
 }

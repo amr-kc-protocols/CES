@@ -21,6 +21,7 @@ function emptyDB(): DBShape {
     charts: [],
     academyCohorts: [],
     trainees: [],
+    academyDays: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }
