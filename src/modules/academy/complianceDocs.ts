@@ -136,13 +136,16 @@ function trainingHeader(t: Trainee, locationLabel: string): string {
     </table>`
 }
 
-const DUAL_SIGN = `
-    <p><em>By signing below, we confirm the training was successfully completed:</em></p>
+// Dual instructor/student sign-off. The student's *printed* name is pre-filled
+// from the roster; signature lines stay blank to be signed on paper.
+function dualSign(t: Trainee): string {
+  return `
     <table class="meta">
-      <tr><td><strong>Print Instructor's Name:</strong> ${line(200)}</td><td><strong>Print Student's Name:</strong> ${line(200)}</td></tr>
+      <tr><td><strong>Print Instructor's Name:</strong> ${line(200)}</td><td><strong>Print Student's Name:</strong> ${line(200, t.name)}</td></tr>
       <tr><td><strong>Instructor Signature:</strong> ${line(200)}</td><td><strong>Student's Signature:</strong> ${line(200)}</td></tr>
       <tr><td><strong>Date:</strong> ${line(60)} / ${line(60)} / ${line(60)}</td><td><strong>Date:</strong> ${line(60)} / ${line(60)} / ${line(60)}</td></tr>
     </table>`
+}
 
 export function evocCertHTML(t: Trainee): string {
   return `
@@ -168,7 +171,7 @@ export function evocCertHTML(t: Trainee): string {
       <li>Select <strong>Save &amp; Add</strong></li>
     </ol>
     <p><em>By signing below, we confirm the entire classroom, track training, and LMS Cornerstone EVOC Exam were successfully completed:</em></p>
-    ${DUAL_SIGN.replace('<p><em>By signing below, we confirm the training was successfully completed:</em></p>', '')}`
+    ${dualSign(t)}`
 }
 
 // ----- EVOC Track Skill Sheet ---------------------------------------------------
@@ -197,35 +200,55 @@ const TRACK_STATIONS: TrackStation[] = [
   { name: 'DIMINISHING LANE', items: ['Speed', 'Braking', 'Cone Avoidance'] },
 ]
 
+// Kept to a single page on purpose: the sheet is filled outdoors at the driving
+// course (often windy/wet), so the whole skill check has to sit on one sheet of
+// paper. The styles below are scoped to `.evoc-track` so compacting this form
+// doesn't shrink the other documents when the full packet prints together, and
+// the two-column station grid keeps all 8 stations on one page.
+const EVOC_TRACK_CSS = `
+  .evoc-track { font-size: 8.5px; line-height: 1.15; }
+  .evoc-track h1 { font-size: 15px; margin: 0 0 2px; }
+  .evoc-track .sub { margin: 0 0 4px; }
+  .evoc-track .note { padding: 3px 6px; margin: 0 0 4px; }
+  .evoc-track p { margin: 3px 0; }
+  .evoc-track .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+  .evoc-track table { margin: 0; page-break-inside: avoid; }
+  .evoc-track th, .evoc-track td { padding: 0 2px; border: 1px solid #999; }
+  .evoc-track .stn th { background: #111; color: #fff; font-size: 8px; }
+  .evoc-track .su { width: 15px; text-align: center; }
+  .evoc-track .sig-line { border-bottom: 1px solid #333; display: inline-block; min-width: 150px; }
+`
+
 export function evocTrackSheetHTML(t: Trainee): string {
-  const suCells = Array.from({ length: 8 }, () => '<td class="slot" style="width:22px">&nbsp;</td>').join('')
+  const suCells = Array.from({ length: 8 }, () => '<td class="su">&nbsp;</td>').join('')
+  const suHead = ['S', 'U', 'S', 'U', 'S', 'U', 'S', 'U']
+    .map((h, i) => `<th class="su" title="Run ${Math.floor(i / 2) + 1}">${h}</th>`)
+    .join('')
   const stationHtml = TRACK_STATIONS.map(
     (s) => `
-    <table style="margin:8px 0">
-      <tr>
-        <th style="background:#111;color:#fff">${esc(s.name)}</th>
-        ${['S', 'U', 'S', 'U', 'S', 'U', 'S', 'U'].map((h, i) => `<th class="slot" style="width:22px;background:#111;color:#fff" title="Run ${Math.floor(i / 2) + 1}">${h}</th>`).join('')}
-        <th style="width:200px;background:#111;color:#fff">COMMENTS</th>
-      </tr>
+    <table class="stn">
+      <tr><th>${esc(s.name)}</th>${suHead}<th style="width:70px">COMMENTS</th></tr>
       ${s.items
         .map(
           (item, i) =>
             `<tr><td>- ${esc(item)}</td>${suCells}<td>${i === 0 && s.comment ? `<em>${esc(s.comment)}</em>` : '&nbsp;'}</td></tr>`,
         )
         .join('')}
-      <tr><td colspan="9" style="text-align:right;border:none">&nbsp;</td><td><strong>Inst. Signature:</strong></td></tr>
+      <tr><td colspan="9" style="border:none">&nbsp;</td><td style="white-space:nowrap">Inst. Sig:</td></tr>
     </table>`,
   ).join('')
 
   return `
-    <div class="note" style="text-align:center;font-weight:700">THIS DOCUMENT MUST BE UPLOADED INTO NINTH BRAIN ALONG WITH THE EVOC TRAINING CERTIFICATE</div>
-    <h1>EVOC Track Skill Sheet</h1>
-    <p><strong>STUDENT:</strong> ${line(260, t.name)} &nbsp;&nbsp; <strong>DATE:</strong> ${line(130)}</p>
-    <p class="sub">Columns are S / U per run — Run #1 · Run #2 · Run #3 · Run #4</p>
-    ${stationHtml}
-    <p><em>All students are required to briefly demonstrate shuffle steering.</em></p>
-    <p><strong>Student Signature:</strong> ${line(240)} &nbsp;&nbsp; <strong>Overall:</strong> &nbsp; PASS &nbsp; / &nbsp; FAIL</p>
-    <p><strong>Range Master (Print):</strong> ${line(220)} &nbsp;&nbsp; <strong>Range Master Signature:</strong> ${line(220)}</p>`
+    <div class="evoc-track">
+      <style>${EVOC_TRACK_CSS}</style>
+      <div class="note" style="text-align:center;font-weight:700">THIS DOCUMENT MUST BE UPLOADED INTO NINTH BRAIN ALONG WITH THE EVOC TRAINING CERTIFICATE</div>
+      <h1>EVOC Track Skill Sheet</h1>
+      <p><strong>STUDENT:</strong> ${line(200, t.name)} &nbsp;&nbsp; <strong>DATE:</strong> ${line(110)}</p>
+      <p class="sub">S / U per run — Run #1 · #2 · #3 · #4. Initial "Inst. Sig" per station.</p>
+      <div class="grid">${stationHtml}</div>
+      <p style="margin-top:6px"><em>All students are required to briefly demonstrate shuffle steering.</em> &nbsp;&nbsp; <strong>Overall:</strong> &nbsp; PASS &nbsp; / &nbsp; FAIL</p>
+      <p><strong>Student Signature:</strong> <span class="sig-line"></span> &nbsp;&nbsp; <strong>Range Master (Print):</strong> <span class="sig-line" style="min-width:120px"></span> &nbsp;&nbsp; <strong>Range Master Sig:</strong> <span class="sig-line" style="min-width:120px"></span></p>
+    </div>`
 }
 
 // ----- Safe Stretcher Handling (GMR v3.2) ---------------------------------------
@@ -283,7 +306,7 @@ export function sshSheetHTML(t: Trainee): string {
       ${sshRows(SSH_RIGHT)}
     </table>
     <p><em>By signing below, we confirm the entire classroom and obstacle course training were successfully completed:</em></p>
-    ${DUAL_SIGN.replace('<p><em>By signing below, we confirm the training was successfully completed:</em></p>', '')}`
+    ${dualSign(t)}`
 }
 
 // ----- registry -----------------------------------------------------------------

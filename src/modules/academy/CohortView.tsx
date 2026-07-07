@@ -39,12 +39,18 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
   const [name, setName] = useState('')
   const [operation, setOperation] = useState<OperationId>('kc')
   const [credential, setCredential] = useState<Credential>('paramedic')
+  const [employeeNumber, setEmployeeNumber] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
 
   function save(keepOpen: boolean) {
     if (!name.trim()) return setError('Name is required.')
-    addTrainee(cohortId, { name, operation, credential })
+    addTrainee(cohortId, { name, operation, credential, employeeNumber, email, phone })
     setName('')
+    setEmployeeNumber('')
+    setEmail('')
+    setPhone('')
     setError('')
     if (!keepOpen) onClose()
   }
@@ -73,6 +79,34 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
             <option value="paramedic">Paramedic</option>
             <option value="emt">EMT</option>
           </select>
+        </div>
+      </div>
+      <div className="field">
+        <label>Employee / Kronos #</label>
+        <input
+          value={employeeNumber}
+          onChange={(e) => setEmployeeNumber(e.target.value)}
+          placeholder="Printed on EVOC / fit test forms"
+        />
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@gmr.net"
+          />
+        </div>
+        <div className="field">
+          <label>Phone</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="(816) 555-0134"
+          />
         </div>
       </div>
       {operation === 'kc' && credential === 'paramedic' && (
@@ -179,6 +213,26 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                 value={trainee.ftos ?? ''}
                 onChange={(e) => updateTrainee(trainee.id, { ftos: e.target.value || undefined })}
                 placeholder="e.g. M. Rodriguez, K. Patel"
+                style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
+              />
+            </label>
+            <label className="subtle" style={{ fontSize: 12 }}>
+              Email
+              <input
+                type="email"
+                value={trainee.email ?? ''}
+                onChange={(e) => updateTrainee(trainee.id, { email: e.target.value || undefined })}
+                placeholder="name@gmr.net"
+                style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
+              />
+            </label>
+            <label className="subtle" style={{ fontSize: 12 }}>
+              Phone
+              <input
+                type="tel"
+                value={trainee.phone ?? ''}
+                onChange={(e) => updateTrainee(trainee.id, { phone: e.target.value || undefined })}
+                placeholder="(816) 555-0134"
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
               />
             </label>

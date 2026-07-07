@@ -73,16 +73,26 @@ export interface TraineeInput {
   name: string
   operation: OperationId
   credential: Credential
+  employeeNumber?: string
+  email?: string
+  phone?: string
   contactTarget?: number
 }
 
 export function addTrainee(cohortId: string, input: TraineeInput): Trainee {
+  const clean = (s?: string) => {
+    const v = s?.trim()
+    return v ? v : undefined
+  }
   const trainee: Trainee = {
     id: uid('trainee'),
     cohortId,
     name: input.name.trim(),
     operation: input.operation,
     credential: input.credential,
+    employeeNumber: clean(input.employeeNumber),
+    email: clean(input.email),
+    phone: clean(input.phone),
     checklist: {},
     contacts: 0,
     contactTarget: input.contactTarget ?? DEFAULT_CONTACT_TARGET,
