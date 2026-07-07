@@ -122,6 +122,8 @@ export interface AcademyCohort {
   updatedAt: string
 }
 
+export type Employment = 'ft' | 'per_diem'
+
 export interface Trainee {
   id: string
   cohortId: string
@@ -129,6 +131,12 @@ export interface Trainee {
   /** Home operation the hire is being onboarded for. */
   operation: OperationId
   credential: Credential
+  /** Full-time / per diem, shown on generated documents. */
+  employment?: Employment
+  /** ISO hire date, printed on the objectives page. */
+  hireDate?: string
+  /** FTO name(s) assigned for the ride-along shifts. */
+  ftos?: string
   /** moduleId -> ISO date completed. Absent key = not done. */
   checklist: Record<string, string>
   /** Post-academy FTO observational-ride patient contacts logged so far. */
@@ -140,6 +148,31 @@ export interface Trainee {
   notes?: string
 }
 
+// ----- Academy schedule builder ---------------------------------------------
+
+export interface ScheduleBlock {
+  id: string
+  /** Display time range, e.g. '0900–0915'. Free text so times flex. */
+  time: string
+  title: string
+  note?: string
+}
+
+export interface AcademyDay {
+  id: string
+  cohortId: string
+  /** ISO date. Editable so days flex around instructor availability. */
+  date: string
+  /** Day theme, e.g. 'HR & Systems Onboarding'. */
+  title: string
+  /** Who delivers the day, free text. */
+  facilitators?: string
+  /** Logistics line, e.g. 'Meet HQ 7 AM -> Independence course'. */
+  location?: string
+  note?: string
+  blocks: ScheduleBlock[]
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -147,5 +180,6 @@ export interface DBShape {
   charts: Chart[]
   academyCohorts: AcademyCohort[]
   trainees: Trainee[]
+  academyDays: AcademyDay[]
   settings: Settings
 }

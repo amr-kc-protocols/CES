@@ -12,6 +12,14 @@ Hunter's head:
 - **Module D — New Hire Academy:** cohort rosters, the academy curriculum
   checklist (general AMR block + KC paramedic critical-care specialization),
   and post-academy FTO ride tracking to the 20–30 patient-contact release.
+  Includes the **Academy Builder**: a flexible day/block schedule editor
+  (seedable from the 5-day classroom template, days re-date to flex around
+  instructor availability) and a **document generator** that produces each
+  new hire's packet from just their roster entry — personalized Field
+  Training Objectives Page (EMT/Paramedic variants), folder cover label,
+  Day-1 Welcome Kit checklist, facility cheat sheet, and printable schedule,
+  all print-ready or downloadable as Word-openable .doc files
+  (content data: `src/data/ftObjectives.ts`, `src/data/academyTemplate.ts`).
 - **Module E — Dashboard:** one glance at what's at risk right now.
 
 Built from the role map & build spec. Remaining phase-2 module: PODS intake

@@ -25,7 +25,9 @@ import {
   updateTrainee,
 } from './academyStore'
 import CohortForm from './CohortForm'
-import type { Credential, OperationId, Trainee, TraineePhase } from '../../types'
+import ScheduleEditor from './ScheduleEditor'
+import DocumentsPanel from './DocumentsPanel'
+import type { Credential, Employment, OperationId, Trainee, TraineePhase } from '../../types'
 
 const PHASE_PILL: Record<TraineePhase, string> = {
   academy: 'warn',
@@ -138,6 +140,42 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
       {open && (
         <div style={{ marginTop: 14 }}>
           <div className="section-title" style={{ margin: '0 0 8px' }}>
+            Details (printed on documents)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <label className="subtle" style={{ fontSize: 12 }}>
+              Hire date
+              <input
+                type="date"
+                value={trainee.hireDate ?? ''}
+                onChange={(e) => updateTrainee(trainee.id, { hireDate: e.target.value || undefined })}
+                style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
+              />
+            </label>
+            <label className="subtle" style={{ fontSize: 12 }}>
+              Employment
+              <select
+                value={trainee.employment ?? ''}
+                onChange={(e) => updateTrainee(trainee.id, { employment: (e.target.value || undefined) as Employment | undefined })}
+                style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
+              >
+                <option value="">—</option>
+                <option value="ft">Full-Time</option>
+                <option value="per_diem">Per Diem</option>
+              </select>
+            </label>
+            <label className="subtle" style={{ fontSize: 12, gridColumn: '1 / -1' }}>
+              FTOs assigned
+              <input
+                value={trainee.ftos ?? ''}
+                onChange={(e) => updateTrainee(trainee.id, { ftos: e.target.value || undefined })}
+                placeholder="e.g. M. Rodriguez, K. Patel"
+                style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
+              />
+            </label>
+          </div>
+
+          <div className="section-title" style={{ margin: '0 0 8px' }}>
             Academy checklist
           </div>
           {[{ label: 'General AMR block', items: general }, ...(kcMedic.length ? [{ label: 'KC critical-care specialization', items: kcMedic }] : [])].map(
@@ -235,6 +273,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   )
 }
 
+type CohortTab = 'roster' | 'schedule' | 'docs'
+
 export default function CohortView() {
   const { cohortId = '' } = useParams()
   const cohort = useCohort(cohortId)
@@ -242,6 +282,7 @@ export default function CohortView() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [tab, setTab] = useState<CohortTab>('roster')
 
   if (!cohort) {
     return (
@@ -283,22 +324,41 @@ export default function CohortView() {
       </div>
 
       <div className="toolbar" style={{ marginTop: 14 }}>
-        <button className="btn primary" onClick={() => setShowAdd(true)}>
-          + Add trainee
-        </button>
+        <div className="segmented">
+          <button className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>
+            Roster ({trainees.length})
+          </button>
+          <button className={tab === 'schedule' ? 'active' : ''} onClick={() => setTab('schedule')}>
+            Schedule
+          </button>
+          <button className={tab === 'docs' ? 'active' : ''} onClick={() => setTab('docs')}>
+            Documents
+          </button>
+        </div>
+        <div className="spacer" />
+        {tab === 'roster' && (
+          <button className="btn primary" onClick={() => setShowAdd(true)}>
+            + Add trainee
+          </button>
+        )}
       </div>
 
-      {trainees.length === 0 ? (
-        <Empty icon="🧑‍🚒" title="No trainees on the roster yet">
-          Add the cohort roster — academies average ~6 participants across all three operations.
-        </Empty>
-      ) : (
-        <div className="list">
-          {trainees.map((t) => (
-            <TraineeCard key={t.id} trainee={t} />
-          ))}
-        </div>
-      )}
+      {tab === 'roster' &&
+        (trainees.length === 0 ? (
+          <Empty icon="🧑‍🚒" title="No trainees on the roster yet">
+            Add the cohort roster — academies average ~6 participants across all three operations.
+          </Empty>
+        ) : (
+          <div className="list">
+            {trainees.map((t) => (
+              <TraineeCard key={t.id} trainee={t} />
+            ))}
+          </div>
+        ))}
+
+      {tab === 'schedule' && <ScheduleEditor cohort={cohort} />}
+
+      {tab === 'docs' && <DocumentsPanel cohort={cohort} trainees={trainees} />}
 
       {showAdd && <AddTraineeModal cohortId={cohort.id} onClose={() => setShowAdd(false)} />}
       {showEdit && (
