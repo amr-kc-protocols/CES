@@ -200,23 +200,23 @@ const TRACK_STATIONS: TrackStation[] = [
   { name: 'DIMINISHING LANE', items: ['Speed', 'Braking', 'Cone Avoidance'] },
 ]
 
-// Kept to a single page on purpose: the sheet is filled outdoors at the driving
-// course (often windy/wet), so the whole skill check has to sit on one sheet of
-// paper. The styles below are scoped to `.evoc-track` so compacting this form
-// doesn't shrink the other documents when the full packet prints together, and
-// the two-column station grid keeps all 8 stations on one page.
+// Single page on purpose: the sheet is filled outdoors at the driving course
+// (often windy/wet), so the whole skill check sits on one sheet. Stations run
+// in one vertical column (matching the source form) and are sized to fill the
+// whole page — bigger type and taller S/U cells so there's real room to mark
+// each run by hand. Styles are scoped to `.evoc-track` so filling this form out
+// doesn't affect the other packet documents when they print together.
 const EVOC_TRACK_CSS = `
-  .evoc-track { font-size: 8.5px; line-height: 1.15; }
-  .evoc-track h1 { font-size: 15px; margin: 0 0 2px; }
-  .evoc-track .sub { margin: 0 0 4px; }
-  .evoc-track .note { padding: 3px 6px; margin: 0 0 4px; }
-  .evoc-track p { margin: 3px 0; }
-  .evoc-track .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
-  .evoc-track table { margin: 0; page-break-inside: avoid; }
-  .evoc-track th, .evoc-track td { padding: 0 2px; border: 1px solid #999; }
-  .evoc-track .stn th { background: #111; color: #fff; font-size: 8px; }
-  .evoc-track .su { width: 15px; text-align: center; }
-  .evoc-track .sig-line { border-bottom: 1px solid #333; display: inline-block; min-width: 150px; }
+  .evoc-track { font-size: 9.5px; line-height: 1.15; }
+  .evoc-track h1 { font-size: 17px; margin: 0 0 3px; }
+  .evoc-track .sub { margin: 0 0 5px; font-size: 9.5px; }
+  .evoc-track .note { padding: 3px 8px; margin: 0 0 5px; }
+  .evoc-track p { margin: 4px 0; }
+  .evoc-track table { margin: 0 0 5px; page-break-inside: avoid; width: 100%; }
+  .evoc-track th, .evoc-track td { padding: 1px 5px; border: 1px solid #999; }
+  .evoc-track .stn th { background: #111; color: #fff; font-size: 9.5px; }
+  .evoc-track .su { width: 24px; text-align: center; }
+  .evoc-track .sig-line { border-bottom: 1px solid #333; display: inline-block; min-width: 200px; }
 `
 
 export function evocTrackSheetHTML(t: Trainee): string {
@@ -227,7 +227,7 @@ export function evocTrackSheetHTML(t: Trainee): string {
   const stationHtml = TRACK_STATIONS.map(
     (s) => `
     <table class="stn">
-      <tr><th>${esc(s.name)}</th>${suHead}<th style="width:70px">COMMENTS</th></tr>
+      <tr><th>${esc(s.name)}</th>${suHead}<th style="width:210px">COMMENTS</th></tr>
       ${s.items
         .map(
           (item, i) =>
@@ -243,10 +243,10 @@ export function evocTrackSheetHTML(t: Trainee): string {
       <style>${EVOC_TRACK_CSS}</style>
       <div class="note" style="text-align:center;font-weight:700">THIS DOCUMENT MUST BE UPLOADED INTO NINTH BRAIN ALONG WITH THE EVOC TRAINING CERTIFICATE</div>
       <h1>EVOC Track Skill Sheet</h1>
-      <p><strong>STUDENT:</strong> ${line(200, t.name)} &nbsp;&nbsp; <strong>DATE:</strong> ${line(110)}</p>
+      <p><strong>STUDENT:</strong> ${line(220, t.name)} &nbsp;&nbsp; <strong>DATE:</strong> ${line(120)}</p>
       <p class="sub">S / U per run — Run #1 · #2 · #3 · #4. Initial "Inst. Sig" per station.</p>
-      <div class="grid">${stationHtml}</div>
-      <p style="margin-top:6px"><em>All students are required to briefly demonstrate shuffle steering.</em> &nbsp;&nbsp; <strong>Overall:</strong> &nbsp; PASS &nbsp; / &nbsp; FAIL</p>
+      ${stationHtml}
+      <p style="margin-top:5px"><em>All students are required to briefly demonstrate shuffle steering.</em> &nbsp;&nbsp; <strong>Overall:</strong> &nbsp; PASS &nbsp; / &nbsp; FAIL</p>
       <p><strong>Student Signature:</strong> <span class="sig-line"></span> &nbsp;&nbsp; <strong>Range Master (Print):</strong> <span class="sig-line" style="min-width:120px"></span> &nbsp;&nbsp; <strong>Range Master Sig:</strong> <span class="sig-line" style="min-width:120px"></span></p>
     </div>`
 }
