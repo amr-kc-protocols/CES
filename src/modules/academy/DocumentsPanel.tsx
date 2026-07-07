@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { CREDENTIAL_LABELS } from '../../data/academy'
 import { useCohortDays } from './academyStore'
 import {
@@ -10,10 +11,28 @@ import {
   facilitySheetHTML,
   scheduleHTML,
 } from './docGen'
+import { COMPLIANCE_DOCS } from './complianceDocs'
 import type { AcademyCohort, Trainee } from '../../types'
 
 // One name in, the whole packet out: each trainee's personalized documents
 // plus the cohort-level docs, all print-ready or Word-downloadable.
+
+const PAGE_BREAK = '<div style="page-break-after: always"></div>'
+
+/** Every per-trainee document, in packet print order. */
+function traineeDocs(t: Trainee): { id: string; label: string; html: string }[] {
+  return [
+    { id: 'label', label: 'Folder cover label', html: folderLabelHTML(t) },
+    { id: 'objectives', label: 'Field Training Objectives Page', html: objectivesPageHTML(t) },
+    ...COMPLIANCE_DOCS.map((d) => ({ id: d.id, label: d.label, html: d.html(t) })),
+  ]
+}
+
+function packetHTML(t: Trainee): string {
+  return traineeDocs(t)
+    .map((d) => d.html)
+    .join(PAGE_BREAK)
+}
 
 export default function DocumentsPanel({
   cohort,
@@ -23,18 +42,10 @@ export default function DocumentsPanel({
   trainees: Trainee[]
 }) {
   const days = useCohortDays(cohort.id)
-
-  function traineePacket(t: Trainee): { title: string; html: string } {
-    // Objectives page + folder cover in one print job, separated by a page break.
-    const html = `${folderLabelHTML(t)}<div style="page-break-after: always"></div>${objectivesPageHTML(t)}`
-    return { title: `${t.name} — New Hire Packet`, html }
-  }
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   function printAllPackets() {
-    const html = trainees
-      .map((t) => `${folderLabelHTML(t)}<div style="page-break-after: always"></div>${objectivesPageHTML(t)}`)
-      .join('<div style="page-break-after: always"></div>')
-    printDoc(`${cohort.label} — All New Hire Packets`, html)
+    printDoc(`${cohort.label} — All New Hire Packets`, trainees.map(packetHTML).join(PAGE_BREAK))
   }
 
   const cohortDocs = [
@@ -66,8 +77,10 @@ export default function DocumentsPanel({
       <div className="card" style={{ padding: 14 }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Per-trainee packets</div>
         <div className="subtle" style={{ marginBottom: 10 }}>
-          Folder cover label + personalized Field Training Objectives Page (EMT or Paramedic
-          version, name/position/hire date filled in).
+          The complete new-hire paperwork from one roster entry: folder cover, Field Training
+          Objectives Page (EMT/Paramedic version), Hep B, PPD, mask fit test, EVOC certificate +
+          track skill sheet, and safe stretcher handling — name, operation, and employee # filled
+          in, new-hire boxes pre-checked.
         </div>
         {trainees.length === 0 ? (
           <div className="subtle">Add trainees to the roster to generate their packets.</div>
@@ -75,26 +88,55 @@ export default function DocumentsPanel({
           <>
             <div className="list" style={{ gap: 6 }}>
               {trainees.map((t) => {
-                const packet = traineePacket(t)
+                const docs = traineeDocs(t)
+                const isOpen = expanded === t.id
                 return (
-                  <div key={t.id} className="row" style={{ padding: '8px 12px' }}>
-                    <div className="grow">
-                      <span style={{ fontWeight: 600 }}>{t.name}</span>{' '}
-                      <span className="subtle">· {CREDENTIAL_LABELS[t.credential]}</span>
+                  <div key={t.id} className="row" style={{ padding: '8px 12px', flexDirection: 'column', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="grow">
+                        <span style={{ fontWeight: 600 }}>{t.name}</span>{' '}
+                        <span className="subtle">· {CREDENTIAL_LABELS[t.credential]} · {docs.length} documents</span>
+                      </div>
+                      <div className="btn-row" style={{ gap: 6 }}>
+                        <button
+                          className="btn sm primary"
+                          onClick={() => printDoc(`${t.name} — New Hire Packet`, packetHTML(t))}
+                        >
+                          🖨 Packet
+                        </button>
+                        <button
+                          className="btn sm"
+                          onClick={() =>
+                            downloadDoc(safeFilename(`${t.name}_New_Hire_Packet`), `${t.name} — New Hire Packet`, packetHTML(t))
+                          }
+                        >
+                          ⬇ Word
+                        </button>
+                        <button className="btn sm ghost" onClick={() => setExpanded(isOpen ? null : t.id)}>
+                          {isOpen ? '▾' : '▸'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="btn-row" style={{ gap: 6 }}>
-                      <button className="btn sm" onClick={() => printDoc(packet.title, packet.html)}>
-                        🖨 Print
-                      </button>
-                      <button
-                        className="btn sm"
-                        onClick={() =>
-                          downloadDoc(safeFilename(`${t.name}_New_Hire_Packet`), packet.title, packet.html)
-                        }
-                      >
-                        ⬇ Word
-                      </button>
-                    </div>
+                    {isOpen && (
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {docs.map((d) => (
+                          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
+                            <span className="subtle grow" style={{ flex: 1 }}>
+                              {d.label}
+                            </span>
+                            <button className="btn sm" onClick={() => printDoc(`${t.name} — ${d.label}`, d.html)}>
+                              🖨
+                            </button>
+                            <button
+                              className="btn sm"
+                              onClick={() => downloadDoc(safeFilename(`${t.name}_${d.label}`), `${t.name} — ${d.label}`, d.html)}
+                            >
+                              ⬇
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}

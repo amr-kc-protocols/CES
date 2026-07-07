@@ -164,7 +164,16 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                 <option value="per_diem">Per Diem</option>
               </select>
             </label>
-            <label className="subtle" style={{ fontSize: 12, gridColumn: '1 / -1' }}>
+            <label className="subtle" style={{ fontSize: 12 }}>
+              Employee / Kronos #
+              <input
+                value={trainee.employeeNumber ?? ''}
+                onChange={(e) => updateTrainee(trainee.id, { employeeNumber: e.target.value || undefined })}
+                placeholder="Printed on EVOC / fit test forms"
+                style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
+              />
+            </label>
+            <label className="subtle" style={{ fontSize: 12 }}>
               FTOs assigned
               <input
                 value={trainee.ftos ?? ''}

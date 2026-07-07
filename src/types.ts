@@ -133,6 +133,8 @@ export interface Trainee {
   credential: Credential
   /** Full-time / per diem, shown on generated documents. */
   employment?: Employment
+  /** Employee / Kronos number, printed on compliance and skills forms. */
+  employeeNumber?: string
   /** ISO hire date, printed on the objectives page. */
   hireDate?: string
   /** FTO name(s) assigned for the ride-along shifts. */
