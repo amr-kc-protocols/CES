@@ -10,9 +10,11 @@ import {
   welcomeKitHTML,
   facilitySheetHTML,
   scheduleHTML,
+  agendaHTML,
 } from './docGen'
+import { scheduleICS, downloadICS } from './calendar'
 import { COMPLIANCE_DOCS } from './complianceDocs'
-import type { AcademyCohort, Trainee } from '../../types'
+import type { AcademyCohort, AcademyDay, Trainee } from '../../types'
 
 // One name in, the whole packet out: each trainee's personalized documents
 // plus the cohort-level docs, all print-ready or Word-downloadable.
@@ -20,16 +22,23 @@ import type { AcademyCohort, Trainee } from '../../types'
 const PAGE_BREAK = '<div style="page-break-after: always"></div>'
 
 /** Every per-trainee document, in packet print order. */
-function traineeDocs(t: Trainee): { id: string; label: string; html: string }[] {
+function traineeDocs(
+  t: Trainee,
+  cohort: AcademyCohort,
+  days: AcademyDay[],
+): { id: string; label: string; html: string }[] {
   return [
     { id: 'label', label: 'Folder cover label', html: folderLabelHTML(t) },
+    ...(days.length
+      ? [{ id: 'agenda', label: 'One-page agenda', html: agendaHTML(cohort, days, t) }]
+      : []),
     { id: 'objectives', label: 'Field Training Objectives Page', html: objectivesPageHTML(t) },
     ...COMPLIANCE_DOCS.map((d) => ({ id: d.id, label: d.label, html: d.html(t) })),
   ]
 }
 
-function packetHTML(t: Trainee): string {
-  return traineeDocs(t)
+function packetHTML(t: Trainee, cohort: AcademyCohort, days: AcademyDay[]): string {
+  return traineeDocs(t, cohort, days)
     .map((d) => d.html)
     .join(PAGE_BREAK)
 }
@@ -45,7 +54,10 @@ export default function DocumentsPanel({
   const [expanded, setExpanded] = useState<string | null>(null)
 
   function printAllPackets() {
-    printDoc(`${cohort.label} — All New Hire Packets`, trainees.map(packetHTML).join(PAGE_BREAK))
+    printDoc(
+      `${cohort.label} — All New Hire Packets`,
+      trainees.map((t) => packetHTML(t, cohort, days)).join(PAGE_BREAK),
+    )
   }
 
   const cohortDocs = [
@@ -64,7 +76,14 @@ export default function DocumentsPanel({
       disabled: false,
     },
     {
-      label: '🗓️ Schedule',
+      label: '📆 One-page agenda',
+      title: `${cohort.label} — Agenda`,
+      file: `${cohort.label}_Agenda`,
+      html: () => agendaHTML(cohort, days),
+      disabled: days.length === 0,
+    },
+    {
+      label: '🗓️ Schedule (full)',
       title: `${cohort.label} — Schedule`,
       file: `${cohort.label}_Schedule`,
       html: () => scheduleHTML(cohort, days),
@@ -88,7 +107,7 @@ export default function DocumentsPanel({
           <>
             <div className="list" style={{ gap: 6 }}>
               {trainees.map((t) => {
-                const docs = traineeDocs(t)
+                const docs = traineeDocs(t, cohort, days)
                 const isOpen = expanded === t.id
                 return (
                   <div key={t.id} className="row" style={{ padding: '8px 12px', flexDirection: 'column', alignItems: 'stretch' }}>
@@ -100,14 +119,18 @@ export default function DocumentsPanel({
                       <div className="btn-row" style={{ gap: 6 }}>
                         <button
                           className="btn sm primary"
-                          onClick={() => printDoc(`${t.name} — New Hire Packet`, packetHTML(t))}
+                          onClick={() => printDoc(`${t.name} — New Hire Packet`, packetHTML(t, cohort, days))}
                         >
                           🖨 Packet
                         </button>
                         <button
                           className="btn sm"
                           onClick={() =>
-                            downloadDoc(safeFilename(`${t.name}_New_Hire_Packet`), `${t.name} — New Hire Packet`, packetHTML(t))
+                            downloadDoc(
+                              safeFilename(`${t.name}_New_Hire_Packet`),
+                              `${t.name} — New Hire Packet`,
+                              packetHTML(t, cohort, days),
+                            )
                           }
                         >
                           ⬇ Word
@@ -173,6 +196,23 @@ export default function DocumentsPanel({
               </div>
             </div>
           ))}
+          <div className="row" style={{ padding: '8px 12px' }}>
+            <div className="grow" style={{ fontWeight: 600 }}>
+              📅 Calendar file (.ics)
+              <div className="subtle" style={{ fontWeight: 400, fontSize: 12 }}>
+                Import into Outlook / Google / Apple Calendar, or email to instructors.
+              </div>
+            </div>
+            <div className="btn-row" style={{ gap: 6 }}>
+              <button
+                className="btn sm"
+                disabled={days.length === 0}
+                onClick={() => downloadICS(safeFilename(`${cohort.label}_Academy`), scheduleICS(cohort, days))}
+              >
+                ⬇ .ics
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
