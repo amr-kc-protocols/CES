@@ -3,18 +3,30 @@ import type { AcademyTemplate, TemplateSession } from '../types'
 // ---------------------------------------------------------------------------
 // Academy — Phase 2 (Clinical Depth, Specialty Transports & Field Readiness).
 //
-// Transcribed from the Phase 2 CES integration brief. Sessions are ordered, not
-// dated: block durations are fixed here; dates, clock start times, and
-// facilitator names are layered on per class as a SessionArrangement. Every
-// in-person session is built to >= 6 hours of genuine education (breaks/lunch
-// excluded). Academy completion is an INTERNAL record only — never CE.
+// Transcribed from the Phase 2 CES integration brief, then fitted to the real
+// teaching day: classes start 0900 (EVOC road course is the 0700 exception,
+// handled in the Phase 1 free-form schedule), break an hour for lunch, stop
+// content at 1530, and reserve 1530–1600 for housekeeping. That day holds ~5h
+// of teaching, so each in-person session was compressed from the brief's ~7h —
+// hands-on sim/scenario/assessment blocks were protected and lecture time was
+// trimmed or merged (see block titles). Sessions are ordered, not dated; dates
+// and facilitator names are layered on per class. Completion is an INTERNAL
+// record only — never CE.
 // ---------------------------------------------------------------------------
+
+const HOUSEKEEPING = {
+  durationMin: 30,
+  kind: 'closeout' as const,
+  title: 'Housekeeping & closeout',
+  notes: 'Announcements, paperwork, questions, next-session logistics.',
+}
 
 const SESSIONS: TemplateSession[] = [
   {
     id: 'p2s1',
     order: 1,
     mode: 'in-person',
+    defaultStart: '0900',
     title: 'Clinical Mindset & IFT Call Types',
     objectives: [
       'Sort any transfer into call-type category + level of care',
@@ -27,15 +39,14 @@ const SESSIONS: TemplateSession[] = [
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Opener: prior-phase cumulative recall + arc overview', notes: '3 items from Phase 1 (systems, ImageTrend Med-Nec, safety).' },
-      { durationMin: 90, kind: 'education', title: 'Clinical mindset & patient population', notes: 'IFT vs 911, level-of-care matching, "why does this patient need us."' },
+      { durationMin: 75, kind: 'education', title: 'Clinical mindset & patient population', notes: 'IFT vs 911, level-of-care matching, "why does this patient need us."' },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 90, kind: 'education', title: 'IFT Call Types deep dive I — Cardiac & Neuro', notes: 'Small-group card-sort + present-back.', resources: ['call-guide'] },
-      { durationMin: 30, kind: 'education', title: 'KC Med Guidelines scope drill (ALS vs BLS)', resources: ['call-guide-scope'] },
-      { durationMin: 30, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 75, kind: 'education', title: 'IFT Call Types deep dive II — Pulmonary/Medical · Routine BLS · intro Accompanied Specialty', resources: ['call-guide'] },
+      { durationMin: 75, kind: 'education', title: 'IFT Call Types deep dive (Cardiac & Neuro) + ALS/BLS scope drill', notes: 'Small-group card-sort + present-back; merges call-types I and the KC Med Guidelines scope drill.', resources: ['call-guide', 'call-guide-scope'] },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
+      { durationMin: 75, kind: 'hands-on', title: 'Case-flow scenario lab — teams run call types end-to-end', notes: 'Assess → transport → chart; rotate roles; Captains spot-check Med-Nec.', resources: ['imagetrend'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 90, kind: 'hands-on', title: 'Case-flow scenario lab — teams run 3 call types end-to-end', notes: 'Assess → transport → chart; rotate roles; Captains spot-check Med-Nec.', resources: ['imagetrend'] },
-      { durationMin: 30, kind: 'assessment', title: 'Narrative/Med-Nec critique + cumulative retrieval quiz + next-session preview' },
+      { durationMin: 60, kind: 'assessment', title: 'Call Types II (Pulmonary/Medical · BLS · intro Accompanied Specialty) + Med-Nec critique + retrieval quiz', notes: 'Merges call-types II with the narrative/Med-Nec critique and cumulative retrieval + preview.', resources: ['call-guide'] },
+      HOUSEKEEPING,
     ],
     retrieval: { pullsFrom: [] },
   },
@@ -43,6 +54,7 @@ const SESSIONS: TemplateSession[] = [
     id: 'p2s2',
     order: 2,
     mode: 'in-person',
+    defaultStart: '0900',
     title: 'Mechanical Ventilation (LTV 1200)',
     objectives: [
       'Explain LTV 1200 modes/settings/alarms',
@@ -55,15 +67,14 @@ const SESSIONS: TemplateSession[] = [
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Recall opener (call types) · objectives' },
-      { durationMin: 90, kind: 'education', title: 'Vent physiology, indications & modes', notes: 'Modules 1–3.', resources: ['vent-academy'] },
+      { durationMin: 75, kind: 'education', title: 'Vent physiology, indications, modes + alarms/DOPE', notes: 'Modules 1–3; alarms (high/low pressure, low MV, disconnect, silence logic) folded in.', resources: ['vent-academy'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 90, kind: 'hands-on', title: 'LTV 1200 orientation + guided simulator walk-through', notes: 'Instructor drives, trainees mirror.', resources: ['vent-sim'] },
-      { durationMin: 30, kind: 'education', title: 'Alarms & troubleshooting (DOPE)', notes: 'High/low pressure, low MV, disconnect, silence logic.' },
-      { durationMin: 30, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 90, kind: 'hands-on', title: 'Simulator reps — round 1 (guided)', notes: 'Every trainee hands-on through graded scenarios.', resources: ['vent-sim'] },
+      { durationMin: 60, kind: 'hands-on', title: 'LTV 1200 orientation + guided simulator walk-through', notes: 'Instructor drives, trainees mirror.', resources: ['vent-sim'] },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
+      { durationMin: 75, kind: 'hands-on', title: 'Simulator reps — round 1 (guided)', notes: 'Every trainee hands-on through graded scenarios.', resources: ['vent-sim'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 75, kind: 'assessment', title: 'Simulator reps — round 2 (independent) + skills check-off', notes: 'Paramedic: ALS scenarios. EMT: recognition + BVM.' },
-      { durationMin: 30, kind: 'assessment', title: 'Transport doctrine (ICU-ICU, BVM-ready, charting) + vent quiz + preview', resources: ['quiz-vent'] },
+      { durationMin: 75, kind: 'assessment', title: 'Simulator reps — round 2 (independent) + skills check-off + vent quiz', notes: 'Paramedic: ALS scenarios. EMT: recognition + BVM. Transport doctrine (ICU-ICU, BVM-ready, charting) folded in.', resources: ['quiz-vent'] },
+      HOUSEKEEPING,
     ],
     retrieval: { pullsFrom: ['p2s1'], resource: 'quiz-vent' },
   },
@@ -90,6 +101,7 @@ const SESSIONS: TemplateSession[] = [
     id: 'p2s4',
     order: 4,
     mode: 'in-person',
+    defaultStart: '0900',
     title: 'Hemodynamics, Pressors & MCS',
     objectives: [
       'Use the shock lens (pump/tank/pipes)',
@@ -102,15 +114,14 @@ const SESSIONS: TemplateSession[] = [
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Opener (vent recall) · verify flipped pre-read + organ completion · objectives' },
-      { durationMin: 90, kind: 'education', title: 'Hemodynamic physiology + shock lens', notes: 'Builds on the flipped pre-read (modules 1 & 8).', resources: ['hemo-academy'] },
+      { durationMin: 75, kind: 'education', title: 'Hemodynamic physiology + shock lens', notes: 'Builds on the flipped pre-read (modules 1 & 8).', resources: ['hemo-academy'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 90, kind: 'education', title: 'Pressors & the hypotensive patient + arterial lines', notes: 'MAP targets, pressor selection, pump/rate familiarity (modules 2–3).', resources: ['hemo-academy'] },
-      { durationMin: 30, kind: 'education', title: 'Hypertensive emergencies & vasoactive infusions', notes: 'Module 4.', resources: ['hemo-academy'] },
-      { durationMin: 30, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 90, kind: 'education', title: 'MCS familiarity — IABP · Impella · ECMO', notes: '"Specialty team owns the device" (modules 5–7).', resources: ['hemo-academy', 'call-guide'] },
+      { durationMin: 75, kind: 'education', title: 'Pressors, arterial lines + hypertensive & vasoactive infusions', notes: 'MAP targets, pressor selection, pump/rate familiarity (modules 2–4).', resources: ['hemo-academy'] },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
+      { durationMin: 75, kind: 'hands-on', title: 'MCS familiarity (IABP · Impella · ECMO) + accompanied-specialty scenario lab', notes: '"Specialty team owns the device" (modules 5–7); then a pressor-dependent + MCS accompanied transport — role clarity, in-scope monitoring, documentation.', resources: ['hemo-academy', 'call-guide'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 60, kind: 'hands-on', title: 'Accompanied-specialty scenario lab', notes: 'Pressor-dependent transfer + an MCS accompanied transport; role clarity, in-scope monitoring, documentation.' },
-      { durationMin: 45, kind: 'assessment', title: 'Impella & ECMO quiz + cumulative retrieval + preview', resources: ['quiz-impella-ecmo'] },
+      { durationMin: 60, kind: 'assessment', title: 'Impella & ECMO quiz + cumulative retrieval + preview', resources: ['quiz-impella-ecmo'] },
+      HOUSEKEEPING,
     ],
     retrieval: { pullsFrom: ['p2s1', 'p2s2'], resource: 'quiz-impella-ecmo' },
   },
@@ -118,6 +129,7 @@ const SESSIONS: TemplateSession[] = [
     id: 'p2s5',
     order: 5,
     mode: 'in-person',
+    defaultStart: '0900',
     title: 'Specialty Transports, Capstone & FTO Hand-off',
     objectives: [
       'Pass the capstone circuit',
@@ -132,15 +144,14 @@ const SESSIONS: TemplateSession[] = [
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Opener · academy arc recap · objectives' },
-      { durationMin: 75, kind: 'education', title: 'Organ Transport — applied (flipped: module done Session 3)', notes: '3-mission discussion, donor ethics/professionalism, OPO relationship. Guest if confirmed.', resources: ['organ'] },
+      { durationMin: 75, kind: 'education', title: 'Organ Transport (applied, flipped) + other high-acuity specialty', notes: '3-mission discussion + donor ethics/OPO; peds (Children’s Mercy), bariatric, long-distance (O2 2×, batteries, supervisor threshold), NICU/flight roles. Guest if confirmed.', resources: ['organ', 'call-guide'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 75, kind: 'education', title: 'Other high-acuity specialty', notes: 'Peds (Children’s Mercy), bariatric, long-distance (O2 2×, batteries, supervisor threshold), NICU/flight roles.', resources: ['call-guide'] },
       { durationMin: 75, kind: 'assessment', title: 'Capstone scenario circuit — vent · hemodynamics/pressor · call-type+charting · specialty', notes: 'FTO-observed competency check.' },
-      { durationMin: 30, kind: 'lunch', title: 'Lunch' },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
       { durationMin: 75, kind: 'assessment', title: 'Final independent ImageTrend chart (specialty case) + DCHART/Med-Nec critique', resources: ['imagetrend'] },
-      { durationMin: 45, kind: 'assessment', title: 'Final cumulative retrieval exam (whole academy)' },
-      { durationMin: 30, kind: 'education', title: 'Field-phase expectations', notes: 'NEOP checklist (Section C + Call-Type Exposure log), I-do/we-do/you-do, exposure→training JIT triggers.' },
-      { durationMin: 30, kind: 'education', title: 'Sign-offs · internal completion records · FTO pairing · graduation · first-shift logistics', notes: 'Not CE.' },
+      { durationMin: 15, kind: 'break', title: 'Break' },
+      { durationMin: 60, kind: 'assessment', title: 'Final cumulative retrieval exam (whole academy) + field-phase expectations', notes: 'NEOP checklist (Section C + Call-Type Exposure log), I-do/we-do/you-do, exposure→training JIT triggers.' },
+      { durationMin: 30, kind: 'closeout', title: 'Sign-offs · FTO pairing · graduation · first-shift logistics', notes: 'Internal completion records (not CE), FTO pairing, first-shift logistics.' },
     ],
     retrieval: { pullsFrom: ['p2s1', 'p2s2', 'p2s4'] },
   },
@@ -150,16 +161,19 @@ export const PHASE2_TEMPLATE: AcademyTemplate = {
   id: 'p2',
   name: 'Academy — Phase 2 (Clinical)',
   notCE: true,
-  minEducationHoursPerDay: 6,
+  // A real 0900–1600 day (1h lunch, 1530 content stop, 30m housekeeping) holds
+  // ~5h of teaching; sessions are fitted to that.
+  minEducationHoursPerDay: 5,
   phase: { id: 'p2', name: 'Clinical Depth, Specialty Transports & Field Readiness' },
   sessions: SESSIONS,
 }
 
 // ----- derived helpers ------------------------------------------------------
 
-const NON_EDUCATION: ReadonlySet<string> = new Set(['break', 'lunch'])
+// Break, lunch, and housekeeping/closeout are not teaching time.
+const NON_EDUCATION: ReadonlySet<string> = new Set(['break', 'lunch', 'closeout'])
 
-/** Minutes of genuine education in a session (excludes break/lunch). */
+/** Minutes of genuine education in a session (excludes break/lunch/closeout). */
 export function educationMinutes(session: TemplateSession): number {
   if (!session.blocks) {
     // At-home: sum segment hours (LMS + flipped).

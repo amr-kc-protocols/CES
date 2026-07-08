@@ -16,6 +16,7 @@ const KIND_LABEL: Record<TemplateBlock['kind'], string> = {
   assessment: 'Assessment',
   break: 'Break',
   lunch: 'Lunch',
+  closeout: 'Housekeeping',
 }
 
 const KIND_CLS: Record<TemplateBlock['kind'], string> = {
@@ -24,6 +25,7 @@ const KIND_CLS: Record<TemplateBlock['kind'], string> = {
   assessment: 'warn',
   break: 'muted',
   lunch: 'muted',
+  closeout: 'muted',
 }
 
 const fmtHours = (min: number): string => {
@@ -70,7 +72,8 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
   const arr = arrangements[session.id]
   const eduMin = educationMinutes(session)
   const under = isUnderMinHours(session, PHASE2_TEMPLATE.minEducationHoursPerDay)
-  const rows = timeline(session, arr?.startTime)
+  const effectiveStart = arr?.startTime || session.defaultStart
+  const rows = timeline(session, effectiveStart)
 
   const set = (patch: Parameters<typeof setArrangement>[2]) => setArrangement(cohortId, session.id, patch)
 
@@ -103,7 +106,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
         {session.mode !== 'at-home' && (
           <label className="subtle" style={{ fontSize: 12 }}>
             Start time (HHMM)
-            <input value={arr?.startTime ?? ''} onChange={(e) => set({ startTime: e.target.value || undefined })} placeholder="0800" inputMode="numeric" style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }} />
+            <input value={arr?.startTime ?? ''} onChange={(e) => set({ startTime: e.target.value || undefined })} placeholder={`${session.defaultStart ?? '0900'} (default)`} inputMode="numeric" style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }} />
           </label>
         )}
         <label className="subtle" style={{ fontSize: 12 }}>

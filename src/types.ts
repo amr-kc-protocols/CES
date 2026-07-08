@@ -184,7 +184,7 @@ export interface AcademyDay {
 // arranges onto real dates/times. The template itself lives in code
 // (src/data/academyPhase2.ts); only the per-class arrangement is stored.
 
-export type BlockKind = 'education' | 'hands-on' | 'assessment' | 'break' | 'lunch'
+export type BlockKind = 'education' | 'hands-on' | 'assessment' | 'break' | 'lunch' | 'closeout'
 
 /** Which credential track a block/segment applies to. */
 export type SessionTrack = 'both' | 'emt' | 'paramedic'
@@ -219,6 +219,8 @@ export interface TemplateSession {
   mode: 'in-person' | 'at-home'
   title: string
   objectives: string[]
+  /** Default clock start ('HHMM') for this session before a class overrides it. */
+  defaultStart?: string
   facilitatorRoles?: { role: string; lead?: boolean }[]
   /** In-person sessions run blocks; at-home sessions run segments. */
   blocks?: TemplateBlock[]

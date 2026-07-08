@@ -247,6 +247,7 @@ const KIND_TAG: Record<string, string> = {
   assessment: 'Assessment',
   break: 'Break',
   lunch: 'Lunch',
+  closeout: 'Housekeeping',
 }
 
 function resourceLinks(refs: string[] | undefined): string {
@@ -303,7 +304,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
               .join('')}
           </table>`
       } else {
-        const rows = timeline(s, arr?.startTime)
+        const rows = timeline(s, arr?.startTime || s.defaultStart)
         if (rows) {
           body = `<table><tr><th style="width:96px">Time</th><th>Block</th><th style="width:80px">Kind</th></tr>
             ${rows
@@ -328,7 +329,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
 
       return `
         <h2>Session ${s.order} — ${esc(s.title)}${s.mode === 'at-home' ? ' · at home' : ''}</h2>
-        <p class="sub">${esc(when)}${arr?.startTime ? ` · starts ${esc(arr.startTime)}` : ''} · ${esc(facil)}</p>
+        <p class="sub">${esc(when)}${arr?.startTime || s.defaultStart ? ` · starts ${esc(arr?.startTime || s.defaultStart || '')}` : ''} · ${esc(facil)}</p>
         <p><strong>Education time:</strong> ${fmtHours(eduMin)} hrs${under ? ` <span class="flag">below ${t.minEducationHoursPerDay}-hr minimum</span>` : ''}${s.mode === 'at-home' ? ' (LMS + flipped)' : ''}</p>
         ${objectives}
         ${body}`
