@@ -26,6 +26,7 @@ import {
 } from './academyStore'
 import CohortForm from './CohortForm'
 import ScheduleEditor from './ScheduleEditor'
+import Phase2View from './Phase2View'
 import DocumentsPanel from './DocumentsPanel'
 import type { Credential, Employment, OperationId, Trainee, TraineePhase } from '../../types'
 
@@ -336,7 +337,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   )
 }
 
-type CohortTab = 'roster' | 'schedule' | 'docs'
+type CohortTab = 'roster' | 'schedule' | 'phase2' | 'docs'
 
 export default function CohortView() {
   const { cohortId = '' } = useParams()
@@ -394,6 +395,9 @@ export default function CohortView() {
           <button className={tab === 'schedule' ? 'active' : ''} onClick={() => setTab('schedule')}>
             Schedule
           </button>
+          <button className={tab === 'phase2' ? 'active' : ''} onClick={() => setTab('phase2')}>
+            Phase 2
+          </button>
           <button className={tab === 'docs' ? 'active' : ''} onClick={() => setTab('docs')}>
             Documents
           </button>
@@ -420,6 +424,8 @@ export default function CohortView() {
         ))}
 
       {tab === 'schedule' && <ScheduleEditor cohort={cohort} />}
+
+      {tab === 'phase2' && <Phase2View cohort={cohort} />}
 
       {tab === 'docs' && <DocumentsPanel cohort={cohort} trainees={trainees} />}
 

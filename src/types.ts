@@ -179,6 +179,77 @@ export interface AcademyDay {
   blocks: ScheduleBlock[]
 }
 
+// ----- Academy Phase 2 structured template ----------------------------------
+// A date-agnostic curriculum template (sequence + block durations) that a class
+// arranges onto real dates/times. The template itself lives in code
+// (src/data/academyPhase2.ts); only the per-class arrangement is stored.
+
+export type BlockKind = 'education' | 'hands-on' | 'assessment' | 'break' | 'lunch'
+
+/** Which credential track a block/segment applies to. */
+export type SessionTrack = 'both' | 'emt' | 'paramedic'
+
+export interface TemplateBlock {
+  /** Minutes; clock times are computed from the session start + these. */
+  durationMin: number
+  title: string
+  kind: BlockKind
+  notes?: string
+  track?: SessionTrack
+  /** Field Guide resource refs (see src/data/fieldGuide.ts). */
+  resources?: string[]
+}
+
+/** A segment of an at-home (flipped / LMS) session. */
+export interface TemplateSegment {
+  kind: 'lms' | 'flipped'
+  title: string
+  hours?: number
+  notes?: string
+  resources?: string[]
+  system?: string
+  submit?: string
+  /** Session id this flipped work must be complete before it unlocks. */
+  gatesSession?: string
+}
+
+export interface TemplateSession {
+  id: string
+  order: number
+  mode: 'in-person' | 'at-home'
+  title: string
+  objectives: string[]
+  facilitatorRoles?: { role: string; lead?: boolean }[]
+  /** In-person sessions run blocks; at-home sessions run segments. */
+  blocks?: TemplateBlock[]
+  segments?: TemplateSegment[]
+  /** Cumulative retrieval: prior session ids this one pulls from. */
+  retrieval?: { pullsFrom: string[]; resource?: string }
+  placement?: string
+}
+
+export interface AcademyTemplate {
+  id: string
+  name: string
+  /** Academy completion is an internal record only — never CE. */
+  notCE: true
+  minEducationHoursPerDay: number
+  phase: { id: string; name: string }
+  sessions: TemplateSession[]
+}
+
+/** Per-class scheduling layer applied to one template session. */
+export interface SessionArrangement {
+  cohortId: string
+  sessionId: string
+  /** ISO date this session is held. */
+  date?: string
+  /** Clock start, 'HHMM' (e.g. '0800'). Timeline is computed from here. */
+  startTime?: string
+  /** Assigned facilitator names for this class (free text). */
+  facilitators?: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -187,5 +258,6 @@ export interface DBShape {
   academyCohorts: AcademyCohort[]
   trainees: Trainee[]
   academyDays: AcademyDay[]
+  academyArrangements: SessionArrangement[]
   settings: Settings
 }

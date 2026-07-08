@@ -15,6 +15,7 @@ import type {
   Credential,
   OperationId,
   ScheduleBlock,
+  SessionArrangement,
   Trainee,
 } from '../../types'
 
@@ -64,6 +65,7 @@ export function deleteCohort(id: string): void {
     academyCohorts: db.academyCohorts.filter((c) => c.id !== id),
     trainees: db.trainees.filter((t) => t.cohortId !== id),
     academyDays: db.academyDays.filter((d) => d.cohortId !== id),
+    academyArrangements: db.academyArrangements.filter((a) => a.cohortId !== id),
   }))
 }
 
@@ -351,4 +353,43 @@ export function applyClassroomTemplate(cohortId: string, startISO: string): numb
   }))
   setState((db) => ({ ...db, academyDays: [...db.academyDays, ...days] }))
   return days.length
+}
+
+// ----- Phase 2 template arrangements -----------------------------------------
+// The template is static (src/data/academyPhase2.ts); only the per-class
+// scheduling layer (date, start time, facilitator names per session) is stored.
+
+/** Arrangements for a cohort, keyed by session id. */
+export function useArrangements(cohortId: string | undefined): Record<string, SessionArrangement> {
+  return useSelector((db) => {
+    const map: Record<string, SessionArrangement> = {}
+    for (const a of db.academyArrangements) {
+      if (a.cohortId === cohortId) map[a.sessionId] = a
+    }
+    return map
+  })
+}
+
+export function setArrangement(
+  cohortId: string,
+  sessionId: string,
+  patch: Partial<Omit<SessionArrangement, 'cohortId' | 'sessionId'>>,
+): void {
+  setState((db) => {
+    const idx = db.academyArrangements.findIndex(
+      (a) => a.cohortId === cohortId && a.sessionId === sessionId,
+    )
+    if (idx === -1) {
+      return {
+        ...db,
+        academyArrangements: [...db.academyArrangements, { cohortId, sessionId, ...patch }],
+      }
+    }
+    return {
+      ...db,
+      academyArrangements: db.academyArrangements.map((a, i) =>
+        i === idx ? { ...a, ...patch } : a,
+      ),
+    }
+  })
 }
