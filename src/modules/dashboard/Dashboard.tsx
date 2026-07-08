@@ -14,6 +14,7 @@ import {
 import { usePeriods, progressFor } from '../qa/qaStore'
 import { useCohorts, useAllTrainees, upcomingCohorts, releaseEligible } from '../academy/academyStore'
 import { operationShort } from '../../data/operations'
+import { QA_ENABLED } from '../../config/features'
 
 function daysChip(days: number) {
   if (days < 0) return <span className="pill crit">{Math.abs(days)}d overdue</span>
@@ -33,12 +34,12 @@ export default function Dashboard() {
     .sort(sortByUrgency)
     .slice(0, 6)
 
-  const activePeriods = periods.filter((p) => p.status === 'active')
+  const activePeriods = QA_ENABLED ? periods.filter((p) => p.status === 'active') : []
   const cohorts = useCohorts()
   const trainees = useAllTrainees()
   const nextCohort = upcomingCohorts(cohorts)[0]
   const readyForRelease = trainees.filter(releaseEligible)
-  const nothing = classes.length === 0 && periods.length === 0 && cohorts.length === 0
+  const nothing = classes.length === 0 && cohorts.length === 0 && activePeriods.length === 0
 
   return (
     <div>
@@ -55,9 +56,9 @@ export default function Dashboard() {
           <Link to="/ce" className="link-btn">
             CE deadline
           </Link>{' '}
-          or a{' '}
-          <Link to="/qa" className="link-btn">
-            QA review period
+          or an{' '}
+          <Link to="/academy" className="link-btn">
+            academy cohort
           </Link>
           .
         </Empty>
@@ -68,7 +69,11 @@ export default function Dashboard() {
           <Stat label="CE overdue" value={ce.overdue} alert={ce.overdue > 0} />
           <Stat label="CE due ≤7d" value={ce.dueThisWeek} alert={ce.dueThisWeek > 0} />
           <Stat label="CE outstanding" value={ce.outstanding} />
-          <Stat label="Active QA periods" value={activePeriods.length} />
+          {QA_ENABLED ? (
+            <Stat label="Active QA periods" value={activePeriods.length} />
+          ) : (
+            <Stat label="Academy cohorts" value={cohorts.length} />
+          )}
         </div>
       )}
 

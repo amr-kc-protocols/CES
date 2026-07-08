@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { getState } from '../../lib/store'
+import { QA_ENABLED } from '../../config/features'
 import { monthKey, monthLabel } from '../../lib/date'
 import { operationShort } from '../../data/operations'
 import { parseBotBatch, type ExternalReview } from './botBridge'
@@ -325,7 +326,7 @@ export async function syncNow(force = false): Promise<void> {
  */
 export function useBotSyncRunner(): void {
   useEffect(() => {
-    if (!supported) return
+    if (!QA_ENABLED || !supported) return
     let timer: ReturnType<typeof setInterval> | undefined
     void restoreHandle().then(() => {
       if (state.enabled) void syncNow()
