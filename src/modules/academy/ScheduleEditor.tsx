@@ -14,6 +14,7 @@ import {
   applyClassroomTemplate,
 } from './academyStore'
 import { printDoc, downloadDoc, scheduleHTML, safeFilename } from './docGen'
+import { scheduleICS, downloadICS } from './calendar'
 import type { AcademyCohort, AcademyDay } from '../../types'
 
 const inputStyle: React.CSSProperties = {
@@ -208,6 +209,14 @@ export default function ScheduleEditor({ cohort }: { cohort: AcademyCohort }) {
           }
         >
           ⬇ Word
+        </button>
+        <button
+          className="btn"
+          disabled={days.length === 0}
+          title="Download an .ics calendar file for Outlook / Google / Apple Calendar"
+          onClick={() => downloadICS(safeFilename(`${cohort.label}_Academy`), scheduleICS(cohort, days))}
+        >
+          📅 .ics
         </button>
       </div>
 
