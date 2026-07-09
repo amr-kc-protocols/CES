@@ -222,6 +222,8 @@ export interface TemplateSession {
   mode: 'in-person' | 'at-home'
   title: string
   objectives: string[]
+  /** True for per-class sessions a cohort added (not part of the shared template). */
+  custom?: boolean
   /** Default clock start ('HHMM') for this session before a class overrides it. */
   defaultStart?: string
   /** Where it's held — omitted = HQ; set for offsite/corporate days (e.g. EVOC road). */
@@ -261,6 +263,14 @@ export interface SessionArrangement {
    * runs). Absent = use the template default.
    */
   blocks?: TemplateBlock[]
+  /** This class drops the session from its schedule (kept so it can be restored). */
+  skipped?: boolean
+}
+
+/** A session a class adds on top of the template (per-cohort, not shared). */
+export interface CustomSession extends TemplateSession {
+  cohortId: string
+  custom: true
 }
 
 // ----- Attendance -----------------------------------------------------------
@@ -298,6 +308,7 @@ export interface DBShape {
   trainees: Trainee[]
   academyDays: AcademyDay[]
   academyArrangements: SessionArrangement[]
+  academyCustomSessions: CustomSession[]
   academyAttendance: AttendanceRecord[]
   settings: Settings
 }
