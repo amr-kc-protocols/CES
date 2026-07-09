@@ -292,8 +292,10 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
   const sessionsHtml = t.sessions
     .map((s) => {
       const arr = arrangements[s.id]
-      const eduMin = educationMinutes(s)
-      const under = isUnderMinHours(s, t.minEducationHoursPerDay)
+      // A class's edited blocks override the template default.
+      const blocks = arr?.blocks && arr.blocks.length ? arr.blocks : s.blocks
+      const eduMin = educationMinutes(s, blocks)
+      const under = isUnderMinHours(s, t.minEducationHoursPerDay, blocks)
       const when = arr?.date ? formatDate(arr.date) : 'Date TBD'
       const facil = arr?.facilitators || (s.facilitatorRoles ?? []).map((r) => r.role + (r.lead ? ' (lead)' : '')).join(' · ')
 
@@ -311,7 +313,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
               .join('')}
           </table>`
       } else {
-        const rows = timeline(s, arr?.startTime || s.defaultStart)
+        const rows = timeline(s, arr?.startTime || s.defaultStart, blocks)
         if (rows) {
           body = `<table><tr><th style="width:96px">Time</th><th>Block</th><th style="width:80px">Kind</th></tr>
             ${rows
@@ -324,7 +326,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
         } else {
           // No start time arranged yet — show durations instead of clock times.
           body = `<table><tr><th style="width:96px">Duration</th><th>Block</th><th style="width:80px">Kind</th></tr>
-            ${(s.blocks ?? [])
+            ${(blocks ?? [])
               .map(
                 (b) =>
                   `<tr><td>${b.durationMin}m</td><td><strong>${esc(b.title)}</strong>${b.notes ? `<br/><span class="sub2">${esc(b.notes)}</span>` : ''}${resourceLinks(b.resources)}</td><td>${esc(KIND_TAG[b.kind] ?? b.kind)}</td></tr>`,

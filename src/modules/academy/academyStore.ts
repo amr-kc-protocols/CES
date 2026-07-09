@@ -22,6 +22,7 @@ import type {
   OperationId,
   ScheduleBlock,
   SessionArrangement,
+  TemplateBlock,
   Trainee,
 } from '../../types'
 
@@ -655,4 +656,14 @@ export function markAllPresent(cohortId: string, traineeIds: string[], dayKey: s
     }))
     return { ...db, academyAttendance: [...rest, ...marks] }
   })
+}
+
+/** Store a class's edited block list for one session (overrides the template). */
+export function setSessionBlocks(cohortId: string, sessionId: string, blocks: TemplateBlock[]): void {
+  setArrangement(cohortId, sessionId, { blocks })
+}
+
+/** Drop a class's block edits so the session reverts to the template default. */
+export function resetSessionBlocks(cohortId: string, sessionId: string): void {
+  setArrangement(cohortId, sessionId, { blocks: undefined })
 }
