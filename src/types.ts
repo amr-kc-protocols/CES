@@ -215,12 +215,17 @@ export interface TemplateSegment {
 
 export interface TemplateSession {
   id: string
+  /** Global order across the whole academy (both weeks). */
   order: number
+  /** 1 = Systems & Safety week, 2 = Clinical Depth week. */
+  week: 1 | 2
   mode: 'in-person' | 'at-home'
   title: string
   objectives: string[]
   /** Default clock start ('HHMM') for this session before a class overrides it. */
   defaultStart?: string
+  /** Where it's held — omitted = HQ; set for offsite/corporate days (e.g. EVOC road). */
+  location?: string
   facilitatorRoles?: { role: string; lead?: boolean }[]
   /** In-person sessions run blocks; at-home sessions run segments. */
   blocks?: TemplateBlock[]

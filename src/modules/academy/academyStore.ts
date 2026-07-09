@@ -589,15 +589,15 @@ export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
       date: d.date,
       title: d.title || 'Academy day',
     }))
-    const p2: AcademyDayRef[] = PHASE2_TEMPLATE.sessions
+    const templateDays: AcademyDayRef[] = PHASE2_TEMPLATE.sessions
       .filter((s) => s.mode === 'in-person')
       .map((s) => ({
         key: `p2:${s.id}`,
-        phase: 2 as const,
+        phase: s.week,
         date: arrangements[s.id]?.date ?? '',
         title: `S${s.order} · ${s.title}`,
       }))
-    return [...p1, ...p2].sort((a, b) => {
+    return [...p1, ...templateDays].sort((a, b) => {
       if (!a.date && !b.date) return 0
       if (!a.date) return 1
       if (!b.date) return -1
