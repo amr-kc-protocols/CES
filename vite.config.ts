@@ -36,6 +36,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        // Don't SPA-fallback navigations to real files (slide decks etc.) —
+        // without this the service worker serves index.html for /decks/*.pptx
+        // and the router's catch-all lands on the dashboard. Mirrors the
+        // dotted-path exclusion in vercel.json.
+        navigateFallbackDenylist: [/^\/decks\//, /\.[a-z0-9]+$/i],
       },
       devOptions: {
         enabled: false,
