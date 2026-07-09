@@ -17,6 +17,11 @@ import {
   setArrangement,
   setSessionBlocks,
   resetSessionBlocks,
+  useCohortSessions,
+  setSessionSkipped,
+  addCustomSession,
+  deleteCustomSession,
+  renameCustomSession,
   useCohortDays,
   nextWeekdays,
   fillPhase2Dates,
@@ -127,12 +132,40 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
   const addBlock = () =>
     mutate((bs) => [...bs, { durationMin: 15, kind: 'education', title: 'New block' }])
 
+  const skipped = !!arr?.skipped
+
+  // Skipped sessions collapse to a single restorable row.
+  if (skipped) {
+    return (
+      <div className="card" style={{ padding: 12, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span>
+        <span style={{ textDecoration: 'line-through' }}>{session.title}</span>
+        <span className="pill muted">Skipped for this class</span>
+        <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setSessionSkipped(cohortId, session.id, false)}>
+          Restore
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="card" style={{ padding: 14 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, fontSize: 16 }}>
-          <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span> · {session.title}
+          {session.custom ? (
+            <input
+              value={session.title}
+              onChange={(e) => renameCustomSession(cohortId, session.id, e.target.value)}
+              aria-label="Session title"
+              style={{ ...inputStyle, fontSize: 15, fontWeight: 700, minWidth: 220 }}
+            />
+          ) : (
+            <>
+              <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span> · {session.title}
+            </>
+          )}
         </h3>
+        {session.custom && <span className="pill info" title="Added by this class">Added</span>}
         {session.mode === 'at-home' && <span className="pill muted">At home</span>}
         {session.location && <span className="pill warn" title={session.location}>📍 Offsite</span>}
         {customized && <span className="pill info" title="This class has edited blocks">Edited</span>}
@@ -330,13 +363,41 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
           .
         </div>
       )}
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <div className="spacer" />
+        {session.custom ? (
+          <button
+            className="btn sm danger ghost"
+            onClick={() => {
+              if (confirm(`Delete the added session “${session.title}” from this class?`)) {
+                deleteCustomSession(cohortId, session.id)
+              }
+            }}
+          >
+            Delete session
+          </button>
+        ) : (
+          <button
+            className="btn sm ghost"
+            title="Drop this session for this class only (restorable)"
+            onClick={() => setSessionSkipped(cohortId, session.id, true)}
+          >
+            Skip for this class
+          </button>
+        )}
+      </div>
     </div>
   )
 }
 
 function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: () => void }) {
   const phase1Days = useCohortDays(cohort.id)
-  const sessions = [...PHASE2_TEMPLATE.sessions].sort((a, b) => a.order - b.order)
+  const allSessions = useCohortSessions(cohort.id)
+  const arrangements = useArrangements(cohort.id)
+  const sessions = allSessions
+    .filter((s) => !arrangements[s.id]?.skipped)
+    .sort((a, b) => (a.week !== b.week ? a.week - b.week : a.order - b.order))
   // Phase 2 naturally follows the classroom week: default to the next weekday
   // after the last Phase 1 day, or the cohort start if no schedule exists yet.
   const defaultStart = phase1Days.length
@@ -406,15 +467,21 @@ const PACES: { value: Phase2Cadence; label: string }[] = [
 
 export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
   const arrangements = useArrangements(cohort.id)
+  const sessions = useCohortSessions(cohort.id)
   const [showFill, setShowFill] = useState(false)
   const t = PHASE2_TEMPLATE
 
+  const active = useMemo(
+    () => sessions.filter((s) => !arrangements[s.id]?.skipped),
+    [sessions, arrangements],
+  )
+
   const underCount = useMemo(
     () =>
-      t.sessions.filter((s) =>
+      active.filter((s) =>
         isUnderMinHours(s, t.minEducationHoursPerDay, effectiveBlocks(s, arrangements[s.id]?.blocks)),
       ).length,
-    [t, arrangements],
+    [active, t, arrangements],
   )
 
   const weeks: (1 | 2)[] = [1, 2]
@@ -423,13 +490,13 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
     <div>
       <div className="banner info">
         <strong>{t.name}</strong> — one schedule across both weeks. Set each session's date, start
-        time, and facilitators for this class; edit any session's blocks to fit how it actually runs.
-        Academy completion is an internal record — not CE.
+        time, and facilitators for this class; edit any session's blocks, or add/skip sessions to fit
+        how this class actually runs. Academy completion is an internal record — not CE.
       </div>
 
       <div className="toolbar" style={{ marginTop: 12 }}>
         <span className="subtle">
-          {t.sessions.length} sessions · min {t.minEducationHoursPerDay} education hrs/day
+          {active.length} sessions · min {t.minEducationHoursPerDay} education hrs/day
           {underCount > 0 && <span className="pill crit" style={{ marginLeft: 8 }}>{underCount} under minimum</span>}
         </span>
         <div className="spacer" />
@@ -440,13 +507,13 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
         >
           ⚡ Fill dates
         </button>
-        <button className="btn" onClick={() => printDoc(`${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements))}>
+        <button className="btn" onClick={() => printDoc(`${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements, active))}>
           🖨 Print
         </button>
         <button
           className="btn"
           onClick={() =>
-            downloadDoc(safeFilename(`${cohort.label}_Academy_Schedule`), `${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements))
+            downloadDoc(safeFilename(`${cohort.label}_Academy_Schedule`), `${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements, active))
           }
         >
           ⬇ Word
@@ -454,11 +521,20 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
       </div>
 
       {weeks.map((wk) => {
-        const wkSessions = t.sessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
-        if (wkSessions.length === 0) return null
+        const wkSessions = sessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
         return (
           <div key={wk}>
-            <div className="section-title" style={{ marginTop: 16 }}>{WEEK_LABELS[wk]}</div>
+            <div className="section-title" style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span>{WEEK_LABELS[wk]}</span>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'in-person')}>
+                  + Session
+                </button>
+                <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'at-home')}>
+                  + At-home day
+                </button>
+              </div>
+            </div>
             <div className="list">
               {wkSessions.map((s) => (
                 <SessionCard key={s.id} cohortId={cohort.id} session={s} />

@@ -19,10 +19,13 @@ import type {
   AttendanceRecord,
   AttendanceStatus,
   Credential,
+  CustomSession,
+  DBShape,
   OperationId,
   ScheduleBlock,
   SessionArrangement,
   TemplateBlock,
+  TemplateSession,
   Trainee,
 } from '../../types'
 
@@ -74,6 +77,7 @@ export function deleteCohort(id: string): void {
   const days = db.academyDays.filter((d) => d.cohortId === id)
   const arrangements = db.academyArrangements.filter((a) => a.cohortId === id)
   const attendance = db.academyAttendance.filter((a) => a.cohortId === id)
+  const customSessions = db.academyCustomSessions.filter((s) => s.cohortId === id)
 
   setState((db) => ({
     ...db,
@@ -82,6 +86,7 @@ export function deleteCohort(id: string): void {
     academyDays: db.academyDays.filter((d) => d.cohortId !== id),
     academyArrangements: db.academyArrangements.filter((a) => a.cohortId !== id),
     academyAttendance: db.academyAttendance.filter((a) => a.cohortId !== id),
+    academyCustomSessions: db.academyCustomSessions.filter((s) => s.cohortId !== id),
   }))
 
   if (cohort) {
@@ -93,6 +98,7 @@ export function deleteCohort(id: string): void {
         academyDays: [...db.academyDays, ...days],
         academyArrangements: [...db.academyArrangements, ...arrangements],
         academyAttendance: [...db.academyAttendance, ...attendance],
+        academyCustomSessions: [...db.academyCustomSessions, ...customSessions],
       })),
     )
   }
@@ -515,7 +521,7 @@ export function fillPhase2Dates(
   startISO: string,
   cadence: Phase2Cadence = 'weekdays',
 ): void {
-  const sessions = [...PHASE2_TEMPLATE.sessions].sort((a, b) => a.order - b.order)
+  const sessions = activeCohortSessions(getState(), cohortId)
   const dates = phase2Dates(startISO, sessions.length, cadence)
   const prev = getState().academyArrangements.filter((a) => a.cohortId === cohortId)
 
@@ -582,6 +588,7 @@ export function setArrangement(
 export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
   const days = useCohortDays(cohortId)
   const arrangements = useArrangements(cohortId)
+  const sessions = useCohortSessions(cohortId)
   return useMemo(() => {
     const p1: AcademyDayRef[] = days.map((d) => ({
       key: `p1:${d.id}`,
@@ -589,8 +596,8 @@ export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
       date: d.date,
       title: d.title || 'Academy day',
     }))
-    const templateDays: AcademyDayRef[] = PHASE2_TEMPLATE.sessions
-      .filter((s) => s.mode === 'in-person')
+    const templateDays: AcademyDayRef[] = sessions
+      .filter((s) => s.mode === 'in-person' && !arrangements[s.id]?.skipped)
       .map((s) => ({
         key: `p2:${s.id}`,
         phase: s.week,
@@ -603,7 +610,7 @@ export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
       if (!b.date) return -1
       return a.date.localeCompare(b.date)
     })
-  }, [days, arrangements])
+  }, [days, arrangements, sessions])
 }
 
 // ----- attendance ------------------------------------------------------------
@@ -666,4 +673,90 @@ export function setSessionBlocks(cohortId: string, sessionId: string, blocks: Te
 /** Drop a class's block edits so the session reverts to the template default. */
 export function resetSessionBlocks(cohortId: string, sessionId: string): void {
   setArrangement(cohortId, sessionId, { blocks: undefined })
+}
+
+// ----- per-class add / skip sessions -----------------------------------------
+
+/** Every session a class sees: the shared template plus its own added sessions,
+ *  sorted by week then order. Skipped sessions are still included (marked). */
+export function cohortSessionsList(db: DBShape, cohortId: string): TemplateSession[] {
+  const custom = db.academyCustomSessions.filter((s) => s.cohortId === cohortId)
+  return [...PHASE2_TEMPLATE.sessions, ...custom].sort((a, b) =>
+    a.week !== b.week ? a.week - b.week : a.order - b.order,
+  )
+}
+
+export function useCohortSessions(cohortId: string | undefined): TemplateSession[] {
+  return useSelector((db) => (cohortId ? cohortSessionsList(db, cohortId) : []))
+}
+
+/** Sessions a class actually runs (excludes skipped), in order. */
+export function activeCohortSessions(db: DBShape, cohortId: string): TemplateSession[] {
+  const skipped = new Set(
+    db.academyArrangements.filter((a) => a.cohortId === cohortId && a.skipped).map((a) => a.sessionId),
+  )
+  return cohortSessionsList(db, cohortId).filter((s) => !skipped.has(s.id))
+}
+
+/** Skip (or restore) a session for one class. */
+export function setSessionSkipped(cohortId: string, sessionId: string, skipped: boolean): void {
+  setArrangement(cohortId, sessionId, { skipped: skipped || undefined })
+}
+
+/** Add a per-class session to a week. Returns the new session's id. */
+export function addCustomSession(
+  cohortId: string,
+  week: 1 | 2,
+  mode: 'in-person' | 'at-home',
+  title?: string,
+): string {
+  const id = uid('custom')
+  const existing = cohortSessionsList(getState(), cohortId).filter((s) => s.week === week)
+  const order = (existing.length ? Math.max(...existing.map((s) => s.order)) : week === 1 ? 0 : 6) + 1
+  const session: CustomSession = {
+    id,
+    cohortId,
+    custom: true,
+    week,
+    order,
+    mode,
+    title: title?.trim() || (mode === 'at-home' ? 'New at-home day' : 'New session'),
+    objectives: [],
+    ...(mode === 'in-person'
+      ? {
+          defaultStart: '0900',
+          blocks: [
+            { durationMin: 60, kind: 'education', title: 'New block' },
+            { durationMin: 30, kind: 'closeout', title: 'Housekeeping & closeout' },
+          ],
+        }
+      : {
+          segments: [{ kind: 'lms', title: 'New segment', hours: 1 }],
+        }),
+  }
+  setState((db) => ({ ...db, academyCustomSessions: [...db.academyCustomSessions, session] }))
+  return id
+}
+
+/** Remove a per-class session and its arrangement. */
+export function deleteCustomSession(cohortId: string, sessionId: string): void {
+  setState((db) => ({
+    ...db,
+    academyCustomSessions: db.academyCustomSessions.filter(
+      (s) => !(s.cohortId === cohortId && s.id === sessionId),
+    ),
+    academyArrangements: db.academyArrangements.filter(
+      (a) => !(a.cohortId === cohortId && a.sessionId === sessionId),
+    ),
+  }))
+}
+
+/** Rename a per-class session. */
+export function renameCustomSession(cohortId: string, sessionId: string, title: string): void {
+  setState((db) => ({
+    ...db,
+    academyCustomSessions: db.academyCustomSessions.map((s) =>
+      s.cohortId === cohortId && s.id === sessionId ? { ...s, title } : s,
+    ),
+  }))
 }

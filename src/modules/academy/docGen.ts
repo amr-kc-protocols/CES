@@ -22,6 +22,7 @@ import type {
   AcademyDayRef,
   AttendanceStatus,
   SessionArrangement,
+  TemplateSession,
   Trainee,
 } from '../../types'
 
@@ -276,13 +277,18 @@ function resourceLinks(refs: string[] | undefined): string {
  * grouped by week, plus each session's computed timeline, education-time total,
  * and Field Guide links. Academy completion is an internal record only — no CE.
  */
-export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<string, SessionArrangement>): string {
+export function phase2ScheduleHTML(
+  cohort: AcademyCohort,
+  arrangements: Record<string, SessionArrangement>,
+  sessionList?: TemplateSession[],
+): string {
   const t = PHASE2_TEMPLATE
+  const allSessions = sessionList ?? t.sessions
   const weeks: (1 | 2)[] = [1, 2]
 
   const arc = weeks
     .map((wk) => {
-      const wkSessions = t.sessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
+      const wkSessions = allSessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
       if (!wkSessions.length) return ''
       return `
         <h2>${esc(WEEK_LABELS[wk])}</h2>
@@ -290,14 +296,14 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
           ${wkSessions
             .map(
               (s) =>
-                `<tr><td class="num">${s.order}</td><td><strong>${esc(s.title)}</strong>${s.mode === 'at-home' ? ' <span class="badge">At home</span>' : ''}${s.location ? ' <span class="badge">Offsite</span>' : ''}</td><td>${esc(s.objectives[0] ?? '')}</td></tr>`,
+                `<tr><td class="num">${s.custom ? '+' : s.order}</td><td><strong>${esc(s.title)}</strong>${s.custom ? ' <span class="badge">Added</span>' : ''}${s.mode === 'at-home' ? ' <span class="badge">At home</span>' : ''}${s.location ? ' <span class="badge">Offsite</span>' : ''}</td><td>${esc(s.objectives[0] ?? '')}</td></tr>`,
             )
             .join('')}
         </table>`
     })
     .join('')
 
-  const renderSession = (s: (typeof t.sessions)[number]): string => {
+  const renderSession = (s: TemplateSession): string => {
       const arr = arrangements[s.id]
       // A class's edited blocks override the template default.
       const blocks = arr?.blocks && arr.blocks.length ? arr.blocks : s.blocks
@@ -315,7 +321,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
             ${(s.segments ?? [])
               .map(
                 (seg) =>
-                  `<tr><td class="slot">☐</td><td><strong>${esc(seg.title)}</strong>${seg.hours ? ` — ${seg.hours} hrs` : ''}${resourceLinks(seg.resources)}</td><td>${esc(seg.notes ?? seg.submit ?? '')}${seg.gatesSession ? `<br/><em>Must finish before Session ${t.sessions.find((x) => x.id === seg.gatesSession)?.order ?? '?'}.</em>` : ''}</td></tr>`,
+                  `<tr><td class="slot">☐</td><td><strong>${esc(seg.title)}</strong>${seg.hours ? ` — ${seg.hours} hrs` : ''}${resourceLinks(seg.resources)}</td><td>${esc(seg.notes ?? seg.submit ?? '')}${seg.gatesSession ? `<br/><em>Must finish before Session ${allSessions.find((x) => x.id === seg.gatesSession)?.order ?? '?'}.</em>` : ''}</td></tr>`,
               )
               .join('')}
           </table>`
@@ -344,7 +350,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
       }
 
       return `
-        <h2>Session ${s.order} — ${esc(s.title)}${s.mode === 'at-home' ? ' · at home' : ''}</h2>
+        <h2>${s.custom ? `${esc(s.title)} (added)` : `Session ${s.order} — ${esc(s.title)}`}${s.mode === 'at-home' ? ' · at home' : ''}</h2>
         <p class="sub">${esc(when)}${arr?.startTime || s.defaultStart ? ` · starts ${esc(arr?.startTime || s.defaultStart || '')}` : ''} · ${esc(facil)}${s.location ? ` · 📍 ${esc(s.location)}` : ''}</p>
         <p><strong>Education time:</strong> ${fmtHours(eduMin)} hrs${under ? ` <span class="flag">below ${t.minEducationHoursPerDay}-hr minimum</span>` : ''}${s.mode === 'at-home' ? ' (LMS + flipped)' : ''}</p>
         ${objectives}
@@ -353,7 +359,7 @@ export function phase2ScheduleHTML(cohort: AcademyCohort, arrangements: Record<s
 
   const sessionsHtml = weeks
     .map((wk) => {
-      const wkSessions = t.sessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
+      const wkSessions = allSessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
       if (!wkSessions.length) return ''
       return `<h1 style="margin-top:22px">${esc(WEEK_LABELS[wk])}</h1>${wkSessions.map(renderSession).join('')}`
     })
