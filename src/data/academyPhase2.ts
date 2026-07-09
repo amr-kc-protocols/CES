@@ -1,17 +1,25 @@
 import type { AcademyTemplate, TemplateBlock, TemplateSession } from '../types'
 
 // ---------------------------------------------------------------------------
-// Academy — Phase 2 (Clinical Depth, Specialty Transports & Field Readiness).
+// AMR KC New Hire Academy — one unified template spanning both weeks.
 //
-// Transcribed from the Phase 2 CES integration brief, then fitted to the real
-// teaching day: classes start 0900 (EVOC road course is the 0700 exception,
-// handled in the Phase 1 free-form schedule), break an hour for lunch, stop
-// content at 1530, and reserve 1530–1600 for housekeeping. That day holds ~5h
-// of teaching, so each in-person session was compressed from the brief's ~7h —
-// hands-on sim/scenario/assessment blocks were protected and lecture time was
-// trimmed or merged (see block titles). Sessions are ordered, not dated; dates
-// and facilitator names are layered on per class. Completion is an INTERNAL
-// record only — never CE.
+//   Week 1 (Systems & Safety): HR/onboarding, EVOC classroom, EVOC road course
+//     (offsite Independence, 0700), PCR/ImageTrend software mechanics, stretcher
+//     & equipment, and an at-home Cornerstone corporate-compliance day.
+//   Week 2 (Clinical Depth): clinical mindset & call types, ventilation, an
+//     at-home Cornerstone clinical flipped-prework day, hemodynamics/MCS, and the
+//     capstone + FTO hand-off.
+//
+// Phase 1 and Phase 2 were reconciled so nothing is taught twice: the clinical
+// mindset / call types / Med-Nec content lives only in Week 2 (Session 7 + its
+// decks); Week 1's PCR day is ImageTrend *software mechanics* only. The two
+// at-home Cornerstone days split the modules (Week 1 = corporate compliance;
+// Week 2 = clinical flipped pre-work) rather than repeating them.
+//
+// In-person days are fitted to the real teaching day: start 0900 (EVOC road is
+// the 0700 exception), a 1h lunch, content stops at 1530, and 1530–1600 is
+// housekeeping — ~5h of teaching. Sessions are ordered, not dated; dates and
+// facilitators are layered on per class. Completion is an INTERNAL record — not CE.
 // ---------------------------------------------------------------------------
 
 const HOUSEKEEPING = {
@@ -22,9 +30,134 @@ const HOUSEKEEPING = {
 }
 
 const SESSIONS: TemplateSession[] = [
+  // ===== Week 1 — Systems, Safety & Onboarding =====================
+  {
+    id: 'p1s1',
+    order: 1,
+    week: 1,
+    mode: 'in-person',
+    defaultStart: '0900',
+    title: 'HR & Systems Onboarding',
+    objectives: [
+      'Complete systems access (Okta, Ninth Brain, Cornerstone) in the room',
+      'Finish pre-shift HR items: I-9, benefits, GPS Portal, Respiratory Questionnaire',
+      'Know the Captains operations basics ("the Four Things")',
+    ],
+    facilitatorRoles: [
+      { role: 'CES', lead: true },
+      { role: 'HR' },
+      { role: 'Captains (operations)' },
+    ],
+    blocks: [
+      { durationMin: 15, kind: 'education', title: 'Welcome, intros, group-text exercise', notes: 'Sets the tone; from the Captains’ deck.' },
+      { durationMin: 105, kind: 'education', title: 'Day-1 Intro — systems access done live', notes: 'Okta registration, Ninth Brain, Cornerstone access, Respiratory Questionnaire — all completed in the room.' },
+      { durationMin: 15, kind: 'break', title: 'Break' },
+      { durationMin: 45, kind: 'education', title: 'GPS Portal · I-9 verification · Benefits orientation', notes: 'Focus on what must be done before first shift.' },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch + truck walk-around with Captains' },
+      { durationMin: 120, kind: 'education', title: 'HR session — benefits, leave, EAP, 401(k), bereavement' },
+      { durationMin: 45, kind: 'education', title: 'Captains Operations Part 1', notes: 'Manifesting, BOS book, OOS, communications, "the Four Things." Pause every 15 min for partner discussion.' },
+      { durationMin: 15, kind: 'assessment', title: 'Day-1 retrieval quiz (low-stakes) + preview' },
+    ],
+    retrieval: { pullsFrom: [] },
+  },
+  {
+    id: 'p1s2',
+    order: 2,
+    week: 1,
+    mode: 'in-person',
+    defaultStart: '0900',
+    title: 'EVOC Classroom (Corporate)',
+    objectives: ['Complete the GMR EVOC classroom curriculum'],
+    facilitatorRoles: [{ role: 'Corporate EVOC instructors', lead: true }],
+    blocks: [
+      { durationMin: 420, kind: 'education', title: 'EVOC classroom — GMR corporate curriculum', notes: 'Corporate / read-only; delivered against the GMR EVOC standard. No CES planning required.' },
+    ],
+    retrieval: { pullsFrom: [] },
+  },
+  {
+    id: 'p1s3',
+    order: 3,
+    week: 1,
+    mode: 'in-person',
+    defaultStart: '0700',
+    location: 'Independence Safety Education Center (offsite)',
+    title: 'EVOC Road Course (Corporate)',
+    objectives: ['Pass the GMR EVOC driving road course'],
+    facilitatorRoles: [{ role: 'Corporate EVOC team', lead: true }],
+    blocks: [
+      { durationMin: 540, kind: 'hands-on', title: 'EVOC road course — Independence', notes: 'Starts 0700 to beat the heat. Meet HQ 7 AM → Independence. Fully covered by the corporate EVOC team; CES not present.' },
+    ],
+    retrieval: { pullsFrom: [] },
+  },
+  {
+    id: 'p1s4',
+    order: 4,
+    week: 1,
+    mode: 'in-person',
+    defaultStart: '0900',
+    title: 'PCR Documentation & ImageTrend (software mechanics)',
+    objectives: [
+      'Navigate ImageTrend Field: login, CAD download, chart sections, validation',
+      'Enter a chart end-to-end in the software',
+      'Use the validation counter and Power Tools',
+    ],
+    facilitatorRoles: [
+      { role: 'CES', lead: true },
+      { role: 'ImageTrend power users' },
+    ],
+    blocks: [
+      { durationMin: 15, kind: 'education', title: 'Welcome back · EVOC debrief · day intro', notes: 'One EVOC takeaway per trainee.' },
+      { durationMin: 90, kind: 'education', title: 'ImageTrend Field — Foundations', notes: 'Login, home, CAD download, chart navigation, validation counter, right-rail Power Tools. Laptops out, demo creds verified.', resources: ['imagetrend'] },
+      { durationMin: 15, kind: 'break', title: 'Break' },
+      { durationMin: 90, kind: 'hands-on', title: 'ImageTrend Field — Guided Chart', notes: 'Instructor enters a chart on the projector; students follow on devices. Pause after each accordion section.', resources: ['imagetrend'] },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
+      { durationMin: 90, kind: 'hands-on', title: 'ImageTrend Field — Independent Entry (mechanics)', notes: 'Students enter a chart solo — navigation, required fields, validation. Clinical narrative quality (DCHART / Med-Nec) is taught in Week 2, Session 7.', resources: ['imagetrend'] },
+      { durationMin: 15, kind: 'break', title: 'Break' },
+      { durationMin: 15, kind: 'assessment', title: 'Charting-mechanics check + retrieval quiz + preview' },
+      HOUSEKEEPING,
+    ],
+    retrieval: { pullsFrom: [] },
+  },
+  {
+    id: 'p1s5',
+    order: 5,
+    week: 1,
+    mode: 'in-person',
+    defaultStart: '0900',
+    title: 'Stretcher & Equipment Check-Off',
+    objectives: [
+      'Demonstrate safe stretcher handling (GMR v3.2)',
+      'Complete the equipment check-off',
+    ],
+    facilitatorRoles: [{ role: 'CES', lead: true }, { role: 'Stretcher / equipment leads' }],
+    blocks: [
+      { durationMin: 15, kind: 'education', title: 'Opener · objectives · safety brief' },
+      { durationMin: 165, kind: 'hands-on', title: 'Stretcher lab', notes: 'PowerLoad + Stryker hand placement, stair chair. Runs against the GMR Safe Stretcher Handling v3.2 deck.' },
+      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
+      { durationMin: 150, kind: 'assessment', title: 'Equipment check-off', notes: 'Against the equipment check-off sheet.' },
+      { durationMin: 30, kind: 'closeout', title: 'Final sign-offs · Week-1 retrieval quiz · housekeeping' },
+    ],
+    retrieval: { pullsFrom: [] },
+  },
+  {
+    id: 'p1s6',
+    order: 6,
+    week: 1,
+    mode: 'at-home',
+    title: 'Cornerstone (LMS) — Corporate Compliance',
+    objectives: ['Complete the assigned corporate compliance modules'],
+    facilitatorRoles: [{ role: 'CES', lead: true }],
+    placement: 'At-home self-paced day within Week 1; CES available remotely.',
+    segments: [
+      { kind: 'lms', system: 'Cornerstone', title: 'Corporate compliance modules — HIPAA · BBP/OSHA · CEVO driving · harassment prevention · workplace safety', hours: 7, notes: 'The bulk of required corporate modules, done early. CES to confirm the exact module list.', submit: 'Upload completions per AMR process' },
+    ],
+    retrieval: { pullsFrom: [] },
+  },
+  // ===== Week 2 — Clinical Depth ===================================
   {
     id: 'p2s1',
-    order: 1,
+    order: 7,
+    week: 2,
     mode: 'in-person',
     defaultStart: '0900',
     title: 'Clinical Mindset & IFT Call Types',
@@ -52,7 +185,8 @@ const SESSIONS: TemplateSession[] = [
   },
   {
     id: 'p2s2',
-    order: 2,
+    order: 8,
+    week: 2,
     mode: 'in-person',
     defaultStart: '0900',
     title: 'Mechanical Ventilation (LTV 1200)',
@@ -80,26 +214,28 @@ const SESSIONS: TemplateSession[] = [
   },
   {
     id: 'p2s3',
-    order: 3,
+    order: 9,
+    week: 2,
     mode: 'at-home',
-    title: 'Cornerstone (LMS) Compliance Day',
+    title: 'Cornerstone (LMS) — Clinical Flipped Pre-Work',
     objectives: [
-      'Complete assigned Cornerstone corporate modules',
-      'Complete flipped Organ Transport module (gates Session 5)',
-      'Complete Hemodynamics pre-read modules 1–2 (gates Session 4)',
+      'Complete flipped Organ Transport module (gates the Capstone)',
+      'Complete Hemodynamics pre-read modules 1–2 (gates the Hemodynamics session)',
+      'Finish any remaining assigned Cornerstone modules',
     ],
     facilitatorRoles: [{ role: 'CES', lead: true }],
-    placement: 'Must precede the sessions its flipped pre-work supports (p2s4, p2s5).',
+    placement: 'Must precede the sessions its flipped pre-work supports (Hemodynamics, Capstone). Bulk corporate compliance was completed on the Week 1 Cornerstone day.',
     segments: [
-      { kind: 'lms', system: 'Cornerstone', title: 'Assigned Cornerstone modules', hours: 7, notes: 'Hours fixed at 7; CES to confirm the exact module list.', submit: 'Upload completions per AMR process' },
       { kind: 'flipped', title: 'Organ Transport module + knowledge check', resources: ['organ'], gatesSession: 'p2s5' },
       { kind: 'flipped', title: 'Hemodynamics pre-read (modules 1–2)', resources: ['hemo-academy'], gatesSession: 'p2s4' },
+      { kind: 'lms', system: 'Cornerstone', title: 'Remaining assigned Cornerstone modules (clinical / role-specific)', hours: 3, notes: 'Bulk corporate compliance (HIPAA, OSHA, CEVO, harassment, safety) was done on the Week 1 Cornerstone day.', submit: 'Upload completions per AMR process' },
     ],
     retrieval: { pullsFrom: [] },
   },
   {
     id: 'p2s4',
-    order: 4,
+    order: 10,
+    week: 2,
     mode: 'in-person',
     defaultStart: '0900',
     title: 'Hemodynamics, Pressors & MCS',
@@ -127,7 +263,8 @@ const SESSIONS: TemplateSession[] = [
   },
   {
     id: 'p2s5',
-    order: 5,
+    order: 11,
+    week: 2,
     mode: 'in-person',
     defaultStart: '0900',
     title: 'Specialty Transports, Capstone & FTO Hand-off',
@@ -157,16 +294,25 @@ const SESSIONS: TemplateSession[] = [
   },
 ]
 
-export const PHASE2_TEMPLATE: AcademyTemplate = {
-  id: 'p2',
-  name: 'Academy — Phase 2 (Clinical)',
+export const ACADEMY_TEMPLATE: AcademyTemplate = {
+  id: 'academy',
+  name: 'AMR KC New Hire Academy',
   notCE: true,
   // A real 0900–1600 day (1h lunch, 1530 content stop, 30m housekeeping) holds
-  // ~5h of teaching; sessions are fitted to that.
+  // ~5h of teaching; in-person sessions are fitted to that.
   minEducationHoursPerDay: 5,
-  phase: { id: 'p2', name: 'Clinical Depth, Specialty Transports & Field Readiness' },
+  phase: { id: 'academy', name: 'Systems & Safety (Week 1) + Clinical Depth (Week 2)' },
   sessions: SESSIONS,
 }
+
+/** Human labels for the two academy weeks. */
+export const WEEK_LABELS: Record<1 | 2, string> = {
+  1: 'Week 1 — Systems, Safety & Onboarding',
+  2: 'Week 2 — Clinical Depth',
+}
+
+/** @deprecated Use ACADEMY_TEMPLATE — the template now spans both weeks. */
+export const PHASE2_TEMPLATE = ACADEMY_TEMPLATE
 
 // ----- derived helpers ------------------------------------------------------
 

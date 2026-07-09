@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Modal } from '../../components/ui'
 import {
   PHASE2_TEMPLATE,
+  WEEK_LABELS,
   educationMinutes,
   isUnderMinHours,
   parseClock,
@@ -133,12 +134,14 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
           <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span> · {session.title}
         </h3>
         {session.mode === 'at-home' && <span className="pill muted">At home</span>}
+        {session.location && <span className="pill warn" title={session.location}>📍 Offsite</span>}
         {customized && <span className="pill info" title="This class has edited blocks">Edited</span>}
         <span className={`pill ${under ? 'crit' : 'ok'}`} style={{ marginLeft: 'auto' }}>
           {fmtHours(eduMin)} hrs education{under ? ` · under ${PHASE2_TEMPLATE.minEducationHoursPerDay}` : ''}
         </span>
       </div>
 
+      {session.location && <div className="help-text" style={{ marginTop: 4 }}>📍 {session.location}</div>}
       {session.placement && <div className="help-text" style={{ marginTop: 4 }}>{session.placement}</div>}
 
       <ul className="subtle" style={{ margin: '8px 0', paddingLeft: 18, lineHeight: 1.5 }}>
@@ -344,7 +347,7 @@ function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: (
   const dates = phase2Dates(start, sessions.length, PACES[paceIdx].value)
 
   return (
-    <Modal title="Fill Phase 2 dates" onClose={onClose}>
+    <Modal title="Fill academy dates" onClose={onClose}>
       <div className="field-row">
         <div className="field">
           <label>Session 1 date</label>
@@ -414,12 +417,14 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
     [t, arrangements],
   )
 
+  const weeks: (1 | 2)[] = [1, 2]
+
   return (
     <div>
       <div className="banner info">
-        <strong>{t.name}</strong> — {t.phase.name}. Sessions are a fixed sequence; set each session's
-        date, start time, and facilitators for this class. Academy completion is an internal record —
-        not CE.
+        <strong>{t.name}</strong> — one schedule across both weeks. Set each session's date, start
+        time, and facilitators for this class; edit any session's blocks to fit how it actually runs.
+        Academy completion is an internal record — not CE.
       </div>
 
       <div className="toolbar" style={{ marginTop: 12 }}>
@@ -435,24 +440,33 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
         >
           ⚡ Fill dates
         </button>
-        <button className="btn" onClick={() => printDoc(`${cohort.label} — Phase 2`, phase2ScheduleHTML(cohort, arrangements))}>
+        <button className="btn" onClick={() => printDoc(`${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements))}>
           🖨 Print
         </button>
         <button
           className="btn"
           onClick={() =>
-            downloadDoc(safeFilename(`${cohort.label}_Phase2`), `${cohort.label} — Phase 2`, phase2ScheduleHTML(cohort, arrangements))
+            downloadDoc(safeFilename(`${cohort.label}_Academy_Schedule`), `${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements))
           }
         >
           ⬇ Word
         </button>
       </div>
 
-      <div className="list" style={{ marginTop: 12 }}>
-        {t.sessions.map((s) => (
-          <SessionCard key={s.id} cohortId={cohort.id} session={s} />
-        ))}
-      </div>
+      {weeks.map((wk) => {
+        const wkSessions = t.sessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
+        if (wkSessions.length === 0) return null
+        return (
+          <div key={wk}>
+            <div className="section-title" style={{ marginTop: 16 }}>{WEEK_LABELS[wk]}</div>
+            <div className="list">
+              {wkSessions.map((s) => (
+                <SessionCard key={s.id} cohortId={cohort.id} session={s} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
 
       {showFill && <FillDatesModal cohort={cohort} onClose={() => setShowFill(false)} />}
     </div>
