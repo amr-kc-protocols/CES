@@ -23,6 +23,7 @@ export const FIELD_GUIDE_RESOURCES: FieldGuideResource[] = [
   { ref: 'call-guide-scope', label: 'IFT Call Guide → ALS vs BLS', path: 'ift-call-guide.html#scope' },
   { ref: 'deck-cardiac-neuro-dive', label: 'Slides: Cardiac & Neuro deep dive', path: '/decks/session1-1045-cardiac-neuro-deep-dive.pptx' },
   { ref: 'deck-cardiac-neuro-cases', label: 'Slides: Cardiac & Neuro case studies', path: '/decks/session1-1300-cardiac-neuro-case-studies.pptx' },
+  { ref: 'deck-call-types-ii', label: 'Slides: Call Types II — Pulmonary & Medical (BLS)', path: '/decks/session1-1430-call-types-ii.pptx' },
   { ref: 'imagetrend', label: 'ImageTrend Job Aid', path: 'imagetrend-job-aid.html' },
   { ref: 'vent-academy', label: 'Ventilator Academy (9 modules)', path: 'vta/academy.html' },
   { ref: 'vent-sim', label: 'LTV 1200 simulator', path: 'vent-ltv1200.html' },
