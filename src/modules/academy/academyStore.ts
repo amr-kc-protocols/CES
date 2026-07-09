@@ -72,6 +72,7 @@ export function deleteCohort(id: string): void {
   const trainees = db.trainees.filter((t) => t.cohortId === id)
   const days = db.academyDays.filter((d) => d.cohortId === id)
   const arrangements = db.academyArrangements.filter((a) => a.cohortId === id)
+  const attendance = db.academyAttendance.filter((a) => a.cohortId === id)
 
   setState((db) => ({
     ...db,
@@ -90,6 +91,7 @@ export function deleteCohort(id: string): void {
         trainees: [...db.trainees, ...trainees],
         academyDays: [...db.academyDays, ...days],
         academyArrangements: [...db.academyArrangements, ...arrangements],
+        academyAttendance: [...db.academyAttendance, ...attendance],
       })),
     )
   }
@@ -491,11 +493,6 @@ export function useArrangements(cohortId: string | undefined): Record<string, Se
   })
 }
 
-/**
- * Map the Phase 2 session sequence onto consecutive weekdays starting at
- * `startISO`. Overwrites each session's date (undoable); start times and
- * facilitators already arranged are kept.
- */
 /**
  * How Phase 2 sessions map onto dates:
  *   'weekdays' — consecutive Mon–Fri (a single week; the default),
