@@ -1,7 +1,8 @@
+import { lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
-import { Empty, ProgressBar, Stat } from '../../components/ui'
-import { operationName, ceLocationName } from '../../data/operations'
-import { monthLabel, formatDate } from '../../lib/date'
+import { Empty, Stat } from '../../components/ui'
+import { ceLocationName, operationShort } from '../../data/operations'
+import { formatDate } from '../../lib/date'
 import { useDB } from '../../lib/store'
 import {
   useCEClasses,
@@ -11,10 +12,11 @@ import {
   urgencyOf,
   sortByUrgency,
 } from '../ce/ceStore'
-import { usePeriods, progressFor } from '../qa/qaStore'
 import { useCohorts, useAllTrainees, upcomingCohorts, releaseEligible } from '../academy/academyStore'
-import { operationShort } from '../../data/operations'
 import { QA_ENABLED } from '../../config/features'
+
+// Loaded only when QA is enabled — keeps the QA store out of the initial chunk.
+const DashboardQAProgress = lazy(() => import('./DashboardQAProgress'))
 
 function daysChip(days: number) {
   if (days < 0) return <span className="pill crit">{Math.abs(days)}d overdue</span>
@@ -27,19 +29,17 @@ export default function Dashboard() {
   const db = useDB()
   const classes = useCEClasses()
   const ce = useCESummary()
-  const periods = usePeriods()
 
   const atRisk = classes
     .filter((c) => c.status !== 'submitted' && ['overdue', 'critical', 'warning'].includes(urgencyOf(c)))
     .sort(sortByUrgency)
     .slice(0, 6)
 
-  const activePeriods = QA_ENABLED ? periods.filter((p) => p.status === 'active') : []
   const cohorts = useCohorts()
   const trainees = useAllTrainees()
   const nextCohort = upcomingCohorts(cohorts)[0]
   const readyForRelease = trainees.filter(releaseEligible)
-  const nothing = classes.length === 0 && cohorts.length === 0 && activePeriods.length === 0
+  const nothing = classes.length === 0 && cohorts.length === 0
 
   return (
     <div>
@@ -69,11 +69,7 @@ export default function Dashboard() {
           <Stat label="CE overdue" value={ce.overdue} alert={ce.overdue > 0} />
           <Stat label="CE due ≤7d" value={ce.dueThisWeek} alert={ce.dueThisWeek > 0} />
           <Stat label="CE outstanding" value={ce.outstanding} />
-          {QA_ENABLED ? (
-            <Stat label="Active QA periods" value={activePeriods.length} />
-          ) : (
-            <Stat label="Academy cohorts" value={cohorts.length} />
-          )}
+          <Stat label="Academy cohorts" value={cohorts.length} />
         </div>
       )}
 
@@ -120,37 +116,11 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* QA progress */}
-      {activePeriods.length > 0 && (
-        <>
-          <div className="section-title" style={{ display: 'flex', alignItems: 'center' }}>
-            <span>QA progress</span>
-            <Link to="/qa" className="link-btn" style={{ marginLeft: 'auto' }}>
-              All →
-            </Link>
-          </div>
-          <div className="list">
-            {activePeriods.map((p) => {
-              const charts = db.charts.filter((c) => c.periodId === p.id)
-              const prog = progressFor(charts, p.targetCount)
-              const complete = prog.scored >= p.targetCount && p.targetCount > 0
-              return (
-                <Link key={p.id} to={`/qa/${encodeURIComponent(p.id)}`} className="row" style={{ color: 'inherit' }}>
-                  <div className="grow">
-                    <div className="title">{operationName(p.operation)}</div>
-                    <div className="meta">
-                      {monthLabel(p.month)} · {prog.scored}/{p.targetCount} reviewed
-                    </div>
-                    <div style={{ marginTop: 8 }}>
-                      <ProgressBar pct={prog.pct} complete={complete} />
-                    </div>
-                  </div>
-                  <div style={{ fontWeight: 800 }}>{prog.pct}%</div>
-                </Link>
-              )
-            })}
-          </div>
-        </>
+      {/* QA progress — only when QA is enabled (lazy chunk) */}
+      {QA_ENABLED && (
+        <Suspense fallback={null}>
+          <DashboardQAProgress />
+        </Suspense>
       )}
 
       {/* Academy */}
