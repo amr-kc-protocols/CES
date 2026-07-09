@@ -45,7 +45,7 @@ const SESSIONS: TemplateSession[] = [
       { durationMin: 60, kind: 'lunch', title: 'Lunch' },
       { durationMin: 75, kind: 'hands-on', title: 'Case-flow scenario lab — teams run call types end-to-end', notes: 'Assess → transport → chart; rotate roles; Captains spot-check Med-Nec.', resources: ['imagetrend'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 60, kind: 'assessment', title: 'Call Types II (Pulmonary/Medical · BLS · intro Accompanied Specialty) + Med-Nec critique + retrieval quiz', notes: 'Merges call-types II with the narrative/Med-Nec critique and cumulative retrieval + preview.', resources: ['call-guide'] },
+      { durationMin: 60, kind: 'assessment', title: 'Call Types II (Pulmonary/Medical · BLS · intro Accompanied Specialty) + Med-Nec critique + retrieval quiz', notes: 'Merges call-types II with the narrative/Med-Nec critique and cumulative retrieval + preview. Deck: Call Types II (BLS Pulmonary/Medical). Quiz: 6-item cumulative retrieval.', resources: ['deck-call-types-ii', 'quiz-call-types-ii', 'call-guide'] },
       HOUSEKEEPING,
     ],
     retrieval: { pullsFrom: [] },

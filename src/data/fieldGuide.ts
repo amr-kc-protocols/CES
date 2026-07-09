@@ -18,6 +18,8 @@ export interface FieldGuideResource {
 export const FIELD_GUIDE_RESOURCES: FieldGuideResource[] = [
   { ref: 'call-guide', label: 'IFT Call Guide (Call Types)', path: 'ift-call-guide.html' },
   { ref: 'call-guide-scope', label: 'IFT Call Guide → ALS vs BLS', path: 'ift-call-guide.html#scope' },
+  { ref: 'deck-call-types-ii', label: 'Call Types II deck (BLS Pulmonary/Medical)', path: 'call-types-ii-deck.pdf' },
+  { ref: 'quiz-call-types-ii', label: 'Call Types II retrieval quiz', path: 'quiz-call-types-ii.html' },
   { ref: 'imagetrend', label: 'ImageTrend Job Aid', path: 'imagetrend-job-aid.html' },
   { ref: 'vent-academy', label: 'Ventilator Academy (9 modules)', path: 'vta/academy.html' },
   { ref: 'vent-sim', label: 'LTV 1200 simulator', path: 'vent-ltv1200.html' },
