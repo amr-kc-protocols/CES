@@ -11,13 +11,18 @@ export const FIELD_GUIDE_BASE = 'https://amr-kc-protocols.github.io/amr-kc-proto
 export interface FieldGuideResource {
   ref: string
   label: string
-  /** Path (and optional query) under FIELD_GUIDE_BASE. */
+  /**
+   * Path (and optional query) under FIELD_GUIDE_BASE — or an app-local path
+   * starting with '/' for files the PWA serves itself (public/, e.g. decks).
+   */
   path: string
 }
 
 export const FIELD_GUIDE_RESOURCES: FieldGuideResource[] = [
   { ref: 'call-guide', label: 'IFT Call Guide (Call Types)', path: 'ift-call-guide.html' },
   { ref: 'call-guide-scope', label: 'IFT Call Guide → ALS vs BLS', path: 'ift-call-guide.html#scope' },
+  { ref: 'deck-cardiac-neuro-dive', label: 'Slides: Cardiac & Neuro deep dive', path: '/decks/session1-1045-cardiac-neuro-deep-dive.pptx' },
+  { ref: 'deck-cardiac-neuro-cases', label: 'Slides: Cardiac & Neuro case studies', path: '/decks/session1-1300-cardiac-neuro-case-studies.pptx' },
   { ref: 'imagetrend', label: 'ImageTrend Job Aid', path: 'imagetrend-job-aid.html' },
   { ref: 'vent-academy', label: 'Ventilator Academy (9 modules)', path: 'vta/academy.html' },
   { ref: 'vent-sim', label: 'LTV 1200 simulator', path: 'vent-ltv1200.html' },
@@ -41,5 +46,11 @@ export function resourceFor(ref: string): FieldGuideResource | undefined {
 
 export function resourceUrl(ref: string): string | undefined {
   const r = BY_REF.get(ref)
-  return r ? FIELD_GUIDE_BASE + r.path : undefined
+  if (!r) return undefined
+  if (r.path.startsWith('/')) {
+    // App-local file: absolute URL so the link also works from printed /
+    // downloaded documents, which open outside the app.
+    return typeof window === 'undefined' ? r.path : window.location.origin + r.path
+  }
+  return FIELD_GUIDE_BASE + r.path
 }
