@@ -92,6 +92,19 @@ textarea {
   font: inherit;
 }
 
+/* iOS Safari paints empty date inputs as a borderless gray box; strip the
+   native appearance so they render like every other text field. */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: var(--surface);
+  min-height: 2.4em;
+}
+
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 /* ---------- App shell ---------- */
 .app {
   min-height: 100vh;
@@ -585,6 +598,11 @@ td {
   text-align: left;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Headers stay on one line; body cells wrap so tables fit narrow screens
+   instead of clipping (cells that must not wrap set it explicitly). */
+th {
   white-space: nowrap;
 }
 

@@ -110,7 +110,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
       </ul>
 
       {/* arrangement layer */}
-      <div style={{ display: 'grid', gridTemplateColumns: session.mode === 'at-home' ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, margin: '4px 0 12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: session.mode === 'at-home' ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, margin: '4px 0 12px', alignItems: 'end' }}>
         <label className="subtle" style={{ fontSize: 12 }}>
           Date
           <input type="date" value={arr?.date ?? ''} onChange={(e) => set({ date: e.target.value || undefined })} style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }} />
