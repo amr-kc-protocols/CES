@@ -486,6 +486,17 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
 
   const weeks: (1 | 2)[] = [1, 2]
 
+  // Auto-sort each week by the date entered; undated sessions keep the template
+  // order at the bottom so they don't jump around before they're scheduled.
+  const byDateThenOrder = (a: TemplateSession, b: TemplateSession): number => {
+    const da = arrangements[a.id]?.date || ''
+    const db = arrangements[b.id]?.date || ''
+    if (da && db) return da.localeCompare(db) || a.order - b.order
+    if (da) return -1
+    if (db) return 1
+    return a.order - b.order
+  }
+
   return (
     <div>
       <div className="banner info">
@@ -521,7 +532,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
       </div>
 
       {weeks.map((wk) => {
-        const wkSessions = sessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
+        const wkSessions = sessions.filter((s) => s.week === wk).sort(byDateThenOrder)
         return (
           <div key={wk}>
             <div className="section-title" style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
