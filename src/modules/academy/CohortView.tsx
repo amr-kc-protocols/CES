@@ -324,9 +324,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <div className="spacer" />
             <button
               className="btn danger sm"
-              onClick={() => {
-                if (confirm(`Remove ${trainee.name} from this cohort?`)) deleteTrainee(trainee.id)
-              }}
+              title="Remove from cohort (undoable)"
+              onClick={() => deleteTrainee(trainee.id)}
             >
               Remove
             </button>
@@ -438,11 +437,8 @@ export default function CohortView() {
       {showEdit && (
         <CohortForm
           editing={cohort}
-          onClose={() => {
-            setShowEdit(false)
-            // Cohort may have been deleted from the form.
-            if (!cohort) navigate('/academy')
-          }}
+          onClose={() => setShowEdit(false)}
+          onDeleted={() => navigate('/academy')}
         />
       )}
     </div>

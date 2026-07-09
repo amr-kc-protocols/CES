@@ -16,7 +16,7 @@ import {
   nextWeekdays,
 } from './academyStore'
 import { printDoc, downloadDoc, scheduleHTML, safeFilename } from './docGen'
-import { scheduleICS, downloadICS, parseBlockTime, weekdayLabel } from './calendar'
+import { scheduleICS, downloadICS, parseBlockTime, weekdayLabel, dayTimeIssues } from './calendar'
 import type { AcademyCohort, AcademyDay } from '../../types'
 
 const inputStyle: React.CSSProperties = {
@@ -45,6 +45,13 @@ function isWeekend(iso: string): boolean {
   return dow === 0 || dow === 6
 }
 
+function fmtMin(m: number): string {
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const rest = m % 60
+  return rest ? `${h} hr ${rest} min` : `${h} hr`
+}
+
 function DayCard({
   day,
   days,
@@ -67,13 +74,10 @@ function DayCard({
     newTimeRef.current?.focus()
   }
 
-  function removeBlock(blockId: string, title: string, note?: string) {
-    // Blocks with real content take effort to recreate; empty ones don't.
-    if (!title.trim() && !note?.trim()) return deleteBlock(day.id, blockId)
-    if (confirm(`Delete block "${title || 'untitled'}"?`)) deleteBlock(day.id, blockId)
-  }
-
   const newTime = timeInputProps(newBlock.time)
+  const issues = dayTimeIssues(day.blocks)
+  const overlaps = issues.filter((i) => i.kind === 'overlap').length
+  const gaps = issues.length - overlaps
 
   return (
     <div className="card" style={{ padding: 14 }}>
@@ -98,15 +102,20 @@ function DayCard({
           style={{ ...inputStyle, flex: 1, minWidth: 180, fontWeight: 700 }}
           aria-label="Day title"
         />
+        {overlaps > 0 && (
+          <span className="pill crit" title="Blocks whose times overlap — check the list below">
+            ⏱ {overlaps} overlap{overlaps === 1 ? '' : 's'}
+          </span>
+        )}
+        {gaps > 0 && (
+          <span className="pill warn" title="Unscheduled time between blocks — check the list below">
+            {gaps} gap{gaps === 1 ? '' : 's'}
+          </span>
+        )}
         <button className="btn sm ghost" onClick={onToggle}>
           {open ? 'Collapse' : `Expand (${day.blocks.length})`}
         </button>
-        <button
-          className="btn sm danger"
-          onClick={() => {
-            if (confirm(`Remove ${formatDate(day.date)} — ${day.title || 'this day'}?`)) deleteDay(day.id)
-          }}
-        >
+        <button className="btn sm danger" onClick={() => deleteDay(day.id)} title="Delete day (undoable)">
           ✕
         </button>
       </div>
@@ -136,6 +145,18 @@ function DayCard({
             style={{ ...inputStyle, width: '100%', marginTop: 8 }}
             aria-label="Day note"
           />
+
+          {issues.length > 0 && (
+            <div className="banner warn" style={{ marginTop: 8 }}>
+              {issues.map((iss, i) => (
+                <div key={i}>
+                  {iss.kind === 'overlap'
+                    ? `⏱ “${iss.first}” and “${iss.second}” overlap by ${fmtMin(iss.minutes)}.`
+                    : `${fmtMin(iss.minutes)} unscheduled between “${iss.first}” and “${iss.second}”.`}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {day.blocks.map((b, i) => {
@@ -194,7 +215,7 @@ function DayCard({
                           </option>
                         ))}
                     </select>
-                    <button className="btn sm danger" onClick={() => removeBlock(b.id, b.title, b.note)} title="Delete block">
+                    <button className="btn sm danger" onClick={() => deleteBlock(day.id, b.id)} title="Delete block (undoable)">
                       ✕
                     </button>
                   </div>

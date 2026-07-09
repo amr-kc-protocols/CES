@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { UndoToast } from './ui'
 import { useCESummary } from '../modules/ce/ceStore'
 import { useBotSyncRunner } from '../modules/qa/botSync'
 import { QA_ENABLED } from '../config/features'
@@ -32,6 +33,8 @@ export default function Layout() {
       <main className="content">
         <Outlet />
       </main>
+
+      <UndoToast />
 
       <nav className="tabbar">
         {TABS.map((t) => (

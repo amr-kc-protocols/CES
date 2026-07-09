@@ -9,10 +9,12 @@ export default function CohortForm({
   editing,
   onClose,
   onCreated,
+  onDeleted,
 }: {
   editing?: AcademyCohort
   onClose: () => void
   onCreated?: (id: string) => void
+  onDeleted?: () => void
 }) {
   const [startDate, setStartDate] = useState(editing?.startDate ?? todayISO())
   const [endDate, setEndDate] = useState(editing?.endDate ?? '')
@@ -40,9 +42,10 @@ export default function CohortForm({
   }
 
   function remove() {
-    if (editing && confirm('Delete this cohort and its entire roster? This cannot be undone.')) {
+    if (editing && confirm('Delete this cohort and its entire roster, schedule, and documents?')) {
       deleteCohort(editing.id)
       onClose()
+      onDeleted?.()
     }
   }
 
