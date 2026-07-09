@@ -67,6 +67,7 @@ export default function DocumentsPanel({
       file: `${cohort.label}_Welcome_Kit`,
       html: () => welcomeKitHTML(cohort, trainees),
       disabled: trainees.length === 0,
+      disabledReason: 'Add trainees to the roster first',
     },
     {
       label: '🏥 Facility cheat sheet',
@@ -74,6 +75,7 @@ export default function DocumentsPanel({
       file: 'KC_Facility_Cheat_Sheet',
       html: () => facilitySheetHTML(),
       disabled: false,
+      disabledReason: '',
     },
     {
       label: '📆 One-page agenda',
@@ -81,6 +83,7 @@ export default function DocumentsPanel({
       file: `${cohort.label}_Agenda`,
       html: () => agendaHTML(cohort, days),
       disabled: days.length === 0,
+      disabledReason: 'Build the schedule first (Schedule tab)',
     },
     {
       label: '🗓️ Schedule (full)',
@@ -88,6 +91,7 @@ export default function DocumentsPanel({
       file: `${cohort.label}_Schedule`,
       html: () => scheduleHTML(cohort, days),
       disabled: days.length === 0,
+      disabledReason: 'Build the schedule first (Schedule tab)',
     },
   ]
 
@@ -182,7 +186,7 @@ export default function DocumentsPanel({
               <div className="grow" style={{ fontWeight: 600 }}>
                 {d.label}
               </div>
-              <div className="btn-row" style={{ gap: 6 }}>
+              <div className="btn-row" style={{ gap: 6 }} title={d.disabled ? d.disabledReason : undefined}>
                 <button className="btn sm" disabled={d.disabled} onClick={() => printDoc(d.title, d.html())}>
                   🖨 Print
                 </button>
@@ -203,7 +207,7 @@ export default function DocumentsPanel({
                 Import into Outlook / Google / Apple Calendar, or email to instructors.
               </div>
             </div>
-            <div className="btn-row" style={{ gap: 6 }}>
+            <div className="btn-row" style={{ gap: 6 }} title={days.length === 0 ? 'Build the schedule first (Schedule tab)' : undefined}>
               <button
                 className="btn sm"
                 disabled={days.length === 0}

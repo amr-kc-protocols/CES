@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Empty, Modal, ProgressBar, Stat } from '../../components/ui'
 import { OPERATIONS, operationShort } from '../../data/operations'
 import {
@@ -324,9 +324,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <div className="spacer" />
             <button
               className="btn danger sm"
-              onClick={() => {
-                if (confirm(`Remove ${trainee.name} from this cohort?`)) deleteTrainee(trainee.id)
-              }}
+              title="Remove from cohort (undoable)"
+              onClick={() => deleteTrainee(trainee.id)}
             >
               Remove
             </button>
@@ -337,7 +336,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   )
 }
 
-type CohortTab = 'roster' | 'schedule' | 'phase2' | 'docs'
+const COHORT_TABS = ['roster', 'schedule', 'phase2', 'docs'] as const
+type CohortTab = (typeof COHORT_TABS)[number]
 
 export default function CohortView() {
   const { cohortId = '' } = useParams()
@@ -346,7 +346,11 @@ export default function CohortView() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const [tab, setTab] = useState<CohortTab>('roster')
+  // Tab lives in the URL so a refresh keeps your place and tabs are linkable.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get('tab')
+  const tab: CohortTab = COHORT_TABS.includes(rawTab as CohortTab) ? (rawTab as CohortTab) : 'roster'
+  const setTab = (t: CohortTab) => setSearchParams(t === 'roster' ? {} : { tab: t }, { replace: true })
 
   if (!cohort) {
     return (
@@ -433,11 +437,8 @@ export default function CohortView() {
       {showEdit && (
         <CohortForm
           editing={cohort}
-          onClose={() => {
-            setShowEdit(false)
-            // Cohort may have been deleted from the form.
-            if (!cohort) navigate('/academy')
-          }}
+          onClose={() => setShowEdit(false)}
+          onDeleted={() => navigate('/academy')}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { fromISODate } from '../../lib/date'
-import type { AcademyCohort, AcademyDay } from '../../types'
+import type { AcademyCohort, AcademyDay, ScheduleBlock } from '../../types'
 
 // ---------------------------------------------------------------------------
 // iCalendar (.ics) export for an academy schedule. Each schedule block with a
@@ -44,6 +44,8 @@ function tokenToMinutes(tok: string): number | null {
 interface ParsedTime {
   startMin: number
   endMin: number
+  /** False when the end was guessed (single time like "1600" → +30 min). */
+  endExplicit: boolean
 }
 
 /** Parse a block time string ("0900–0915", "1600", "0900-1600") into minutes. */
@@ -54,9 +56,59 @@ export function parseBlockTime(time: string): ParsedTime | null {
   if (parts.length === 0) return null
   const start = tokenToMinutes(parts[0])
   if (start === null) return null
-  let end = parts.length > 1 ? tokenToMinutes(parts[1]) : null
-  if (end === null || end <= start) end = Math.min(start + 30, 24 * 60 - 1)
-  return { startMin: start, endMin: end }
+  const explicit = parts.length > 1 ? tokenToMinutes(parts[1]) : null
+  const endExplicit = explicit !== null && explicit > start
+  const end = endExplicit ? explicit! : Math.min(start + 30, 24 * 60 - 1)
+  return { startMin: start, endMin: end, endExplicit }
+}
+
+// ----- schedule sanity checks ------------------------------------------------
+
+export interface DayTimeIssue {
+  kind: 'overlap' | 'gap'
+  minutes: number
+  /** Titles (or times) of the two blocks involved, in clock order. */
+  first: string
+  second: string
+}
+
+/** Gaps shorter than this are ignored — not worth flagging. */
+const GAP_FLAG_MIN = 15
+
+/**
+ * Find overlaps and unscheduled gaps between a day's timed blocks. Blocks
+ * whose end time is guessed (single times like "1600") are skipped as the
+ * earlier side of a comparison, so guesses never produce false alarms.
+ */
+export function dayTimeIssues(blocks: ScheduleBlock[]): DayTimeIssue[] {
+  const timed = blocks
+    .map((b) => ({ b, t: parseBlockTime(b.time) }))
+    .filter((x): x is { b: ScheduleBlock; t: ParsedTime } => x.t !== null)
+    .sort((a, b) => a.t.startMin - b.t.startMin)
+
+  const label = (x: { b: ScheduleBlock }) => x.b.title || x.b.time || 'untitled'
+  const issues: DayTimeIssue[] = []
+  for (let i = 1; i < timed.length; i++) {
+    const prev = timed[i - 1]
+    const cur = timed[i]
+    if (!prev.t.endExplicit) continue
+    if (cur.t.startMin < prev.t.endMin) {
+      issues.push({
+        kind: 'overlap',
+        minutes: prev.t.endMin - cur.t.startMin,
+        first: label(prev),
+        second: label(cur),
+      })
+    } else if (cur.t.startMin - prev.t.endMin >= GAP_FLAG_MIN) {
+      issues.push({
+        kind: 'gap',
+        minutes: cur.t.startMin - prev.t.endMin,
+        first: label(prev),
+        second: label(cur),
+      })
+    }
+  }
+  return issues
 }
 
 function localDateTime(iso: string, minutes: number): string {

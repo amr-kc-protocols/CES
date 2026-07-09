@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect } from 'react'
+import { dismissUndo, runUndo, useUndoEntry } from '../lib/undo'
 
 // ----- Progress bar --------------------------------------------------------
 
@@ -46,6 +47,25 @@ export function Empty({
       <div className="big">{icon}</div>
       <div style={{ fontWeight: 700, color: 'var(--text)' }}>{title}</div>
       {children && <div style={{ marginTop: 6 }}>{children}</div>}
+    </div>
+  )
+}
+
+// ----- Undo toast ------------------------------------------------------------
+
+/** Floating toast offering to undo the most recent destructive action. */
+export function UndoToast() {
+  const entry = useUndoEntry()
+  if (!entry) return null
+  return (
+    <div className="undo-toast" role="status">
+      <span className="undo-label">{entry.label}</span>
+      <button className="btn sm primary" onClick={runUndo}>
+        Undo
+      </button>
+      <button className="undo-dismiss" onClick={dismissUndo} aria-label="Dismiss">
+        ✕
+      </button>
     </div>
   )
 }

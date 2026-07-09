@@ -1,6 +1,7 @@
-import { setState, useSelector } from '../../lib/store'
+import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
-import { addDays, todayISO, fromISODate, toISODate, monthKey } from '../../lib/date'
+import { pushUndo } from '../../lib/undo'
+import { addDays, formatDate, todayISO, fromISODate, toISODate, monthKey } from '../../lib/date'
 import {
   ACADEMY_LENGTH_DAYS,
   DEFAULT_CONTACT_TARGET,
@@ -9,6 +10,7 @@ import {
   RELEASE_MIN_CONTACTS,
 } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
+import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -60,6 +62,13 @@ export function updateCohort(id: string, patch: Partial<AcademyCohort>): void {
 }
 
 export function deleteCohort(id: string): void {
+  // Capture everything the cohort owns so the whole thing is restorable.
+  const db = getState()
+  const cohort = db.academyCohorts.find((c) => c.id === id)
+  const trainees = db.trainees.filter((t) => t.cohortId === id)
+  const days = db.academyDays.filter((d) => d.cohortId === id)
+  const arrangements = db.academyArrangements.filter((a) => a.cohortId === id)
+
   setState((db) => ({
     ...db,
     academyCohorts: db.academyCohorts.filter((c) => c.id !== id),
@@ -67,6 +76,18 @@ export function deleteCohort(id: string): void {
     academyDays: db.academyDays.filter((d) => d.cohortId !== id),
     academyArrangements: db.academyArrangements.filter((a) => a.cohortId !== id),
   }))
+
+  if (cohort) {
+    pushUndo(`Deleted ${cohort.label}`, () =>
+      setState((db) => ({
+        ...db,
+        academyCohorts: [...db.academyCohorts, cohort],
+        trainees: [...db.trainees, ...trainees],
+        academyDays: [...db.academyDays, ...days],
+        academyArrangements: [...db.academyArrangements, ...arrangements],
+      })),
+    )
+  }
 }
 
 // ----- trainees ---------------------------------------------------------------
@@ -111,7 +132,13 @@ export function updateTrainee(id: string, patch: Partial<Trainee>): void {
 }
 
 export function deleteTrainee(id: string): void {
+  const trainee = getState().trainees.find((t) => t.id === id)
   setState((db) => ({ ...db, trainees: db.trainees.filter((t) => t.id !== id) }))
+  if (trainee) {
+    pushUndo(`Removed ${trainee.name}`, () =>
+      setState((db) => ({ ...db, trainees: [...db.trainees, trainee] })),
+    )
+  }
 }
 
 /** Toggle a checklist module; stores the completion date when checking. */
@@ -257,7 +284,14 @@ export function updateDay(id: string, patch: Partial<AcademyDay>): void {
 }
 
 export function deleteDay(id: string): void {
+  const day = getState().academyDays.find((d) => d.id === id)
   setState((db) => ({ ...db, academyDays: db.academyDays.filter((d) => d.id !== id) }))
+  if (day) {
+    // Days render sorted by date, so re-appending restores its position.
+    pushUndo(`Deleted ${formatDate(day.date)}${day.title ? ` — ${day.title}` : ''}`, () =>
+      setState((db) => ({ ...db, academyDays: [...db.academyDays, day] })),
+    )
+  }
 }
 
 export function addBlock(dayId: string, block: Omit<ScheduleBlock, 'id'>): void {
@@ -281,12 +315,30 @@ export function updateBlock(dayId: string, blockId: string, patch: Partial<Sched
 }
 
 export function deleteBlock(dayId: string, blockId: string): void {
+  const day = getState().academyDays.find((d) => d.id === dayId)
+  const index = day ? day.blocks.findIndex((b) => b.id === blockId) : -1
+  const block = index >= 0 ? day!.blocks[index] : undefined
+
   setState((db) => ({
     ...db,
     academyDays: db.academyDays.map((d) =>
       d.id === dayId ? { ...d, blocks: d.blocks.filter((b) => b.id !== blockId) } : d,
     ),
   }))
+
+  if (block) {
+    pushUndo(`Deleted block "${block.title || block.time || 'untitled'}"`, () =>
+      setState((db) => ({
+        ...db,
+        academyDays: db.academyDays.map((d) => {
+          if (d.id !== dayId) return d
+          const blocks = [...d.blocks]
+          blocks.splice(Math.min(index, blocks.length), 0, block)
+          return { ...d, blocks }
+        }),
+      })),
+    )
+  }
 }
 
 /** Move a block up/down within its day. */
@@ -320,6 +372,50 @@ export function moveBlockToDay(fromDayId: string, blockId: string, toDayId: stri
       }),
     }
   })
+}
+
+/**
+ * Copy a day (title, facilitators, location, note, blocks) onto the next
+ * weekday after the cohort's last scheduled day.
+ */
+export function duplicateDay(id: string): AcademyDay | undefined {
+  const db = getState()
+  const src = db.academyDays.find((d) => d.id === id)
+  if (!src) return undefined
+  const last = db.academyDays
+    .filter((d) => d.cohortId === src.cohortId)
+    .reduce((max, d) => (d.date > max ? d.date : max), src.date)
+  const copy: AcademyDay = {
+    ...src,
+    id: uid('day'),
+    date: nextWeekdays(addDays(last, 1), 1)[0],
+    blocks: src.blocks.map((b) => ({ ...b, id: uid('blk') })),
+  }
+  setState((db) => ({ ...db, academyDays: [...db.academyDays, copy] }))
+  return copy
+}
+
+function shiftDaysRaw(cohortId: string, deltaDays: number): void {
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) =>
+      d.cohortId === cohortId ? { ...d, date: addDays(d.date, deltaDays) } : d,
+    ),
+  }))
+}
+
+/**
+ * Shift every scheduled day of a cohort by the same number of days,
+ * preserving the spacing between days (e.g. when the academy start moves).
+ */
+export function shiftCohortDays(cohortId: string, deltaDays: number): void {
+  if (!deltaDays) return
+  shiftDaysRaw(cohortId, deltaDays)
+  const dir = deltaDays > 0 ? 'later' : 'earlier'
+  // Undo calls the raw shift so it doesn't itself register another undo.
+  pushUndo(`Schedule shifted ${Math.abs(deltaDays)} day${Math.abs(deltaDays) === 1 ? '' : 's'} ${dir}`, () =>
+    shiftDaysRaw(cohortId, -deltaDays),
+  )
 }
 
 /** Next N weekdays (Mon-Fri) starting from `startISO` inclusive. */
@@ -368,6 +464,41 @@ export function useArrangements(cohortId: string | undefined): Record<string, Se
     }
     return map
   })
+}
+
+/**
+ * Map the Phase 2 session sequence onto consecutive weekdays starting at
+ * `startISO`. Overwrites each session's date (undoable); start times and
+ * facilitators already arranged are kept.
+ */
+export function fillPhase2Dates(cohortId: string, startISO: string): void {
+  const sessions = [...PHASE2_TEMPLATE.sessions].sort((a, b) => a.order - b.order)
+  const dates = nextWeekdays(startISO, sessions.length)
+  const prev = getState().academyArrangements.filter((a) => a.cohortId === cohortId)
+
+  setState((db) => {
+    const mine = new Map(prev.map((a) => [a.sessionId, a]))
+    return {
+      ...db,
+      academyArrangements: [
+        ...db.academyArrangements.filter((a) => a.cohortId !== cohortId),
+        ...sessions.map((s, i) => ({
+          ...(mine.get(s.id) ?? { cohortId, sessionId: s.id }),
+          date: dates[i],
+        })),
+      ],
+    }
+  })
+
+  pushUndo('Phase 2 session dates filled', () =>
+    setState((db) => ({
+      ...db,
+      academyArrangements: [
+        ...db.academyArrangements.filter((a) => a.cohortId !== cohortId),
+        ...prev,
+      ],
+    })),
+  )
 }
 
 export function setArrangement(
