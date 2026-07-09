@@ -286,9 +286,20 @@ export function phase2ScheduleHTML(
   const allSessions = sessionList ?? t.sessions
   const weeks: (1 | 2)[] = [1, 2]
 
+  // Same date-aware sort as the on-screen schedule: dated sessions in calendar
+  // order, undated ones after in template order.
+  const byDate = (a: TemplateSession, b: TemplateSession): number => {
+    const da = arrangements[a.id]?.date || ''
+    const db = arrangements[b.id]?.date || ''
+    if (da && db) return da.localeCompare(db) || a.order - b.order
+    if (da) return -1
+    if (db) return 1
+    return a.order - b.order
+  }
+
   const arc = weeks
     .map((wk) => {
-      const wkSessions = allSessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
+      const wkSessions = allSessions.filter((s) => s.week === wk).sort(byDate)
       if (!wkSessions.length) return ''
       return `
         <h2>${esc(WEEK_LABELS[wk])}</h2>
@@ -359,7 +370,7 @@ export function phase2ScheduleHTML(
 
   const sessionsHtml = weeks
     .map((wk) => {
-      const wkSessions = allSessions.filter((s) => s.week === wk).sort((a, b) => a.order - b.order)
+      const wkSessions = allSessions.filter((s) => s.week === wk).sort(byDate)
       if (!wkSessions.length) return ''
       return `<h1 style="margin-top:22px">${esc(WEEK_LABELS[wk])}</h1>${wkSessions.map(renderSession).join('')}`
     })
