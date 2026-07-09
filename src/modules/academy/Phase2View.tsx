@@ -17,6 +17,8 @@ import {
   useCohortDays,
   nextWeekdays,
   fillPhase2Dates,
+  phase2Dates,
+  type Phase2Cadence,
 } from './academyStore'
 import type { AcademyCohort, TemplateBlock, TemplateSession } from '../../types'
 
@@ -225,17 +227,29 @@ function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: (
     ? nextWeekdays(addDays(phase1Days[phase1Days.length - 1].date, 1), 1)[0]
     : nextWeekdays(cohort.startDate, 1)[0]
   const [start, setStart] = useState(defaultStart)
-  const dates = nextWeekdays(start, sessions.length)
+  const [paceIdx, setPaceIdx] = useState(0)
+  const dates = phase2Dates(start, sessions.length, PACES[paceIdx].value)
 
   return (
     <Modal title="Fill Phase 2 dates" onClose={onClose}>
-      <div className="field">
-        <label>Session 1 date</label>
-        <input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} />
-        <div className="help-text">
-          Sessions map onto consecutive weekdays. Existing dates are overwritten (undoable);
-          start times and facilitators are kept. Adjust any session after.
+      <div className="field-row">
+        <div className="field">
+          <label>Session 1 date</label>
+          <input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} />
         </div>
+        <div className="field">
+          <label>Pace</label>
+          <select value={paceIdx} onChange={(e) => setPaceIdx(Number(e.target.value))}>
+            {PACES.map((p, i) => (
+              <option key={i} value={i}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="help-text" style={{ marginTop: -6 }}>
+        Spread the clinical phase over a longer time frame (weekly / bi-weekly) for hires who can’t
+        attend a full week. Existing dates are overwritten (undoable); start times and facilitators
+        are kept. Adjust any session after.
       </div>
       <div className="list" style={{ gap: 4, margin: '10px 0' }}>
         {sessions.map((s, i) => (
@@ -254,7 +268,7 @@ function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: (
         <button
           className="btn primary"
           onClick={() => {
-            fillPhase2Dates(cohort.id, start)
+            fillPhase2Dates(cohort.id, start, PACES[paceIdx].value)
             onClose()
           }}
         >
@@ -267,6 +281,12 @@ function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: (
     </Modal>
   )
 }
+
+const PACES: { value: Phase2Cadence; label: string }[] = [
+  { value: 'weekdays', label: 'Consecutive weekdays (one week)' },
+  { value: 'weekly', label: 'One session per week' },
+  { value: 14, label: 'One every two weeks' },
+]
 
 export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
   const arrangements = useArrangements(cohort.id)

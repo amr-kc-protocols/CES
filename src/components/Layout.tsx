@@ -1,8 +1,12 @@
+import { lazy, Suspense } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { UndoToast } from './ui'
 import { useCESummary } from '../modules/ce/ceStore'
-import { useBotSyncRunner } from '../modules/qa/botSync'
 import { QA_ENABLED } from '../config/features'
+
+// QA background sync is mounted only when QA is enabled; lazy so its deps
+// (botSync → qaStore → bot-bridge) stay out of the initial chunk while paused.
+const BotSyncMount = lazy(() => import('../modules/qa/BotSyncMount'))
 
 const TABS = [
   { to: '/', label: 'Home', icon: '🏠', end: true, qa: false },
@@ -16,10 +20,14 @@ const TABS = [
 export default function Layout() {
   const ce = useCESummary()
   const ceBadge = ce.overdue + ce.dueThisWeek
-  useBotSyncRunner()
 
   return (
     <div className="app">
+      {QA_ENABLED && (
+        <Suspense fallback={null}>
+          <BotSyncMount />
+        </Suspense>
+      )}
       <header className="topbar">
         <div className="brand">
           <img src="/pwa-192x192.png" alt="" />
@@ -31,7 +39,9 @@ export default function Layout() {
       </header>
 
       <main className="content">
-        <Outlet />
+        <Suspense fallback={<div className="subtle" style={{ padding: 20 }}>Loading…</div>}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <UndoToast />

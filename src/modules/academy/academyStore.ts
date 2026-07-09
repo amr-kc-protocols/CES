@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
@@ -14,6 +15,9 @@ import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import type {
   AcademyCohort,
   AcademyDay,
+  AcademyDayRef,
+  AttendanceRecord,
+  AttendanceStatus,
   Credential,
   OperationId,
   ScheduleBlock,
@@ -75,6 +79,7 @@ export function deleteCohort(id: string): void {
     trainees: db.trainees.filter((t) => t.cohortId !== id),
     academyDays: db.academyDays.filter((d) => d.cohortId !== id),
     academyArrangements: db.academyArrangements.filter((a) => a.cohortId !== id),
+    academyAttendance: db.academyAttendance.filter((a) => a.cohortId !== id),
   }))
 
   if (cohort) {
@@ -132,11 +137,21 @@ export function updateTrainee(id: string, patch: Partial<Trainee>): void {
 }
 
 export function deleteTrainee(id: string): void {
-  const trainee = getState().trainees.find((t) => t.id === id)
-  setState((db) => ({ ...db, trainees: db.trainees.filter((t) => t.id !== id) }))
+  const state = getState()
+  const trainee = state.trainees.find((t) => t.id === id)
+  const attendance = state.academyAttendance.filter((a) => a.traineeId === id)
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.filter((t) => t.id !== id),
+    academyAttendance: db.academyAttendance.filter((a) => a.traineeId !== id),
+  }))
   if (trainee) {
     pushUndo(`Removed ${trainee.name}`, () =>
-      setState((db) => ({ ...db, trainees: [...db.trainees, trainee] })),
+      setState((db) => ({
+        ...db,
+        trainees: [...db.trainees, trainee],
+        academyAttendance: [...db.academyAttendance, ...attendance],
+      })),
     )
   }
 }
@@ -284,12 +299,22 @@ export function updateDay(id: string, patch: Partial<AcademyDay>): void {
 }
 
 export function deleteDay(id: string): void {
-  const day = getState().academyDays.find((d) => d.id === id)
-  setState((db) => ({ ...db, academyDays: db.academyDays.filter((d) => d.id !== id) }))
+  const state = getState()
+  const day = state.academyDays.find((d) => d.id === id)
+  const attendance = state.academyAttendance.filter((a) => a.dayKey === `p1:${id}`)
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.filter((d) => d.id !== id),
+    academyAttendance: db.academyAttendance.filter((a) => a.dayKey !== `p1:${id}`),
+  }))
   if (day) {
     // Days render sorted by date, so re-appending restores its position.
     pushUndo(`Deleted ${formatDate(day.date)}${day.title ? ` — ${day.title}` : ''}`, () =>
-      setState((db) => ({ ...db, academyDays: [...db.academyDays, day] })),
+      setState((db) => ({
+        ...db,
+        academyDays: [...db.academyDays, day],
+        academyAttendance: [...db.academyAttendance, ...attendance],
+      })),
     )
   }
 }
@@ -471,9 +496,29 @@ export function useArrangements(cohortId: string | undefined): Record<string, Se
  * `startISO`. Overwrites each session's date (undoable); start times and
  * facilitators already arranged are kept.
  */
-export function fillPhase2Dates(cohortId: string, startISO: string): void {
+/**
+ * How Phase 2 sessions map onto dates:
+ *   'weekdays' — consecutive Mon–Fri (a single week; the default),
+ *   'weekly'   — one session per week (same weekday),
+ *   a number   — every N calendar days (e.g. 14 = bi-weekly).
+ * The non-'weekdays' cadences let the clinical phase stretch over a longer
+ * time frame for hires who can't attend a full week at once.
+ */
+export type Phase2Cadence = 'weekdays' | 'weekly' | number
+
+export function phase2Dates(startISO: string, count: number, cadence: Phase2Cadence): string[] {
+  if (cadence === 'weekdays') return nextWeekdays(startISO, count)
+  const step = cadence === 'weekly' ? 7 : Math.max(1, Math.floor(cadence))
+  return Array.from({ length: count }, (_, i) => addDays(startISO, i * step))
+}
+
+export function fillPhase2Dates(
+  cohortId: string,
+  startISO: string,
+  cadence: Phase2Cadence = 'weekdays',
+): void {
   const sessions = [...PHASE2_TEMPLATE.sessions].sort((a, b) => a.order - b.order)
-  const dates = nextWeekdays(startISO, sessions.length)
+  const dates = phase2Dates(startISO, sessions.length, cadence)
   const prev = getState().academyArrangements.filter((a) => a.cohortId === cohortId)
 
   setState((db) => {
@@ -522,5 +567,95 @@ export function setArrangement(
         i === idx ? { ...a, ...patch } : a,
       ),
     }
+  })
+}
+
+// ----- unified academy day list (both phases) --------------------------------
+
+/**
+ * Every scheduled academy day for a cohort, across both phases, in date order.
+ * Phase 1 pulls from the free-form schedule; Phase 2 from dated in-person
+ * sessions. Undated Phase 2 sessions sort to the end.
+ *
+ * Derived with useMemo from the (referentially stable) day + arrangement
+ * selectors — building fresh objects inside a single useSelector would defeat
+ * its snapshot cache and loop.
+ */
+export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
+  const days = useCohortDays(cohortId)
+  const arrangements = useArrangements(cohortId)
+  return useMemo(() => {
+    const p1: AcademyDayRef[] = days.map((d) => ({
+      key: `p1:${d.id}`,
+      phase: 1,
+      date: d.date,
+      title: d.title || 'Academy day',
+    }))
+    const p2: AcademyDayRef[] = PHASE2_TEMPLATE.sessions
+      .filter((s) => s.mode === 'in-person')
+      .map((s) => ({
+        key: `p2:${s.id}`,
+        phase: 2 as const,
+        date: arrangements[s.id]?.date ?? '',
+        title: `S${s.order} · ${s.title}`,
+      }))
+    return [...p1, ...p2].sort((a, b) => {
+      if (!a.date && !b.date) return 0
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return a.date.localeCompare(b.date)
+    })
+  }, [days, arrangements])
+}
+
+// ----- attendance ------------------------------------------------------------
+
+export function useAttendance(cohortId: string | undefined): AttendanceRecord[] {
+  return useSelector((db) => db.academyAttendance.filter((a) => a.cohortId === cohortId))
+}
+
+/** Attendance lookup key. */
+export function attKey(traineeId: string, dayKey: string): string {
+  return `${traineeId}|${dayKey}`
+}
+
+/** Build a fast lookup: `${traineeId}|${dayKey}` -> status. */
+export function attendanceMap(records: AttendanceRecord[]): Map<string, AttendanceStatus> {
+  const m = new Map<string, AttendanceStatus>()
+  for (const r of records) m.set(attKey(r.traineeId, r.dayKey), r.status)
+  return m
+}
+
+/** Set (or clear, when status is null) one trainee's attendance for one day. */
+export function setAttendance(
+  cohortId: string,
+  traineeId: string,
+  dayKey: string,
+  status: AttendanceStatus | null,
+): void {
+  setState((db) => {
+    const rest = db.academyAttendance.filter(
+      (a) => !(a.cohortId === cohortId && a.traineeId === traineeId && a.dayKey === dayKey),
+    )
+    return {
+      ...db,
+      academyAttendance: status ? [...rest, { cohortId, traineeId, dayKey, status }] : rest,
+    }
+  })
+}
+
+/** Mark every trainee present for a day (quick "all present" action). */
+export function markAllPresent(cohortId: string, traineeIds: string[], dayKey: string): void {
+  setState((db) => {
+    const rest = db.academyAttendance.filter(
+      (a) => !(a.cohortId === cohortId && a.dayKey === dayKey),
+    )
+    const marks: AttendanceRecord[] = traineeIds.map((traineeId) => ({
+      cohortId,
+      traineeId,
+      dayKey,
+      status: 'present' as const,
+    }))
+    return { ...db, academyAttendance: [...rest, ...marks] }
   })
 }

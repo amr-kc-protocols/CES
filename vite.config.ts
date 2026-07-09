@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'AMR Clinical Education Suite',
         short_name: 'CES',
         description:
-          'QA Review Queue and Kansas CE Deadline Tracker for AMR Clinical Education',
+          'Kansas CE Deadline Tracker and New Hire Academy builder for AMR Clinical Education',
         theme_color: '#0b2e4f',
         background_color: '#0b2e4f',
         display: 'standalone',
@@ -42,4 +42,15 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep the framework in its own chunk so app-code changes don't force
+        // returning users to re-download React/router across deploys.
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 })

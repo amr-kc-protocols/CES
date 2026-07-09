@@ -252,6 +252,32 @@ export interface SessionArrangement {
   facilitators?: string
 }
 
+// ----- Attendance -----------------------------------------------------------
+// Tracks which trainee attended which academy day, across both phases, so
+// missed days surface for catch-up training. `dayKey` identifies the day:
+// `p1:<academyDayId>` for a Phase 1 schedule day, `p2:<sessionId>` for a
+// Phase 2 clinical session. Only explicit marks are stored (no record = not
+// yet taken).
+
+export type AttendanceStatus = 'present' | 'absent'
+
+export interface AttendanceRecord {
+  cohortId: string
+  traineeId: string
+  /** `p1:<dayId>` or `p2:<sessionId>`. */
+  dayKey: string
+  status: AttendanceStatus
+}
+
+/** A schedulable academy day, unified across phases for attendance/printing. */
+export interface AcademyDayRef {
+  key: string
+  phase: 1 | 2
+  /** ISO date, or '' if a Phase 2 session hasn't been dated yet. */
+  date: string
+  title: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -261,5 +287,6 @@ export interface DBShape {
   trainees: Trainee[]
   academyDays: AcademyDay[]
   academyArrangements: SessionArrangement[]
+  academyAttendance: AttendanceRecord[]
   settings: Settings
 }

@@ -1,15 +1,19 @@
+import { lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './modules/dashboard/Dashboard'
-import CETracker from './modules/ce/CETracker'
-import QAQueue from './modules/qa/QAQueue'
-import QAPeriodView from './modules/qa/QAPeriodView'
-import ChartReviewScreen from './modules/qa/ChartReviewScreen'
-import AcademyList from './modules/academy/AcademyList'
-import CohortView from './modules/academy/CohortView'
-import BotTab from './modules/qa/BotTab'
-import Settings from './modules/settings/Settings'
 import { QA_ENABLED } from './config/features'
+
+// Route components are code-split: each screen loads on demand, so the initial
+// payload is just the shell + dashboard. Layout wraps <Outlet> in Suspense.
+const CETracker = lazy(() => import('./modules/ce/CETracker'))
+const AcademyList = lazy(() => import('./modules/academy/AcademyList'))
+const CohortView = lazy(() => import('./modules/academy/CohortView'))
+const Settings = lazy(() => import('./modules/settings/Settings'))
+const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
+const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
+const ChartReviewScreen = lazy(() => import('./modules/qa/ChartReviewScreen'))
+const BotTab = lazy(() => import('./modules/qa/BotTab'))
 
 export default function App() {
   return (

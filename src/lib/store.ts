@@ -23,6 +23,7 @@ function emptyDB(): DBShape {
     trainees: [],
     academyDays: [],
     academyArrangements: [],
+    academyAttendance: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }
