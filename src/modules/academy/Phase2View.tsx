@@ -14,13 +14,15 @@ import { weekdayLabel } from './calendar'
 import {
   useArrangements,
   setArrangement,
+  setSessionBlocks,
+  resetSessionBlocks,
   useCohortDays,
   nextWeekdays,
   fillPhase2Dates,
   phase2Dates,
   type Phase2Cadence,
 } from './academyStore'
-import type { AcademyCohort, TemplateBlock, TemplateSession } from '../../types'
+import type { AcademyCohort, BlockKind, TemplateBlock, TemplateSession } from '../../types'
 
 const KIND_LABEL: Record<TemplateBlock['kind'], string> = {
   education: 'Education',
@@ -38,6 +40,16 @@ const KIND_CLS: Record<TemplateBlock['kind'], string> = {
   break: 'muted',
   lunch: 'muted',
   closeout: 'muted',
+}
+
+const KIND_ORDER: BlockKind[] = ['education', 'hands-on', 'assessment', 'break', 'lunch', 'closeout']
+
+/** The block list actually in effect for a class: edited if present, else template. */
+function effectiveBlocks(
+  session: TemplateSession,
+  edited: TemplateBlock[] | undefined,
+): TemplateBlock[] {
+  return edited && edited.length ? edited : session.blocks ?? []
 }
 
 const fmtHours = (min: number): string => {
@@ -82,12 +94,37 @@ function ResourceChips({ refs }: { refs?: string[] }) {
 function SessionCard({ cohortId, session }: { cohortId: string; session: TemplateSession }) {
   const arrangements = useArrangements(cohortId)
   const arr = arrangements[session.id]
-  const eduMin = educationMinutes(session)
-  const under = isUnderMinHours(session, PHASE2_TEMPLATE.minEducationHoursPerDay)
+  const [editing, setEditing] = useState(false)
+
+  const blocks = effectiveBlocks(session, arr?.blocks)
+  const customized = !!(arr?.blocks && arr.blocks.length)
+  const eduMin = educationMinutes(session, blocks)
+  const under = isUnderMinHours(session, PHASE2_TEMPLATE.minEducationHoursPerDay, blocks)
   const effectiveStart = arr?.startTime || session.defaultStart
-  const rows = timeline(session, effectiveStart)
+  const rows = timeline(session, effectiveStart, blocks)
+  const endsAt = rows && rows.length ? rows[rows.length - 1].end : null
+  const totalMin = blocks.reduce((s, b) => s + b.durationMin, 0)
 
   const set = (patch: Parameters<typeof setArrangement>[2]) => setArrangement(cohortId, session.id, patch)
+
+  // --- block editing (per class) ---
+  const mutate = (fn: (bs: TemplateBlock[]) => TemplateBlock[]) => {
+    const clone = blocks.map((b) => ({ ...b, resources: b.resources ? [...b.resources] : undefined }))
+    setSessionBlocks(cohortId, session.id, fn(clone))
+  }
+  const updateBlock = (i: number, patch: Partial<TemplateBlock>) =>
+    mutate((bs) => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)))
+  const moveBlock = (i: number, dir: -1 | 1) =>
+    mutate((bs) => {
+      const j = i + dir
+      if (j < 0 || j >= bs.length) return bs
+      const next = [...bs]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  const deleteBlock = (i: number) => mutate((bs) => bs.filter((_, j) => j !== i))
+  const addBlock = () =>
+    mutate((bs) => [...bs, { durationMin: 15, kind: 'education', title: 'New block' }])
 
   return (
     <div className="card" style={{ padding: 14 }}>
@@ -96,6 +133,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
           <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span> · {session.title}
         </h3>
         {session.mode === 'at-home' && <span className="pill muted">At home</span>}
+        {customized && <span className="pill info" title="This class has edited blocks">Edited</span>}
         <span className={`pill ${under ? 'crit' : 'ok'}`} style={{ marginLeft: 'auto' }}>
           {fmtHours(eduMin)} hrs education{under ? ` · under ${PHASE2_TEMPLATE.minEducationHoursPerDay}` : ''}
         </span>
@@ -174,32 +212,107 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
           ))}
         </div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: 92 }}>{rows ? 'Time' : 'Duration'}</th>
-                <th>Block</th>
-                <th style={{ width: 92 }}>Kind</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(rows ?? (session.blocks ?? []).map((block) => ({ start: '', end: '', block }))).map((r, i) => (
-                <tr key={i}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{rows ? `${r.start}–${r.end}` : `${r.block.durationMin}m`}</td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{r.block.title}</div>
-                    {r.block.notes && <div className="subtle" style={{ fontSize: 12 }}>{r.block.notes}</div>}
-                    <ResourceChips refs={r.block.resources} />
-                  </td>
-                  <td>
-                    <span className={`pill ${KIND_CLS[r.block.kind]}`}>{KIND_LABEL[r.block.kind]}</span>
-                  </td>
-                </tr>
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+            <span className="subtle" style={{ fontSize: 12 }}>
+              {rows && endsAt ? `Runs ${rows[0].start}–${endsAt}` : `${fmtHours(totalMin)} h of blocks`} · {fmtHours(eduMin)} h teaching
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              {customized && (
+                <button
+                  className="btn sm ghost"
+                  onClick={() => {
+                    if (confirm('Reset this session’s blocks to the template default?')) {
+                      resetSessionBlocks(cohortId, session.id)
+                      setEditing(false)
+                    }
+                  }}
+                >
+                  Reset to template
+                </button>
+              )}
+              <button className="btn sm" onClick={() => setEditing(!editing)}>
+                {editing ? 'Done' : '✎ Edit blocks'}
+              </button>
+            </div>
+          </div>
+
+          {editing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {blocks.map((b, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="number"
+                    min={0}
+                    step={5}
+                    value={b.durationMin}
+                    onChange={(e) => updateBlock(i, { durationMin: Math.max(0, Number(e.target.value) || 0) })}
+                    style={{ ...inputStyle, width: 62 }}
+                    aria-label="Duration in minutes"
+                    title="Minutes"
+                  />
+                  <input
+                    value={b.title}
+                    onChange={(e) => updateBlock(i, { title: e.target.value })}
+                    style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+                    aria-label="Block title"
+                  />
+                  <select
+                    value={b.kind}
+                    onChange={(e) => updateBlock(i, { kind: e.target.value as BlockKind })}
+                    style={{ ...inputStyle, width: 118 }}
+                    aria-label="Block kind"
+                  >
+                    {KIND_ORDER.map((k) => (
+                      <option key={k} value={k}>
+                        {KIND_LABEL[k]}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn sm" disabled={i === 0} onClick={() => moveBlock(i, -1)} title="Move up">↑</button>
+                    <button className="btn sm" disabled={i === blocks.length - 1} onClick={() => moveBlock(i, 1)} title="Move down">↓</button>
+                    <button className="btn sm danger" onClick={() => deleteBlock(i)} title="Delete block">✕</button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+              <button className="btn sm primary" onClick={addBlock} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+                + Block
+              </button>
+              <div className="help-text">
+                Durations are minutes. Clock times recompute from the session start. Break, lunch, and
+                housekeeping don’t count toward teaching hours.
+              </div>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 92 }}>{rows ? 'Time' : 'Duration'}</th>
+                    <th>Block</th>
+                    <th style={{ width: 92 }}>Kind</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(rows ?? blocks.map((block) => ({ start: '', end: '', block }))).map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ whiteSpace: 'nowrap' }}>{rows ? `${r.start}–${r.end}` : `${r.block.durationMin}m`}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{r.block.title}</div>
+                        {r.block.notes && <div className="subtle" style={{ fontSize: 12 }}>{r.block.notes}</div>}
+                        <ResourceChips refs={r.block.resources} />
+                      </td>
+                      <td>
+                        <span className={`pill ${KIND_CLS[r.block.kind]}`}>{KIND_LABEL[r.block.kind]}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {session.mode !== 'in-person' ? null : !rows && (
@@ -294,8 +407,11 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
   const t = PHASE2_TEMPLATE
 
   const underCount = useMemo(
-    () => t.sessions.filter((s) => isUnderMinHours(s, t.minEducationHoursPerDay)).length,
-    [t],
+    () =>
+      t.sessions.filter((s) =>
+        isUnderMinHours(s, t.minEducationHoursPerDay, effectiveBlocks(s, arrangements[s.id]?.blocks)),
+      ).length,
+    [t, arrangements],
   )
 
   return (

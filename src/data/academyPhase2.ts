@@ -1,4 +1,4 @@
-import type { AcademyTemplate, TemplateSession } from '../types'
+import type { AcademyTemplate, TemplateBlock, TemplateSession } from '../types'
 
 // ---------------------------------------------------------------------------
 // Academy — Phase 2 (Clinical Depth, Specialty Transports & Field Readiness).
@@ -173,15 +173,19 @@ export const PHASE2_TEMPLATE: AcademyTemplate = {
 // Break, lunch, and housekeeping/closeout are not teaching time.
 const NON_EDUCATION: ReadonlySet<string> = new Set(['break', 'lunch', 'closeout'])
 
+/** Minutes of genuine education across a block list (excludes break/lunch/closeout). */
+export function educationMinutesForBlocks(blocks: TemplateBlock[]): number {
+  return blocks.filter((b) => !NON_EDUCATION.has(b.kind)).reduce((sum, b) => sum + b.durationMin, 0)
+}
+
 /** Minutes of genuine education in a session (excludes break/lunch/closeout). */
-export function educationMinutes(session: TemplateSession): number {
-  if (!session.blocks) {
+export function educationMinutes(session: TemplateSession, blocks?: TemplateBlock[]): number {
+  const effective = blocks ?? session.blocks
+  if (!effective) {
     // At-home: sum segment hours (LMS + flipped).
     return (session.segments ?? []).reduce((sum, s) => sum + (s.hours ?? 0) * 60, 0)
   }
-  return session.blocks
-    .filter((b) => !NON_EDUCATION.has(b.kind))
-    .reduce((sum, b) => sum + b.durationMin, 0)
+  return educationMinutesForBlocks(effective)
 }
 
 /** Total wall-clock minutes of a session's timeline (blocks incl. break/lunch). */
@@ -190,9 +194,9 @@ export function totalMinutes(session: TemplateSession): number {
 }
 
 /** True when an in-person session falls below the program's min education hours. */
-export function isUnderMinHours(session: TemplateSession, minHours: number): boolean {
+export function isUnderMinHours(session: TemplateSession, minHours: number, blocks?: TemplateBlock[]): boolean {
   if (session.mode !== 'in-person') return false
-  return educationMinutes(session) < minHours * 60
+  return educationMinutes(session, blocks) < minHours * 60
 }
 
 // ----- clock-time math ------------------------------------------------------
@@ -214,21 +218,36 @@ export function formatClock(min: number): string {
   return `${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}`
 }
 
-/**
- * Lay a session's blocks onto the clock from a start time. Returns each block
- * with computed start/end 'HHMM' strings; returns null if startTime is unset
- * or unparseable (the UI then prompts for a start time).
- */
-export function timeline(
-  session: TemplateSession,
-  startTime: string | undefined,
-): { start: string; end: string; block: NonNullable<TemplateSession['blocks']>[number] }[] | null {
+export interface TimedBlock {
+  start: string
+  end: string
+  block: TemplateBlock
+}
+
+/** Lay a block list onto the clock from a start time. */
+export function timelineFromBlocks(blocks: TemplateBlock[], startTime: string | undefined): TimedBlock[] | null {
   const startMin = parseClock(startTime)
-  if (startMin === undefined || !session.blocks) return null
+  if (startMin === undefined) return null
   let cursor = startMin
-  return session.blocks.map((block) => {
+  return blocks.map((block) => {
     const start = cursor
     cursor += block.durationMin
     return { start: formatClock(start), end: formatClock(cursor), block }
   })
+}
+
+/**
+ * Lay a session's blocks onto the clock from a start time. Returns each block
+ * with computed start/end 'HHMM' strings; returns null if startTime is unset
+ * or unparseable (the UI then prompts for a start time). Pass `blocks` to use a
+ * class's edited blocks instead of the template default.
+ */
+export function timeline(
+  session: TemplateSession,
+  startTime: string | undefined,
+  blocks?: TemplateBlock[],
+): TimedBlock[] | null {
+  const effective = blocks ?? session.blocks
+  if (!effective) return null
+  return timelineFromBlocks(effective, startTime)
 }

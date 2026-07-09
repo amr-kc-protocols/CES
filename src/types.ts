@@ -250,6 +250,12 @@ export interface SessionArrangement {
   startTime?: string
   /** Assigned facilitator names for this class (free text). */
   facilitators?: string
+  /**
+   * Per-class edited blocks. When present, these replace the template's blocks
+   * for this class (durations/titles/kinds tuned to how the class actually
+   * runs). Absent = use the template default.
+   */
+  blocks?: TemplateBlock[]
 }
 
 // ----- Attendance -----------------------------------------------------------
