@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Empty, Modal, ProgressBar, Stat } from '../../components/ui'
 import { OPERATIONS, operationShort } from '../../data/operations'
 import {
@@ -337,7 +337,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   )
 }
 
-type CohortTab = 'roster' | 'schedule' | 'phase2' | 'docs'
+const COHORT_TABS = ['roster', 'schedule', 'phase2', 'docs'] as const
+type CohortTab = (typeof COHORT_TABS)[number]
 
 export default function CohortView() {
   const { cohortId = '' } = useParams()
@@ -346,7 +347,11 @@ export default function CohortView() {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const [tab, setTab] = useState<CohortTab>('roster')
+  // Tab lives in the URL so a refresh keeps your place and tabs are linkable.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get('tab')
+  const tab: CohortTab = COHORT_TABS.includes(rawTab as CohortTab) ? (rawTab as CohortTab) : 'roster'
+  const setTab = (t: CohortTab) => setSearchParams(t === 'roster' ? {} : { tab: t }, { replace: true })
 
   if (!cohort) {
     return (

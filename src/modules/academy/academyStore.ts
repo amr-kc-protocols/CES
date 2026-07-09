@@ -322,6 +322,20 @@ export function moveBlockToDay(fromDayId: string, blockId: string, toDayId: stri
   })
 }
 
+/**
+ * Shift every scheduled day of a cohort by the same number of days,
+ * preserving the spacing between days (e.g. when the academy start moves).
+ */
+export function shiftCohortDays(cohortId: string, deltaDays: number): void {
+  if (!deltaDays) return
+  setState((db) => ({
+    ...db,
+    academyDays: db.academyDays.map((d) =>
+      d.cohortId === cohortId ? { ...d, date: addDays(d.date, deltaDays) } : d,
+    ),
+  }))
+}
+
 /** Next N weekdays (Mon-Fri) starting from `startISO` inclusive. */
 export function nextWeekdays(startISO: string, count: number): string[] {
   const out: string[] = []

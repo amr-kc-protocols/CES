@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Empty, ProgressBar, Stat } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
 import {
@@ -56,6 +56,7 @@ export default function AcademyList() {
   const cohorts = useCohorts()
   const trainees = useAllTrainees()
   const [showForm, setShowForm] = useState(false)
+  const navigate = useNavigate()
 
   const sorted = useMemo(() => [...cohorts].sort(byStartDesc), [cohorts])
   const readyForRelease = trainees.filter(releaseEligible).length
@@ -101,7 +102,12 @@ export default function AcademyList() {
         </div>
       )}
 
-      {showForm && <CohortForm onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <CohortForm
+          onClose={() => setShowForm(false)}
+          onCreated={(id) => navigate(`/academy/${id}`)}
+        />
+      )}
     </div>
   )
 }
