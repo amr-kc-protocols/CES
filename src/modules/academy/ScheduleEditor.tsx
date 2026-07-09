@@ -13,6 +13,7 @@ import {
   moveBlockToDay,
   applyClassroomTemplate,
   shiftCohortDays,
+  duplicateDay,
   nextWeekdays,
 } from './academyStore'
 import { printDoc, downloadDoc, scheduleHTML, safeFilename } from './docGen'
@@ -114,6 +115,13 @@ function DayCard({
         )}
         <button className="btn sm ghost" onClick={onToggle}>
           {open ? 'Collapse' : `Expand (${day.blocks.length})`}
+        </button>
+        <button
+          className="btn sm"
+          title="Duplicate this day (blocks, facilitators, location) onto the next open weekday"
+          onClick={() => duplicateDay(day.id)}
+        >
+          ⧉
         </button>
         <button className="btn sm danger" onClick={() => deleteDay(day.id)} title="Delete day (undoable)">
           ✕

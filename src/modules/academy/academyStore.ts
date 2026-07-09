@@ -10,6 +10,7 @@ import {
   RELEASE_MIN_CONTACTS,
 } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
+import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -373,6 +374,27 @@ export function moveBlockToDay(fromDayId: string, blockId: string, toDayId: stri
   })
 }
 
+/**
+ * Copy a day (title, facilitators, location, note, blocks) onto the next
+ * weekday after the cohort's last scheduled day.
+ */
+export function duplicateDay(id: string): AcademyDay | undefined {
+  const db = getState()
+  const src = db.academyDays.find((d) => d.id === id)
+  if (!src) return undefined
+  const last = db.academyDays
+    .filter((d) => d.cohortId === src.cohortId)
+    .reduce((max, d) => (d.date > max ? d.date : max), src.date)
+  const copy: AcademyDay = {
+    ...src,
+    id: uid('day'),
+    date: nextWeekdays(addDays(last, 1), 1)[0],
+    blocks: src.blocks.map((b) => ({ ...b, id: uid('blk') })),
+  }
+  setState((db) => ({ ...db, academyDays: [...db.academyDays, copy] }))
+  return copy
+}
+
 function shiftDaysRaw(cohortId: string, deltaDays: number): void {
   setState((db) => ({
     ...db,
@@ -442,6 +464,41 @@ export function useArrangements(cohortId: string | undefined): Record<string, Se
     }
     return map
   })
+}
+
+/**
+ * Map the Phase 2 session sequence onto consecutive weekdays starting at
+ * `startISO`. Overwrites each session's date (undoable); start times and
+ * facilitators already arranged are kept.
+ */
+export function fillPhase2Dates(cohortId: string, startISO: string): void {
+  const sessions = [...PHASE2_TEMPLATE.sessions].sort((a, b) => a.order - b.order)
+  const dates = nextWeekdays(startISO, sessions.length)
+  const prev = getState().academyArrangements.filter((a) => a.cohortId === cohortId)
+
+  setState((db) => {
+    const mine = new Map(prev.map((a) => [a.sessionId, a]))
+    return {
+      ...db,
+      academyArrangements: [
+        ...db.academyArrangements.filter((a) => a.cohortId !== cohortId),
+        ...sessions.map((s, i) => ({
+          ...(mine.get(s.id) ?? { cohortId, sessionId: s.id }),
+          date: dates[i],
+        })),
+      ],
+    }
+  })
+
+  pushUndo('Phase 2 session dates filled', () =>
+    setState((db) => ({
+      ...db,
+      academyArrangements: [
+        ...db.academyArrangements.filter((a) => a.cohortId !== cohortId),
+        ...prev,
+      ],
+    })),
+  )
 }
 
 export function setArrangement(
