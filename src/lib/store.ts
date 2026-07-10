@@ -46,6 +46,16 @@ function load(): DBShape {
 let state: DBShape = load()
 const listeners = new Set<() => void>()
 
+// Change observers get (prev, next) on every write — this is how cloud sync
+// watches for local edits without the store importing the sync module.
+type ChangeListener = (prev: DBShape, next: DBShape) => void
+const changeListeners = new Set<ChangeListener>()
+
+export function onStateChange(cb: ChangeListener): () => void {
+  changeListeners.add(cb)
+  return () => changeListeners.delete(cb)
+}
+
 function persist(next: DBShape): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
@@ -59,9 +69,11 @@ export function getState(): DBShape {
 }
 
 export function setState(updater: (prev: DBShape) => DBShape): void {
+  const prev = state
   state = updater(state)
   persist(state)
   listeners.forEach((l) => l())
+  changeListeners.forEach((cb) => cb(prev, state))
 }
 
 function subscribe(cb: () => void): () => void {
