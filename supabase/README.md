@@ -26,9 +26,11 @@ One-time setup, ~10 minutes:
 
 ## 4. Connect the app
 
-1. In the dashboard: **Settings → API**. Copy the **Project URL** and the
-   **`anon` `public` key** (the anon key is safe to be public — row-level
-   security does the real gatekeeping).
+1. In the dashboard: **Settings → API Keys**. Copy the **Publishable key**
+   (`sb_publishable_…`; on older projects this is the `anon` `public` JWT —
+   either works). It's safe to be public — row-level security does the real
+   gatekeeping. The **Project URL** is `https://<project-ref>.supabase.co`
+   (shown under Settings → Data API).
 2. In the app: **Settings → Cloud sync** → paste both → **Save & sign in**
    with your email → click the magic link the email contains.
 3. First sign-in creates your profile with the `newhire` role. Promote

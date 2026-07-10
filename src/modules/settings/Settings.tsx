@@ -57,11 +57,11 @@ function CloudSyncCard() {
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" />
           </div>
           <div className="field">
-            <label>Anon (public) key</label>
-            <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="eyJ…" />
+            <label>Publishable (anon) key</label>
+            <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="sb_publishable_… (or legacy eyJ…)" />
             <div className="help-text">
-              Dashboard → Settings → API. The anon key is safe to store here — row-level security
-              does the real gatekeeping.
+              Dashboard → Settings → API Keys → Publishable key. Safe to store here — row-level
+              security does the real gatekeeping.
             </div>
           </div>
           <div className="btn-row" style={{ marginBottom: 12 }}>
