@@ -11,6 +11,7 @@ const AcademyList = lazy(() => import('./modules/academy/AcademyList'))
 const CohortView = lazy(() => import('./modules/academy/CohortView'))
 const FieldChecklistView = lazy(() => import('./modules/academy/FieldChecklistView'))
 const ExitSurveyView = lazy(() => import('./modules/academy/ExitSurveyView'))
+const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
@@ -32,6 +33,7 @@ export default function App() {
           </>
         )}
         <Route path="academy" element={<AcademyList />} />
+        <Route path="academy/ftos" element={<FtoScheduleView />} />
         <Route path="academy/:cohortId" element={<CohortView />} />
         <Route path="academy/:cohortId/checklist/:traineeId" element={<FieldChecklistView />} />
         <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
