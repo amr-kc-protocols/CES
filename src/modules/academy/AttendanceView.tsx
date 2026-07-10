@@ -11,6 +11,7 @@ import {
   markAllPresent,
 } from './academyStore'
 import { printDoc, downloadDoc, attendanceSheetHTML, safeFilename } from './docGen'
+import { weekdayLabel } from './calendar'
 import type { AcademyCohort, AttendanceStatus } from '../../types'
 
 // Next state when a cell is clicked: blank -> present -> absent -> blank.
@@ -21,11 +22,12 @@ function nextStatus(cur: AttendanceStatus | undefined): AttendanceStatus | null 
 }
 
 const cellStyle = (status: AttendanceStatus | undefined): React.CSSProperties => ({
-  width: 34,
-  minWidth: 34,
+  width: 44,
+  minWidth: 44,
   textAlign: 'center',
   cursor: 'pointer',
   fontWeight: 700,
+  fontSize: 15,
   background:
     status === 'present' ? 'var(--ok-bg)' : status === 'absent' ? 'var(--crit-bg)' : undefined,
   color: status === 'present' ? '#166534' : status === 'absent' ? '#991b1b' : 'var(--border-strong)',
@@ -103,7 +105,9 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
                       P{d.phase}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 600 }}>{d.date ? formatDate(d.date) : 'TBD'}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600 }}>
+                    {d.date ? `${weekdayLabel(d.date)} ${formatDate(d.date)}` : 'TBD'}
+                  </div>
                   <button
                     className="link-btn"
                     style={{ fontSize: 10 }}
@@ -143,9 +147,7 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
 
       <div className="section-title">Catch-up needed</div>
       {catchUp.length === 0 ? (
-        <div className="banner ok" style={{ background: 'var(--ok-bg)', color: '#166534' }}>
-          ✓ No missed days recorded.
-        </div>
+        <div className="banner ok">✓ No missed days recorded.</div>
       ) : (
         <div className="list">
           {catchUp.map(({ trainee, missed }) => (

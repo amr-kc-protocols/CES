@@ -33,7 +33,8 @@ export default function CEForm({
   }
 
   function remove() {
-    if (editing && confirm('Delete this class? This cannot be undone.')) {
+    // Undoable via the toast, so no confirm dialog needed.
+    if (editing) {
       deleteCEClass(editing.id)
       onClose()
     }

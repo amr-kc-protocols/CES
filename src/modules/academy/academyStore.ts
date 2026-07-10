@@ -11,7 +11,7 @@ import {
   RELEASE_MIN_CONTACTS,
 } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
-import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
+import { PHASE2_TEMPLATE, timelineFromBlocks } from '../../data/academyPhase2'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -585,6 +585,53 @@ export function setArrangement(
  * selectors — building fresh objects inside a single useSelector would defeat
  * its snapshot cache and loop.
  */
+/**
+ * The cohort's dated teaching days in printable form: legacy Phase-1 days plus
+ * every dated, non-skipped session from the unified schedule, with clock times
+ * computed from each session's start. Powers the agenda / full schedule / .ics
+ * documents, which predate the unified schedule and consume AcademyDay[].
+ */
+export function useScheduleDays(cohortId: string | undefined): AcademyDay[] {
+  const days = useCohortDays(cohortId)
+  const arrangements = useArrangements(cohortId)
+  const sessions = useCohortSessions(cohortId)
+  return useMemo(() => {
+    const fromSessions: AcademyDay[] = sessions
+      .filter((s) => {
+        const arr = arrangements[s.id]
+        return !!arr?.date && !arr.skipped
+      })
+      .map((s) => {
+        const arr = arrangements[s.id]!
+        const blocks = arr.blocks?.length ? arr.blocks : s.blocks ?? []
+        const rows = timelineFromBlocks(blocks, arr.startTime || s.defaultStart)
+        const untimed = (s.segments ?? blocks).map((item, i) => ({
+          id: `sb-${s.id}-${i}`,
+          time: '',
+          title: 'hours' in item && item.hours ? `${item.title} (${item.hours} hrs)` : item.title,
+          note: item.notes,
+        }))
+        return {
+          id: `sess-${s.id}`,
+          cohortId: cohortId ?? '',
+          date: arr.date!,
+          title: s.custom ? s.title : `Session ${s.order} — ${s.title}`,
+          facilitators: arr.facilitators || undefined,
+          location: s.location,
+          blocks: rows
+            ? rows.map((r, i) => ({
+                id: `sb-${s.id}-${i}`,
+                time: `${r.start}–${r.end}`,
+                title: r.block.title,
+                note: r.block.notes,
+              }))
+            : untimed,
+        }
+      })
+    return [...days, ...fromSessions].sort((a, b) => a.date.localeCompare(b.date))
+  }, [days, arrangements, sessions, cohortId])
+}
+
 export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
   const days = useCohortDays(cohortId)
   const arrangements = useArrangements(cohortId)
@@ -651,6 +698,11 @@ export function setAttendance(
 
 /** Mark every trainee present for a day (quick "all present" action). */
 export function markAllPresent(cohortId: string, traineeIds: string[], dayKey: string): void {
+  // This overwrites the whole column — including any absences already
+  // recorded — so keep the day's previous records for undo.
+  const prev = getState().academyAttendance.filter(
+    (a) => a.cohortId === cohortId && a.dayKey === dayKey,
+  )
   setState((db) => {
     const rest = db.academyAttendance.filter(
       (a) => !(a.cohortId === cohortId && a.dayKey === dayKey),
@@ -663,6 +715,15 @@ export function markAllPresent(cohortId: string, traineeIds: string[], dayKey: s
     }))
     return { ...db, academyAttendance: [...rest, ...marks] }
   })
+  pushUndo('Marked all present', () =>
+    setState((db) => ({
+      ...db,
+      academyAttendance: [
+        ...db.academyAttendance.filter((a) => !(a.cohortId === cohortId && a.dayKey === dayKey)),
+        ...prev,
+      ],
+    })),
+  )
 }
 
 /** Store a class's edited block list for one session (overrides the template). */

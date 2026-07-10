@@ -274,6 +274,14 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             FTO rides · release at {RELEASE_MIN_CONTACTS}–30 contacts
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="btn sm"
+              onClick={() => addContacts(trainee.id, -1)}
+              disabled={trainee.contacts === 0}
+              title="Correct a mis-tap"
+            >
+              −1
+            </button>
             <button className="btn sm" onClick={() => addContacts(trainee.id, 1)}>
               +1 contact
             </button>

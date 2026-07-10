@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CREDENTIAL_LABELS } from '../../data/academy'
-import { useCohortDays } from './academyStore'
+import { useScheduleDays } from './academyStore'
 import {
   printDoc,
   downloadDoc,
@@ -50,7 +50,7 @@ export default function DocumentsPanel({
   cohort: AcademyCohort
   trainees: Trainee[]
 }) {
-  const days = useCohortDays(cohort.id)
+  const days = useScheduleDays(cohort.id)
   const [expanded, setExpanded] = useState<string | null>(null)
 
   function printAllPackets() {
@@ -83,7 +83,7 @@ export default function DocumentsPanel({
       file: `${cohort.label}_Agenda`,
       html: () => agendaHTML(cohort, days),
       disabled: days.length === 0,
-      disabledReason: 'Build the schedule first (Schedule tab)',
+      disabledReason: 'Set session dates on the Schedule tab first',
     },
     {
       label: '🗓️ Schedule (full)',
@@ -91,7 +91,7 @@ export default function DocumentsPanel({
       file: `${cohort.label}_Schedule`,
       html: () => scheduleHTML(cohort, days),
       disabled: days.length === 0,
-      disabledReason: 'Build the schedule first (Schedule tab)',
+      disabledReason: 'Set session dates on the Schedule tab first',
     },
   ]
 
@@ -185,8 +185,13 @@ export default function DocumentsPanel({
             <div key={d.label} className="row" style={{ padding: '8px 12px' }}>
               <div className="grow" style={{ fontWeight: 600 }}>
                 {d.label}
+                {d.disabled && (
+                  <div className="help-text" style={{ fontWeight: 400 }}>
+                    {d.disabledReason}
+                  </div>
+                )}
               </div>
-              <div className="btn-row" style={{ gap: 6 }} title={d.disabled ? d.disabledReason : undefined}>
+              <div className="btn-row" style={{ gap: 6 }}>
                 <button className="btn sm" disabled={d.disabled} onClick={() => printDoc(d.title, d.html())}>
                   🖨 Print
                 </button>
@@ -206,8 +211,13 @@ export default function DocumentsPanel({
               <div className="subtle" style={{ fontWeight: 400, fontSize: 12 }}>
                 Import into Outlook / Google / Apple Calendar, or email to instructors.
               </div>
+              {days.length === 0 && (
+                <div className="help-text" style={{ fontWeight: 400 }}>
+                  Set session dates on the Schedule tab first
+                </div>
+              )}
             </div>
-            <div className="btn-row" style={{ gap: 6 }} title={days.length === 0 ? 'Build the schedule first (Schedule tab)' : undefined}>
+            <div className="btn-row" style={{ gap: 6 }}>
               <button
                 className="btn sm"
                 disabled={days.length === 0}
