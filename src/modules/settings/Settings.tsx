@@ -131,7 +131,7 @@ export default function Settings() {
       <div className="section-title">About & open items</div>
       <div className="card">
         <p className="subtle" style={{ marginTop: 0 }}>
-          <strong>AMR Clinical Education Suite</strong> — QA Review Queue (Module A), Kansas CE
+          <strong>AMR KC Academy — New Hire &amp; FTO Portal</strong> — QA Review Queue (Module A), Kansas CE
           Deadline Tracker (Module B), and New Hire Academy (Module D). Decisions made for this build:
         </p>
         <ul className="subtle" style={{ marginTop: 6, paddingLeft: 18, lineHeight: 1.6 }}>
