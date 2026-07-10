@@ -163,6 +163,8 @@ export interface Trainee {
   currentShift?: number
   /** FTO initials stamped onto new checklist marks. */
   activeFto?: string
+  /** ISO date the New Hire Orientation (exit) survey was submitted. */
+  exitSurveyDate?: string
 }
 
 /** One filled slot on a field objective — an FTO-witnessed occurrence. */
