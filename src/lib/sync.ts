@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getState, setState, onStateChange } from './store'
 import { diffRecords, toRecords, applyRemote, recordKey, type SyncRecord } from './records'
+import { DEFAULT_CLOUD } from '../config/cloud'
 import type { DBShape } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -44,10 +45,12 @@ export interface SyncStatus {
 export function getCloudConfig(): CloudConfig | null {
   try {
     const raw = localStorage.getItem(CONFIG_KEY)
-    return raw ? (JSON.parse(raw) as CloudConfig) : null
+    if (raw) return JSON.parse(raw) as CloudConfig
   } catch {
-    return null
+    // Fall through to the built-in project.
   }
+  // Fresh device: use the baked-in project so setup is just "sign in".
+  return DEFAULT_CLOUD.url ? DEFAULT_CLOUD : null
 }
 
 export function setCloudConfig(config: CloudConfig | null): void {
@@ -119,6 +122,7 @@ let applyingRemote = false
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 let pullTimer: ReturnType<typeof setInterval> | undefined
 let started = false
+let windowListenersWired = false
 
 async function getClient(): Promise<SupabaseClient | null> {
   if (client) return client
@@ -161,10 +165,14 @@ async function connect(): Promise<void> {
     if (session) void syncNow()
   })
 
-  window.addEventListener('online', () => void syncNow())
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void syncNow()
-  })
+  // Guarded: reconnecting with new config must not stack duplicate listeners.
+  if (!windowListenersWired) {
+    windowListenersWired = true
+    window.addEventListener('online', () => void syncNow())
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void syncNow()
+    })
+  }
   if (pullTimer) clearInterval(pullTimer)
   pullTimer = setInterval(() => void syncNow(), PULL_INTERVAL_MS)
 
@@ -199,28 +207,39 @@ async function flush(): Promise<void> {
   setStatus({ syncing: false, lastSync: new Date().toISOString() })
 }
 
+const PULL_PAGE_SIZE = 1000
+
 async function pull(): Promise<void> {
   const c = await getClient()
   if (!c || !status.signedIn) return
   setStatus({ syncing: true, error: undefined })
-  const cursor = localStorage.getItem(CURSOR_KEY)
-  let query = c.from('records').select('*').order('updated_at', { ascending: true }).limit(1000)
-  if (cursor) query = query.gte('updated_at', cursor)
-  const { data, error } = await query
-  if (error) {
-    setStatus({ syncing: false, error: `Pull failed: ${error.message}` })
-    return
-  }
-  const rows = (data ?? []) as (SyncRecord & { updated_at: string })[]
-  if (rows.length > 0) {
-    const skip = new Set(outbox.map(recordKey))
-    applyingRemote = true
-    try {
-      setState((db: DBShape) => applyRemote(db, rows, skip))
-    } finally {
-      applyingRemote = false
+  // Page until a short page: large backlogs (first pull on a new device)
+  // arrive in full instead of waiting a cycle per thousand records.
+  for (;;) {
+    const cursor = localStorage.getItem(CURSOR_KEY)
+    let query = c.from('records').select('*').order('updated_at', { ascending: true }).limit(PULL_PAGE_SIZE)
+    if (cursor) query = query.gte('updated_at', cursor)
+    const { data, error } = await query
+    if (error) {
+      setStatus({ syncing: false, error: `Pull failed: ${error.message}` })
+      return
     }
-    localStorage.setItem(CURSOR_KEY, rows[rows.length - 1].updated_at)
+    const rows = (data ?? []) as (SyncRecord & { updated_at: string })[]
+    if (rows.length > 0) {
+      const skip = new Set(outbox.map(recordKey))
+      applyingRemote = true
+      try {
+        setState((db: DBShape) => applyRemote(db, rows, skip))
+      } finally {
+        applyingRemote = false
+      }
+      const last = rows[rows.length - 1].updated_at
+      // A full page of identical timestamps can't advance the cursor — bail
+      // rather than loop forever; the next cycle's gte re-covers them.
+      if (rows.length === PULL_PAGE_SIZE && last === localStorage.getItem(CURSOR_KEY)) break
+      localStorage.setItem(CURSOR_KEY, last)
+    }
+    if (rows.length < PULL_PAGE_SIZE) break
   }
   setStatus({ syncing: false, lastSync: new Date().toISOString() })
 }

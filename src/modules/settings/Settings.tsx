@@ -52,23 +52,6 @@ function CloudSyncCard() {
 
       {!status.signedIn ? (
         <>
-          <div className="field">
-            <label>Supabase project URL</label>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" />
-          </div>
-          <div className="field">
-            <label>Publishable (anon) key</label>
-            <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="sb_publishable_… (or legacy eyJ…)" />
-            <div className="help-text">
-              Dashboard → Settings → API Keys → Publishable key. Safe to store here — row-level
-              security does the real gatekeeping.
-            </div>
-          </div>
-          <div className="btn-row" style={{ marginBottom: 12 }}>
-            <button className="btn" onClick={saveConfig}>
-              Save project
-            </button>
-          </div>
           {status.configured && (
             <div className="field">
               <label>Sign in (magic link)</label>
@@ -78,8 +61,35 @@ function CloudSyncCard() {
                   Send link
                 </button>
               </div>
+              <div className="help-text">
+                Tap the link in the email and you're connected — no other setup needed.
+              </div>
             </div>
           )}
+          <details style={{ marginTop: 4 }}>
+            <summary className="subtle" style={{ cursor: 'pointer', fontSize: 13 }}>
+              Advanced: connect to a different Supabase project
+            </summary>
+            <div style={{ marginTop: 10 }}>
+              <div className="field">
+                <label>Supabase project URL</label>
+                <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" />
+              </div>
+              <div className="field">
+                <label>Publishable (anon) key</label>
+                <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="sb_publishable_… (or legacy eyJ…)" />
+                <div className="help-text">
+                  Dashboard → Settings → API Keys → Publishable key. Safe to store here — row-level
+                  security does the real gatekeeping.
+                </div>
+              </div>
+              <div className="btn-row" style={{ marginBottom: 8 }}>
+                <button className="btn" onClick={saveConfig}>
+                  Save project
+                </button>
+              </div>
+            </div>
+          </details>
         </>
       ) : (
         <>

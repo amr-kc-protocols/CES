@@ -41,8 +41,12 @@ One-time setup, ~10 minutes:
 
 ## 5. Add FTOs / other devices
 
-- Have them open the app, enter the same URL + anon key, and sign in with
-  their email. Then set their `role` to `fto` in **Table Editor → profiles**.
+The project URL + publishable key are baked into the app
+(`src/config/cloud.ts`), so nobody else touches keys:
+
+- New person/device: open the app → **Settings → Cloud sync** → enter email →
+  tap the magic link. Done.
+- Then set their `role` in **Table Editor → profiles** (one time per person).
 - Roles: `admin` writes everything · `fto` writes trainees (checklist marks,
   contacts), attendance, and ride assignments · `newhire` is read-only in v1.
 
