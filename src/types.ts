@@ -152,6 +152,27 @@ export interface Trainee {
   /** Set when the provider is released to solo practice. */
   releasedDate?: string
   notes?: string
+  // ----- Digital Field Training Objectives checklist ------------------------
+  /** Objective id (e.g. 'A2') -> recorded occurrence marks, oldest first. */
+  fieldMarks?: Record<string, ObjectiveMark[]>
+  /** Section id -> ISO date the trainee acknowledged the section complete. */
+  sectionAck?: Record<string, string>
+  /** Call-type exposure log: call type -> shift numbers where encountered. */
+  exposure?: Record<string, number[]>
+  /** Ride-along shift (1-6) currently in progress, set on the checklist. */
+  currentShift?: number
+  /** FTO initials stamped onto new checklist marks. */
+  activeFto?: string
+}
+
+/** One filled slot on a field objective — an FTO-witnessed occurrence. */
+export interface ObjectiveMark {
+  /** ISO date the mark was recorded. */
+  date: string
+  /** Ride-along shift number (1-6) the occurrence happened on. */
+  shift: number
+  /** FTO initials, stamped from the checklist's active-FTO field. */
+  fto?: string
 }
 
 // ----- Academy schedule builder ---------------------------------------------

@@ -126,6 +126,23 @@ export const FT_SECTIONS: FTSection[] = [
   },
 ]
 
+/**
+ * How many marks an objective's `target` requires. Targets are display
+ * strings from the source document ('1', '5x', '3+', 'All 6', '1 round',
+ * 'All'); the leading number is the requirement, 'All 6' means every shift,
+ * and list-style 'All' (C1) counts as one demonstrated round.
+ */
+export function requiredMarks(target: string): number {
+  if (/^all\s*6/i.test(target)) return FT_SLOTS
+  const n = parseInt(target, 10)
+  return Number.isFinite(n) && n > 0 ? Math.min(n, FT_SLOTS) : 1
+}
+
+/** Sections that apply to a credential (Section G is paramedic-only). */
+export function sectionsFor(credential: 'emt' | 'paramedic'): FTSection[] {
+  return FT_SECTIONS.filter((s) => !s.paramedicOnly || credential === 'paramedic')
+}
+
 /** Call-type exposure log (Section I) — exposure tracking, not competency. */
 export interface ExposureGroup {
   label: string
