@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getState, setState, onStateChange } from './store'
 import { diffRecords, toRecords, applyRemote, recordKey, type SyncRecord } from './records'
+import { DEFAULT_CLOUD } from '../config/cloud'
 import type { DBShape } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -44,10 +45,12 @@ export interface SyncStatus {
 export function getCloudConfig(): CloudConfig | null {
   try {
     const raw = localStorage.getItem(CONFIG_KEY)
-    return raw ? (JSON.parse(raw) as CloudConfig) : null
+    if (raw) return JSON.parse(raw) as CloudConfig
   } catch {
-    return null
+    // Fall through to the built-in project.
   }
+  // Fresh device: use the baked-in project so setup is just "sign in".
+  return DEFAULT_CLOUD.url ? DEFAULT_CLOUD : null
 }
 
 export function setCloudConfig(config: CloudConfig | null): void {
