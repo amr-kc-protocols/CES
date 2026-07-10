@@ -1,5 +1,6 @@
-import { setState, useSelector } from '../../lib/store'
+import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
+import { pushUndo } from '../../lib/undo'
 import { addDays, daysFromToday, todayISO } from '../../lib/date'
 import type { CEClass, CELocation, CEStatus } from '../../types'
 
@@ -48,7 +49,13 @@ export function setCEStatus(id: string, status: CEStatus): void {
 }
 
 export function deleteCEClass(id: string): void {
+  const cls = getState().ceClasses.find((c) => c.id === id)
   setState((db) => ({ ...db, ceClasses: db.ceClasses.filter((c) => c.id !== id) }))
+  if (cls) {
+    pushUndo(`Deleted ${cls.discipline || 'class'} — ${cls.instructor}`, () =>
+      setState((db) => ({ ...db, ceClasses: [...db.ceClasses, cls] })),
+    )
+  }
 }
 
 // ----- derived helpers -----------------------------------------------------

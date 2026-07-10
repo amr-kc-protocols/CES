@@ -44,9 +44,12 @@ function ClassRow({ cls, onEdit }: { cls: CEClass; onEdit: (c: CEClass) => void 
   const u = urgencyOf(cls)
   return (
     <div className={`row left-accent ${URGENCY_ACCENT[u]}`}>
-      <div className="grow" onClick={() => onEdit(cls)} style={{ cursor: 'pointer' }}>
+      <div className="grow" onClick={() => onEdit(cls)} style={{ cursor: 'pointer' }} title="Edit class" role="button">
         <div className="title">
-          {cls.discipline || 'Class'} · {ceLocationName(cls.location)}
+          {cls.discipline || 'Class'} · {ceLocationName(cls.location)}{' '}
+          <span className="subtle" aria-hidden style={{ fontWeight: 400 }}>
+            ✎
+          </span>
         </div>
         <div className="meta">
           {cls.instructor} · class {formatDate(cls.classDate)} · due {formatDate(dueDate(cls))}

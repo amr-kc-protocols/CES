@@ -83,9 +83,7 @@ export default function Dashboard() {
             </Link>
           </div>
           {atRisk.length === 0 ? (
-            <div className="banner ok" style={{ background: 'var(--ok-bg)', color: '#166534' }}>
-              ✓ No CE submissions are overdue or due within two weeks.
-            </div>
+            <div className="banner ok">✓ No CE submissions are overdue or due within two weeks.</div>
           ) : (
             <div className="list">
               {atRisk.map((c) => (

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useDB, setState, exportDB, importDB, resetDB } from '../../lib/store'
+import { QA_ENABLED } from '../../config/features'
 
 export default function Settings() {
   const db = useDB()
@@ -57,17 +58,22 @@ export default function Settings() {
 
       {saved && <div className="banner info">{saved}</div>}
 
-      <div className="section-title">Review defaults</div>
+      <div className="section-title">{QA_ENABLED ? 'Review defaults' : 'Defaults'}</div>
       <div className="card">
-        <div className="field">
-          <label>Reviewer name</label>
-          <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="Used to pre-fill QA reviews" />
-        </div>
-        <div className="field">
-          <label>QA sampling target (%)</label>
-          <input type="number" min={1} max={100} value={pct} onChange={(e) => setPct(e.target.value)} />
-          <div className="help-text">Default 20% per operation. Applied to new review periods.</div>
-        </div>
+        {/* QA-only settings stay hidden while the QA function is feature-flagged off. */}
+        {QA_ENABLED && (
+          <>
+            <div className="field">
+              <label>Reviewer name</label>
+              <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="Used to pre-fill QA reviews" />
+            </div>
+            <div className="field">
+              <label>QA sampling target (%)</label>
+              <input type="number" min={1} max={100} value={pct} onChange={(e) => setPct(e.target.value)} />
+              <div className="help-text">Default 20% per operation. Applied to new review periods.</div>
+            </div>
+          </>
+        )}
         <div className="field">
           <label>Kansas Class Builder URL</label>
           <input value={cbUrl} onChange={(e) => setCbUrl(e.target.value)} placeholder="https://…" />
@@ -75,14 +81,16 @@ export default function Settings() {
             The CE tracker links here rather than duplicating the packet generator (spec §6 / §7).
           </div>
         </div>
-        <div className="field">
-          <label>QA bot URL (Chart Review Agent)</label>
-          <input value={botUrl} onChange={(e) => setBotUrl(e.target.value)} placeholder="http://localhost:5000" />
-          <div className="help-text">
-            The local address the Chart Review Agent prints when it starts. Shown embedded in the
-            QA Bot tab.
+        {QA_ENABLED && (
+          <div className="field">
+            <label>QA bot URL (Chart Review Agent)</label>
+            <input value={botUrl} onChange={(e) => setBotUrl(e.target.value)} placeholder="http://localhost:5000" />
+            <div className="help-text">
+              The local address the Chart Review Agent prints when it starts. Shown embedded in the
+              QA Bot tab.
+            </div>
           </div>
-        </div>
+        )}
         <button className="btn primary" onClick={saveSettings}>
           Save settings
         </button>
@@ -106,11 +114,12 @@ export default function Settings() {
           <button
             className="btn danger"
             onClick={() => {
-              if (confirm('Erase ALL local data (CE classes, QA periods, charts)? This cannot be undone.')) {
+              if (confirm('Erase ALL local data (CE classes, academy cohorts, attendance)? A backup JSON downloads first, so you can re-import if this was a mistake.')) {
+                doExport()
                 resetDB()
                 setReviewer('')
-                setSaved('All data cleared.')
-                setTimeout(() => setSaved(''), 2000)
+                setSaved('All data cleared — a backup was downloaded in case you need it back.')
+                setTimeout(() => setSaved(''), 4000)
               }
             }}
           >

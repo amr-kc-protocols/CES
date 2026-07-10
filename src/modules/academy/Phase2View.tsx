@@ -10,6 +10,7 @@ import {
 } from '../../data/academyPhase2'
 import { resourceFor, resourceUrl } from '../../data/fieldGuide'
 import { addDays, formatDate } from '../../lib/date'
+import { pushUndo } from '../../lib/undo'
 import { printDoc, downloadDoc, phase2ScheduleHTML, safeFilename } from './docGen'
 import { weekdayLabel } from './calendar'
 import {
@@ -128,7 +129,17 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
       ;[next[i], next[j]] = [next[j], next[i]]
       return next
     })
-  const deleteBlock = (i: number) => mutate((bs) => bs.filter((_, j) => j !== i))
+  const deleteBlock = (i: number) => {
+    // Restorable: put back the pre-delete block list, or drop the whole
+    // per-class override if the session was still on the template default.
+    const prev = blocks.map((b) => ({ ...b, resources: b.resources ? [...b.resources] : undefined }))
+    const wasCustomized = customized
+    mutate((bs) => bs.filter((_, j) => j !== i))
+    pushUndo(`Deleted block "${blocks[i]?.title ?? ''}"`, () => {
+      if (wasCustomized) setSessionBlocks(cohortId, session.id, prev)
+      else resetSessionBlocks(cohortId, session.id)
+    })
+  }
   const addBlock = () =>
     mutate((bs) => [...bs, { durationMin: 15, kind: 'education', title: 'New block' }])
 
