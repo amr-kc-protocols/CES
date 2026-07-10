@@ -20,6 +20,7 @@ import {
   removeExposure,
   updateTrainee,
   fieldProgress,
+  useRidesFor,
 } from './academyStore'
 import { printDoc, downloadDoc, objectivesPageHTML, safeFilename } from './docGen'
 import type { Trainee } from '../../types'
@@ -70,6 +71,7 @@ export default function FieldChecklistView() {
   const { cohortId = '', traineeId = '' } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useCohortTrainees(cohortId).find((t) => t.id === traineeId)
+  const rides = useRidesFor(traineeId)
 
   if (!cohort || !trainee) {
     return (
@@ -119,6 +121,12 @@ export default function FieldChecklistView() {
         <div className="subtle" style={{ marginTop: 4 }}>
           {prog.done}/{prog.total} objectives at target · {exposureTotal} call types exposed
         </div>
+        {rides.length > 0 && (
+          <div className="subtle" style={{ fontSize: 12, marginTop: 2 }}>
+            🚑 Rides:{' '}
+            {rides.map((r) => `${formatDate(r.date)} ${r.unit}${r.ftoNames ? ` (${r.ftoNames})` : ''}`).join(' · ')}
+          </div>
+        )}
       </div>
 
       {/* Ride context: everything tapped below is stamped with this. */}

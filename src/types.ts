@@ -322,6 +322,20 @@ export interface AcademyDayRef {
   title: string
 }
 
+/** A new hire assigned to ride a specific FTO crew shift on a date. */
+export interface RideAssignment {
+  id: string
+  traineeId: string
+  /** ISO date of the shift. */
+  date: string
+  /** Unit call sign of the crew line, e.g. 'KC105'. */
+  unit: string
+  /** Display snapshot of the FTO(s) aboard when assigned. */
+  ftoNames?: string
+  /** Display snapshot of the shift window, e.g. '1000–2000'. */
+  window?: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -333,5 +347,6 @@ export interface DBShape {
   academyArrangements: SessionArrangement[]
   academyCustomSessions: CustomSession[]
   academyAttendance: AttendanceRecord[]
+  rideAssignments: RideAssignment[]
   settings: Settings
 }

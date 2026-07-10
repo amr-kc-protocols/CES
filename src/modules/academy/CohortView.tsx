@@ -24,6 +24,7 @@ import {
   releaseEligible,
   updateTrainee,
   fieldProgress,
+  useRidesFor,
 } from './academyStore'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
@@ -134,6 +135,7 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
 
 function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
+  const rides = useRidesFor(trainee.id)
   const phase = phaseOf(trainee)
   const modules = curriculumFor(trainee.operation, trainee.credential)
   const done = modules.filter((m) => !!trainee.checklist[m.id]).length
@@ -286,6 +288,23 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               <Link to={`/academy/${trainee.cohortId}/survey/${trainee.id}`} className="btn sm">
                 📝 Exit survey
               </Link>
+            )}
+          </div>
+          <div className="subtle" style={{ fontSize: 12, marginBottom: 10 }}>
+            🚑{' '}
+            {rides.length === 0 ? (
+              <>
+                No rides planned — assign shifts on <Link to="/academy/ftos" className="link-btn">FTO Shifts</Link>.
+              </>
+            ) : (
+              <>
+                Rides:{' '}
+                {rides
+                  .slice(0, 4)
+                  .map((r) => `${formatDate(r.date)} ${r.unit}`)
+                  .join(' · ')}
+                {rides.length > 4 && ` · +${rides.length - 4} more`}
+              </>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
