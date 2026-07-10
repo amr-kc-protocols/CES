@@ -24,6 +24,7 @@ import type {
   DBShape,
   ObjectiveMark,
   OperationId,
+  RideAssignment,
   ScheduleBlock,
   SessionArrangement,
   TemplateBlock,
@@ -80,6 +81,8 @@ export function deleteCohort(id: string): void {
   const arrangements = db.academyArrangements.filter((a) => a.cohortId === id)
   const attendance = db.academyAttendance.filter((a) => a.cohortId === id)
   const customSessions = db.academyCustomSessions.filter((s) => s.cohortId === id)
+  const traineeIds = new Set(trainees.map((t) => t.id))
+  const rides = db.rideAssignments.filter((r) => traineeIds.has(r.traineeId))
 
   setState((db) => ({
     ...db,
@@ -89,6 +92,7 @@ export function deleteCohort(id: string): void {
     academyArrangements: db.academyArrangements.filter((a) => a.cohortId !== id),
     academyAttendance: db.academyAttendance.filter((a) => a.cohortId !== id),
     academyCustomSessions: db.academyCustomSessions.filter((s) => s.cohortId !== id),
+    rideAssignments: db.rideAssignments.filter((r) => !traineeIds.has(r.traineeId)),
   }))
 
   if (cohort) {
@@ -101,6 +105,7 @@ export function deleteCohort(id: string): void {
         academyArrangements: [...db.academyArrangements, ...arrangements],
         academyAttendance: [...db.academyAttendance, ...attendance],
         academyCustomSessions: [...db.academyCustomSessions, ...customSessions],
+        rideAssignments: [...db.rideAssignments, ...rides],
       })),
     )
   }
@@ -151,10 +156,12 @@ export function deleteTrainee(id: string): void {
   const state = getState()
   const trainee = state.trainees.find((t) => t.id === id)
   const attendance = state.academyAttendance.filter((a) => a.traineeId === id)
+  const rides = state.rideAssignments.filter((r) => r.traineeId === id)
   setState((db) => ({
     ...db,
     trainees: db.trainees.filter((t) => t.id !== id),
     academyAttendance: db.academyAttendance.filter((a) => a.traineeId !== id),
+    rideAssignments: db.rideAssignments.filter((r) => r.traineeId !== id),
   }))
   if (trainee) {
     pushUndo(`Removed ${trainee.name}`, () =>
@@ -162,6 +169,7 @@ export function deleteTrainee(id: string): void {
         ...db,
         trainees: [...db.trainees, trainee],
         academyAttendance: [...db.academyAttendance, ...attendance],
+        rideAssignments: [...db.rideAssignments, ...rides],
       })),
     )
   }
@@ -217,6 +225,56 @@ export function unreleaseTrainee(traineeId: string): void {
 /** Eligible for release: FTO phase and at/over the minimum contact count. */
 export function releaseEligible(t: Trainee): boolean {
   return phaseOf(t) === 'fto' && t.contacts >= RELEASE_MIN_CONTACTS
+}
+
+// ----- FTO ride assignments ----------------------------------------------------
+
+export interface RideInput {
+  date: string
+  unit: string
+  ftoNames?: string
+  window?: string
+}
+
+/**
+ * Toggle a trainee onto/off an FTO crew shift. Returns true if the ride is
+ * now assigned, false if the tap removed an existing assignment.
+ */
+export function toggleRide(traineeId: string, ride: RideInput): boolean {
+  const existing = getState().rideAssignments.find(
+    (r) => r.traineeId === traineeId && r.date === ride.date && r.unit === ride.unit,
+  )
+  if (existing) {
+    removeRide(existing.id)
+    return false
+  }
+  const assignment: RideAssignment = { id: uid('ride'), traineeId, ...ride }
+  setState((db) => ({ ...db, rideAssignments: [...db.rideAssignments, assignment] }))
+  return true
+}
+
+export function removeRide(id: string): void {
+  const ride = getState().rideAssignments.find((r) => r.id === id)
+  setState((db) => ({ ...db, rideAssignments: db.rideAssignments.filter((r) => r.id !== id) }))
+  if (ride) {
+    const t = getState().trainees.find((x) => x.id === ride.traineeId)
+    pushUndo(`Removed ${t?.name ?? 'rider'} from ${ride.unit} ${formatDate(ride.date)}`, () =>
+      setState((db) => ({ ...db, rideAssignments: [...db.rideAssignments, ride] })),
+    )
+  }
+}
+
+export function useAllRides(): RideAssignment[] {
+  return useSelector((db) => db.rideAssignments)
+}
+
+/** A trainee's planned rides, soonest first. */
+export function useRidesFor(traineeId: string): RideAssignment[] {
+  return useSelector((db) =>
+    db.rideAssignments
+      .filter((r) => r.traineeId === traineeId)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+  )
 }
 
 // ----- digital Field Training Objectives checklist ----------------------------

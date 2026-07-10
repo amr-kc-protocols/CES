@@ -11,6 +11,8 @@ import {
 } from '../../data/ftoSchedule'
 import { addDays, formatDate, todayISO } from '../../lib/date'
 import { weekdayLabel } from './calendar'
+import { FT_SLOTS } from '../../data/ftObjectives'
+import { useAllTrainees, useAllRides, toggleRide, removeRide } from './academyStore'
 
 // Ride-along planning view: who is on shift with an FTO aboard, day by day,
 // extrapolated from the operations master schedule's two-week rotation.
@@ -44,12 +46,23 @@ function CrewLine({ unit, level, window, crew }: { unit: string; level: string; 
 export default function FtoScheduleView() {
   const [from, setFrom] = useState(todayISO())
   const [ftoFilter, setFtoFilter] = useState('')
+  const [planFor, setPlanFor] = useState('')
   const days = Array.from({ length: 14 }, (_, i) => addDays(from, i))
 
   const ftoNames = [...new Set(FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)))]
   const matchesFilter = (c: FtoCrew) =>
     !ftoFilter || c.crew.some((m) => m.fto && m.name === ftoFilter)
   const visibleCrews = FTO_CREWS.filter(matchesFilter)
+
+  const trainees = useAllTrainees()
+  const rides = useAllRides()
+  const activeTrainees = trainees.filter((t) => !t.releasedDate)
+  const planTrainee = trainees.find((t) => t.id === planFor)
+  const plannedCount = rides.filter((r) => r.traineeId === planFor).length
+  const nameOf = (traineeId: string) => trainees.find((t) => t.id === traineeId)?.name ?? '?'
+  const ridersOn = (date: string, unit: string) =>
+    rides.filter((r) => r.date === date && r.unit === unit)
+  const crewFtos = (c: FtoCrew) => c.crew.filter((m) => m.fto).map((m) => m.name).join(' · ')
 
   return (
     <div>
@@ -84,6 +97,35 @@ export default function FtoScheduleView() {
         <button className="btn sm" onClick={() => setFrom(todayISO())}>
           Today
         </button>
+      </div>
+
+      {/* Pick the trainee once, then tap shifts — planning ~6 rides is 7 taps. */}
+      <div className="card" style={{ padding: 12, marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label className="subtle" style={{ fontSize: 12, fontWeight: 700 }}>
+          Plan rides for
+        </label>
+        <select
+          value={planFor}
+          onChange={(e) => setPlanFor(e.target.value)}
+          style={{ padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit', flex: 1, minWidth: 150 }}
+        >
+          <option value="">— nobody (view only) —</option>
+          {activeTrainees.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        {planTrainee && (
+          <span className={`pill ${plannedCount >= FT_SLOTS ? 'ok' : 'info'}`}>
+            {plannedCount}/{FT_SLOTS} rides planned
+          </span>
+        )}
+        {planTrainee && (
+          <div className="help-text" style={{ width: '100%', marginTop: 0 }}>
+            Tap “+ {planTrainee.name.split(' ').slice(-1)[0]}” on any shift below to assign it; tap ✕ on the chip to remove.
+          </div>
+        )}
       </div>
 
       {/* Filter to one FTO when planning that trainee's next ride. */}
@@ -122,9 +164,42 @@ export default function FtoScheduleView() {
                   {crews.length === 0 ? 'No FTOs on shift' : `${crews.length} FTO crew${crews.length === 1 ? '' : 's'}`}
                 </span>
               </div>
-              {crews.map((c) => (
-                <CrewLine key={c.unit + c.start} unit={c.unit} level={c.level} window={shiftWindow(c)} crew={c.crew} />
-              ))}
+              {crews.map((c) => {
+                const riders = ridersOn(d, c.unit)
+                const assigned = riders.some((r) => r.traineeId === planFor)
+                return (
+                  <div key={c.unit + c.start}>
+                    <CrewLine unit={c.unit} level={c.level} window={shiftWindow(c)} crew={c.crew} />
+                    {(riders.length > 0 || planFor) && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: '0 0 8px 72px' }}>
+                        {riders.map((r) => (
+                          <span key={r.id} className="pill info" style={{ gap: 6 }}>
+                            🎓 {nameOf(r.traineeId)}
+                            <button
+                              onClick={() => removeRide(r.id)}
+                              title="Remove from this shift (undoable)"
+                              aria-label={`Remove ${nameOf(r.traineeId)} from ${c.unit} ${d}`}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', opacity: 0.7 }}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                        {planFor && !assigned && (
+                          <button
+                            className="btn sm"
+                            onClick={() =>
+                              toggleRide(planFor, { date: d, unit: c.unit, ftoNames: crewFtos(c), window: shiftWindow(c) })
+                            }
+                          >
+                            + {planTrainee?.name.split(' ').slice(-1)[0]}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )
         })}
