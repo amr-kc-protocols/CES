@@ -23,6 +23,7 @@ import {
   unreleaseTrainee,
   releaseEligible,
   updateTrainee,
+  fieldProgress,
 } from './academyStore'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
@@ -272,6 +273,20 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
 
           <div className="section-title" style={{ margin: '14px 0 8px' }}>
             FTO rides · release at {RELEASE_MIN_CONTACTS}–30 contacts
+          </div>
+          <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">
+              📋 Field checklist · {fieldProgress(trainee).done}/{fieldProgress(trainee).total} objectives
+            </Link>
+            {trainee.exitSurveyDate ? (
+              <span className="pill ok" title={`Exit survey submitted ${formatDate(trainee.exitSurveyDate)}`}>
+                📝 Survey ✓ {formatDate(trainee.exitSurveyDate)}
+              </span>
+            ) : (
+              <Link to={`/academy/${trainee.cohortId}/survey/${trainee.id}`} className="btn sm">
+                📝 Exit survey
+              </Link>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button

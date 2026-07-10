@@ -70,9 +70,14 @@ export default function AcademyList() {
           <h1>Academy</h1>
           <div className="subtle">New hire cohorts, checklists & FTO release</div>
         </div>
-        <button className="btn primary" onClick={() => setShowForm(true)}>
-          + Cohort
-        </button>
+        <div className="btn-row">
+          <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
+            🚑 FTO shifts
+          </Link>
+          <button className="btn primary" onClick={() => setShowForm(true)}>
+            + Cohort
+          </button>
+        </div>
       </div>
 
       <div className="stat-grid" style={{ marginTop: 12 }}>

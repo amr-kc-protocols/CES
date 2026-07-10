@@ -126,7 +126,21 @@ export function objectivesPageHTML(t: Trainee): string {
   const isMedic = t.credential === 'paramedic'
   const sections = FT_SECTIONS.filter((s) => !s.paramedicOnly || isMedic)
   const slotHead = Array.from({ length: FT_SLOTS }, (_, i) => `<th class="slot">${i + 1}</th>`).join('')
-  const slotCells = Array.from({ length: FT_SLOTS }, () => '<td class="slot">&nbsp;</td>').join('')
+  // Marks recorded on the digital checklist print into their slots (FTO
+  // initials + short date), so the paper copy matches the app state.
+  const shortDate = (iso: string) => {
+    const [, m, d] = iso.split('-')
+    return `${Number(m)}/${Number(d)}`
+  }
+  const slotCellsFor = (objectiveId: string) => {
+    const marks = t.fieldMarks?.[objectiveId] ?? []
+    return Array.from({ length: FT_SLOTS }, (_, i) => {
+      const m = marks[i]
+      return m
+        ? `<td class="slot">${m.fto ? `${esc(m.fto)}<br/>` : ''}<span style="font-size:8px">${esc(shortDate(m.date))}</span></td>`
+        : '<td class="slot">&nbsp;</td>'
+    }).join('')
+  }
 
   const sectionHtml = sections
     .map(
@@ -137,11 +151,11 @@ export function objectivesPageHTML(t: Trainee): string {
       ${s.objectives
         .map(
           (o) =>
-            `<tr><td class="num">${o.id}</td><td>${esc(o.text)}</td><td class="target">${esc(o.target)}</td>${slotCells}</tr>`,
+            `<tr><td class="num">${o.id}</td><td>${esc(o.text)}</td><td class="target">${esc(o.target)}</td>${slotCellsFor(o.id)}</tr>`,
         )
         .join('')}
     </table>
-    <p class="sig">Trainee acknowledges all of Section ${s.id} is complete: <span>&nbsp;</span> Date <span style="min-width:110px">&nbsp;</span></p>`,
+    <p class="sig">Trainee acknowledges all of Section ${s.id} is complete: <span>&nbsp;</span> Date <span style="min-width:110px">&nbsp;${t.sectionAck?.[s.id] ? esc(formatDate(t.sectionAck[s.id])) : ''}&nbsp;</span></p>`,
     )
     .join('')
 
@@ -153,14 +167,21 @@ export function objectivesPageHTML(t: Trainee): string {
       <table>
         <tr><th>${esc(g.label)} — call type</th>${Array.from({ length: EXPOSURE_SLOTS }, (_, i) => `<th class="slot">${i + 1}</th>`).join('')}</tr>
         ${g.types
-          .map(
-            (ct) =>
-              `<tr><td>${esc(ct)}</td>${Array.from({ length: EXPOSURE_SLOTS }, () => '<td class="slot">&nbsp;</td>').join('')}</tr>`,
-          )
+          .map((ct) => {
+            const hits = t.exposure?.[ct] ?? []
+            const cells = Array.from({ length: EXPOSURE_SLOTS }, (_, i) =>
+              hits[i] ? `<td class="slot">S${hits[i]}</td>` : '<td class="slot">&nbsp;</td>',
+            ).join('')
+            return `<tr><td>${esc(ct)}</td>${cells}</tr>`
+          })
           .join('')}
       </table>`,
     ).join('')}
-    <p>Total unique call types exposed: _____ &nbsp;&nbsp; Gaps identified — schedule a targeted shift for: <span style="display:inline-block;border-bottom:1px solid #333;min-width:300px">&nbsp;</span></p>`
+    <p>Total unique call types exposed: ${
+      Object.values(t.exposure ?? {}).some((v) => v.length > 0)
+        ? `<strong>${Object.values(t.exposure ?? {}).filter((v) => v.length > 0).length}</strong>`
+        : '_____'
+    } &nbsp;&nbsp; Gaps identified — schedule a targeted shift for: <span style="display:inline-block;border-bottom:1px solid #333;min-width:300px">&nbsp;</span></p>`
 
   const signoffRows = FT_SECTIONS.map((s) => {
     const na = s.paramedicOnly && !isMedic ? ' — N/A' : ''

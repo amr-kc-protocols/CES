@@ -12,6 +12,7 @@ import {
 } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
 import { PHASE2_TEMPLATE, timelineFromBlocks } from '../../data/academyPhase2'
+import { FT_SLOTS, requiredMarks, sectionsFor } from '../../data/ftObjectives'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -21,6 +22,7 @@ import type {
   Credential,
   CustomSession,
   DBShape,
+  ObjectiveMark,
   OperationId,
   ScheduleBlock,
   SessionArrangement,
@@ -215,6 +217,104 @@ export function unreleaseTrainee(traineeId: string): void {
 /** Eligible for release: FTO phase and at/over the minimum contact count. */
 export function releaseEligible(t: Trainee): boolean {
   return phaseOf(t) === 'fto' && t.contacts >= RELEASE_MIN_CONTACTS
+}
+
+// ----- digital Field Training Objectives checklist ----------------------------
+
+/** Record one occurrence of an objective, stamped with shift + active FTO. */
+export function addFieldMark(traineeId: string, objectiveId: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      const marks = t.fieldMarks?.[objectiveId] ?? []
+      if (marks.length >= FT_SLOTS) return t
+      const mark: ObjectiveMark = {
+        date: todayISO(),
+        shift: t.currentShift ?? 1,
+        fto: t.activeFto?.trim() || undefined,
+      }
+      return { ...t, fieldMarks: { ...t.fieldMarks, [objectiveId]: [...marks, mark] } }
+    }),
+  }))
+}
+
+/** Remove the most recent mark on an objective (mis-tap correction). */
+export function removeFieldMark(traineeId: string, objectiveId: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      const marks = t.fieldMarks?.[objectiveId] ?? []
+      if (marks.length === 0) return t
+      return { ...t, fieldMarks: { ...t.fieldMarks, [objectiveId]: marks.slice(0, -1) } }
+    }),
+  }))
+}
+
+/** Trainee acknowledges a whole section complete (toggles; stores the date). */
+export function toggleSectionAck(traineeId: string, sectionId: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      const ack = { ...t.sectionAck }
+      if (ack[sectionId]) delete ack[sectionId]
+      else ack[sectionId] = todayISO()
+      return { ...t, sectionAck: ack }
+    }),
+  }))
+}
+
+/** Log one exposure occurrence of a call type on the current shift. */
+export function addExposure(traineeId: string, callType: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) =>
+      t.id === traineeId
+        ? {
+            ...t,
+            exposure: {
+              ...t.exposure,
+              [callType]: [...(t.exposure?.[callType] ?? []), t.currentShift ?? 1],
+            },
+          }
+        : t,
+    ),
+  }))
+}
+
+/** Remove the most recent exposure occurrence of a call type. */
+export function removeExposure(traineeId: string, callType: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      const hits = t.exposure?.[callType] ?? []
+      if (hits.length === 0) return t
+      return { ...t, exposure: { ...t.exposure, [callType]: hits.slice(0, -1) } }
+    }),
+  }))
+}
+
+export interface FieldProgress {
+  /** Objectives whose required mark count is met. */
+  done: number
+  /** Objectives applicable to this trainee's credential. */
+  total: number
+}
+
+/** Field-checklist completion across the trainee's applicable sections. */
+export function fieldProgress(t: Trainee): FieldProgress {
+  let done = 0
+  let total = 0
+  for (const s of sectionsFor(t.credential)) {
+    for (const o of s.objectives) {
+      total++
+      if ((t.fieldMarks?.[o.id]?.length ?? 0) >= requiredMarks(o.target)) done++
+    }
+  }
+  return { done, total }
 }
 
 // ----- selectors ---------------------------------------------------------------

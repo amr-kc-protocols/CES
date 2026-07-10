@@ -765,6 +765,51 @@ tbody tr:hover td {
   margin-top: 4px;
 }
 
+/* ---------- Survey / choice buttons ---------- */
+.q-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choice {
+  flex: 0 1 auto;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.choice:hover {
+  border-color: var(--navy-600);
+}
+
+.choice.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+/* 1-5 rating scales stretch the buttons evenly. */
+.choice-row.scale .choice {
+  flex: 1;
+  text-align: center;
+}
+
 /* ---------- Motion preferences ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,
