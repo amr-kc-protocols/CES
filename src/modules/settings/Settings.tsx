@@ -1,6 +1,137 @@
 import { useRef, useState } from 'react'
 import { useDB, setState, exportDB, importDB, resetDB } from '../../lib/store'
 import { QA_ENABLED } from '../../config/features'
+import { formatDateTime } from '../../lib/date'
+import {
+  getCloudConfig,
+  reconnectWithConfig,
+  setCloudConfig,
+  signInWithEmail,
+  signOut,
+  syncNow,
+  pushAllLocalData,
+  useSyncStatus,
+} from '../../lib/sync'
+
+function CloudSyncCard() {
+  const status = useSyncStatus()
+  const existing = getCloudConfig()
+  const [url, setUrl] = useState(existing?.url ?? '')
+  const [anonKey, setAnonKey] = useState(existing?.anonKey ?? '')
+  const [email, setEmail] = useState('')
+  const [msg, setMsg] = useState('')
+
+  const note = (m: string) => {
+    setMsg(m)
+    setTimeout(() => setMsg(''), 5000)
+  }
+
+  async function saveConfig() {
+    if (!url.trim() || !anonKey.trim()) return note('Both the project URL and anon key are needed.')
+    await reconnectWithConfig({ url: url.trim().replace(/\/+$/, ''), anonKey: anonKey.trim() })
+    note('Project saved — now sign in below.')
+  }
+
+  async function sendLink() {
+    if (!email.trim()) return note('Enter your email first.')
+    const { error } = await signInWithEmail(email.trim())
+    note(error ? `Sign-in failed: ${error}` : 'Magic link sent — check your email and tap the link.')
+  }
+
+  return (
+    <div className="card">
+      <p className="subtle" style={{ marginTop: 0 }}>
+        Share data across devices and users through a Supabase project. Setup guide:{' '}
+        <code>supabase/README.md</code> in the repo (create project → run <code>schema.sql</code> →
+        paste URL &amp; key here). Everything keeps working offline; changes queue and sync when
+        connected.
+      </p>
+
+      {msg && <div className="banner info">{msg}</div>}
+      {status.error && <div className="banner crit">{status.error}</div>}
+
+      {!status.signedIn ? (
+        <>
+          <div className="field">
+            <label>Supabase project URL</label>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" />
+          </div>
+          <div className="field">
+            <label>Anon (public) key</label>
+            <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="eyJ…" />
+            <div className="help-text">
+              Dashboard → Settings → API. The anon key is safe to store here — row-level security
+              does the real gatekeeping.
+            </div>
+          </div>
+          <div className="btn-row" style={{ marginBottom: 12 }}>
+            <button className="btn" onClick={saveConfig}>
+              Save project
+            </button>
+          </div>
+          {status.configured && (
+            <div className="field">
+              <label>Sign in (magic link)</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmr.net" />
+                <button className="btn primary" onClick={sendLink} style={{ whiteSpace: 'nowrap' }}>
+                  Send link
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+            <span className="pill ok">● Synced as {status.email}</span>
+            {status.syncing && <span className="pill info">Syncing…</span>}
+            {status.pending > 0 && <span className="pill warn">{status.pending} queued</span>}
+            {status.lastSync && (
+              <span className="subtle" style={{ fontSize: 12 }}>
+                Last sync {formatDateTime(status.lastSync)}
+              </span>
+            )}
+          </div>
+          <div className="btn-row">
+            <button className="btn" onClick={() => void syncNow()}>
+              ⟳ Sync now
+            </button>
+            <button
+              className="btn"
+              title="Seed the cloud with everything on this device — use once after setup"
+              onClick={async () => {
+                await pushAllLocalData()
+                note('Local data pushed to the cloud.')
+              }}
+            >
+              ⬆ Push local data to cloud
+            </button>
+            <div className="spacer" />
+            <button
+              className="btn ghost"
+              onClick={async () => {
+                await signOut()
+                note('Signed out. Sync is paused; local data is untouched.')
+              }}
+            >
+              Sign out
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => {
+                setCloudConfig(null)
+                note('Cloud config removed from this device.')
+              }}
+            >
+              Disconnect
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function Settings() {
   const db = useDB()
@@ -96,11 +227,14 @@ export default function Settings() {
         </button>
       </div>
 
+      <div className="section-title">Cloud sync</div>
+      <CloudSyncCard />
+
       <div className="section-title">Data</div>
       <div className="card">
         <p className="subtle" style={{ marginTop: 0 }}>
-          This MVP stores everything locally on this device (localStorage). Back up or move your data
-          with the buttons below.
+          Data lives on this device first (works fully offline); Cloud sync above shares it across
+          devices when configured. Back up or move your data with the buttons below.
         </p>
         <div className="btn-row">
           <button className="btn" onClick={doExport}>
@@ -135,7 +269,7 @@ export default function Settings() {
           Deadline Tracker (Module B), and New Hire Academy (Module D). Decisions made for this build:
         </p>
         <ul className="subtle" style={{ marginTop: 6, paddingLeft: 18, lineHeight: 1.6 }}>
-          <li>Persistence is local-first (device-only) behind one storage module, so a shared backend can be added later without UI changes.</li>
+          <li>Persistence is local-first behind one storage module, with optional record-level cloud sync (Supabase + row-level security roles: admin / FTO / new hire).</li>
           <li>The QA rubric is the real 15-question Ninth Brain chart-review form, shared with the Chart Review Agent so manual and bot reviews score alike.</li>
           <li>Cass &amp; Linn monthly volumes are entered per period (still open items in the spec).</li>
           <li>CE alerts are in-app; Teams/email push can layer on later via Power Automate.</li>
