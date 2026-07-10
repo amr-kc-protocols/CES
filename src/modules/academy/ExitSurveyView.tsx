@@ -27,6 +27,35 @@ function prefill(t: Trainee): Answers {
   }
 }
 
+// A 39-question survey must survive an accidental reload or app switch:
+// answers autosave to a per-trainee draft, cleared on submit.
+const draftKey = (traineeId: string) => `ces.surveydraft.${traineeId}`
+
+function loadDraft(traineeId: string): Answers | null {
+  try {
+    const raw = localStorage.getItem(draftKey(traineeId))
+    return raw ? (JSON.parse(raw) as Answers) : null
+  } catch {
+    return null
+  }
+}
+
+function saveDraft(traineeId: string, answers: Answers): void {
+  try {
+    localStorage.setItem(draftKey(traineeId), JSON.stringify(answers))
+  } catch {
+    // Best-effort only; a full disk shouldn't break typing.
+  }
+}
+
+function clearDraft(traineeId: string): void {
+  try {
+    localStorage.removeItem(draftKey(traineeId))
+  } catch {
+    // Ignore.
+  }
+}
+
 function visible(q: SurveyQuestion, answers: Answers): boolean {
   return !('showIf' in q) || !q.showIf || answers[q.showIf.name] === q.showIf.value
 }
@@ -153,7 +182,10 @@ export default function ExitSurveyView() {
   const { cohortId = '', traineeId = '' } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useCohortTrainees(cohortId).find((t) => t.id === traineeId)
-  const [answers, setAnswers] = useState<Answers>(() => (trainee ? prefill(trainee) : {}))
+  const [restoredDraft] = useState(() => loadDraft(traineeId))
+  const [answers, setAnswers] = useState<Answers>(() =>
+    trainee ? { ...prefill(trainee), ...restoredDraft } : {},
+  )
   const [missing, setMissing] = useState<string[]>([])
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   const formRef = useRef<HTMLDivElement>(null)
@@ -172,7 +204,11 @@ export default function ExitSurveyView() {
   }
 
   const setAnswer = (name: string, value: string) => {
-    setAnswers((a) => ({ ...a, [name]: value }))
+    setAnswers((a) => {
+      const next = { ...a, [name]: value }
+      saveDraft(traineeId, next)
+      return next
+    })
     setMissing((m) => m.filter((x) => x !== name))
   }
 
@@ -200,6 +236,7 @@ export default function ExitSurveyView() {
       // Apps Script requires no-cors + URL-encoded body (avoids preflight).
       await fetch(SURVEY_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(payload) })
       updateTrainee(trainee!.id, { exitSurveyDate: todayISO() })
+      clearDraft(traineeId)
       setStatus('done')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {
@@ -255,6 +292,10 @@ export default function ExitSurveyView() {
           A survey was already submitted for {trainee.name} on {formatDate(trainee.exitSurveyDate)}.
           Submitting again adds a second response to the sheet.
         </div>
+      )}
+
+      {restoredDraft && !trainee.exitSurveyDate && (
+        <div className="banner ok">✓ Draft restored — your earlier answers were kept.</div>
       )}
 
       {SURVEY_SECTIONS.map((s, i) => (

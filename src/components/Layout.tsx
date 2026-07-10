@@ -32,8 +32,8 @@ export default function Layout() {
         <div className="brand">
           <img src="/pwa-192x192.png" alt="" />
           <div>
-            AMR CES
-            <small>Clinical Education Suite</small>
+            AMR KC Academy
+            <small>New Hire &amp; FTO Portal</small>
           </div>
         </div>
       </header>

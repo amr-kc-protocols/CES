@@ -10,10 +10,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'AMR Clinical Education Suite',
-        short_name: 'CES',
+        name: 'AMR KC Academy — New Hire & FTO Portal',
+        short_name: 'Academy',
         description:
-          'Kansas CE Deadline Tracker and New Hire Academy builder for AMR Clinical Education',
+          'New hire academy schedules, field training checklists, FTO shifts, and CE tracking for AMR Kansas City',
         theme_color: '#0b2e4f',
         background_color: '#0b2e4f',
         display: 'standalone',

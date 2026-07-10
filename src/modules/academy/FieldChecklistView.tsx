@@ -87,6 +87,17 @@ export default function FieldChecklistView() {
   const shift = trainee.currentShift ?? 1
   const exposureTotal = Object.values(trainee.exposure ?? {}).filter((v) => v.length > 0).length
 
+  const sectionProgress = (sId: string) => {
+    const s = sections.find((x) => x.id === sId)!
+    const done = s.objectives.filter(
+      (o) => (trainee.fieldMarks?.[o.id]?.length ?? 0) >= requiredMarks(o.target),
+    ).length
+    return { done, total: s.objectives.length }
+  }
+
+  const jumpTo = (id: string) =>
+    document.getElementById(`ft-section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
   return (
     <div>
       <Link to={`/academy/${cohortId}`} className="link-btn">
@@ -141,6 +152,29 @@ export default function FieldChecklistView() {
         </div>
       </div>
 
+      {/* Jump chips: one tap to any section — the page is 50+ objectives long. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+        {sections.map((s) => {
+          const sp = sectionProgress(s.id)
+          const complete = sp.done === sp.total
+          return (
+            <button
+              key={s.id}
+              className={`choice${complete ? ' active' : ''}`}
+              style={{ padding: '6px 12px', fontSize: 13 }}
+              onClick={() => jumpTo(s.id)}
+              title={`${s.title} — ${sp.done}/${sp.total} at target`}
+            >
+              {s.id}
+              {complete ? ' ✓' : ` ${sp.done}/${sp.total}`}
+            </button>
+          )
+        })}
+        <button className="choice" style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => jumpTo('I')}>
+          I · Exposure
+        </button>
+      </div>
+
       <div className="toolbar" style={{ marginTop: 12 }}>
         <div className="spacer" />
         <button
@@ -168,29 +202,39 @@ export default function FieldChecklistView() {
           (o) => (trainee.fieldMarks?.[o.id]?.length ?? 0) >= requiredMarks(o.target),
         )
         const ackDate = trainee.sectionAck?.[s.id]
+        const sp = sectionProgress(s.id)
         return (
-          <div key={s.id} className="card" style={{ padding: 14, marginTop: 12 }}>
+          <div key={s.id} id={`ft-section-${s.id}`} className="card" style={{ padding: 14, marginTop: 12, scrollMarginTop: 74 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <h3 style={{ margin: 0, fontSize: 15, flex: 1 }}>{s.title}</h3>
-              {sectionDone && <span className="pill ok">All at target</span>}
+              {sectionDone ? (
+                <span className="pill ok">All at target</span>
+              ) : (
+                <span className="pill muted">
+                  {sp.done}/{sp.total}
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {s.objectives.map((o) => (
-                <div key={o.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                    <span className="subtle" style={{ fontWeight: 700, minWidth: 28 }}>
-                      {o.id}
-                    </span>
-                    <span style={{ flex: 1 }}>{o.text}</span>
-                    <span className="pill muted" title="Occurrences required">
-                      {o.target}
-                    </span>
+              {s.objectives.map((o) => {
+                const met = (trainee.fieldMarks?.[o.id]?.length ?? 0) >= requiredMarks(o.target)
+                return (
+                  <div key={o.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', opacity: met ? 0.62 : 1 }}>
+                      <span className="subtle" style={{ fontWeight: 700, minWidth: 28 }}>
+                        {met ? '✓' : o.id}
+                      </span>
+                      <span style={{ flex: 1 }}>{o.text}</span>
+                      <span className={`pill ${met ? 'ok' : 'muted'}`} title="Occurrences required">
+                        {o.target}
+                      </span>
+                    </div>
+                    <div style={{ paddingLeft: 36 }}>
+                      <MarkChips trainee={trainee} objective={o} />
+                    </div>
                   </div>
-                  <div style={{ paddingLeft: 36 }}>
-                    <MarkChips trainee={trainee} objective={o} />
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
               <input type="checkbox" checked={!!ackDate} onChange={() => toggleSectionAck(trainee.id, s.id)} />
@@ -203,7 +247,7 @@ export default function FieldChecklistView() {
         )
       })}
 
-      <div className="card" style={{ padding: 14, marginTop: 12 }}>
+      <div id="ft-section-I" className="card" style={{ padding: 14, marginTop: 12, scrollMarginTop: 74 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>I. Call Type Exposure</h3>
         <div className="subtle" style={{ fontSize: 13, marginBottom: 10 }}>
           One tap per occurrence — an exposure log, not a competence check-off. Use gaps to plan

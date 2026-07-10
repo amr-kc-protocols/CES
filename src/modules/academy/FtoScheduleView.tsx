@@ -7,6 +7,7 @@ import {
   crewsOnDate,
   rotationWeek,
   shiftWindow,
+  type FtoCrew,
 } from '../../data/ftoSchedule'
 import { addDays, formatDate, todayISO } from '../../lib/date'
 import { weekdayLabel } from './calendar'
@@ -42,7 +43,13 @@ function CrewLine({ unit, level, window, crew }: { unit: string; level: string; 
 
 export default function FtoScheduleView() {
   const [from, setFrom] = useState(todayISO())
+  const [ftoFilter, setFtoFilter] = useState('')
   const days = Array.from({ length: 14 }, (_, i) => addDays(from, i))
+
+  const ftoNames = [...new Set(FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)))]
+  const matchesFilter = (c: FtoCrew) =>
+    !ftoFilter || c.crew.some((m) => m.fto && m.name === ftoFilter)
+  const visibleCrews = FTO_CREWS.filter(matchesFilter)
 
   return (
     <div>
@@ -79,9 +86,26 @@ export default function FtoScheduleView() {
         </button>
       </div>
 
+      {/* Filter to one FTO when planning that trainee's next ride. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button className={`choice${ftoFilter === '' ? ' active' : ''}`} style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => setFtoFilter('')}>
+          All FTOs
+        </button>
+        {ftoNames.map((n) => (
+          <button
+            key={n}
+            className={`choice${ftoFilter === n ? ' active' : ''}`}
+            style={{ padding: '6px 12px', fontSize: 13 }}
+            onClick={() => setFtoFilter(ftoFilter === n ? '' : n)}
+          >
+            {n.split(' ').slice(-1)[0]}
+          </button>
+        ))}
+      </div>
+
       <div className="list">
         {days.map((d) => {
-          const crews = crewsOnDate(d)
+          const crews = crewsOnDate(d).filter(matchesFilter)
           const isToday = d === todayISO()
           return (
             <div key={d} className="card" style={{ padding: '10px 14px', ...(isToday ? { borderColor: 'var(--navy-600)' } : {}) }}>
@@ -108,7 +132,7 @@ export default function FtoScheduleView() {
 
       <div className="section-title">Crew rotation patterns</div>
       <div className="list">
-        {FTO_CREWS.map((c) => (
+        {visibleCrews.map((c) => (
           <div key={c.unit + c.start} className="card" style={{ padding: 14 }}>
             <CrewLine unit={c.unit} level={c.level} window={shiftWindow(c)} crew={c.crew} />
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
