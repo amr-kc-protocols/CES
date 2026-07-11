@@ -7,6 +7,7 @@ import {
   reconnectWithConfig,
   setCloudConfig,
   signInWithEmail,
+  verifyEmailCode,
   signOut,
   syncNow,
   pushAllLocalData,
@@ -19,6 +20,8 @@ function CloudSyncCard() {
   const [url, setUrl] = useState(existing?.url ?? '')
   const [anonKey, setAnonKey] = useState(existing?.anonKey ?? '')
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [linkSent, setLinkSent] = useState(false)
   const [msg, setMsg] = useState('')
 
   const note = (m: string) => {
@@ -35,7 +38,17 @@ function CloudSyncCard() {
   async function sendLink() {
     if (!email.trim()) return note('Enter your email first.')
     const { error } = await signInWithEmail(email.trim())
-    note(error ? `Sign-in failed: ${error}` : 'Magic link sent — check your email and tap the link.')
+    if (error) return note(`Sign-in failed: ${error}`)
+    setLinkSent(true)
+    note('Email sent — enter the 6-digit code from it below (or tap its link).')
+  }
+
+  async function submitCode() {
+    if (!email.trim() || !code.trim()) return note('Enter your email and the 6-digit code.')
+    const { error } = await verifyEmailCode(email.trim(), code)
+    if (error) return note(`Code sign-in failed: ${error}`)
+    setCode('')
+    note('Signed in!')
   }
 
   return (
@@ -53,18 +66,37 @@ function CloudSyncCard() {
       {!status.signedIn ? (
         <>
           {status.configured && (
-            <div className="field">
-              <label>Sign in (magic link)</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmr.net" />
-                <button className="btn primary" onClick={sendLink} style={{ whiteSpace: 'nowrap' }}>
-                  Send link
-                </button>
+            <>
+              <div className="field">
+                <label>Sign in with your email</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmr.net" />
+                  <button className="btn primary" onClick={sendLink} style={{ whiteSpace: 'nowrap' }}>
+                    {linkSent ? 'Resend' : 'Send code'}
+                  </button>
+                </div>
               </div>
-              <div className="help-text">
-                Tap the link in the email and you're connected — no other setup needed.
+              <div className="field">
+                <label>6-digit code from the email</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submitCode()}
+                    placeholder="123456"
+                  />
+                  <button className="btn primary" onClick={submitCode} style={{ whiteSpace: 'nowrap' }}>
+                    Verify
+                  </button>
+                </div>
+                <div className="help-text">
+                  Typing the code is the reliable path on work email — link scanners often consume
+                  the email's link before you can click it. (The link works too, if it survives.)
+                </div>
               </div>
-            </div>
+            </>
           )}
           <details style={{ marginTop: 4 }}>
             <summary className="subtle" style={{ cursor: 'pointer', fontSize: 13 }}>

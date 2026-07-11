@@ -129,7 +129,9 @@ async function getClient(): Promise<SupabaseClient | null> {
   const config = getCloudConfig()
   if (!config) return null
   const { createClient } = await import('@supabase/supabase-js')
-  client = createClient(config.url, config.anonKey)
+  // Implicit flow, explicitly: emailed links carry tokens in the hash and
+  // work wherever they're opened (no per-browser code verifier).
+  client = createClient(config.url, config.anonKey, { auth: { flowType: 'implicit' } })
   return client
 }
 
@@ -156,6 +158,18 @@ export function initSync(): void {
 async function connect(): Promise<void> {
   const c = await getClient()
   if (!c) return
+
+  // A failed magic link redirects back with the reason in the hash (e.g.
+  // otp_expired when a mail scanner pre-consumed the link). Surface it —
+  // silently ignoring it left users staring at nothing.
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const authError = hashParams.get('error_description') || hashParams.get('error_code') || hashParams.get('error')
+  if (authError) {
+    setStatus({
+      error: `Sign-in link failed: ${authError}. Corporate mail scanners often consume links — use the 6-digit code from the email instead.`,
+    })
+    history.replaceState(null, '', window.location.pathname + window.location.search)
+  }
 
   const { data } = await c.auth.getSession()
   setStatus({ configured: true, signedIn: !!data.session, email: data.session?.user.email ?? undefined })
@@ -266,6 +280,18 @@ export async function signInWithEmail(email: string): Promise<{ error?: string }
     email,
     options: { emailRedirectTo: window.location.origin },
   })
+  return error ? { error: error.message } : {}
+}
+
+/**
+ * Sign in by typing the 6-digit code from the sign-in email. Immune to
+ * corporate mail scanners that consume one-time links before the user can
+ * click them.
+ */
+export async function verifyEmailCode(email: string, code: string): Promise<{ error?: string }> {
+  const c = await getClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { error } = await c.auth.verifyOtp({ email, token: code.trim(), type: 'email' })
   return error ? { error: error.message } : {}
 }
 
