@@ -18,6 +18,8 @@ import { QA_ENABLED } from '../../config/features'
 // Loaded only when QA is enabled — keeps the QA store out of the initial chunk.
 const DashboardQAProgress = lazy(() => import('./DashboardQAProgress'))
 
+import FtoGuide from './FtoGuide'
+
 function daysChip(days: number) {
   if (days < 0) return <span className="pill crit">{Math.abs(days)}d overdue</span>
   if (days === 0) return <span className="pill crit">Due today</span>
@@ -43,6 +45,9 @@ export default function Dashboard() {
 
   return (
     <div>
+      {/* First thing a new FTO sees — before any data, before sign-in. */}
+      <FtoGuide />
+
       <div className="page-head">
         <div>
           <h1>Today</h1>
