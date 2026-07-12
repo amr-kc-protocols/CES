@@ -47,7 +47,7 @@ function GuideBody() {
       </div>
 
       <div className="subtle" style={{ fontSize: 12, lineHeight: 1.5 }}>
-        Schedules, rosters, and CE are view-only for FTOs — if something there needs changing, tell
+        Schedules and rosters are view-only for FTOs — if something there needs changing, tell
         the Clinical Educator. At the end of field training, the trainee fills out the exit survey
         from their card (📝), and the educator handles release.
       </div>
