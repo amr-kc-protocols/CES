@@ -12,8 +12,14 @@ import {
   urgencyOf,
   sortByUrgency,
 } from '../ce/ceStore'
-import { useCohorts, useAllTrainees, upcomingCohorts, releaseEligible } from '../academy/academyStore'
-import { QA_ENABLED } from '../../config/features'
+import {
+  useCohorts,
+  useAllTrainees,
+  upcomingCohorts,
+  releaseEligible,
+  cohortProgress,
+} from '../academy/academyStore'
+import { QA_ENABLED, CE_ENABLED } from '../../config/features'
 
 // Loaded only when QA is enabled — keeps the QA store out of the initial chunk.
 const DashboardQAProgress = lazy(() => import('./DashboardQAProgress'))
@@ -41,7 +47,8 @@ export default function Dashboard() {
   const trainees = useAllTrainees()
   const nextCohort = upcomingCohorts(cohorts)[0]
   const readyForRelease = trainees.filter(releaseEligible)
-  const nothing = classes.length === 0 && cohorts.length === 0
+  const progress = cohortProgress(trainees)
+  const nothing = (CE_ENABLED ? classes.length === 0 : true) && cohorts.length === 0
 
   return (
     <div>
@@ -51,25 +58,30 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>Today</h1>
-          <div className="subtle">What’s at risk right now</div>
+          <div className="subtle">{CE_ENABLED ? 'What’s at risk right now' : 'Where the pipeline stands'}</div>
         </div>
       </div>
 
       {nothing && (
-        <Empty icon="👋" title="Welcome to CES">
-          Start with a{' '}
-          <Link to="/ce" className="link-btn">
-            CE deadline
-          </Link>{' '}
-          or an{' '}
+        <Empty icon="👋" title="Welcome">
+          Start with an{' '}
           <Link to="/academy" className="link-btn">
             academy cohort
           </Link>
+          {CE_ENABLED && (
+            <>
+              {' '}
+              or a{' '}
+              <Link to="/ce" className="link-btn">
+                CE deadline
+              </Link>
+            </>
+          )}
           .
         </Empty>
       )}
 
-      {!nothing && (
+      {!nothing && CE_ENABLED && (
         <div className="stat-grid" style={{ marginTop: 12 }}>
           <Stat label="CE overdue" value={ce.overdue} alert={ce.overdue > 0} />
           <Stat label="CE due ≤7d" value={ce.dueThisWeek} alert={ce.dueThisWeek > 0} />
@@ -78,8 +90,17 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!nothing && !CE_ENABLED && (
+        <div className="stat-grid" style={{ marginTop: 12 }}>
+          <Stat label="Cohorts" value={cohorts.length} />
+          <Stat label="In pipeline" value={progress.inAcademy + progress.inFto} />
+          <Stat label="Ready for release" value={readyForRelease.length} alert={readyForRelease.length > 0} />
+          <Stat label="Released" value={progress.released} />
+        </div>
+      )}
+
       {/* CE at-risk */}
-      {classes.length > 0 && (
+      {CE_ENABLED && classes.length > 0 && (
         <>
           <div className="section-title" style={{ display: 'flex', alignItems: 'center' }}>
             <span>CE deadlines at risk</span>

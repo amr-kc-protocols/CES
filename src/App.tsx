@@ -2,7 +2,7 @@ import { lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './modules/dashboard/Dashboard'
-import { QA_ENABLED } from './config/features'
+import { QA_ENABLED, CE_ENABLED } from './config/features'
 
 // Route components are code-split: each screen loads on demand, so the initial
 // payload is just the shell + dashboard. Layout wraps <Outlet> in Suspense.
@@ -23,7 +23,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
-        <Route path="ce" element={<CETracker />} />
+        {CE_ENABLED && <Route path="ce" element={<CETracker />} />}
         {QA_ENABLED && (
           <>
             <Route path="qa" element={<QAQueue />} />

@@ -9,3 +9,10 @@
 // ---------------------------------------------------------------------------
 
 export const QA_ENABLED = false
+
+// CE_ENABLED gates the Kansas CE deadline tracker (CE tab, /ce route, the CE
+// stats + "deadlines at risk" section on the dashboard, and the Class Builder
+// URL setting). The app has refocused on the New Hire & FTO portal, so CE is
+// OFF. Existing CE data stays in local storage and cloud sync untouched —
+// flip this to `true` to bring it all back with no other changes.
+export const CE_ENABLED = false

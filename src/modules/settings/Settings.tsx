@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useDB, setState, exportDB, importDB, resetDB } from '../../lib/store'
-import { QA_ENABLED } from '../../config/features'
+import { QA_ENABLED, CE_ENABLED } from '../../config/features'
 import { useCan } from '../../lib/role'
 import { formatDateTime } from '../../lib/date'
 import {
@@ -272,47 +272,54 @@ export default function Settings() {
 
       {saved && <div className="banner info">{saved}</div>}
 
-      <div className="section-title">{QA_ENABLED ? 'Review defaults' : 'Defaults'}</div>
-      <div className="card">
-        {/* QA-only settings stay hidden while the QA function is feature-flagged off. */}
-        {QA_ENABLED && (
-          <>
-            <div className="field">
-              <label>Reviewer name</label>
-              <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="Used to pre-fill QA reviews" />
-            </div>
-            <div className="field">
-              <label>QA sampling target (%)</label>
-              <input type="number" min={1} max={100} value={pct} onChange={(e) => setPct(e.target.value)} />
-              <div className="help-text">Default 20% per operation. Applied to new review periods.</div>
-            </div>
-          </>
-        )}
-        <div className="field">
-          <label>Kansas Class Builder URL</label>
-          <input value={cbUrl} onChange={(e) => setCbUrl(e.target.value)} placeholder="https://…" />
-          <div className="help-text">
-            The CE tracker links here rather than duplicating the packet generator (spec §6 / §7).
+      {/* The Defaults card only holds QA- and CE-scoped settings; with both
+          features flagged off there is nothing to show, so the whole card goes. */}
+      {(QA_ENABLED || CE_ENABLED) && (
+        <>
+          <div className="section-title">{QA_ENABLED ? 'Review defaults' : 'Defaults'}</div>
+          <div className="card">
+            {QA_ENABLED && (
+              <>
+                <div className="field">
+                  <label>Reviewer name</label>
+                  <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="Used to pre-fill QA reviews" />
+                </div>
+                <div className="field">
+                  <label>QA sampling target (%)</label>
+                  <input type="number" min={1} max={100} value={pct} onChange={(e) => setPct(e.target.value)} />
+                  <div className="help-text">Default 20% per operation. Applied to new review periods.</div>
+                </div>
+              </>
+            )}
+            {CE_ENABLED && (
+              <div className="field">
+                <label>Kansas Class Builder URL</label>
+                <input value={cbUrl} onChange={(e) => setCbUrl(e.target.value)} placeholder="https://…" />
+                <div className="help-text">
+                  The CE tracker links here rather than duplicating the packet generator (spec §6 / §7).
+                </div>
+              </div>
+            )}
+            {QA_ENABLED && (
+              <div className="field">
+                <label>QA bot URL (Chart Review Agent)</label>
+                <input value={botUrl} onChange={(e) => setBotUrl(e.target.value)} placeholder="http://localhost:5000" />
+                <div className="help-text">
+                  The local address the Chart Review Agent prints when it starts. Shown embedded in the
+                  QA Bot tab.
+                </div>
+              </div>
+            )}
+            {can.manageAcademy ? (
+              <button className="btn primary" onClick={saveSettings}>
+                Save settings
+              </button>
+            ) : (
+              <div className="help-text">Settings are managed by the admin account.</div>
+            )}
           </div>
-        </div>
-        {QA_ENABLED && (
-          <div className="field">
-            <label>QA bot URL (Chart Review Agent)</label>
-            <input value={botUrl} onChange={(e) => setBotUrl(e.target.value)} placeholder="http://localhost:5000" />
-            <div className="help-text">
-              The local address the Chart Review Agent prints when it starts. Shown embedded in the
-              QA Bot tab.
-            </div>
-          </div>
-        )}
-        {can.manageAcademy ? (
-          <button className="btn primary" onClick={saveSettings}>
-            Save settings
-          </button>
-        ) : (
-          <div className="help-text">Settings are managed by the admin account.</div>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="section-title">Cloud sync</div>
       <CloudSyncCard />
