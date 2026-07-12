@@ -231,6 +231,12 @@ export default function FtoScheduleView() {
                 </div>
               ))}
             </div>
+            {c.anchor && (
+              <div className="help-text" style={{ marginTop: 6 }}>
+                Runs its own cycle: Week 1 anchored to {formatDate(c.anchor)}, offset from the
+                master schedule's weeks.
+              </div>
+            )}
           </div>
         ))}
       </div>
