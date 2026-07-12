@@ -13,7 +13,7 @@ import {
   sortByUrgency,
 } from '../ce/ceStore'
 import { useCohorts, useAllTrainees, useAllRides, releaseEligible } from '../academy/academyStore'
-import { crewsOnDate, rotationWeek, shiftWindow, type FtoCrew } from '../../data/ftoSchedule'
+import { allFtos, crewsOnDate, rotationWeek, shiftWindow, type FtoCrew } from '../../data/ftoSchedule'
 import { weekdayLabel } from '../academy/calendar'
 import { QA_ENABLED, CE_ENABLED } from '../../config/features'
 import type { RideAssignment, Trainee } from '../../types'
@@ -32,6 +32,48 @@ function daysChip(days: number) {
 
 function ftoNamesOf(c: FtoCrew): string {
   return c.crew.filter((m) => m.fto).map((m) => m.name).join(' · ')
+}
+
+/** 'Kenny Denk' -> 'KD', to match the initials FTOs stamp on checklist marks. */
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((p) => p[0] ?? '')
+    .join('')
+    .toUpperCase()
+}
+
+const PTS_PER_RIDE = 5
+const RANK_MEDALS = ['🥇', '🥈', '🥉']
+
+interface FtoScore {
+  name: string
+  rides: number
+  marks: number
+  pts: number
+}
+
+/**
+ * Gamified FTO tally: 5 pts per ride-along hosted (through today), 1 pt per
+ * checklist objective signed off (marks are matched by stamped initials).
+ */
+function ftoLeaderboard(trainees: Trainee[], rides: RideAssignment[], today: string): FtoScore[] {
+  const marksByInitials = new Map<string, number>()
+  for (const t of trainees) {
+    for (const list of Object.values(t.fieldMarks ?? {})) {
+      for (const m of list) {
+        const key = (m.fto ?? '').replace(/[^a-z]/gi, '').toUpperCase()
+        if (key) marksByInitials.set(key, (marksByInitials.get(key) ?? 0) + 1)
+      }
+    }
+  }
+  return allFtos()
+    .map((name) => {
+      const hosted = rides.filter((r) => r.date <= today && (r.ftoNames ?? '').includes(name)).length
+      const marks = marksByInitials.get(initialsOf(name)) ?? 0
+      return { name, rides: hosted, marks, pts: hosted * PTS_PER_RIDE + marks }
+    })
+    .sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name))
 }
 
 /** One crew on shift today, with its assigned rider(s) linking to checklists. */
@@ -101,6 +143,7 @@ export default function Dashboard() {
   const offRotationRides = rides.filter(
     (r) => r.date === today && !crewsToday.some((c) => c.unit === r.unit),
   )
+  const leaderboard = ftoLeaderboard(trainees, rides, today)
 
   return (
     <div>
@@ -192,6 +235,32 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* FTO leaderboard — friendly competition over rides hosted + sign-offs. */}
+      <div className="section-title">FTO leaderboard</div>
+      <div className="card" style={{ padding: '6px 14px' }}>
+        {leaderboard.map((s, i) => (
+          <div
+            key={s.name}
+            style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: i < leaderboard.length - 1 ? '1px solid var(--border)' : 'none' }}
+          >
+            <span style={{ width: 26, textAlign: 'center', fontSize: s.pts > 0 && i < 3 ? 18 : 13 }} className={s.pts > 0 && i < 3 ? '' : 'subtle'}>
+              {s.pts > 0 && i < 3 ? RANK_MEDALS[i] : i + 1}
+            </span>
+            <span style={{ flex: 1, fontWeight: s.pts > 0 && i === 0 ? 700 : 500 }}>{s.name}</span>
+            <span className="subtle" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+              🚑 {s.rides} ride{s.rides === 1 ? '' : 's'} · ✅ {s.marks} sign-off{s.marks === 1 ? '' : 's'}
+            </span>
+            <span className={`pill ${s.pts > 0 ? 'info' : 'muted'}`} style={{ minWidth: 56, justifyContent: 'center' }}>
+              {s.pts} pts
+            </span>
+          </div>
+        ))}
+        <div className="help-text" style={{ padding: '8px 0' }}>
+          {PTS_PER_RIDE} pts per ride-along hosted · 1 pt per checklist objective signed off (counted
+          by the initials stamped on marks).
+        </div>
+      </div>
 
       {/* CE at-risk */}
       {CE_ENABLED && classes.length > 0 && (
