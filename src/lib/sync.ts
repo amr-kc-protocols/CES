@@ -283,6 +283,14 @@ export async function signInWithEmail(email: string): Promise<{ error?: string }
   return error ? { error: error.message } : {}
 }
 
+/** Password sign-in: no email round-trip, no rate limits, no link scanners. */
+export async function signInWithPassword(email: string, password: string): Promise<{ error?: string }> {
+  const c = await getClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { error } = await c.auth.signInWithPassword({ email, password })
+  return error ? { error: error.message } : {}
+}
+
 /**
  * Sign in by typing the 6-digit code from the sign-in email. Immune to
  * corporate mail scanners that consume one-time links before the user can
