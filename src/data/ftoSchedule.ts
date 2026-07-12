@@ -35,6 +35,12 @@ export interface FtoCrew {
   /** Worked days, 0=Sun … 6=Sat, for each week of the rotation. */
   week1: number[]
   week2: number[]
+  /**
+   * First day of this crew's Week 1, when it differs from the master
+   * schedule's FTO_ROTATION_ANCHOR (a crew whose two-week cycle is offset
+   * from everyone else's).
+   */
+  anchor?: string
 }
 
 export const FTO_CREWS: FtoCrew[] = [
@@ -77,19 +83,8 @@ export const FTO_CREWS: FtoCrew[] = [
     week1: [2, 3, 4, 5],
     week2: [2, 3, 4, 5],
   },
-  {
-    unit: 'KC202',
-    level: 'BLS',
-    start: '0600',
-    end: '1800',
-    hours: 12,
-    crew: [
-      { name: 'Lanie McMullin', fto: true },
-      { name: 'Levi Wisecarver', fto: false },
-    ],
-    week1: [0, 2, 4, 6],
-    week2: [0, 2, 4],
-  },
+  // KC202 (Lanie McMullin) removed — she transferred out; Levi Wisecarver is
+  // not an FTO, so the line no longer belongs on a ride-along planner.
   {
     unit: 'AD101',
     level: 'Dedicated (Advent)',
@@ -115,8 +110,13 @@ export const FTO_CREWS: FtoCrew[] = [
       { name: 'Frank Alba', fto: true },
       { name: 'Daniel Force', fto: false },
     ],
-    week1: [2, 3],
-    week2: [1, 2],
+    // Frank runs his own 14-day cycle anchored to Saturday 2026-07-11:
+    // works Sat+Sun, four off, Fri+Sat, six off — i.e. Jul 11-12, 17-18,
+    // 25-26, 31-Aug 1, … His "weeks" run Sat-Fri from that anchor, not the
+    // master schedule's Sunday weeks.
+    week1: [0, 5, 6],
+    week2: [6],
+    anchor: '2026-07-11',
   },
 ]
 
@@ -126,22 +126,28 @@ export const FTOS_WITHOUT_LINE: string[] = ['David Richardson']
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**
- * Which week of the rotation (1 or 2) a date falls in. Works for dates
- * before the anchor too — the pattern extends in both directions.
+ * Which week of the rotation (1 or 2) a date falls in, against the given
+ * Week-1 anchor (default: the master schedule's). Works for dates before
+ * the anchor too — the pattern extends in both directions.
  */
-export function rotationWeek(iso: string): 1 | 2 {
+export function rotationWeek(iso: string, anchor: string = FTO_ROTATION_ANCHOR): 1 | 2 {
   const days = Math.round(
-    (fromISODate(iso).getTime() - fromISODate(FTO_ROTATION_ANCHOR).getTime()) / MS_PER_DAY,
+    (fromISODate(iso).getTime() - fromISODate(anchor).getTime()) / MS_PER_DAY,
   )
   const week = Math.floor(days / 7) % 2
   return (week + 2) % 2 === 0 ? 1 : 2
 }
 
+/** Whether one crew line is on shift on a date (honors per-crew anchors). */
+export function crewOnDate(c: FtoCrew, iso: string): boolean {
+  const dow = fromISODate(iso).getDay()
+  const week = rotationWeek(iso, c.anchor)
+  return (week === 1 ? c.week1 : c.week2).includes(dow)
+}
+
 /** Crew lines (with an FTO aboard) on shift on a given date. */
 export function crewsOnDate(iso: string): FtoCrew[] {
-  const dow = fromISODate(iso).getDay()
-  const week = rotationWeek(iso)
-  return FTO_CREWS.filter((c) => (week === 1 ? c.week1 : c.week2).includes(dow))
+  return FTO_CREWS.filter((c) => crewOnDate(c, iso))
 }
 
 /** '0700' -> '0700–1900 (+1d when overnight)' display string. */

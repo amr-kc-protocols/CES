@@ -48,7 +48,7 @@ export const CLASSROOM_TEMPLATE: TemplateDay[] = [
   },
   {
     title: 'EVOC Road Course (Corporate)',
-    facilitators: 'McMullen · Curless · Dir · Hayden · Denk · Fournier',
+    facilitators: 'Curless · Dir · Hayden · Denk · Fournier',
     location: 'Meet HQ 7 AM → Independence course',
     note: 'CES is not present this day. Day is fully covered by the corporate EVOC team.',
     blocks: [
@@ -57,7 +57,7 @@ export const CLASSROOM_TEMPLATE: TemplateDay[] = [
   },
   {
     title: 'PCR Documentation & ImageTrend',
-    facilitators: 'Jordan (CES) · Joshua Hayden · Lanie McMullen',
+    facilitators: 'Jordan (CES) · Joshua Hayden · Jessica Sexton or Miranda Burgoon (TBD)',
     blocks: [
       { time: '0900–0915', title: 'Welcome back · Wed EVOC debrief · day intro', note: 'Quick roundtable: one EVOC takeaway per trainee.' },
       { time: '0915–1015', title: 'Clinical Mindset Primer (60 min)', note: 'Patient Population (15 min) + IFT Call Types (20 min) + KC Med Guidelines scope drill (25 min). Card-sort: ALS vs BLS.' },
@@ -74,7 +74,7 @@ export const CLASSROOM_TEMPLATE: TemplateDay[] = [
   },
   {
     title: 'Stretcher & Equipment Check-Off',
-    facilitators: 'Lanie McMullen · Joshua Hayden · Frank Alba',
+    facilitators: 'Jessica Sexton or Miranda Burgoon (TBD) · Joshua Hayden · Frank Alba',
     note: 'Runs against the existing Stretcher Handling deck and equipment check-off sheet (GMR Safe Stretcher Handling v3.2). Close with the Day-5 retrieval quiz and final sign-offs.',
     blocks: [
       { time: '0900–1200', title: 'Stretcher lab', note: 'PowerLoad + Stryker hand placement, stair chair.' },
