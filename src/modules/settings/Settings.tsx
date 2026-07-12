@@ -7,6 +7,8 @@ import {
   reconnectWithConfig,
   setCloudConfig,
   signInWithEmail,
+  signInWithPassword,
+  verifyEmailCode,
   signOut,
   syncNow,
   pushAllLocalData,
@@ -19,6 +21,9 @@ function CloudSyncCard() {
   const [url, setUrl] = useState(existing?.url ?? '')
   const [anonKey, setAnonKey] = useState(existing?.anonKey ?? '')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
+  const [linkSent, setLinkSent] = useState(false)
   const [msg, setMsg] = useState('')
 
   const note = (m: string) => {
@@ -35,7 +40,25 @@ function CloudSyncCard() {
   async function sendLink() {
     if (!email.trim()) return note('Enter your email first.')
     const { error } = await signInWithEmail(email.trim())
-    note(error ? `Sign-in failed: ${error}` : 'Magic link sent — check your email and tap the link.')
+    if (error) return note(`Sign-in failed: ${error}`)
+    setLinkSent(true)
+    note('Email sent — enter the 6-digit code from it below (or tap its link).')
+  }
+
+  async function submitPassword() {
+    if (!email.trim() || !password) return note('Enter your email and password.')
+    const { error } = await signInWithPassword(email.trim(), password)
+    if (error) return note(`Sign-in failed: ${error}`)
+    setPassword('')
+    note('Signed in!')
+  }
+
+  async function submitCode() {
+    if (!email.trim() || !code.trim()) return note('Enter your email and the 6-digit code.')
+    const { error } = await verifyEmailCode(email.trim(), code)
+    if (error) return note(`Code sign-in failed: ${error}`)
+    setCode('')
+    note('Signed in!')
   }
 
   return (
@@ -53,18 +76,64 @@ function CloudSyncCard() {
       {!status.signedIn ? (
         <>
           {status.configured && (
-            <div className="field">
-              <label>Sign in (magic link)</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmr.net" />
-                <button className="btn primary" onClick={sendLink} style={{ whiteSpace: 'nowrap' }}>
-                  Send link
-                </button>
+            <>
+              <div className="field">
+                <label>Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmr.net" autoComplete="username" />
               </div>
-              <div className="help-text">
-                Tap the link in the email and you're connected — no other setup needed.
+              <div className="field">
+                <label>Password</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submitPassword()}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                  />
+                  <button className="btn primary" onClick={submitPassword} style={{ whiteSpace: 'nowrap' }}>
+                    Sign in
+                  </button>
+                </div>
+                <div className="help-text">
+                  Fastest path — no email involved. The admin sets your starting password.
+                </div>
               </div>
-            </div>
+              <details>
+                <summary className="subtle" style={{ cursor: 'pointer', fontSize: 13 }}>
+                  No password? Sign in by email instead
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  <div className="btn-row" style={{ marginBottom: 10 }}>
+                    <button className="btn" onClick={sendLink}>
+                      {linkSent ? 'Resend email' : 'Email me a sign-in code'}
+                    </button>
+                  </div>
+                  <div className="field">
+                    <label>6-digit code from the email</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && submitCode()}
+                        placeholder="123456"
+                      />
+                      <button className="btn primary" onClick={submitCode} style={{ whiteSpace: 'nowrap' }}>
+                        Verify
+                      </button>
+                    </div>
+                    <div className="help-text">
+                      Note: on work email the message's link often arrives pre-consumed by the
+                      security scanner — type the code rather than clicking. Showing a code in the
+                      email requires the {'{{ .Token }}'} template tweak in Supabase.
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </>
           )}
           <details style={{ marginTop: 4 }}>
             <summary className="subtle" style={{ cursor: 'pointer', fontSize: 13 }}>
