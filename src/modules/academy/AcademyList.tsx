@@ -10,6 +10,7 @@ import {
   releaseEligible,
 } from './academyStore'
 import CohortForm from './CohortForm'
+import { useCan } from '../../lib/role'
 import type { AcademyCohort } from '../../types'
 
 function CohortRow({ cohort }: { cohort: AcademyCohort }) {
@@ -57,6 +58,7 @@ export default function AcademyList() {
   const trainees = useAllTrainees()
   const [showForm, setShowForm] = useState(false)
   const navigate = useNavigate()
+  const can = useCan()
 
   const sorted = useMemo(() => [...cohorts].sort(byStartDesc), [cohorts])
   const readyForRelease = trainees.filter(releaseEligible).length
@@ -74,9 +76,11 @@ export default function AcademyList() {
           <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
             🚑 FTO shifts
           </Link>
-          <button className="btn primary" onClick={() => setShowForm(true)}>
-            + Cohort
-          </button>
+          {can.manageAcademy && (
+            <button className="btn primary" onClick={() => setShowForm(true)}>
+              + Cohort
+            </button>
+          )}
         </div>
       </div>
 

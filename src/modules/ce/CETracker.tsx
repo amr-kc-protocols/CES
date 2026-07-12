@@ -14,6 +14,7 @@ import {
   type Urgency,
 } from './ceStore'
 import CEForm from './CEForm'
+import { useCan } from '../../lib/role'
 import type { CEClass, CEStatus } from '../../types'
 
 const URGENCY_PILL: Record<Urgency, string> = {
@@ -40,16 +41,24 @@ function daysLabel(cls: CEClass): string {
   return `${d}d left`
 }
 
-function ClassRow({ cls, onEdit }: { cls: CEClass; onEdit: (c: CEClass) => void }) {
+function ClassRow({ cls, onEdit, canEdit }: { cls: CEClass; onEdit: (c: CEClass) => void; canEdit: boolean }) {
   const u = urgencyOf(cls)
   return (
     <div className={`row left-accent ${URGENCY_ACCENT[u]}`}>
-      <div className="grow" onClick={() => onEdit(cls)} style={{ cursor: 'pointer' }} title="Edit class" role="button">
+      <div
+        className="grow"
+        onClick={canEdit ? () => onEdit(cls) : undefined}
+        style={canEdit ? { cursor: 'pointer' } : undefined}
+        title={canEdit ? 'Edit class' : undefined}
+        role={canEdit ? 'button' : undefined}
+      >
         <div className="title">
           {cls.discipline || 'Class'} · {ceLocationName(cls.location)}{' '}
-          <span className="subtle" aria-hidden style={{ fontWeight: 400 }}>
-            ✎
-          </span>
+          {canEdit && (
+            <span className="subtle" aria-hidden style={{ fontWeight: 400 }}>
+              ✎
+            </span>
+          )}
         </div>
         <div className="meta">
           {cls.instructor} · class {formatDate(cls.classDate)} · due {formatDate(dueDate(cls))}
@@ -61,6 +70,7 @@ function ClassRow({ cls, onEdit }: { cls: CEClass; onEdit: (c: CEClass) => void 
         </span>
         <select
           value={cls.status}
+          disabled={!canEdit}
           onChange={(e) => setCEStatus(cls.id, e.target.value as CEStatus)}
           aria-label="Status"
           style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border-strong)' }}
@@ -81,6 +91,7 @@ export default function CETracker() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<CEClass | undefined>()
   const [showDone, setShowDone] = useState(false)
+  const can = useCan()
 
   const visible = useMemo(() => {
     const list = showDone ? classes : classes.filter((c) => c.status !== 'submitted')
@@ -114,9 +125,11 @@ export default function CETracker() {
           <h1>CE Deadlines</h1>
           <div className="subtle">Kansas CE submissions · 30-day KBEMS window</div>
         </div>
-        <button className="btn primary" onClick={openNew}>
-          + Add
-        </button>
+        {can.manageAcademy && (
+          <button className="btn primary" onClick={openNew}>
+            + Add
+          </button>
+        )}
       </div>
 
       <div className="stat-grid" style={{ marginTop: 12 }}>
@@ -156,7 +169,7 @@ export default function CETracker() {
       ) : view === 'deadline' ? (
         <div className="list">
           {visible.map((c) => (
-            <ClassRow key={c.id} cls={c} onEdit={openEdit} />
+            <ClassRow key={c.id} cls={c} onEdit={openEdit} canEdit={can.manageAcademy} />
           ))}
         </div>
       ) : (
@@ -168,7 +181,7 @@ export default function CETracker() {
               </div>
               <div className="list">
                 {list.map((c) => (
-                  <ClassRow key={c.id} cls={c} onEdit={openEdit} />
+                  <ClassRow key={c.id} cls={c} onEdit={openEdit} canEdit={can.manageAcademy} />
                 ))}
               </div>
             </div>

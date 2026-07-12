@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useDB, setState, exportDB, importDB, resetDB } from '../../lib/store'
 import { QA_ENABLED } from '../../config/features'
+import { useCan } from '../../lib/role'
 import { formatDateTime } from '../../lib/date'
 import {
   getCloudConfig,
@@ -72,6 +73,7 @@ function CloudSyncCard() {
 
       {msg && <div className="banner info">{msg}</div>}
       {status.error && <div className="banner crit">{status.error}</div>}
+      {status.notice && <div className="banner warn">{status.notice}</div>}
 
       {!status.signedIn ? (
         <>
@@ -164,6 +166,7 @@ function CloudSyncCard() {
         <>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
             <span className="pill ok">● Synced as {status.email}</span>
+            <span className="pill muted" title="Access level from your cloud profile">{status.role}</span>
             {status.syncing && <span className="pill info">Syncing…</span>}
             {status.pending > 0 && <span className="pill warn">{status.pending} queued</span>}
             {status.lastSync && (
@@ -220,6 +223,7 @@ export default function Settings() {
   const [botUrl, setBotUrl] = useState(db.settings.botUrl)
   const [saved, setSaved] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const can = useCan()
 
   function saveSettings() {
     const p = Math.min(100, Math.max(1, Number(pct) || 20)) / 100
@@ -301,9 +305,13 @@ export default function Settings() {
             </div>
           </div>
         )}
-        <button className="btn primary" onClick={saveSettings}>
-          Save settings
-        </button>
+        {can.manageAcademy ? (
+          <button className="btn primary" onClick={saveSettings}>
+            Save settings
+          </button>
+        ) : (
+          <div className="help-text">Settings are managed by the admin account.</div>
+        )}
       </div>
 
       <div className="section-title">Cloud sync</div>
@@ -319,11 +327,14 @@ export default function Settings() {
           <button className="btn" onClick={doExport}>
             ⬇ Export backup (JSON)
           </button>
-          <button className="btn" onClick={() => fileRef.current?.click()}>
-            ⬆ Import backup
-          </button>
+          {can.manageAcademy && (
+            <button className="btn" onClick={() => fileRef.current?.click()}>
+              ⬆ Import backup
+            </button>
+          )}
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={doImport} />
           <div className="spacer" />
+          {can.manageAcademy && (
           <button
             className="btn danger"
             onClick={() => {
@@ -338,6 +349,7 @@ export default function Settings() {
           >
             Reset all data
           </button>
+          )}
         </div>
       </div>
 
