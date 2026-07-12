@@ -145,6 +145,10 @@ export interface Trainee {
   ftos?: string
   /** moduleId -> ISO date completed. Absent key = not done. */
   checklist: Record<string, string>
+  /** Transferring from another AMR operation — unlocks requirement waivers. */
+  transfer?: boolean
+  /** moduleId -> ISO date the requirement was waived (transfers only). */
+  waived?: Record<string, string>
   /** Post-academy FTO observational-ride patient contacts logged so far. */
   contacts: number
   /** Contacts needed for release (spec: roughly 20-30; default 25). */
