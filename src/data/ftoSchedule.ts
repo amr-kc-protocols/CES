@@ -110,10 +110,12 @@ export const FTO_CREWS: FtoCrew[] = [
       { name: 'Frank Alba', fto: true },
       { name: 'Daniel Force', fto: false },
     ],
-    week1: [2, 3],
-    week2: [1, 2],
-    // Frank's cycle runs a week ahead of the master schedule: his Week 1
-    // began Saturday 2026-07-11, not the global 2026-07-19 anchor.
+    // Frank runs his own 14-day cycle anchored to Saturday 2026-07-11:
+    // works Sat+Sun, four off, Fri+Sat, six off — i.e. Jul 11-12, 17-18,
+    // 25-26, 31-Aug 1, … His "weeks" run Sat-Fri from that anchor, not the
+    // master schedule's Sunday weeks.
+    week1: [0, 5, 6],
+    week2: [6],
     anchor: '2026-07-11',
   },
 ]
