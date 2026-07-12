@@ -7,8 +7,10 @@ import {
   ACADEMY_LENGTH_DAYS,
   DEFAULT_CONTACT_TARGET,
   curriculumFor,
+  moduleSatisfied,
   phaseOf,
-  RELEASE_MIN_CONTACTS,
+  requiredContacts,
+  WAIVABLE_MODULE_IDS,
 } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
 import { PHASE2_TEMPLATE, timelineFromBlocks } from '../../data/academyPhase2'
@@ -121,6 +123,7 @@ export interface TraineeInput {
   email?: string
   phone?: string
   contactTarget?: number
+  transfer?: boolean
 }
 
 export function addTrainee(cohortId: string, input: TraineeInput): Trainee {
@@ -140,6 +143,7 @@ export function addTrainee(cohortId: string, input: TraineeInput): Trainee {
     checklist: {},
     contacts: 0,
     contactTarget: input.contactTarget ?? DEFAULT_CONTACT_TARGET,
+    transfer: input.transfer || undefined,
   }
   setState((db) => ({ ...db, trainees: [...db.trainees, trainee] }))
   return trainee
@@ -189,6 +193,35 @@ export function toggleModule(traineeId: string, moduleId: string): void {
   }))
 }
 
+/** Mark (or unmark) a hire as an AMR transfer; clearing it drops any waivers. */
+export function setTransfer(traineeId: string, transfer: boolean): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      if (transfer) return { ...t, transfer: true }
+      const { transfer: _t, waived: _w, ...rest } = t
+      return rest as Trainee
+    }),
+  }))
+}
+
+/** Waive / un-waive a requirement for an AMR transfer (waivable modules only). */
+export function toggleWaiver(traineeId: string, moduleId: string): void {
+  if (!WAIVABLE_MODULE_IDS.has(moduleId)) return
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      const waived = { ...t.waived }
+      if (waived[moduleId]) delete waived[moduleId]
+      else if (t.transfer) waived[moduleId] = todayISO()
+      else return t
+      return { ...t, waived: Object.keys(waived).length ? waived : undefined }
+    }),
+  }))
+}
+
 export function addContacts(traineeId: string, n: number): void {
   setState((db) => ({
     ...db,
@@ -222,9 +255,12 @@ export function unreleaseTrainee(traineeId: string): void {
   }))
 }
 
-/** Eligible for release: FTO phase and at/over the minimum contact count. */
+/**
+ * Eligible for release: FTO phase and at/over the required contact count
+ * (the spec's floor, or the trainee's own lowered transfer target).
+ */
 export function releaseEligible(t: Trainee): boolean {
-  return phaseOf(t) === 'fto' && t.contacts >= RELEASE_MIN_CONTACTS
+  return phaseOf(t) === 'fto' && t.contacts >= requiredContacts(t)
 }
 
 // ----- FTO ride assignments ----------------------------------------------------
@@ -413,7 +449,7 @@ export function cohortProgress(trainees: Trainee[]): CohortProgress {
     else if (phase === 'fto') inFto++
     else inAcademy++
     const modules = curriculumFor(t.operation, t.credential)
-    const done = modules.filter((m) => !!t.checklist[m.id]).length
+    const done = modules.filter((m) => moduleSatisfied(t, m.id)).length
     pctSum += modules.length ? done / modules.length : 0
   }
   return {

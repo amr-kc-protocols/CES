@@ -4,10 +4,12 @@ import { Empty, Modal, ProgressBar, Stat } from '../../components/ui'
 import { OPERATIONS, operationShort } from '../../data/operations'
 import {
   curriculumFor,
+  moduleSatisfied,
   phaseOf,
   PHASE_LABELS,
   CREDENTIAL_LABELS,
-  RELEASE_MIN_CONTACTS,
+  requiredContacts,
+  WAIVABLE_MODULE_IDS,
 } from '../../data/academy'
 import { formatDate } from '../../lib/date'
 import {
@@ -23,6 +25,8 @@ import {
   unreleaseTrainee,
   releaseEligible,
   updateTrainee,
+  setTransfer,
+  toggleWaiver,
   fieldProgress,
   useRidesFor,
 } from './academyStore'
@@ -46,15 +50,17 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
   const [employeeNumber, setEmployeeNumber] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [transfer, setTransferFlag] = useState(false)
   const [error, setError] = useState('')
 
   function save(keepOpen: boolean) {
     if (!name.trim()) return setError('Name is required.')
-    addTrainee(cohortId, { name, operation, credential, employeeNumber, email, phone })
+    addTrainee(cohortId, { name, operation, credential, employeeNumber, email, phone, transfer })
     setName('')
     setEmployeeNumber('')
     setEmail('')
     setPhone('')
+    setTransferFlag(false)
     setError('')
     if (!keepOpen) onClose()
   }
@@ -113,10 +119,27 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
           />
         </div>
       </div>
-      {operation === 'kc' && credential === 'paramedic' && (
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+        <input type="checkbox" checked={transfer} onChange={(e) => setTransferFlag(e.target.checked)} />
+        <span>Transferring from another AMR operation</span>
+      </label>
+      {transfer && (
+        <div className="banner info">
+          Transfer — OSHA, Cornerstone, EVOC, stretcher, and HR can be waived on their checklist,
+          and the contact target can be lowered.
+          {credential === 'paramedic' && (operation === 'kc' || operation === 'cass') &&
+            ' Ventilator training is still required.'}
+        </div>
+      )}
+      {credential === 'paramedic' && operation === 'kc' && (
         <div className="banner info">
           KC paramedic — the critical-care specialization block (ventilator, vasopressor &amp;
           sedative infusions) is added to their checklist.
+        </div>
+      )}
+      {credential === 'paramedic' && operation === 'cass' && (
+        <div className="banner info">
+          Cass paramedic — ventilator management is added to their checklist.
         </div>
       )}
       <div className="btn-row">
@@ -140,7 +163,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   const can = useCan()
   const phase = phaseOf(trainee)
   const modules = curriculumFor(trainee.operation, trainee.credential)
-  const done = modules.filter((m) => !!trainee.checklist[m.id]).length
+  const done = modules.filter((m) => moduleSatisfied(trainee, m.id)).length
   const general = modules.filter((m) => m.block === 'general')
   const kcMedic = modules.filter((m) => m.block === 'kc-medic')
   const contactPct = Math.min(100, Math.round((trainee.contacts / trainee.contactTarget) * 100))
@@ -157,6 +180,11 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <span className="subtle" style={{ fontWeight: 500, marginLeft: 8 }}>
               {operationShort(trainee.operation)} · {CREDENTIAL_LABELS[trainee.credential]}
             </span>
+            {trainee.transfer && (
+              <span className="pill muted" style={{ marginLeft: 8 }} title="Transferring from another AMR operation — waivers allowed">
+                AMR transfer
+              </span>
+            )}
           </div>
           <div className="meta">
             {phase === 'academy' && `Checklist ${done}/${modules.length}`}
@@ -244,39 +272,84 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             </label>
           </div>
 
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={!!trainee.transfer}
+              onChange={(e) => setTransfer(trainee.id, e.target.checked)}
+            />
+            <span>
+              Transferring from another AMR operation
+              <span className="subtle"> — unlocks requirement waivers below (unchecking clears them)</span>
+            </span>
+          </label>
+
           <div className="section-title" style={{ margin: '0 0 8px' }}>
             Academy checklist
           </div>
-          {[{ label: 'General AMR block', items: general }, ...(kcMedic.length ? [{ label: 'KC critical-care specialization', items: kcMedic }] : [])].map(
+          {[{ label: 'General AMR block', items: general }, ...(kcMedic.length ? [{ label: 'Critical-care specialization (not waivable)', items: kcMedic }] : [])].map(
             (group) => (
               <div key={group.label} style={{ marginBottom: 10 }}>
                 <div className="subtle" style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>
                   {group.label}
                 </div>
-                {group.items.map((m) => (
-                  <label
-                    key={m.id}
-                    style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 0' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!trainee.checklist[m.id]}
-                      onChange={() => toggleModule(trainee.id, m.id)}
-                    />
-                    <span style={{ flex: 1 }}>{m.label}</span>
-                    {trainee.checklist[m.id] && (
-                      <span className="subtle" style={{ fontSize: 12 }}>
-                        {formatDate(trainee.checklist[m.id])}
+                {group.items.map((m) => {
+                  const waived = !!trainee.waived?.[m.id]
+                  return (
+                    <label
+                      key={m.id}
+                      style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 0' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!trainee.checklist[m.id]}
+                        disabled={waived}
+                        onChange={() => toggleModule(trainee.id, m.id)}
+                      />
+                      <span style={{ flex: 1, ...(waived ? { textDecoration: 'line-through', opacity: 0.6 } : {}) }}>
+                        {m.label}
                       </span>
-                    )}
-                  </label>
-                ))}
+                      {waived ? (
+                        <button
+                          className="pill muted"
+                          style={{ border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 12 }}
+                          title={`Waived ${formatDate(trainee.waived?.[m.id])} — tap to reinstate the requirement`}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            toggleWaiver(trainee.id, m.id)
+                          }}
+                        >
+                          Waived · {formatDate(trainee.waived?.[m.id])} ✕
+                        </button>
+                      ) : trainee.checklist[m.id] ? (
+                        <span className="subtle" style={{ fontSize: 12 }}>
+                          {formatDate(trainee.checklist[m.id])}
+                        </span>
+                      ) : (
+                        trainee.transfer &&
+                        WAIVABLE_MODULE_IDS.has(m.id) && (
+                          <button
+                            className="btn sm ghost"
+                            title="Waive — completed at their previous AMR operation"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              toggleWaiver(trainee.id, m.id)
+                            }}
+                          >
+                            Waive
+                          </button>
+                        )
+                      )}
+                    </label>
+                  )
+                })}
               </div>
             ),
           )}
 
           <div className="section-title" style={{ margin: '14px 0 8px' }}>
-            FTO rides · release at {RELEASE_MIN_CONTACTS}–30 contacts
+            FTO rides · release at {requiredContacts(trainee)}+ contacts
+            {trainee.transfer && requiredContacts(trainee) < 20 && ' (transfer-adjusted)'}
           </div>
           <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">
@@ -359,7 +432,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                   title={
                     releaseEligible(trainee)
                       ? ''
-                      : `Needs a complete checklist and at least ${RELEASE_MIN_CONTACTS} contacts`
+                      : `Needs a complete checklist and at least ${requiredContacts(trainee)} contacts`
                   }
                   onClick={() => releaseTrainee(trainee.id)}
                 >
