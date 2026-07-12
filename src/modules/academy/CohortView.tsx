@@ -30,6 +30,7 @@ import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
 import AttendanceView from './AttendanceView'
 import DocumentsPanel from './DocumentsPanel'
+import { useCan } from '../../lib/role'
 import type { Credential, Employment, OperationId, Trainee, TraineePhase } from '../../types'
 
 const PHASE_PILL: Record<TraineePhase, string> = {
@@ -136,6 +137,7 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
 function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
   const rides = useRidesFor(trainee.id)
+  const can = useCan()
   const phase = phaseOf(trainee)
   const modules = curriculumFor(trainee.operation, trainee.credential)
   const done = modules.filter((m) => !!trainee.checklist[m.id]).length
@@ -344,34 +346,36 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             </span>
           </div>
 
-          <div className="btn-row" style={{ marginTop: 14 }}>
-            {phase === 'released' ? (
-              <button className="btn" onClick={() => unreleaseTrainee(trainee.id)}>
-                Undo release
-              </button>
-            ) : (
+          {can.manageAcademy && (
+            <div className="btn-row" style={{ marginTop: 14 }}>
+              {phase === 'released' ? (
+                <button className="btn" onClick={() => unreleaseTrainee(trainee.id)}>
+                  Undo release
+                </button>
+              ) : (
+                <button
+                  className="btn primary"
+                  disabled={!releaseEligible(trainee)}
+                  title={
+                    releaseEligible(trainee)
+                      ? ''
+                      : `Needs a complete checklist and at least ${RELEASE_MIN_CONTACTS} contacts`
+                  }
+                  onClick={() => releaseTrainee(trainee.id)}
+                >
+                  🎓 Release to solo practice
+                </button>
+              )}
+              <div className="spacer" />
               <button
-                className="btn primary"
-                disabled={!releaseEligible(trainee)}
-                title={
-                  releaseEligible(trainee)
-                    ? ''
-                    : `Needs a complete checklist and at least ${RELEASE_MIN_CONTACTS} contacts`
-                }
-                onClick={() => releaseTrainee(trainee.id)}
+                className="btn danger sm"
+                title="Remove from cohort (undoable)"
+                onClick={() => deleteTrainee(trainee.id)}
               >
-                🎓 Release to solo practice
+                Remove
               </button>
-            )}
-            <div className="spacer" />
-            <button
-              className="btn danger sm"
-              title="Remove from cohort (undoable)"
-              onClick={() => deleteTrainee(trainee.id)}
-            >
-              Remove
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -393,6 +397,7 @@ export default function CohortView() {
   const rawTab = searchParams.get('tab')
   const tab: CohortTab = COHORT_TABS.includes(rawTab as CohortTab) ? (rawTab as CohortTab) : 'roster'
   const setTab = (t: CohortTab) => setSearchParams(t === 'roster' ? {} : { tab: t }, { replace: true })
+  const can = useCan()
 
   if (!cohort) {
     return (
@@ -421,9 +426,11 @@ export default function CohortView() {
             {cohort.notes ? ` · ${cohort.notes}` : ''}
           </div>
         </div>
-        <button className="btn" onClick={() => setShowEdit(true)}>
-          Edit
-        </button>
+        {can.manageAcademy && (
+          <button className="btn" onClick={() => setShowEdit(true)}>
+            Edit
+          </button>
+        )}
       </div>
 
       <div className="stat-grid" style={{ marginTop: 12 }}>
@@ -449,7 +456,7 @@ export default function CohortView() {
           </button>
         </div>
         <div className="spacer" />
-        {tab === 'roster' && (
+        {tab === 'roster' && can.manageAcademy && (
           <button className="btn primary" onClick={() => setShowAdd(true)}>
             + Add trainee
           </button>

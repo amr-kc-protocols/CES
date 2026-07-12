@@ -29,6 +29,7 @@ import {
   phase2Dates,
   type Phase2Cadence,
 } from './academyStore'
+import { useCan } from '../../lib/role'
 import type { AcademyCohort, BlockKind, TemplateBlock, TemplateSession } from '../../types'
 
 const KIND_LABEL: Record<TemplateBlock['kind'], string> = {
@@ -102,6 +103,8 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
   const arrangements = useArrangements(cohortId)
   const arr = arrangements[session.id]
   const [editing, setEditing] = useState(false)
+  // FTOs view the schedule; only the admin arranges it.
+  const { manageAcademy } = useCan()
 
   const blocks = effectiveBlocks(session, arr?.blocks)
   const customized = !!(arr?.blocks && arr.blocks.length)
@@ -152,9 +155,11 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
         <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span>
         <span style={{ textDecoration: 'line-through' }}>{session.title}</span>
         <span className="pill muted">Skipped for this class</span>
-        <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setSessionSkipped(cohortId, session.id, false)}>
-          Restore
-        </button>
+        {manageAcademy && (
+          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setSessionSkipped(cohortId, session.id, false)}>
+            Restore
+          </button>
+        )}
       </div>
     )
   }
@@ -163,13 +168,15 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
     <div className="card" style={{ padding: 14 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, fontSize: 16 }}>
-          {session.custom ? (
+          {session.custom && manageAcademy ? (
             <input
               value={session.title}
               onChange={(e) => renameCustomSession(cohortId, session.id, e.target.value)}
               aria-label="Session title"
               style={{ ...inputStyle, fontSize: 15, fontWeight: 700, minWidth: 220 }}
             />
+          ) : session.custom ? (
+            <>{session.title}</>
           ) : (
             <>
               <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span> · {session.title}
@@ -198,13 +205,14 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
       <div style={{ display: 'grid', gridTemplateColumns: session.mode === 'at-home' ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, margin: '4px 0 12px', alignItems: 'end' }}>
         <label className="subtle" style={{ fontSize: 12 }}>
           Date
-          <input type="date" value={arr?.date ?? ''} onChange={(e) => set({ date: e.target.value || undefined })} style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }} />
+          <input type="date" value={arr?.date ?? ''} disabled={!manageAcademy} onChange={(e) => set({ date: e.target.value || undefined })} style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }} />
         </label>
         {session.mode !== 'at-home' && (
           <label className="subtle" style={{ fontSize: 12 }}>
             Start time (HHMM)
             <input
               value={arr?.startTime ?? ''}
+              disabled={!manageAcademy}
               onChange={(e) => set({ startTime: e.target.value || undefined })}
               placeholder={`${session.defaultStart ?? '0900'} (default)`}
               inputMode="numeric"
@@ -229,6 +237,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
           Facilitators
           <input
             value={arr?.facilitators ?? ''}
+            disabled={!manageAcademy}
             onChange={(e) => set({ facilitators: e.target.value || undefined })}
             placeholder={(session.facilitatorRoles ?? []).map((r) => r.role).join(' · ')}
             style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }}
@@ -264,24 +273,26 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
             <span className="subtle" style={{ fontSize: 12 }}>
               {rows && endsAt ? `Runs ${rows[0].start}–${endsAt}` : `${fmtHours(totalMin)} h of blocks`} · {fmtHours(eduMin)} h teaching
             </span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {customized && (
-                <button
-                  className="btn sm ghost"
-                  onClick={() => {
-                    if (confirm('Reset this session’s blocks to the template default?')) {
-                      resetSessionBlocks(cohortId, session.id)
-                      setEditing(false)
-                    }
-                  }}
-                >
-                  Reset to template
+            {manageAcademy && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                {customized && (
+                  <button
+                    className="btn sm ghost"
+                    onClick={() => {
+                      if (confirm('Reset this session’s blocks to the template default?')) {
+                        resetSessionBlocks(cohortId, session.id)
+                        setEditing(false)
+                      }
+                    }}
+                  >
+                    Reset to template
+                  </button>
+                )}
+                <button className="btn sm" onClick={() => setEditing(!editing)}>
+                  {editing ? 'Done' : '✎ Edit blocks'}
                 </button>
-              )}
-              <button className="btn sm" onClick={() => setEditing(!editing)}>
-                {editing ? 'Done' : '✎ Edit blocks'}
-              </button>
-            </div>
+              </div>
+            )}
           </div>
 
           {editing ? (
@@ -375,29 +386,31 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
         </div>
       )}
 
-      <div className="btn-row" style={{ marginTop: 12 }}>
-        <div className="spacer" />
-        {session.custom ? (
-          <button
-            className="btn sm danger ghost"
-            onClick={() => {
-              if (confirm(`Delete the added session “${session.title}” from this class?`)) {
-                deleteCustomSession(cohortId, session.id)
-              }
-            }}
-          >
-            Delete session
-          </button>
-        ) : (
-          <button
-            className="btn sm ghost"
-            title="Drop this session for this class only (restorable)"
-            onClick={() => setSessionSkipped(cohortId, session.id, true)}
-          >
-            Skip for this class
-          </button>
-        )}
-      </div>
+      {manageAcademy && (
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <div className="spacer" />
+          {session.custom ? (
+            <button
+              className="btn sm danger ghost"
+              onClick={() => {
+                if (confirm(`Delete the added session “${session.title}” from this class?`)) {
+                  deleteCustomSession(cohortId, session.id)
+                }
+              }}
+            >
+              Delete session
+            </button>
+          ) : (
+            <button
+              className="btn sm ghost"
+              title="Drop this session for this class only (restorable)"
+              onClick={() => setSessionSkipped(cohortId, session.id, true)}
+            >
+              Skip for this class
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -480,6 +493,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
   const arrangements = useArrangements(cohort.id)
   const sessions = useCohortSessions(cohort.id)
   const [showFill, setShowFill] = useState(false)
+  const { manageAcademy } = useCan()
   const t = PHASE2_TEMPLATE
 
   const active = useMemo(
@@ -522,13 +536,15 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
           {underCount > 0 && <span className="pill crit" style={{ marginLeft: 8 }}>{underCount} under minimum</span>}
         </span>
         <div className="spacer" />
-        <button
-          className="btn primary"
-          title="Map the session sequence onto consecutive weekdays"
-          onClick={() => setShowFill(true)}
-        >
-          ⚡ Fill dates
-        </button>
+        {manageAcademy && (
+          <button
+            className="btn primary"
+            title="Map the session sequence onto consecutive weekdays"
+            onClick={() => setShowFill(true)}
+          >
+            ⚡ Fill dates
+          </button>
+        )}
         <button className="btn" onClick={() => printDoc(`${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements, active))}>
           🖨 Print
         </button>
@@ -548,14 +564,16 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
           <div key={wk}>
             <div className="section-title" style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
               <span>{WEEK_LABELS[wk]}</span>
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'in-person')}>
-                  + Session
-                </button>
-                <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'at-home')}>
-                  + At-home day
-                </button>
-              </div>
+              {manageAcademy && (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'in-person')}>
+                    + Session
+                  </button>
+                  <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'at-home')}>
+                    + At-home day
+                  </button>
+                </div>
+              )}
             </div>
             <div className="list">
               {wkSessions.map((s) => (

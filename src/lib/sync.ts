@@ -29,15 +29,24 @@ export interface CloudConfig {
   anonKey: string
 }
 
+export type CloudRole = 'admin' | 'fto' | 'newhire'
+
 export interface SyncStatus {
   configured: boolean
   signedIn: boolean
   email?: string
+  /**
+   * The signed-in user's role from their cloud profile. When not signed in
+   * (pure local use) the device is its own admin.
+   */
+  role: CloudRole
   /** Records queued locally, waiting to push. */
   pending: number
   syncing: boolean
   lastSync?: string
   error?: string
+  /** One-line note about changes the server refused and the app discarded. */
+  notice?: string
 }
 
 // ----- config ----------------------------------------------------------------
@@ -94,6 +103,7 @@ function queueRecords(records: SyncRecord[]): void {
 let status: SyncStatus = {
   configured: !!getCloudConfig(),
   signedIn: false,
+  role: 'admin',
   pending: outbox.length,
   syncing: false,
 }
@@ -173,10 +183,19 @@ async function connect(): Promise<void> {
 
   const { data } = await c.auth.getSession()
   setStatus({ configured: true, signedIn: !!data.session, email: data.session?.user.email ?? undefined })
+  if (data.session) void loadRole(data.session.user.id)
 
   c.auth.onAuthStateChange((_event, session) => {
-    setStatus({ signedIn: !!session, email: session?.user.email ?? undefined })
-    if (session) void syncNow()
+    setStatus({
+      signedIn: !!session,
+      email: session?.user.email ?? undefined,
+      // Signed out = local-only again, which is this device's own admin.
+      ...(session ? {} : { role: 'admin' as CloudRole }),
+    })
+    if (session) {
+      void loadRole(session.user.id)
+      void syncNow()
+    }
   })
 
   // Guarded: reconnecting with new config must not stack duplicate listeners.
@@ -191,6 +210,15 @@ async function connect(): Promise<void> {
   pullTimer = setInterval(() => void syncNow(), PULL_INTERVAL_MS)
 
   if (data.session) void syncNow()
+}
+
+/** Read the signed-in user's role from their cloud profile. */
+async function loadRole(userId: string): Promise<void> {
+  const c = await getClient()
+  if (!c) return
+  const { data } = await c.from('profiles').select('role').eq('user_id', userId).limit(1)
+  const role = (data?.[0] as { role?: CloudRole } | undefined)?.role
+  if (role === 'admin' || role === 'fto' || role === 'newhire') setStatus({ role })
 }
 
 function scheduleFlush(): void {
@@ -210,6 +238,34 @@ async function flush(): Promise<void> {
     deleted: !!r.deleted,
   }))
   const { error } = await c.from('records').upsert(rows, { onConflict: 'collection,id' })
+  if (error && isPermissionError(error)) {
+    // The batch holds something this role may not write. Retry one by one:
+    // push what's allowed, permanently drop what the server refuses, and
+    // re-pull so the local copy converges back to server truth. Without
+    // this, one refused edit wedges every later push behind it.
+    let dropped = 0
+    for (const r of batch) {
+      const row = { collection: r.collection, id: r.id, data: r.data, deleted: !!r.deleted }
+      const { error: one } = await c.from('records').upsert(row, { onConflict: 'collection,id' })
+      if (one && !isPermissionError(one)) {
+        setStatus({ syncing: false, error: `Push failed: ${one.message}` })
+        return
+      }
+      const k = recordKey(r)
+      const json = JSON.stringify(r.data)
+      outbox = outbox.filter((q) => !(recordKey(q) === k && JSON.stringify(q.data) === json))
+      if (one) dropped++
+    }
+    saveOutbox()
+    localStorage.removeItem(CURSOR_KEY) // full re-pull: revert refused local edits
+    setStatus({
+      syncing: false,
+      lastSync: new Date().toISOString(),
+      notice: `${dropped} change${dropped === 1 ? '' : 's'} needed permissions this account doesn't have — discarded and re-synced from the server.`,
+    })
+    await pull()
+    return
+  }
   if (error) {
     setStatus({ syncing: false, error: `Push failed: ${error.message}` })
     return
@@ -218,7 +274,12 @@ async function flush(): Promise<void> {
   const sent = new Map(batch.map((r) => [recordKey(r), JSON.stringify(r.data)]))
   outbox = outbox.filter((r) => sent.get(recordKey(r)) !== JSON.stringify(r.data))
   saveOutbox()
-  setStatus({ syncing: false, lastSync: new Date().toISOString() })
+  setStatus({ syncing: false, error: undefined, lastSync: new Date().toISOString() })
+}
+
+/** RLS refusals are permanent for this role — retrying can never succeed. */
+function isPermissionError(error: { code?: string; message?: string }): boolean {
+  return error.code === '42501' || /row-level security|permission denied/i.test(error.message ?? '')
 }
 
 const PULL_PAGE_SIZE = 1000
