@@ -27,9 +27,15 @@ import {
   updateTrainee,
   setTransfer,
   toggleWaiver,
+  setModuleDate,
   fieldProgress,
   useRidesFor,
+  useEvalsFor,
+  useSkillCheckFor,
+  sheetFor,
 } from './academyStore'
+import { BLS_SKILLS, LINN_MEDIC_SKILLS } from '../../data/skillSheets'
+import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
 import AttendanceView from './AttendanceView'
@@ -160,6 +166,10 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
 function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
   const rides = useRidesFor(trainee.id)
+  const evals = useEvalsFor(trainee.id)
+  const skillCheck = useSkillCheckFor(trainee.id)
+  const skillTotal = (sheetFor(trainee) === 'linn-medic' ? LINN_MEDIC_SKILLS : BLS_SKILLS).length
+  const skillsPassed = Object.values(skillCheck?.results ?? {}).filter((r) => r === 'pass').length
   const can = useCan()
   const phase = phaseOf(trainee)
   const modules = curriculumFor(trainee.operation, trainee.credential)
@@ -322,9 +332,13 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                           Waived · {formatDate(trainee.waived?.[m.id])} ✕
                         </button>
                       ) : trainee.checklist[m.id] ? (
-                        <span className="subtle" style={{ fontSize: 12 }}>
-                          {formatDate(trainee.checklist[m.id])}
-                        </span>
+                        <input
+                          type="date"
+                          value={trainee.checklist[m.id]}
+                          onChange={(e) => setModuleDate(trainee.id, m.id, e.target.value)}
+                          title="Real completion date — edit if it wasn't checked off the same day"
+                          style={{ padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, font: 'inherit', fontSize: 12, color: 'var(--text-muted)' }}
+                        />
                       ) : (
                         trainee.transfer &&
                         WAIVABLE_MODULE_IDS.has(m.id) && (
@@ -352,9 +366,17 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             {trainee.transfer && requiredContacts(trainee) < 20 && ' (transfer-adjusted)'}
           </div>
           <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">
-              📋 Field checklist · {fieldProgress(trainee).done}/{fieldProgress(trainee).total} objectives
+            <Link to={`/academy/${trainee.cohortId}/eval/${trainee.id}`} className="btn sm">
+              ⭐ Daily evals · {evals.length}
             </Link>
+            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}`} className="btn sm">
+              🩺 Skill sheet · {skillsPassed}/{skillTotal}
+            </Link>
+            {FIELD_OBJECTIVES_ENABLED && (
+              <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">
+                📋 Field checklist · {fieldProgress(trainee).done}/{fieldProgress(trainee).total} objectives
+              </Link>
+            )}
             {trainee.exitSurveyDate ? (
               <span className="pill ok" title={`Exit survey submitted ${formatDate(trainee.exitSurveyDate)}`}>
                 📝 Survey ✓ {formatDate(trainee.exitSurveyDate)}

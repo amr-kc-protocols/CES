@@ -16,3 +16,9 @@ export const QA_ENABLED = false
 // OFF. Existing CE data stays in local storage and cloud sync untouched —
 // flip this to `true` to bring it all back with no other changes.
 export const CE_ENABLED = false
+
+// FIELD_OBJECTIVES_ENABLED gates the 50/40-point Field Training Objectives
+// checklist (the per-objective mark-stamping screen). Tabled in favor of the
+// end-of-shift Daily Performance Evaluations the operation used previously —
+// data (fieldMarks etc.) stays in place; flip to `true` to bring it back.
+export const FIELD_OBJECTIVES_ENABLED = false

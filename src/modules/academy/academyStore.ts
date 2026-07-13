@@ -23,12 +23,15 @@ import type {
   AttendanceStatus,
   Credential,
   CustomSession,
+  DailyEval,
   DBShape,
   ObjectiveMark,
   OperationId,
   RideAssignment,
   ScheduleBlock,
   SessionArrangement,
+  SkillCheck,
+  SurveyResponse,
   TemplateBlock,
   TemplateSession,
   Trainee,
@@ -222,6 +225,19 @@ export function toggleWaiver(traineeId: string, moduleId: string): void {
   }))
 }
 
+/** Adjust a completed module's date to the real completion day. */
+export function setModuleDate(traineeId: string, moduleId: string, date: string): void {
+  if (!date) return
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) =>
+      t.id === traineeId && t.checklist[moduleId]
+        ? { ...t, checklist: { ...t.checklist, [moduleId]: date } }
+        : t,
+    ),
+  }))
+}
+
 export function addContacts(traineeId: string, n: number): void {
   setState((db) => ({
     ...db,
@@ -311,6 +327,142 @@ export function useRidesFor(traineeId: string): RideAssignment[] {
       .filter((r) => r.traineeId === traineeId)
       .sort((a, b) => a.date.localeCompare(b.date)),
   )
+}
+
+// ----- daily performance evaluations -------------------------------------------
+
+export interface DailyEvalInput {
+  date: string
+  fto?: string
+  scores: DailyEval['scores']
+  strengths?: string
+  improvements?: string
+  truckWashed?: boolean
+  spotter?: boolean
+  readyIndependent?: boolean
+}
+
+export function addDailyEval(traineeId: string, input: DailyEvalInput): DailyEval {
+  const trainee = getState().trainees.find((t) => t.id === traineeId)
+  const ev: DailyEval = {
+    id: uid('eval'),
+    traineeId,
+    traineeName: trainee?.name ?? '?',
+    ...input,
+    fto: input.fto?.trim() || undefined,
+    strengths: input.strengths?.trim() || undefined,
+    improvements: input.improvements?.trim() || undefined,
+  }
+  setState((db) => ({ ...db, dailyEvals: [...db.dailyEvals, ev] }))
+  return ev
+}
+
+export function deleteDailyEval(id: string): void {
+  const ev = getState().dailyEvals.find((e) => e.id === id)
+  setState((db) => ({ ...db, dailyEvals: db.dailyEvals.filter((e) => e.id !== id) }))
+  if (ev) {
+    pushUndo(`Removed ${formatDate(ev.date)} eval for ${ev.traineeName}`, () =>
+      setState((db) => ({ ...db, dailyEvals: [...db.dailyEvals, ev] })),
+    )
+  }
+}
+
+export function useAllEvals(): DailyEval[] {
+  return useSelector((db) => db.dailyEvals)
+}
+
+/** A trainee's daily evals, newest first. */
+export function useEvalsFor(traineeId: string): DailyEval[] {
+  return useSelector((db) =>
+    db.dailyEvals.filter((e) => e.traineeId === traineeId).sort((a, b) => b.date.localeCompare(a.date)),
+  )
+}
+
+/** Mean of one eval's scored categories, or null when nothing was scored. */
+export function evalAverage(e: DailyEval): number | null {
+  const vals = Object.values(e.scores).filter((v): v is number => typeof v === 'number')
+  if (!vals.length) return null
+  return vals.reduce((a, b) => a + b, 0) / vals.length
+}
+
+// ----- clinical skill sheets ------------------------------------------------------
+
+/** Which sheet applies: Linn medics get their own; everyone else the BLS sheet. */
+export function sheetFor(t: Trainee): 'bls' | 'linn-medic' {
+  return t.operation === 'linn' && t.credential === 'paramedic' ? 'linn-medic' : 'bls'
+}
+
+const skillCheckId = (traineeId: string) => `skill:${traineeId}`
+
+export function useSkillCheckFor(traineeId: string): SkillCheck | undefined {
+  return useSelector((db) => db.skillChecks.find((s) => s.traineeId === traineeId))
+}
+
+/** Patch (creating on first touch) the trainee's single live skill sheet. */
+function patchSkillCheck(traineeId: string, patch: (s: SkillCheck) => SkillCheck): void {
+  setState((db) => {
+    const trainee = db.trainees.find((t) => t.id === traineeId)
+    if (!trainee) return db
+    const existing = db.skillChecks.find((s) => s.traineeId === traineeId)
+    const base: SkillCheck = existing ?? {
+      id: skillCheckId(traineeId),
+      traineeId,
+      traineeName: trainee.name,
+      date: todayISO(),
+      sheet: sheetFor(trainee),
+      results: {},
+    }
+    const next = { ...patch({ ...base, results: { ...base.results } }), date: todayISO() }
+    return {
+      ...db,
+      skillChecks: existing
+        ? db.skillChecks.map((s) => (s.traineeId === traineeId ? next : s))
+        : [...db.skillChecks, next],
+    }
+  })
+}
+
+/** Cycle a skill: none -> pass -> fail -> none. */
+export function setSkillResult(traineeId: string, skillId: string, result: 'pass' | 'fail' | null): void {
+  patchSkillCheck(traineeId, (s) => {
+    if (result === null) delete s.results[skillId]
+    else s.results[skillId] = result
+    return s
+  })
+}
+
+/** Linn sheet: toggle one observable step; all steps checked = skill passed. */
+export function toggleSkillStep(traineeId: string, skillId: string, stepIdx: number, totalSteps: number): void {
+  patchSkillCheck(traineeId, (s) => {
+    const steps = { ...s.steps }
+    const cur = new Set(steps[skillId] ?? [])
+    if (cur.has(stepIdx)) cur.delete(stepIdx)
+    else cur.add(stepIdx)
+    steps[skillId] = [...cur].sort((a, b) => a - b)
+    if (steps[skillId].length === totalSteps) s.results[skillId] = 'pass'
+    else delete s.results[skillId]
+    return { ...s, steps }
+  })
+}
+
+export function setSkillEvaluator(traineeId: string, evaluator: string): void {
+  patchSkillCheck(traineeId, (s) => ({ ...s, evaluator: evaluator.trim() || undefined }))
+}
+
+export function setSkillComments(traineeId: string, comments: string): void {
+  patchSkillCheck(traineeId, (s) => ({ ...s, comments: comments.trim() || undefined }))
+}
+
+// ----- survey responses (kept locally alongside the Google Sheet post) ----------
+
+export function addSurveyResponse(traineeId: string, data: Record<string, string>): void {
+  const resp: SurveyResponse = {
+    id: uid('survey'),
+    traineeId,
+    submittedAt: new Date().toISOString(),
+    data,
+  }
+  setState((db) => ({ ...db, surveyResponses: [...db.surveyResponses, resp] }))
 }
 
 // ----- digital Field Training Objectives checklist ----------------------------

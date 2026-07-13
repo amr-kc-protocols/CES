@@ -14,6 +14,7 @@ const TABS = [
   { to: '/bot', label: 'QA Bot', icon: '🤖', end: false, qa: true, ce: false },
   { to: '/ce', label: 'CE', icon: '📅', end: false, qa: false, ce: true },
   { to: '/academy', label: 'Academy', icon: '🎓', end: false, qa: false, ce: false },
+  { to: '/history', label: 'History', icon: '📊', end: false, qa: false, ce: false },
   { to: '/settings', label: 'Settings', icon: '⚙️', end: false, qa: false, ce: false },
 ].filter((t) => (QA_ENABLED || !t.qa) && (CE_ENABLED || !t.ce))
 

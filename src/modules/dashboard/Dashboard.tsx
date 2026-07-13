@@ -12,11 +12,11 @@ import {
   urgencyOf,
   sortByUrgency,
 } from '../ce/ceStore'
-import { useCohorts, useAllTrainees, useAllRides, releaseEligible } from '../academy/academyStore'
+import { useCohorts, useAllTrainees, useAllRides, useAllEvals, releaseEligible } from '../academy/academyStore'
 import { allFtos, crewsOnDate, rotationWeek, shiftWindow, type FtoCrew } from '../../data/ftoSchedule'
 import { weekdayLabel } from '../academy/calendar'
 import { QA_ENABLED, CE_ENABLED } from '../../config/features'
-import type { RideAssignment, Trainee } from '../../types'
+import type { DailyEval, RideAssignment, Trainee } from '../../types'
 
 // Loaded only when QA is enabled — keeps the QA store out of the initial chunk.
 const DashboardQAProgress = lazy(() => import('./DashboardQAProgress'))
@@ -34,44 +34,27 @@ function ftoNamesOf(c: FtoCrew): string {
   return c.crew.filter((m) => m.fto).map((m) => m.name).join(' · ')
 }
 
-/** 'Kenny Denk' -> 'KD', to match the initials FTOs stamp on checklist marks. */
-function initialsOf(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase()
-}
-
 const PTS_PER_RIDE = 5
+const PTS_PER_EVAL = 2
 const RANK_MEDALS = ['🥇', '🥈', '🥉']
 
 interface FtoScore {
   name: string
   rides: number
-  marks: number
+  evals: number
   pts: number
 }
 
 /**
- * Gamified FTO tally: 5 pts per ride-along hosted (through today), 1 pt per
- * checklist objective signed off (marks are matched by stamped initials).
+ * Gamified FTO tally: 5 pts per ride-along hosted (through today), 2 pts per
+ * daily performance evaluation completed and signed with their name.
  */
-function ftoLeaderboard(trainees: Trainee[], rides: RideAssignment[], today: string): FtoScore[] {
-  const marksByInitials = new Map<string, number>()
-  for (const t of trainees) {
-    for (const list of Object.values(t.fieldMarks ?? {})) {
-      for (const m of list) {
-        const key = (m.fto ?? '').replace(/[^a-z]/gi, '').toUpperCase()
-        if (key) marksByInitials.set(key, (marksByInitials.get(key) ?? 0) + 1)
-      }
-    }
-  }
+function ftoLeaderboard(evals: DailyEval[], rides: RideAssignment[], today: string): FtoScore[] {
   return allFtos()
     .map((name) => {
       const hosted = rides.filter((r) => r.date <= today && (r.ftoNames ?? '').includes(name)).length
-      const marks = marksByInitials.get(initialsOf(name)) ?? 0
-      return { name, rides: hosted, marks, pts: hosted * PTS_PER_RIDE + marks }
+      const signed = evals.filter((e) => e.fto === name).length
+      return { name, rides: hosted, evals: signed, pts: hosted * PTS_PER_RIDE + signed * PTS_PER_EVAL }
     })
     .sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name))
 }
@@ -100,7 +83,7 @@ function CrewToday({ crew, riders, traineeById }: {
           return (
             <Link
               key={r.id}
-              to={`/academy/${t.cohortId}/checklist/${t.id}`}
+              to={`/academy/${t.cohortId}/eval/${t.id}`}
               className="row"
               style={{ color: 'inherit', marginTop: 6, marginLeft: 72 }}
             >
@@ -108,7 +91,7 @@ function CrewToday({ crew, riders, traineeById }: {
                 <div className="title">🎓 {t.name}</div>
                 <div className="meta">{t.contacts}/{t.contactTarget} contacts logged</div>
               </div>
-              <span className="pill ok">📋 Checklist →</span>
+              <span className="pill ok">⭐ Daily eval →</span>
             </Link>
           )
         })
@@ -143,7 +126,8 @@ export default function Dashboard() {
   const offRotationRides = rides.filter(
     (r) => r.date === today && !crewsToday.some((c) => c.unit === r.unit),
   )
-  const leaderboard = ftoLeaderboard(trainees, rides, today)
+  const evals = useAllEvals()
+  const leaderboard = ftoLeaderboard(evals, rides, today)
 
   return (
     <div>
@@ -198,7 +182,7 @@ export default function Dashboard() {
             return (
               <Link
                 key={r.id}
-                to={`/academy/${t.cohortId}/checklist/${t.id}`}
+                to={`/academy/${t.cohortId}/eval/${t.id}`}
                 className="row"
                 style={{ color: 'inherit' }}
               >
@@ -208,7 +192,7 @@ export default function Dashboard() {
                     {r.ftoNames || 'FTO'} {r.window ? `· ${r.window}` : ''} · off-rotation shift
                   </div>
                 </div>
-                <span className="pill ok">📋 Checklist →</span>
+                <span className="pill ok">⭐ Daily eval →</span>
               </Link>
             )
           })}
@@ -249,7 +233,7 @@ export default function Dashboard() {
             </span>
             <span style={{ flex: 1, fontWeight: s.pts > 0 && i === 0 ? 700 : 500 }}>{s.name}</span>
             <span className="subtle" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-              🚑 {s.rides} ride{s.rides === 1 ? '' : 's'} · ✅ {s.marks} sign-off{s.marks === 1 ? '' : 's'}
+              🚑 {s.rides} ride{s.rides === 1 ? '' : 's'} · ⭐ {s.evals} eval{s.evals === 1 ? '' : 's'}
             </span>
             <span className={`pill ${s.pts > 0 ? 'info' : 'muted'}`} style={{ minWidth: 56, justifyContent: 'center' }}>
               {s.pts} pts
@@ -257,8 +241,8 @@ export default function Dashboard() {
           </div>
         ))}
         <div className="help-text" style={{ padding: '8px 0' }}>
-          {PTS_PER_RIDE} pts per ride-along hosted · 1 pt per checklist objective signed off (counted
-          by the initials stamped on marks).
+          {PTS_PER_RIDE} pts per ride-along hosted · {PTS_PER_EVAL} pts per daily evaluation
+          completed (signed with your name on the eval).
         </div>
       </div>
 

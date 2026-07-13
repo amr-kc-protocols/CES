@@ -111,13 +111,14 @@ create policy "admin updates all records"
   using (public.current_role() = 'admin');
 
 -- FTOs write the ride-along working set: trainee records (checklist marks,
--- contacts), attendance, and ride assignments — not cohorts or schedules.
+-- contacts), attendance, ride assignments, daily performance evaluations,
+-- skill sheet sign-offs, and exit surveys — not cohorts or schedules.
 create policy "fto writes ride-along collections"
   on public.records for insert
   to authenticated
   with check (
     public.current_role() = 'fto'
-    and collection in ('trainees', 'attendance', 'rides')
+    and collection in ('trainees', 'attendance', 'rides', 'evals', 'skills', 'surveys')
   );
 
 create policy "fto updates ride-along collections"
@@ -125,7 +126,7 @@ create policy "fto updates ride-along collections"
   to authenticated
   using (
     public.current_role() = 'fto'
-    and collection in ('trainees', 'attendance', 'rides')
+    and collection in ('trainees', 'attendance', 'rides', 'evals', 'skills', 'surveys')
   );
 
 -- New hires are read-only in v1 (their survey posts via the existing Google
