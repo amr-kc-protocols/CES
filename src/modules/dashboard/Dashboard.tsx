@@ -15,8 +15,10 @@ import {
 import { useCohorts, useAllTrainees, useAllRides, useAllEvals, releaseEligible } from '../academy/academyStore'
 import { allFtos, crewsOnDate, rotationWeek, shiftWindow, type FtoCrew } from '../../data/ftoSchedule'
 import { weekdayLabel } from '../academy/calendar'
+import { useSyncStatus } from '../../lib/sync'
+import { ftoNameForEmail, facilitatorLineNames } from '../../lib/ftoIdentity'
 import { QA_ENABLED, CE_ENABLED } from '../../config/features'
-import type { DailyEval, RideAssignment, Trainee } from '../../types'
+import type { DailyEval, RideAssignment, SessionArrangement, Trainee } from '../../types'
 
 // Loaded only when QA is enabled — keeps the QA store out of the initial chunk.
 const DashboardQAProgress = lazy(() => import('./DashboardQAProgress'))
@@ -36,25 +38,45 @@ function ftoNamesOf(c: FtoCrew): string {
 
 const PTS_PER_RIDE = 5
 const PTS_PER_EVAL = 2
+const PTS_PER_ACADEMY_DAY = 5
 const RANK_MEDALS = ['🥇', '🥈', '🥉']
 
 interface FtoScore {
   name: string
   rides: number
   evals: number
+  academyDays: number
   pts: number
 }
 
 /**
  * Gamified FTO tally: 5 pts per ride-along hosted (through today), 2 pts per
- * daily performance evaluation completed and signed with their name.
+ * daily performance evaluation signed with their name, and 5 pts per academy
+ * day facilitated — read straight from the facilitator names the educator
+ * types on dated schedule days, no extra data entry.
  */
-function ftoLeaderboard(evals: DailyEval[], rides: RideAssignment[], today: string): FtoScore[] {
+function ftoLeaderboard(
+  evals: DailyEval[],
+  rides: RideAssignment[],
+  arrangements: SessionArrangement[],
+  today: string,
+): FtoScore[] {
+  const taughtDays = arrangements.filter((a) => a.date && a.date <= today && !a.skipped && a.facilitators)
   return allFtos()
     .map((name) => {
       const hosted = rides.filter((r) => r.date <= today && (r.ftoNames ?? '').includes(name)).length
       const signed = evals.filter((e) => e.fto === name).length
-      return { name, rides: hosted, evals: signed, pts: hosted * PTS_PER_RIDE + signed * PTS_PER_EVAL }
+      // Distinct dates, so co-facilitating two sessions on one day counts once.
+      const academyDays = new Set(
+        taughtDays.filter((a) => facilitatorLineNames(a.facilitators, name)).map((a) => a.date),
+      ).size
+      return {
+        name,
+        rides: hosted,
+        evals: signed,
+        academyDays,
+        pts: hosted * PTS_PER_RIDE + signed * PTS_PER_EVAL + academyDays * PTS_PER_ACADEMY_DAY,
+      }
     })
     .sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name))
 }
@@ -127,7 +149,14 @@ export default function Dashboard() {
     (r) => r.date === today && !crewsToday.some((c) => c.unit === r.unit),
   )
   const evals = useAllEvals()
-  const leaderboard = ftoLeaderboard(evals, rides, today)
+  const leaderboard = ftoLeaderboard(evals, rides, db.academyArrangements, today)
+  const { email } = useSyncStatus()
+  const myFtoName = ftoNameForEmail(email)
+
+  // Every unreleased trainee, with today's eval state — the FTO's daily
+  // expectation stays visible even when no ride was pre-planned.
+  const activeTrainees = trainees.filter((t) => !t.releasedDate)
+  const evaledToday = (traineeId: string) => evals.find((e) => e.traineeId === traineeId && e.date === today)
 
   return (
     <div>
@@ -220,6 +249,39 @@ export default function Dashboard() {
         </>
       )}
 
+      {/* The FTO's standing daily expectation: one eval per trainee per shift
+          ridden — visible even when no ride was pre-planned on the schedule. */}
+      {activeTrainees.length > 0 && (
+        <>
+          <div className="section-title">Daily evals — one per trainee, each shift ridden</div>
+          <div className="list">
+            {activeTrainees.map((t) => {
+              const done = evaledToday(t.id)
+              return (
+                <Link
+                  key={t.id}
+                  to={`/academy/${t.cohortId}/eval/${t.id}`}
+                  className="row"
+                  style={{ color: 'inherit' }}
+                >
+                  <div className="grow">
+                    <div className="title">🎓 {t.name}</div>
+                    <div className="meta">{t.contacts}/{t.contactTarget} contacts logged</div>
+                  </div>
+                  {done ? (
+                    <span className="pill ok" title={done.fto ? `Filed by ${done.fto}` : undefined}>
+                      ✓ Evaluated today
+                    </span>
+                  ) : (
+                    <span className="pill warn">⭐ File today's eval →</span>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        </>
+      )}
+
       {/* FTO leaderboard — friendly competition over rides hosted + sign-offs. */}
       <div className="section-title">FTO leaderboard</div>
       <div className="card" style={{ padding: '6px 14px' }}>
@@ -231,9 +293,12 @@ export default function Dashboard() {
             <span style={{ width: 26, textAlign: 'center', fontSize: s.pts > 0 && i < 3 ? 18 : 13 }} className={s.pts > 0 && i < 3 ? '' : 'subtle'}>
               {s.pts > 0 && i < 3 ? RANK_MEDALS[i] : i + 1}
             </span>
-            <span style={{ flex: 1, fontWeight: s.pts > 0 && i === 0 ? 700 : 500 }}>{s.name}</span>
+            <span style={{ flex: 1, fontWeight: s.pts > 0 && i === 0 ? 700 : 500 }}>
+              {s.name}
+              {s.name === myFtoName && <span className="pill info" style={{ marginLeft: 6, padding: '1px 7px', fontSize: 10 }}>you</span>}
+            </span>
             <span className="subtle" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-              🚑 {s.rides} ride{s.rides === 1 ? '' : 's'} · ⭐ {s.evals} eval{s.evals === 1 ? '' : 's'}
+              🚑 {s.rides} · ⭐ {s.evals} · 🎓 {s.academyDays}
             </span>
             <span className={`pill ${s.pts > 0 ? 'info' : 'muted'}`} style={{ minWidth: 56, justifyContent: 'center' }}>
               {s.pts} pts
@@ -241,8 +306,9 @@ export default function Dashboard() {
           </div>
         ))}
         <div className="help-text" style={{ padding: '8px 0' }}>
-          {PTS_PER_RIDE} pts per ride-along hosted · {PTS_PER_EVAL} pts per daily evaluation
-          completed (signed with your name on the eval).
+          🚑 {PTS_PER_RIDE} pts per ride-along hosted · ⭐ {PTS_PER_EVAL} pts per daily evaluation
+          signed with your name · 🎓 {PTS_PER_ACADEMY_DAY} pts per academy day facilitated (read
+          from the facilitator names on the class schedule).
         </div>
       </div>
 

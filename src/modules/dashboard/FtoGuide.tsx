@@ -25,10 +25,11 @@ function GuideBody() {
       <div>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>2 · End of shift — the daily eval is the job</div>
         <div className="subtle" style={{ lineHeight: 1.55 }}>
-          Tap your rider on the <strong>Home</strong> screen (or <strong>Academy</strong> 🎓 → cohort →
-          trainee → <strong>⭐ Daily evals</strong>). Pick your name, rate the six categories
-          1–5 — skip anything you didn't see today — jot strengths and one thing to work on, and
-          answer the end-of-shift questions. Two minutes, same form as the old Microsoft Forms eval.
+          Tap your trainee in the <strong>Daily evals</strong> list right here on Home — it shows
+          who still needs today's eval. Your name is already filled in when you're signed in. Rate
+          the six categories 1–5 — skip anything you didn't see today — jot strengths and one thing
+          to work on, and answer the end-of-shift questions. Two minutes, same form as the old
+          Microsoft Forms eval.
         </div>
       </div>
 
