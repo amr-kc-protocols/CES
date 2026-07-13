@@ -14,7 +14,11 @@ import type { AcademyTemplate, TemplateBlock, TemplateSession } from '../types'
 // mindset / call types / Med-Nec content lives only in Week 2 (Session 7 + its
 // decks); Week 1's PCR day is ImageTrend *software mechanics* only. The two
 // at-home Cornerstone days split the modules (Week 1 = corporate compliance;
-// Week 2 = clinical flipped pre-work) rather than repeating them.
+// Week 2 = clinical flipped pre-work) rather than repeating them. Sessions 7
+// and 11 were likewise consolidated: specialty call types are taught once, in
+// Session 11 with organ transport (Session 7 no longer previews them), and
+// Med-Nec/narrative is taught once, in Session 7 (Session 11's final chart is
+// a graded assessment against that standard, not a re-teach).
 //
 // In-person days are fitted to the real teaching day: start 0900 (EVOC road is
 // the 0700 exception), a 1h lunch, content stops at 1530, and 1530–1600 is
@@ -178,7 +182,7 @@ const SESSIONS: TemplateSession[] = [
       { durationMin: 60, kind: 'lunch', title: 'Lunch' },
       { durationMin: 75, kind: 'hands-on', title: 'Case-flow scenario lab — teams run call types end-to-end', notes: 'Assess → transport → chart; rotate roles; Captains spot-check Med-Nec.', resources: ['deck-cardiac-neuro-cases', 'imagetrend'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 60, kind: 'assessment', title: 'Call Types II (Pulmonary/Medical · BLS · intro Accompanied Specialty) + Med-Nec critique + retrieval quiz', notes: 'Merges call-types II with the narrative/Med-Nec critique and cumulative retrieval + preview.', resources: ['deck-call-types-ii', 'call-guide'] },
+      { durationMin: 60, kind: 'assessment', title: 'Call Types II (Pulmonary/Medical · BLS) + Med-Nec critique + retrieval quiz', notes: 'Merges call-types II with the narrative/Med-Nec critique and cumulative retrieval + preview. Accompanied-specialty call types are taught once, in Session 11 with organ transport — no preview here.', resources: ['deck-call-types-ii', 'call-guide'] },
       HOUSEKEEPING,
     ],
     retrieval: { pullsFrom: [] },
@@ -281,11 +285,11 @@ const SESSIONS: TemplateSession[] = [
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Opener · academy arc recap · objectives' },
-      { durationMin: 75, kind: 'education', title: 'Organ Transport (applied, flipped) + other high-acuity specialty', notes: '3-mission discussion + donor ethics/OPO; peds (Children’s Mercy), bariatric, long-distance (O2 2×, batteries, supervisor threshold), NICU/flight roles. Guest if confirmed.', resources: ['organ', 'call-guide'] },
+      { durationMin: 75, kind: 'education', title: 'Organ Transport (applied, flipped) + accompanied & high-acuity specialty call types', notes: 'The single home for specialty call types (consolidated from Session 7): 3-mission discussion + donor ethics/OPO; accompanied-specialty roles; peds (Children’s Mercy), bariatric, long-distance (O2 2×, batteries, supervisor threshold), NICU/flight. Guest if confirmed.', resources: ['organ', 'call-guide'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
       { durationMin: 75, kind: 'assessment', title: 'Capstone scenario circuit — vent · hemodynamics/pressor · call-type+charting · specialty', notes: 'FTO-observed competency check.' },
       { durationMin: 60, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 75, kind: 'assessment', title: 'Final independent ImageTrend chart (specialty case) + DCHART/Med-Nec critique', resources: ['imagetrend'] },
+      { durationMin: 75, kind: 'assessment', title: 'Final independent ImageTrend chart (specialty case) — graded on the DCHART/Med-Nec standard', notes: 'Pure assessment: narrative quality was taught in Session 7; this grades against it rather than re-teaching.', resources: ['imagetrend'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
       { durationMin: 60, kind: 'assessment', title: 'Final cumulative retrieval exam (whole academy) + field-phase expectations', notes: 'NEOP checklist (Section C + Call-Type Exposure log), I-do/we-do/you-do, exposure→training JIT triggers.' },
       { durationMin: 30, kind: 'closeout', title: 'Sign-offs · FTO pairing · graduation · first-shift logistics', notes: 'Internal completion records (not CE), FTO pairing, first-shift logistics.' },
