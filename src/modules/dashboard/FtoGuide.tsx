@@ -23,13 +23,12 @@ function GuideBody() {
       </div>
 
       <div>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>2 · On a ride — the checklist is the job</div>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>2 · End of shift — the daily eval is the job</div>
         <div className="subtle" style={{ lineHeight: 1.55 }}>
-          <strong>Academy</strong> (🎓) → the cohort → your trainee → <strong>📋 Field checklist</strong>.
-          At the top, set which shift number you're on (1–6) and your initials. Then, as the trainee
-          completes an objective, tap <strong>+ Mark</strong> next to it — that's your initials on
-          the slot, same as the old paper sheet. Use the A–I chips to jump between sections, log
-          call types under <strong>Exposure</strong>, and fix a mis-tap with <strong>−</strong>.
+          Tap your rider on the <strong>Home</strong> screen (or <strong>Academy</strong> 🎓 → cohort →
+          trainee → <strong>⭐ Daily evals</strong>). Pick your name, rate the six categories
+          1–5 — skip anything you didn't see today — jot strengths and one thing to work on, and
+          answer the end-of-shift questions. Two minutes, same form as the old Microsoft Forms eval.
         </div>
       </div>
 
@@ -37,7 +36,8 @@ function GuideBody() {
         <div style={{ fontWeight: 700, marginBottom: 4 }}>3 · Before you clear the truck</div>
         <div className="subtle" style={{ lineHeight: 1.55 }}>
           On the trainee's card: <strong>+1 contact</strong> for each patient contact they ran, and
-          mark the day on the <strong>Attendance</strong> tab. That's the whole shift's paperwork.
+          mark the day on the <strong>Attendance</strong> tab. Running a skills day? Sign skills off
+          on their <strong>🩺 Skill sheet</strong>. That's the whole shift's paperwork.
         </div>
       </div>
 

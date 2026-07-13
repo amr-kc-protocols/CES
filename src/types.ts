@@ -326,6 +326,65 @@ export interface AcademyDayRef {
   title: string
 }
 
+// ----- Daily performance evaluations & clinical skill sheets -----------------
+
+/**
+ * One end-of-shift Daily Performance Evaluation, matching the legacy
+ * Microsoft Forms fields. Historical imports carry only traineeName;
+ * evals recorded in-app also link the trainee id.
+ */
+export interface DailyEval {
+  id: string
+  traineeId?: string
+  traineeName: string
+  /** ISO date of the shift being evaluated. */
+  date: string
+  /** Canonical FTO name completing the evaluation. */
+  fto?: string
+  /** 1–5 ratings; a category is absent when not scored that day. */
+  scores: {
+    professionalism?: number
+    teamwork?: number
+    patientCare?: number
+    driving?: number
+    stretcher?: number
+    pcr?: number
+  }
+  strengths?: string
+  improvements?: string
+  /** Truck washed & patient compartment cleaned at end of shift. */
+  truckWashed?: boolean
+  /** Ambulance always backed with a spotter. */
+  spotter?: boolean
+  /** FTO's call: ready to work independently without an FTO. */
+  readyIndependent?: boolean
+}
+
+/** A clinical skill sheet sign-off (KC/Cass BLS sheet or Linn medic sheet). */
+export interface SkillCheck {
+  id: string
+  traineeId?: string
+  traineeName: string
+  date: string
+  sheet: 'bls' | 'linn-medic'
+  /** Canonical FTO/educator name who ran the assessment. */
+  evaluator?: string
+  /** skillId -> outcome. Absent = not yet assessed. */
+  results: Record<string, 'pass' | 'fail'>
+  /** Linn sheet: checked step indexes per skill (partial progress). */
+  steps?: Record<string, number[]>
+  comments?: string
+}
+
+/** A submitted exit survey, kept locally alongside the Google Sheet post. */
+export interface SurveyResponse {
+  id: string
+  traineeId?: string
+  submittedAt: string
+  /** The exact payload posted to the survey sheet (39 keys). */
+  data: Record<string, string>
+}
+
 /** A new hire assigned to ride a specific FTO crew shift on a date. */
 export interface RideAssignment {
   id: string
@@ -352,5 +411,8 @@ export interface DBShape {
   academyCustomSessions: CustomSession[]
   academyAttendance: AttendanceRecord[]
   rideAssignments: RideAssignment[]
+  dailyEvals: DailyEval[]
+  skillChecks: SkillCheck[]
+  surveyResponses: SurveyResponse[]
   settings: Settings
 }

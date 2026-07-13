@@ -9,7 +9,7 @@ import {
 } from '../../data/exitSurvey'
 import { CREDENTIAL_LABELS } from '../../data/academy'
 import { formatDate, todayISO } from '../../lib/date'
-import { useCohort, useCohortTrainees, updateTrainee } from './academyStore'
+import { useCohort, useCohortTrainees, updateTrainee, addSurveyResponse } from './academyStore'
 import type { Trainee } from '../../types'
 
 // The New Hire Orientation (exit) Survey, ported from the Field Guide site.
@@ -235,6 +235,9 @@ export default function ExitSurveyView() {
     try {
       // Apps Script requires no-cors + URL-encoded body (avoids preflight).
       await fetch(SURVEY_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(payload) })
+      // Keep a local copy too, so the History tab accumulates responses
+      // alongside the legacy imports without depending on the Google Sheet.
+      addSurveyResponse(trainee!.id, payload)
       updateTrainee(trainee!.id, { exitSurveyDate: todayISO() })
       clearDraft(traineeId)
       setStatus('done')

@@ -26,6 +26,9 @@ function emptyDB(): DBShape {
     academyAttendance: [],
     academyCustomSessions: [],
     rideAssignments: [],
+    dailyEvals: [],
+    skillChecks: [],
+    surveyResponses: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }

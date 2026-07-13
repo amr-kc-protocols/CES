@@ -2,7 +2,7 @@ import { lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './modules/dashboard/Dashboard'
-import { QA_ENABLED, CE_ENABLED } from './config/features'
+import { QA_ENABLED, CE_ENABLED, FIELD_OBJECTIVES_ENABLED } from './config/features'
 
 // Route components are code-split: each screen loads on demand, so the initial
 // payload is just the shell + dashboard. Layout wraps <Outlet> in Suspense.
@@ -12,6 +12,9 @@ const CohortView = lazy(() => import('./modules/academy/CohortView'))
 const FieldChecklistView = lazy(() => import('./modules/academy/FieldChecklistView'))
 const ExitSurveyView = lazy(() => import('./modules/academy/ExitSurveyView'))
 const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
+const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
+const SkillSheetView = lazy(() => import('./modules/academy/SkillSheetView'))
+const HistoryView = lazy(() => import('./modules/history/HistoryView'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
@@ -35,8 +38,13 @@ export default function App() {
         <Route path="academy" element={<AcademyList />} />
         <Route path="academy/ftos" element={<FtoScheduleView />} />
         <Route path="academy/:cohortId" element={<CohortView />} />
-        <Route path="academy/:cohortId/checklist/:traineeId" element={<FieldChecklistView />} />
+        {FIELD_OBJECTIVES_ENABLED && (
+          <Route path="academy/:cohortId/checklist/:traineeId" element={<FieldChecklistView />} />
+        )}
+        <Route path="academy/:cohortId/eval/:traineeId" element={<DailyEvalView />} />
+        <Route path="academy/:cohortId/skills/:traineeId" element={<SkillSheetView />} />
         <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
+        <Route path="history" element={<HistoryView />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />
       </Route>
