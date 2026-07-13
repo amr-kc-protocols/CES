@@ -6,19 +6,22 @@ import type { AcademyTemplate, TemplateBlock, TemplateSession } from '../types'
 //   Week 1 (Systems & Safety): HR/onboarding, EVOC classroom, EVOC road course
 //     (offsite Independence, 0700), PCR/ImageTrend software mechanics, stretcher
 //     & equipment, and an at-home Cornerstone corporate-compliance day.
-//   Week 2 (Clinical Depth): clinical mindset & call types, ventilation, an
-//     at-home Cornerstone clinical flipped-prework day, hemodynamics/MCS, and the
-//     capstone + FTO hand-off.
+//   Week 2 (Clinical Depth): ventilation, an at-home Cornerstone clinical
+//     flipped-prework day, hemodynamics/MCS, and one combined final day —
+//     clinical mindset & call types + capstone + FTO hand-off.
 //
 // Phase 1 and Phase 2 were reconciled so nothing is taught twice: the clinical
-// mindset / call types / Med-Nec content lives only in Week 2 (Session 7 + its
-// decks); Week 1's PCR day is ImageTrend *software mechanics* only. The two
-// at-home Cornerstone days split the modules (Week 1 = corporate compliance;
-// Week 2 = clinical flipped pre-work) rather than repeating them. Sessions 7
-// and 11 were likewise consolidated: specialty call types are taught once, in
-// Session 11 with organ transport (Session 7 no longer previews them), and
-// Med-Nec/narrative is taught once, in Session 7 (Session 11's final chart is
-// a graded assessment against that standard, not a re-teach).
+// mindset / call types / Med-Nec content lives only in Week 2; Week 1's PCR
+// day is ImageTrend *software mechanics* only. The two at-home Cornerstone
+// days split the modules (Week 1 = corporate compliance; Week 2 = clinical
+// flipped pre-work) rather than repeating them.
+//
+// The standalone "Clinical Mindset & IFT Call Types" day was fully merged into
+// the final day (10 sessions total). Priorities to stay inside the ~5h cap:
+// one condensed 75-min clinical-mindset/call-types block (the deep-dive decks
+// become self-study references), the case-flow lab and the standalone final
+// chart absorbed as capstone-circuit stations, organ/specialty kept whole.
+// The other Week-2 days were not touched beyond renumbering.
 //
 // In-person days are fitted to the real teaching day: start 0900 (EVOC road is
 // the 0700 exception), a 1h lunch, content stops at 1530, and 1530–1600 is
@@ -158,38 +161,11 @@ const SESSIONS: TemplateSession[] = [
     retrieval: { pullsFrom: [] },
   },
   // ===== Week 2 — Clinical Depth ===================================
-  {
-    id: 'p2s1',
-    order: 7,
-    week: 2,
-    mode: 'in-person',
-    defaultStart: '0900',
-    title: 'Clinical Mindset & IFT Call Types',
-    objectives: [
-      'Sort any transfer into call-type category + level of care',
-      'Apply "why does this patient need us / exceeds your credential"',
-      'Run a call end-to-end: assess → transport priorities → chart',
-    ],
-    facilitatorRoles: [
-      { role: 'CES', lead: true },
-      { role: 'Paramedic clinical lead' },
-    ],
-    blocks: [
-      { durationMin: 15, kind: 'education', title: 'Opener: prior-phase cumulative recall + arc overview', notes: '3 items from Phase 1 (systems, ImageTrend Med-Nec, safety).' },
-      { durationMin: 75, kind: 'education', title: 'Clinical mindset & patient population', notes: 'IFT vs 911, level-of-care matching, "why does this patient need us."' },
-      { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 75, kind: 'education', title: 'IFT Call Types deep dive (Cardiac & Neuro) + ALS/BLS scope drill', notes: 'Small-group card-sort + present-back; merges call-types I and the KC Med Guidelines scope drill.', resources: ['deck-cardiac-neuro-dive', 'call-guide', 'call-guide-scope'] },
-      { durationMin: 60, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 75, kind: 'hands-on', title: 'Case-flow scenario lab — teams run call types end-to-end', notes: 'Assess → transport → chart; rotate roles; Captains spot-check Med-Nec.', resources: ['deck-cardiac-neuro-cases', 'imagetrend'] },
-      { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 60, kind: 'assessment', title: 'Call Types II (Pulmonary/Medical · BLS) + Med-Nec critique + retrieval quiz', notes: 'Merges call-types II with the narrative/Med-Nec critique and cumulative retrieval + preview. Accompanied-specialty call types are taught once, in Session 11 with organ transport — no preview here.', resources: ['deck-call-types-ii', 'call-guide'] },
-      HOUSEKEEPING,
-    ],
-    retrieval: { pullsFrom: [] },
-  },
+  // (The standalone Clinical Mindset & IFT Call Types day merged into the
+  // final session, p2s5 — see that entry.)
   {
     id: 'p2s2',
-    order: 8,
+    order: 7,
     week: 2,
     mode: 'in-person',
     defaultStart: '0900',
@@ -214,11 +190,11 @@ const SESSIONS: TemplateSession[] = [
       { durationMin: 75, kind: 'assessment', title: 'Simulator reps — round 2 (independent) + skills check-off + vent quiz', notes: 'Paramedic: ALS scenarios. EMT: recognition + BVM. Transport doctrine (ICU-ICU, BVM-ready, charting) folded in.', resources: ['quiz-vent'] },
       HOUSEKEEPING,
     ],
-    retrieval: { pullsFrom: ['p2s1'], resource: 'quiz-vent' },
+    retrieval: { pullsFrom: [], resource: 'quiz-vent' },
   },
   {
     id: 'p2s3',
-    order: 9,
+    order: 8,
     week: 2,
     mode: 'at-home',
     title: 'Cornerstone (LMS) — Clinical Flipped Pre-Work',
@@ -238,7 +214,7 @@ const SESSIONS: TemplateSession[] = [
   },
   {
     id: 'p2s4',
-    order: 10,
+    order: 9,
     week: 2,
     mode: 'in-person',
     defaultStart: '0900',
@@ -263,38 +239,45 @@ const SESSIONS: TemplateSession[] = [
       { durationMin: 60, kind: 'assessment', title: 'Impella & ECMO quiz + cumulative retrieval + preview', resources: ['quiz-impella-ecmo'] },
       HOUSEKEEPING,
     ],
-    retrieval: { pullsFrom: ['p2s1', 'p2s2'], resource: 'quiz-impella-ecmo' },
+    retrieval: { pullsFrom: ['p2s2'], resource: 'quiz-impella-ecmo' },
   },
   {
     id: 'p2s5',
-    order: 11,
+    order: 10,
     week: 2,
     mode: 'in-person',
     defaultStart: '0900',
-    title: 'Specialty Transports, Capstone & FTO Hand-off',
+    title: 'Clinical Mindset, Call Types, Capstone & FTO Hand-off',
+    // The former Session 7 (Clinical Mindset & IFT Call Types) merged in whole.
+    // Prioritized to fit the 5h teaching cap: one condensed call-types block
+    // (the deep-dive decks become self-study references), the case-flow lab
+    // and standalone final chart absorbed into the capstone circuit.
     objectives: [
-      'Pass the capstone circuit',
+      'Sort any transfer into call-type category + level of care',
+      'Apply "why does this patient need us / exceeds your credential"',
+      'Pass the capstone circuit, including an independent Med-Nec-graded chart',
       'Apply the 3 organ-transport missions + high-acuity specialty planning',
       'Enter the field phase with an FTO pairing + internal completion record',
     ],
     facilitatorRoles: [
       { role: 'CES', lead: true },
+      { role: 'Paramedic clinical lead' },
       { role: 'FTOs' },
       { role: 'Captains' },
       { role: 'OPO — Midwest Transplant Network (pending; fallback: CES-led from Organ module)' },
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Opener · academy arc recap · objectives' },
-      { durationMin: 75, kind: 'education', title: 'Organ Transport (applied, flipped) + accompanied & high-acuity specialty call types', notes: 'The single home for specialty call types (consolidated from Session 7): 3-mission discussion + donor ethics/OPO; accompanied-specialty roles; peds (Children’s Mercy), bariatric, long-distance (O2 2×, batteries, supervisor threshold), NICU/flight. Guest if confirmed.', resources: ['organ', 'call-guide'] },
+      { durationMin: 75, kind: 'education', title: 'Clinical mindset & IFT call types (condensed)', notes: 'Level-of-care matching, "why does this patient need us," card-sort taxonomy (cardiac/neuro/pulmonary/BLS) and the DCHART/Med-Nec narrative standard in one block. The deep-dive decks are self-study references — assign as pre-read.', resources: ['deck-cardiac-neuro-dive', 'deck-call-types-ii', 'call-guide', 'call-guide-scope'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
-      { durationMin: 75, kind: 'assessment', title: 'Capstone scenario circuit — vent · hemodynamics/pressor · call-type+charting · specialty', notes: 'FTO-observed competency check.' },
+      { durationMin: 75, kind: 'education', title: 'Organ Transport (applied, flipped) + accompanied & high-acuity specialty call types', notes: 'The single home for specialty call types: 3-mission discussion + donor ethics/OPO; accompanied-specialty roles; peds (Children’s Mercy), bariatric, long-distance (O2 2×, batteries, supervisor threshold), NICU/flight. Guest if confirmed.', resources: ['organ', 'call-guide'] },
       { durationMin: 60, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 75, kind: 'assessment', title: 'Final independent ImageTrend chart (specialty case) — graded on the DCHART/Med-Nec standard', notes: 'Pure assessment: narrative quality was taught in Session 7; this grades against it rather than re-teaching.', resources: ['imagetrend'] },
+      { durationMin: 75, kind: 'assessment', title: 'Capstone scenario circuit — vent · hemodynamics/pressor · call-type run with Med-Nec-graded ImageTrend chart · specialty', notes: 'FTO-observed competency check. The call-type station absorbs the old case-flow lab and the standalone final chart: run the call end-to-end, chart it independently, graded on DCHART/Med-Nec.', resources: ['imagetrend', 'deck-cardiac-neuro-cases'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
       { durationMin: 60, kind: 'assessment', title: 'Final cumulative retrieval exam (whole academy) + field-phase expectations', notes: 'NEOP checklist (Section C + Call-Type Exposure log), I-do/we-do/you-do, exposure→training JIT triggers.' },
       { durationMin: 30, kind: 'closeout', title: 'Sign-offs · FTO pairing · graduation · first-shift logistics', notes: 'Internal completion records (not CE), FTO pairing, first-shift logistics.' },
     ],
-    retrieval: { pullsFrom: ['p2s1', 'p2s2', 'p2s4'] },
+    retrieval: { pullsFrom: ['p2s2', 'p2s4'] },
   },
 ]
 
