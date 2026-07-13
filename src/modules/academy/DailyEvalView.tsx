@@ -4,6 +4,8 @@ import { Empty } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
 import { useCan } from '../../lib/role'
+import { useSyncStatus } from '../../lib/sync'
+import { ftoNameForEmail } from '../../lib/ftoIdentity'
 import {
   useCohort,
   addDailyEval,
@@ -70,8 +72,10 @@ export default function DailyEvalView() {
   const evals = useEvalsFor(traineeId)
   const can = useCan()
 
+  const { email } = useSyncStatus()
   const [date, setDate] = useState(todayISO())
-  const [fto, setFto] = useState('')
+  // Signed-in FTOs get their own name preselected — one less tap per eval.
+  const [fto, setFto] = useState(() => ftoNameForEmail(email) ?? '')
   const [scores, setScores] = useState<DailyEval['scores']>({})
   const [strengths, setStrengths] = useState('')
   const [improvements, setImprovements] = useState('')
