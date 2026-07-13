@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { ProgressBar, Stat } from '../../components/ui'
+import { Empty, ProgressBar, Stat } from '../../components/ui'
 import { formatDate, monthLabel } from '../../lib/date'
 import { useDB } from '../../lib/store'
+import { useSyncStatus } from '../../lib/sync'
 import { evalAverage } from '../academy/academyStore'
 import { HISTORICAL_EVALS, HISTORICAL_SKILLS, HISTORICAL_SURVEYS } from '../../data/history'
 import { BLS_SKILLS, LINN_MEDIC_SKILLS } from '../../data/skillSheets'
@@ -148,7 +149,19 @@ function HireRow({ h }: { h: HireRecord }) {
 }
 
 export default function HistoryView() {
+  // Survey feedback names FTOs candidly; only the signed-in admin sees it.
+  // The signed-out "local admin" convenience intentionally doesn't count.
+  const { signedIn, role } = useSyncStatus()
   const hires = useHires()
+
+  if (!signedIn || role !== 'admin') {
+    return (
+      <Empty icon="🔒" title="Admin only">
+        Class history — including unredacted survey feedback — is visible to the Clinical
+        Educator's account only.
+      </Empty>
+    )
+  }
 
   const allEvals = hires.flatMap((h) => h.evals)
   const allSurveys = hires.flatMap((h) => h.surveys)
