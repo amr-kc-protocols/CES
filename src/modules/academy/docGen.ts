@@ -90,6 +90,90 @@ function docShell(title: string, body: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}</style></head><body>${body}</body></html>`
 }
 
+// ---------------------------------------------------------------------------
+// Filled skill / check-off sheet — the completed digital record printed to
+// paper or PDF, results and signatures baked in. Two layouts: pass/needs-work
+// per skill, or step-by-step stations (a station passes when every step is
+// checked). Both close with the FTO and new-hire signature blocks.
+// ---------------------------------------------------------------------------
+
+function sigBlock(role: string, name: string, dataUrl?: string, signedAt?: string): string {
+  const img = dataUrl
+    ? `<img src="${dataUrl}" alt="signature" style="max-height:56px;max-width:260px;display:block" />`
+    : '<div style="height:56px"></div>'
+  return `
+    <td style="border:none;width:50%;vertical-align:bottom;padding:6px 18px 0 0">
+      ${img}
+      <div style="border-top:1px solid #333;margin-top:2px;padding-top:2px">
+        <strong>${esc(role)}:</strong> ${esc(name) || '&nbsp;'}
+        ${signedAt ? ` &nbsp; <span class="sub2">Signed ${esc(formatDate(signedAt))}</span>` : ''}
+      </div>
+    </td>`
+}
+
+export function checkoffSheetHTML(
+  sheetLabel: string,
+  skills: { id: string; label: string; steps?: string[] }[],
+  check: {
+    traineeName: string
+    date: string
+    evaluator?: string
+    results: Record<string, 'pass' | 'fail'>
+    steps?: Record<string, number[]>
+    comments?: string
+    evaluatorSignature?: string
+    evaluatorSignedAt?: string
+    traineeSignature?: string
+    traineeSignedAt?: string
+  },
+  note?: string,
+): string {
+  const isStepSheet = skills.some((s) => s.steps?.length)
+  const passed = skills.filter((s) => check.results[s.id] === 'pass').length
+
+  let bodyRows: string
+  if (isStepSheet) {
+    bodyRows = skills
+      .map((s) => {
+        const done = new Set(check.steps?.[s.id] ?? [])
+        const status = check.results[s.id] === 'pass' ? '<span class="badge">PASS</span>' : `${done.size}/${s.steps?.length ?? 0} steps`
+        const items = (s.steps ?? [])
+          .map((st, i) => `${done.has(i) ? '&#9745;' : '&#9744;'} ${esc(st)}`)
+          .join('<br/>')
+        return `<tr><td><strong>${esc(s.label)}</strong><div class="sub2" style="margin-top:2px">${items}</div></td><td class="target">${status}</td></tr>`
+      })
+      .join('')
+  } else {
+    bodyRows = skills
+      .map((s) => {
+        const r = check.results[s.id]
+        return `<tr><td>${esc(s.label)}</td><td class="slot">${r === 'pass' ? '&#10003;' : ''}</td><td class="slot">${r === 'fail' ? '&#10007;' : ''}</td></tr>`
+      })
+      .join('')
+  }
+
+  const table = isStepSheet
+    ? `<table><tr><th>Station</th><th class="target">Result</th></tr>${bodyRows}</table>`
+    : `<table><tr><th>Skill</th><th class="slot">Pass</th><th class="slot">Needs&nbsp;practice</th></tr>${bodyRows}</table>`
+
+  return `
+    <h1>${esc(sheetLabel)}</h1>
+    <table class="meta">
+      <tr><td><strong>New hire:</strong> <span class="line">${esc(check.traineeName)}</span></td>
+          <td><strong>Date:</strong> <span class="line">${esc(formatDate(check.date))}</span></td></tr>
+      <tr><td><strong>Assessed by:</strong> <span class="line">${esc(check.evaluator ?? '')}</span></td>
+          <td><strong>Result:</strong> ${passed}/${skills.length} signed off</td></tr>
+    </table>
+    ${note ? `<div class="note">${esc(note)}</div>` : ''}
+    ${table}
+    ${check.comments ? `<h2>Comments</h2><p>${esc(check.comments)}</p>` : ''}
+    <p style="margin-top:14px"><em>By signing below, the FTO attests the new hire demonstrated the competencies marked above, and the new hire acknowledges the assessment.</em></p>
+    <table><tr>
+      ${sigBlock('FTO / Evaluator', check.evaluator ?? '', check.evaluatorSignature, check.evaluatorSignedAt)}
+      ${sigBlock('New hire', check.traineeName, check.traineeSignature, check.traineeSignedAt)}
+    </tr></table>`
+}
+
 /** Open a print window for the document. */
 export function printDoc(title: string, body: string): void {
   const w = window.open('', '_blank')

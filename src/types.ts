@@ -377,6 +377,12 @@ export interface SkillCheck {
   /** Linn sheet: checked step indexes per skill (partial progress). */
   steps?: Record<string, number[]>
   comments?: string
+  /** FTO/evaluator signature — PNG data URL, captured on the device. */
+  evaluatorSignature?: string
+  evaluatorSignedAt?: string
+  /** New-hire signature — PNG data URL. */
+  traineeSignature?: string
+  traineeSignedAt?: string
 }
 
 /** A submitted exit survey, kept locally alongside the Google Sheet post. */
