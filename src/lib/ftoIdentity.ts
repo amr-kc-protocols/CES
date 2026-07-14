@@ -40,3 +40,24 @@ export function facilitatorLineNames(facilitators: string | undefined, ftoName: 
   const re = FTO_MATCHERS[ftoName]
   return re ? re.test(facilitators) : facilitators.toLowerCase().includes(ftoName.toLowerCase())
 }
+
+/** Split a ' · '-joined facilitator line into trimmed, non-empty tokens. */
+export function facilitatorTokens(facilitators: string | undefined): string[] {
+  return (facilitators ?? '').split('·').map((t) => t.trim()).filter(Boolean)
+}
+
+/**
+ * Add or remove an FTO from a facilitator line, preserving every other token
+ * (CES, HR, corporate instructors, free-text names). Removing drops any token
+ * that names this FTO (full name or the nickname/last name the matcher knows).
+ */
+export function toggleFacilitator(facilitators: string | undefined, ftoName: string): string {
+  const tokens = facilitatorTokens(facilitators)
+  if (facilitatorLineNames(facilitators, ftoName)) {
+    const re = FTO_MATCHERS[ftoName]
+    return tokens
+      .filter((t) => !(re ? re.test(t) : t.toLowerCase().includes(ftoName.toLowerCase())))
+      .join(' · ')
+  }
+  return [...tokens, ftoName].join(' · ')
+}

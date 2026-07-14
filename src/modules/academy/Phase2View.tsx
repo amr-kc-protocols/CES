@@ -11,6 +11,8 @@ import {
   timeline,
 } from '../../data/academyPhase2'
 import { resourceFor, resourceUrl } from '../../data/fieldGuide'
+import { allFtos } from '../../data/ftoSchedule'
+import { facilitatorLineNames, toggleFacilitator } from '../../lib/ftoIdentity'
 import { addDays, formatDate } from '../../lib/date'
 import { pushUndo } from '../../lib/undo'
 import { printDoc, downloadDoc, phase2ScheduleHTML, safeFilename } from './docGen'
@@ -101,7 +103,7 @@ function ResourceChips({ refs }: { refs?: string[] }) {
   )
 }
 
-function SessionCard({ cohortId, session }: { cohortId: string; session: TemplateSession }) {
+function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; session: TemplateSession; dayLabel?: string }) {
   const arrangements = useArrangements(cohortId)
   const arr = arrangements[session.id]
   const [editing, setEditing] = useState(false)
@@ -154,7 +156,6 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
   if (skipped) {
     return (
       <div className="card" style={{ padding: 12, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span>
         <span style={{ textDecoration: 'line-through' }}>{session.title}</span>
         <span className="pill muted">Skipped for this class</span>
         {manageAcademy && (
@@ -177,14 +178,13 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
               aria-label="Session title"
               style={{ ...inputStyle, fontSize: 15, fontWeight: 700, minWidth: 220 }}
             />
-          ) : session.custom ? (
-            <>{session.title}</>
           ) : (
-            <>
-              <span className="subtle" style={{ fontWeight: 600 }}>Session {session.order}</span> · {session.title}
-            </>
+            <>{session.title}</>
           )}
         </h3>
+        <span className={`pill ${dayLabel ? 'info' : 'muted'}`} title="Order is set by the date you schedule — reorder days freely">
+          {dayLabel ?? 'Unscheduled'}
+        </span>
         {session.custom && <span className="pill info" title="Added by this class">Added</span>}
         {session.mode === 'at-home' && <span className="pill muted">At home</span>}
         {session.location && <span className="pill warn" title={session.location}>📍 Offsite</span>}
@@ -244,7 +244,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
             />
           </label>
         )}
-        <label className="subtle" style={{ fontSize: 12 }}>
+        <label className="subtle" style={{ fontSize: 12, gridColumn: '1 / -1' }}>
           Facilitators
           <input
             value={arr?.facilitators ?? ''}
@@ -253,6 +253,26 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
             placeholder={(session.facilitatorRoles ?? []).map((r) => r.role).join(' · ')}
             style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 2 }}
           />
+          {manageAcademy && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+              <span className="subtle" style={{ fontSize: 11, alignSelf: 'center' }}>Tap to add/remove FTOs:</span>
+              {allFtos().map((n) => {
+                const on = facilitatorLineNames(arr?.facilitators, n)
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`choice${on ? ' active' : ''}`}
+                    style={{ padding: '3px 10px', fontSize: 12 }}
+                    title={n}
+                    onClick={() => set({ facilitators: toggleFacilitator(arr?.facilitators, n) || undefined })}
+                  >
+                    {on ? '✓ ' : '+ '}{n.split(' ').slice(-1)[0]}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </label>
       </div>
 
@@ -270,7 +290,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
                 {seg.notes && <div className="meta">{seg.notes}</div>}
                 {seg.gatesSession && (
                   <div className="meta" style={{ color: 'var(--warn, #b45309)' }}>
-                    Must finish before Session {PHASE2_TEMPLATE.sessions.find((x) => x.id === seg.gatesSession)?.order ?? '?'}
+                    Must finish before the “{PHASE2_TEMPLATE.sessions.find((x) => x.id === seg.gatesSession)?.title ?? '?'}” session
                   </div>
                 )}
                 <ResourceChips refs={seg.resources} />
@@ -391,7 +411,7 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
         <div className="help-text" style={{ marginTop: 6 }}>
           Cumulative retrieval pulls from:{' '}
           {session.retrieval.pullsFrom
-            .map((id) => `Session ${PHASE2_TEMPLATE.sessions.find((x) => x.id === id)?.order ?? id}`)
+            .map((id) => PHASE2_TEMPLATE.sessions.find((x) => x.id === id)?.title ?? id)
             .join(', ')}
           .
         </div>
@@ -446,7 +466,7 @@ function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: (
     <Modal title="Fill academy dates" onClose={onClose}>
       <div className="field-row">
         <div className="field">
-          <label>Session 1 date</label>
+          <label>First session date</label>
           <input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} />
         </div>
         <div className="field">
@@ -469,9 +489,8 @@ function FillDatesModal({ cohort, onClose }: { cohort: AcademyCohort; onClose: (
             <span className="subtle" style={{ width: 130 }}>
               {weekdayLabel(dates[i])} {formatDate(dates[i])}
             </span>
-            <span style={{ flex: 1 }}>
-              Session {s.order} · {s.title}
-            </span>
+            <span className="subtle" style={{ width: 44 }}>Day {i + 1}</span>
+            <span style={{ flex: 1 }}>{s.title}</span>
             {s.mode === 'at-home' && <span className="pill muted">At home</span>}
           </div>
         ))}
@@ -533,6 +552,18 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
     return a.order - b.order
   }
 
+  // "Day N" runs in the order the class is actually taught (by date, across the
+  // whole cohort), so reordering days renumbers cleanly — no fixed template
+  // number to fight. Undated sessions get no number until they're scheduled.
+  const dayLabels = useMemo(() => {
+    const dated = sessions
+      .filter((s) => !arrangements[s.id]?.skipped && arrangements[s.id]?.date)
+      .sort((a, b) => arrangements[a.id]!.date!.localeCompare(arrangements[b.id]!.date!) || a.order - b.order)
+    const m = new Map<string, string>()
+    dated.forEach((s, i) => m.set(s.id, `Day ${i + 1}`))
+    return m
+  }, [sessions, arrangements])
+
   return (
     <div>
       <div className="banner info">
@@ -588,7 +619,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
             </div>
             <div className="list">
               {wkSessions.map((s) => (
-                <SessionCard key={s.id} cohortId={cohort.id} session={s} />
+                <SessionCard key={s.id} cohortId={cohort.id} session={s} dayLabel={dayLabels.get(s.id)} />
               ))}
             </div>
           </div>

@@ -210,32 +210,41 @@ export default function FtoScheduleView() {
         {visibleCrews.map((c) => (
           <div key={c.unit + c.start} className="card" style={{ padding: 14 }}>
             <CrewLine unit={c.unit} level={c.level} window={shiftWindow(c)} crew={c.crew} />
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
-              {([1, 2] as const).map((wk) => (
-                <div key={wk} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <span className="subtle" style={{ fontSize: 12, fontWeight: 700, marginRight: 2 }}>
-                    Wk {wk}
-                  </span>
-                  {DOW.map((label, dow) => {
-                    const on = (wk === 1 ? c.week1 : c.week2).includes(dow)
-                    return (
-                      <span
-                        key={label}
-                        className={`pill ${on ? 'info' : 'muted'}`}
-                        style={{ padding: '2px 7px', fontSize: 11, opacity: on ? 1 : 0.45 }}
-                      >
-                        {label}
-                      </span>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-            {c.anchor && (
+            {c.cycle ? (
               <div className="help-text" style={{ marginTop: 6 }}>
-                Runs its own cycle: Week 1 anchored to {formatDate(c.anchor)}, offset from the
-                master schedule's weeks.
+                {c.cycle.onDays * 24}h on / {(c.cycle.cycleDays - c.cycle.onDays) * 24}h off — {c.cycle.onDays} days
+                on, {c.cycle.cycleDays - c.cycle.onDays} off, repeating from {formatDate(c.cycle.anchor)}.
               </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
+                  {([1, 2] as const).map((wk) => (
+                    <div key={wk} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <span className="subtle" style={{ fontSize: 12, fontWeight: 700, marginRight: 2 }}>
+                        Wk {wk}
+                      </span>
+                      {DOW.map((label, dow) => {
+                        const on = (wk === 1 ? c.week1 ?? [] : c.week2 ?? []).includes(dow)
+                        return (
+                          <span
+                            key={label}
+                            className={`pill ${on ? 'info' : 'muted'}`}
+                            style={{ padding: '2px 7px', fontSize: 11, opacity: on ? 1 : 0.45 }}
+                          >
+                            {label}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+                {c.anchor && (
+                  <div className="help-text" style={{ marginTop: 6 }}>
+                    Runs its own cycle: Week 1 anchored to {formatDate(c.anchor)}, offset from the
+                    master schedule's weeks.
+                  </div>
+                )}
+              </>
             )}
           </div>
         ))}
