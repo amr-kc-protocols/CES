@@ -31,6 +31,7 @@ import type {
   ScheduleBlock,
   SessionArrangement,
   SkillCheck,
+  SkillSheetId,
   SurveyResponse,
   TemplateBlock,
   TemplateSession,
@@ -385,55 +386,58 @@ export function evalAverage(e: DailyEval): number | null {
   return vals.reduce((a, b) => a + b, 0) / vals.length
 }
 
-// ----- clinical skill sheets ------------------------------------------------------
+// ----- skill / check-off sheets ---------------------------------------------------
 
-/** Which sheet applies: Linn medics get their own; everyone else the BLS sheet. */
-export function sheetFor(t: Trainee): 'bls' | 'linn-medic' {
+/** Which clinical sheet applies: Linn medics get their own; else the BLS sheet. */
+export function sheetFor(t: Trainee): SkillSheetId {
   return t.operation === 'linn' && t.credential === 'paramedic' ? 'linn-medic' : 'bls'
 }
 
-const skillCheckId = (traineeId: string) => `skill:${traineeId}`
+// One live SkillCheck per (trainee, sheet). Early records were created before
+// multi-sheet support with id `skill:<traineeId>` — lookups therefore go by
+// (traineeId, sheet), never by id shape.
+const skillCheckId = (traineeId: string, sheet: SkillSheetId) => `skill:${traineeId}:${sheet}`
 
-export function useSkillCheckFor(traineeId: string): SkillCheck | undefined {
-  return useSelector((db) => db.skillChecks.find((s) => s.traineeId === traineeId))
+export function useSkillCheckFor(traineeId: string, sheet: SkillSheetId): SkillCheck | undefined {
+  return useSelector((db) => db.skillChecks.find((s) => s.traineeId === traineeId && s.sheet === sheet))
 }
 
-/** Patch (creating on first touch) the trainee's single live skill sheet. */
-function patchSkillCheck(traineeId: string, patch: (s: SkillCheck) => SkillCheck): void {
+/** Patch (creating on first touch) one of the trainee's live check-off sheets. */
+function patchSkillCheck(traineeId: string, sheet: SkillSheetId, patch: (s: SkillCheck) => SkillCheck): void {
   setState((db) => {
     const trainee = db.trainees.find((t) => t.id === traineeId)
     if (!trainee) return db
-    const existing = db.skillChecks.find((s) => s.traineeId === traineeId)
+    const existing = db.skillChecks.find((s) => s.traineeId === traineeId && s.sheet === sheet)
     const base: SkillCheck = existing ?? {
-      id: skillCheckId(traineeId),
+      id: skillCheckId(traineeId, sheet),
       traineeId,
       traineeName: trainee.name,
       date: todayISO(),
-      sheet: sheetFor(trainee),
+      sheet,
       results: {},
     }
     const next = { ...patch({ ...base, results: { ...base.results } }), date: todayISO() }
     return {
       ...db,
       skillChecks: existing
-        ? db.skillChecks.map((s) => (s.traineeId === traineeId ? next : s))
+        ? db.skillChecks.map((s) => (s.traineeId === traineeId && s.sheet === sheet ? next : s))
         : [...db.skillChecks, next],
     }
   })
 }
 
-/** Cycle a skill: none -> pass -> fail -> none. */
-export function setSkillResult(traineeId: string, skillId: string, result: 'pass' | 'fail' | null): void {
-  patchSkillCheck(traineeId, (s) => {
+/** Set (or clear) a skill's outcome on one sheet. */
+export function setSkillResult(traineeId: string, sheet: SkillSheetId, skillId: string, result: 'pass' | 'fail' | null): void {
+  patchSkillCheck(traineeId, sheet, (s) => {
     if (result === null) delete s.results[skillId]
     else s.results[skillId] = result
     return s
   })
 }
 
-/** Linn sheet: toggle one observable step; all steps checked = skill passed. */
-export function toggleSkillStep(traineeId: string, skillId: string, stepIdx: number, totalSteps: number): void {
-  patchSkillCheck(traineeId, (s) => {
+/** Step sheets: toggle one observable step; all steps checked = skill passed. */
+export function toggleSkillStep(traineeId: string, sheet: SkillSheetId, skillId: string, stepIdx: number, totalSteps: number): void {
+  patchSkillCheck(traineeId, sheet, (s) => {
     const steps = { ...s.steps }
     const cur = new Set(steps[skillId] ?? [])
     if (cur.has(stepIdx)) cur.delete(stepIdx)
@@ -445,12 +449,12 @@ export function toggleSkillStep(traineeId: string, skillId: string, stepIdx: num
   })
 }
 
-export function setSkillEvaluator(traineeId: string, evaluator: string): void {
-  patchSkillCheck(traineeId, (s) => ({ ...s, evaluator: evaluator.trim() || undefined }))
+export function setSkillEvaluator(traineeId: string, sheet: SkillSheetId, evaluator: string): void {
+  patchSkillCheck(traineeId, sheet, (s) => ({ ...s, evaluator: evaluator.trim() || undefined }))
 }
 
-export function setSkillComments(traineeId: string, comments: string): void {
-  patchSkillCheck(traineeId, (s) => ({ ...s, comments: comments.trim() || undefined }))
+export function setSkillComments(traineeId: string, sheet: SkillSheetId, comments: string): void {
+  patchSkillCheck(traineeId, sheet, (s) => ({ ...s, comments: comments.trim() || undefined }))
 }
 
 // ----- survey responses (kept locally alongside the Google Sheet post) ----------

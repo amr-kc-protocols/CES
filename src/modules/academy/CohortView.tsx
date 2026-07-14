@@ -34,7 +34,7 @@ import {
   useSkillCheckFor,
   sheetFor,
 } from './academyStore'
-import { BLS_SKILLS, LINN_MEDIC_SKILLS } from '../../data/skillSheets'
+import { SHEETS } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
@@ -167,9 +167,12 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
   const rides = useRidesFor(trainee.id)
   const evals = useEvalsFor(trainee.id)
-  const skillCheck = useSkillCheckFor(trainee.id)
-  const skillTotal = (sheetFor(trainee) === 'linn-medic' ? LINN_MEDIC_SKILLS : BLS_SKILLS).length
-  const skillsPassed = Object.values(skillCheck?.results ?? {}).filter((r) => r === 'pass').length
+  const clinicalSheet = sheetFor(trainee)
+  const clinicalCheck = useSkillCheckFor(trainee.id, clinicalSheet)
+  const stretcherCheck = useSkillCheckFor(trainee.id, 'stretcher')
+  const evocCheck = useSkillCheckFor(trainee.id, 'evoc-track')
+  const passedOf = (c?: { results: Record<string, string> }) =>
+    Object.values(c?.results ?? {}).filter((r) => r === 'pass').length
   const can = useCan()
   const phase = phaseOf(trainee)
   const modules = curriculumFor(trainee.operation, trainee.credential)
@@ -370,7 +373,13 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               ⭐ Daily evals · {evals.length}
             </Link>
             <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}`} className="btn sm">
-              🩺 Skill sheet · {skillsPassed}/{skillTotal}
+              🩺 Clinical · {passedOf(clinicalCheck)}/{SHEETS[clinicalSheet].skills.length}
+            </Link>
+            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/stretcher`} className="btn sm">
+              🛏️ Stretcher · {passedOf(stretcherCheck)}/{SHEETS.stretcher.skills.length}
+            </Link>
+            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/evoc-track`} className="btn sm">
+              🚗 EVOC track · {passedOf(evocCheck)}/{SHEETS['evoc-track'].skills.length}
             </Link>
             {FIELD_OBJECTIVES_ENABLED && (
               <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">

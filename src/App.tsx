@@ -14,6 +14,7 @@ const ExitSurveyView = lazy(() => import('./modules/academy/ExitSurveyView'))
 const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
 const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
 const SkillSheetView = lazy(() => import('./modules/academy/SkillSheetView'))
+const ClassCheckoffView = lazy(() => import('./modules/academy/ClassCheckoffView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
@@ -43,6 +44,8 @@ export default function App() {
         )}
         <Route path="academy/:cohortId/eval/:traineeId" element={<DailyEvalView />} />
         <Route path="academy/:cohortId/skills/:traineeId" element={<SkillSheetView />} />
+        <Route path="academy/:cohortId/skills/:traineeId/:sheet" element={<SkillSheetView />} />
+        <Route path="academy/:cohortId/checkoff/:sheet" element={<ClassCheckoffView />} />
         <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
         <Route path="history" element={<HistoryView />} />
         <Route path="settings" element={<Settings />} />

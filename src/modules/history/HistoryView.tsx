@@ -5,7 +5,7 @@ import { useDB } from '../../lib/store'
 import { useSyncStatus } from '../../lib/sync'
 import { evalAverage } from '../academy/academyStore'
 import { HISTORICAL_EVALS, HISTORICAL_SKILLS, HISTORICAL_SURVEYS } from '../../data/history'
-import { BLS_SKILLS, LINN_MEDIC_SKILLS } from '../../data/skillSheets'
+import { SHEETS } from '../../data/checkoffSheets'
 import type { DailyEval, SkillCheck } from '../../types'
 
 // Historical + live record of every new hire class: exit surveys, daily
@@ -74,8 +74,7 @@ function skillsSummary(h: HireRecord): { passed: number; total: number } | null 
   let passed = 0
   let total = 0
   for (const s of h.skills) {
-    const defs = s.sheet === 'linn-medic' ? LINN_MEDIC_SKILLS : BLS_SKILLS
-    total += defs.length
+    total += SHEETS[s.sheet]?.skills.length ?? Object.keys(s.results).length
     passed += Object.values(s.results).filter((r) => r === 'pass').length
   }
   return { passed, total }
@@ -138,7 +137,7 @@ function HireRow({ h }: { h: HireRecord }) {
         )}
         {h.skills.map((s) => (
           <div key={s.id} className="subtle" style={{ fontSize: 13, marginTop: 4 }}>
-            🩺 {s.sheet === 'linn-medic' ? 'Linn medic sheet' : 'BLS skills'} · {formatDate(s.date)} ·{' '}
+            {SHEETS[s.sheet]?.icon ?? '🩺'} {SHEETS[s.sheet]?.label ?? s.sheet} · {formatDate(s.date)} ·{' '}
             {Object.values(s.results).filter((r) => r === 'pass').length} passed
             {s.evaluator && ` · ${s.evaluator}`}
           </div>
