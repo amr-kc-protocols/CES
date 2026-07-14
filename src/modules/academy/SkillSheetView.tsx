@@ -1,9 +1,11 @@
 import { Link, useParams } from 'react-router-dom'
 import { Empty, ProgressBar } from '../../components/ui'
-import { formatDate } from '../../lib/date'
+import SignaturePad from '../../components/SignaturePad'
+import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
 import { SHEETS } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
+import { printDoc, downloadDoc, checkoffSheetHTML, safeFilename } from './docGen'
 import type { SkillSheetId } from '../../types'
 import {
   useCohort,
@@ -13,6 +15,7 @@ import {
   toggleSkillStep,
   setSkillEvaluator,
   setSkillComments,
+  setSkillSignature,
 } from './academyStore'
 
 // Check-off sheets, one record per (trainee, sheet). Two rendering styles:
@@ -42,6 +45,27 @@ export default function SkillSheetView() {
   const stepStyle = skills.some((s) => s.steps?.length)
   const results = check?.results ?? {}
   const passed = skills.filter((s) => results[s.id] === 'pass').length
+
+  function buildDoc() {
+    return checkoffSheetHTML(
+      meta.label,
+      skills,
+      {
+        traineeName: trainee!.name,
+        date: check?.date ?? todayISO(),
+        evaluator: check?.evaluator,
+        results,
+        steps: check?.steps,
+        comments: check?.comments,
+        evaluatorSignature: check?.evaluatorSignature,
+        evaluatorSignedAt: check?.evaluatorSignedAt,
+        traineeSignature: check?.traineeSignature,
+        traineeSignedAt: check?.traineeSignedAt,
+      },
+      meta.note,
+    )
+  }
+  const docTitle = `${meta.label} — ${trainee!.name}`
 
   return (
     <div>
@@ -149,6 +173,31 @@ export default function SkillSheetView() {
             style={{ display: 'block', width: '100%', marginTop: 2, padding: '8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit', resize: 'vertical' }}
           />
         </label>
+      </div>
+
+      {/* Signatures — both parties sign on the same device (phone or laptop). */}
+      <div className="section-title">Signatures</div>
+      <div className="card" style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18 }}>
+        <SignaturePad
+          label={`FTO / Evaluator${check?.evaluator ? ` — ${check.evaluator}` : ''}`}
+          value={check?.evaluatorSignature}
+          onChange={(url) => setSkillSignature(traineeId, sheet, 'evaluator', url)}
+        />
+        <SignaturePad
+          label={`New hire — ${trainee.name}`}
+          value={check?.traineeSignature}
+          onChange={(url) => setSkillSignature(traineeId, sheet, 'trainee', url)}
+        />
+      </div>
+
+      {/* Printable copy of the completed sheet, results + signatures baked in. */}
+      <div className="btn-row" style={{ marginTop: 14 }}>
+        <button className="btn primary" onClick={() => printDoc(docTitle, buildDoc())}>
+          🖨️ Print / Save PDF
+        </button>
+        <button className="btn" onClick={() => downloadDoc(safeFilename(docTitle), docTitle, buildDoc())}>
+          ⬇ Download (.doc)
+        </button>
       </div>
     </div>
   )

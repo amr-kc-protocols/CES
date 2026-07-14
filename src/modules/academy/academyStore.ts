@@ -457,6 +457,21 @@ export function setSkillComments(traineeId: string, sheet: SkillSheetId, comment
   patchSkillCheck(traineeId, sheet, (s) => ({ ...s, comments: comments.trim() || undefined }))
 }
 
+/** Capture (or clear) a signature on a sheet. `who` picks trainee vs FTO. */
+export function setSkillSignature(
+  traineeId: string,
+  sheet: SkillSheetId,
+  who: 'trainee' | 'evaluator',
+  dataUrl: string | null,
+): void {
+  patchSkillCheck(traineeId, sheet, (s) => {
+    if (who === 'trainee') {
+      return { ...s, traineeSignature: dataUrl || undefined, traineeSignedAt: dataUrl ? todayISO() : undefined }
+    }
+    return { ...s, evaluatorSignature: dataUrl || undefined, evaluatorSignedAt: dataUrl ? todayISO() : undefined }
+  })
+}
+
 // ----- survey responses (kept locally alongside the Google Sheet post) ----------
 
 export function addSurveyResponse(traineeId: string, data: Record<string, string>): void {
