@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Modal } from '../../components/ui'
+import { SHEETS, SESSION_CHECKOFFS } from '../../data/checkoffSheets'
 import {
   PHASE2_TEMPLATE,
   WEEK_LABELS,
@@ -200,6 +202,15 @@ function SessionCard({ cohortId, session }: { cohortId: string; session: Templat
           <li key={i}>{o}</li>
         ))}
       </ul>
+
+      {/* Hands-on days carry their digital check-off, one tap from the schedule. */}
+      {SESSION_CHECKOFFS[session.id] && (
+        <div style={{ margin: '0 0 12px' }}>
+          <Link to={`/academy/${cohortId}/checkoff/${SESSION_CHECKOFFS[session.id]}`} className="btn sm primary">
+            {SHEETS[SESSION_CHECKOFFS[session.id]].icon} Digital check-off — whole class
+          </Link>
+        </div>
+      )}
 
       {/* arrangement layer */}
       <div style={{ display: 'grid', gridTemplateColumns: session.mode === 'at-home' ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, margin: '4px 0 12px', alignItems: 'end' }}>

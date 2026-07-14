@@ -361,12 +361,15 @@ export interface DailyEval {
 }
 
 /** A clinical skill sheet sign-off (KC/Cass BLS sheet or Linn medic sheet). */
+/** Which check-off sheet a SkillCheck record belongs to. */
+export type SkillSheetId = 'bls' | 'linn-medic' | 'stretcher' | 'evoc-track'
+
 export interface SkillCheck {
   id: string
   traineeId?: string
   traineeName: string
   date: string
-  sheet: 'bls' | 'linn-medic'
+  sheet: SkillSheetId
   /** Canonical FTO/educator name who ran the assessment. */
   evaluator?: string
   /** skillId -> outcome. Absent = not yet assessed. */

@@ -2,8 +2,9 @@ import { Link, useParams } from 'react-router-dom'
 import { Empty, ProgressBar } from '../../components/ui'
 import { formatDate } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
-import { BLS_SKILLS, LINN_MEDIC_SKILLS } from '../../data/skillSheets'
+import { SHEETS } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
+import type { SkillSheetId } from '../../types'
 import {
   useCohort,
   useSkillCheckFor,
@@ -14,16 +15,19 @@ import {
   setSkillComments,
 } from './academyStore'
 
-// Clinical skill sheets. KC & Cass share the BLS Clinical Skills Assessment
-// (pass / needs-work per skill); Linn County paramedics sign off observable
-// steps per skill — a skill passes when every step is checked. The two sheets
-// are intentionally separate: keep each consistent with its operation.
+// Check-off sheets, one record per (trainee, sheet). Two rendering styles:
+// pass/needs-practice per skill (BLS clinical, stretcher v3.2) and
+// step-by-step sign-off (Linn medic, EVOC track) where checking every
+// observable item passes the skill. KC & Cass share the BLS clinical sheet;
+// Linn County paramedics get their own — the sheets stay separate by design.
 
 export default function SkillSheetView() {
-  const { cohortId = '', traineeId = '' } = useParams()
+  const { cohortId = '', traineeId = '', sheet: sheetParam } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useSelector((db) => db.trainees.find((t) => t.id === traineeId))
-  const check = useSkillCheckFor(traineeId)
+  const sheet: SkillSheetId =
+    sheetParam && sheetParam in SHEETS ? (sheetParam as SkillSheetId) : trainee ? sheetFor(trainee) : 'bls'
+  const check = useSkillCheckFor(traineeId, sheet)
 
   if (!cohort || !trainee) {
     return (
@@ -33,8 +37,9 @@ export default function SkillSheetView() {
     )
   }
 
-  const sheet = sheetFor(trainee)
-  const skills = sheet === 'linn-medic' ? LINN_MEDIC_SKILLS : BLS_SKILLS
+  const meta = SHEETS[sheet]
+  const skills = meta.skills
+  const stepStyle = skills.some((s) => s.steps?.length)
   const results = check?.results ?? {}
   const passed = skills.filter((s) => results[s.id] === 'pass').length
 
@@ -43,7 +48,7 @@ export default function SkillSheetView() {
       <Link to={`/academy/${cohortId}`} className="link-btn">← {cohort.label}</Link>
       <div className="page-head" style={{ marginTop: 8 }}>
         <div>
-          <h1>{sheet === 'linn-medic' ? 'Linn County paramedic skill sheet' : 'BLS clinical skills assessment'}</h1>
+          <h1>{meta.icon} {meta.label}</h1>
           <div className="subtle">
             {trainee.name} · {passed}/{skills.length} signed off
             {check?.date && ` · last touched ${formatDate(check.date)}`}
@@ -55,12 +60,14 @@ export default function SkillSheetView() {
         <ProgressBar pct={Math.round((passed / skills.length) * 100)} complete={passed === skills.length} />
       </div>
 
+      {meta.note && <div className="banner info">{meta.note}</div>}
+
       <div className="card" style={{ padding: 14, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="subtle" style={{ fontSize: 12, flex: 1, minWidth: 200 }}>
           Assessed by
           <select
             value={check?.evaluator ?? ''}
-            onChange={(e) => setSkillEvaluator(traineeId, e.target.value)}
+            onChange={(e) => setSkillEvaluator(traineeId, sheet, e.target.value)}
             style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
           >
             <option value="">—</option>
@@ -71,7 +78,7 @@ export default function SkillSheetView() {
         </label>
       </div>
 
-      {sheet === 'bls' ? (
+      {!stepStyle ? (
         <div className="card" style={{ padding: '6px 14px' }}>
           {skills.map((s) => {
             const r = results[s.id]
@@ -82,14 +89,14 @@ export default function SkillSheetView() {
                   <button
                     className={`choice${r === 'pass' ? ' active' : ''}`}
                     style={{ padding: '6px 12px', fontSize: 13 }}
-                    onClick={() => setSkillResult(traineeId, s.id, r === 'pass' ? null : 'pass')}
+                    onClick={() => setSkillResult(traineeId, sheet, s.id, r === 'pass' ? null : 'pass')}
                   >
                     ✓ Pass
                   </button>
                   <button
                     className={`choice${r === 'fail' ? ' active' : ''}`}
                     style={{ padding: '6px 12px', fontSize: 13 }}
-                    onClick={() => setSkillResult(traineeId, s.id, r === 'fail' ? null : 'fail')}
+                    onClick={() => setSkillResult(traineeId, sheet, s.id, r === 'fail' ? null : 'fail')}
                   >
                     ↻ Needs practice
                   </button>
@@ -117,7 +124,7 @@ export default function SkillSheetView() {
                       <input
                         type="checkbox"
                         checked={done.has(i)}
-                        onChange={() => toggleSkillStep(traineeId, s.id, i, s.steps?.length ?? 0)}
+                        onChange={() => toggleSkillStep(traineeId, sheet, s.id, i, s.steps?.length ?? 0)}
                         style={{ marginTop: 3 }}
                       />
                       <span>{step}</span>
@@ -134,8 +141,9 @@ export default function SkillSheetView() {
         <label className="subtle" style={{ fontSize: 12, display: 'block' }}>
           Additional comments
           <textarea
+            key={`${traineeId}:${sheet}`}
             defaultValue={check?.comments ?? ''}
-            onBlur={(e) => setSkillComments(traineeId, e.target.value)}
+            onBlur={(e) => setSkillComments(traineeId, sheet, e.target.value)}
             rows={3}
             placeholder="Saved when you tap away"
             style={{ display: 'block', width: '100%', marginTop: 2, padding: '8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit', resize: 'vertical' }}
