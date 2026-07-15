@@ -5,7 +5,6 @@ import {
   printDoc,
   downloadDoc,
   safeFilename,
-  objectivesPageHTML,
   folderLabelHTML,
   welcomeKitHTML,
   facilitySheetHTML,
@@ -32,7 +31,6 @@ function traineeDocs(
     ...(days.length
       ? [{ id: 'agenda', label: 'One-page agenda', html: agendaHTML(cohort, days, t) }]
       : []),
-    { id: 'objectives', label: 'Field Training Objectives Page', html: objectivesPageHTML(t) },
     ...COMPLIANCE_DOCS.map((d) => ({ id: d.id, label: d.label, html: d.html(t) })),
   ]
 }
@@ -100,10 +98,10 @@ export default function DocumentsPanel({
       <div className="card" style={{ padding: 14 }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Per-trainee packets</div>
         <div className="subtle" style={{ marginBottom: 10 }}>
-          The complete new-hire paperwork from one roster entry: folder cover, Field Training
-          Objectives Page (EMT/Paramedic version), Hep B, PPD, mask fit test, EVOC certificate +
-          track skill sheet, and safe stretcher handling — name, operation, and employee # filled
-          in, new-hire boxes pre-checked.
+          The new-hire paperwork that still gets signed on paper: folder cover, Hep B, PPD, mask fit
+          test, and the EVOC certificate — name, operation, and employee # filled in, new-hire boxes
+          pre-checked. Stretcher and EVOC-track check-offs are now done digitally on the skill
+          sheets.
         </div>
         {trainees.length === 0 ? (
           <div className="subtle">Add trainees to the roster to generate their packets.</div>
