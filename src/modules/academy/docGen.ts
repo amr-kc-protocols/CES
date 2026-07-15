@@ -6,14 +6,7 @@ import {
   FACILITY_KEY_POINTS,
 } from '../../data/academyTemplate'
 import { CREDENTIAL_LABELS } from '../../data/academy'
-import {
-  PHASE2_TEMPLATE,
-  WEEK_LABELS,
-  educationMinutes,
-  isUnderMinHours,
-  timeline,
-} from '../../data/academyPhase2'
-import { resourceFor, resourceUrl } from '../../data/fieldGuide'
+import { PHASE2_TEMPLATE, WEEK_LABELS } from '../../data/academyPhase2'
 import { operationName } from '../../data/operations'
 import { formatDate, fromISODate } from '../../lib/date'
 import type {
@@ -25,11 +18,6 @@ import type {
   TemplateSession,
   Trainee,
 } from '../../types'
-
-const fmtHours = (min: number): string => {
-  const h = min / 60
-  return Number.isInteger(h) ? `${h}` : h.toFixed(1)
-}
 
 // ---------------------------------------------------------------------------
 // New-hire document generator. Every document is built as a standalone,
@@ -355,32 +343,11 @@ export function facilitySheetHTML(): string {
 
 // ----- Phase 2 (Clinical) structured schedule ----------------------------------
 
-const KIND_TAG: Record<string, string> = {
-  education: 'Education',
-  'hands-on': 'Hands-on',
-  assessment: 'Assessment',
-  break: 'Break',
-  lunch: 'Lunch',
-  closeout: 'Housekeeping',
-}
-
-function resourceLinks(refs: string[] | undefined): string {
-  if (!refs || refs.length === 0) return ''
-  const links = refs
-    .map((ref) => {
-      const r = resourceFor(ref)
-      const url = resourceUrl(ref)
-      return r && url ? `<a href="${esc(url)}">${esc(r.label)}</a>` : ''
-    })
-    .filter(Boolean)
-    .join(' · ')
-  return links ? `<div class="res">↗ ${links}</div>` : ''
-}
-
 /**
- * Trainee-facing academy schedule (both weeks): an arc map (advance organizer)
- * grouped by week, plus each session's computed timeline, education-time total,
- * and Field Guide links. Academy completion is an internal record only — no CE.
+ * Trainee-facing academy schedule (both weeks): one clean table per week — the
+ * day number, when it meets, the session, and who's teaching. Kept deliberately
+ * short so it reads at a glance; the app holds the full timeline and objectives.
+ * Academy completion is an internal record only — no CE.
  */
 export function phase2ScheduleHTML(
   cohort: AcademyCohort,
@@ -398,7 +365,6 @@ export function phase2ScheduleHTML(
     .sort((a, b) => arrangements[a.id]!.date!.localeCompare(arrangements[b.id]!.date!) || a.order - b.order)
     .forEach((s, i) => dayNum.set(s.id, i + 1))
   const dayCell = (s: TemplateSession) => (dayNum.has(s.id) ? String(dayNum.get(s.id)) : s.custom ? '+' : '—')
-  const dayLabel = (s: TemplateSession) => (dayNum.has(s.id) ? `Day ${dayNum.get(s.id)}` : 'Unscheduled')
 
   // Same date-aware sort as the on-screen schedule: dated sessions in calendar
   // order, undated ones after in template order.
@@ -411,91 +377,47 @@ export function phase2ScheduleHTML(
     return a.order - b.order
   }
 
-  const arc = weeks
+  const whenCell = (s: TemplateSession): string => {
+    const arr = arrangements[s.id]
+    if (!arr?.date) return '<span class="sub">TBD</span>'
+    const wd = WEEKDAYS[fromISODate(arr.date).getDay()]
+    const start = arr.startTime || s.defaultStart
+    return `${esc(wd)} ${esc(formatDate(arr.date))}${start ? `<br/><span class="sub">${esc(start)}</span>` : ''}`
+  }
+
+  const facilCell = (s: TemplateSession): string => {
+    const arr = arrangements[s.id]
+    const facil =
+      arr?.facilitators ||
+      (s.facilitatorRoles ?? []).map((r) => r.role + (r.lead ? ' (lead)' : '')).join(' · ')
+    return facil ? esc(facil) : '<span class="sub">—</span>'
+  }
+
+  const badges = (s: TemplateSession): string =>
+    `${s.mode === 'at-home' ? ' <span class="badge">At home</span>' : ''}${s.location ? ' <span class="badge">Offsite</span>' : ''}`
+
+  const weeksHtml = weeks
     .map((wk) => {
       const wkSessions = allSessions.filter((s) => s.week === wk).sort(byDate)
       if (!wkSessions.length) return ''
       return `
         <h2>${esc(WEEK_LABELS[wk])}</h2>
-        <table><tr><th class="num">Day</th><th>Session</th><th>Focus</th></tr>
+        <table><tr><th class="num">Day</th><th style="width:130px">When</th><th>Session</th><th style="width:200px">Facilitators</th></tr>
           ${wkSessions
             .map(
               (s) =>
-                `<tr><td class="num">${dayCell(s)}</td><td><strong>${esc(s.title)}</strong>${s.custom ? ' <span class="badge">Added</span>' : ''}${s.mode === 'at-home' ? ' <span class="badge">At home</span>' : ''}${s.location ? ' <span class="badge">Offsite</span>' : ''}</td><td>${esc(s.objectives[0] ?? '')}</td></tr>`,
+                `<tr><td class="num">${dayCell(s)}</td><td>${whenCell(s)}</td><td><strong>${esc(s.title)}</strong>${badges(s)}</td><td>${facilCell(s)}</td></tr>`,
             )
             .join('')}
         </table>`
     })
     .join('')
 
-  const renderSession = (s: TemplateSession): string => {
-      const arr = arrangements[s.id]
-      // A class's edited blocks override the template default.
-      const blocks = arr?.blocks && arr.blocks.length ? arr.blocks : s.blocks
-      const eduMin = educationMinutes(s, blocks)
-      const under = isUnderMinHours(s, t.minEducationHoursPerDay, blocks)
-      const when = arr?.date ? formatDate(arr.date) : 'Date TBD'
-      const facil = arr?.facilitators || (s.facilitatorRoles ?? []).map((r) => r.role + (r.lead ? ' (lead)' : '')).join(' · ')
-
-      const objectives = `<ul>${s.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>`
-
-      let body = ''
-      if (s.mode === 'at-home') {
-        body = `
-          <table><tr><th class="slot">☐</th><th>Segment</th><th>Notes</th></tr>
-            ${(s.segments ?? [])
-              .map(
-                (seg) =>
-                  `<tr><td class="slot">☐</td><td><strong>${esc(seg.title)}</strong>${seg.hours ? ` — ${seg.hours} hrs` : ''}${resourceLinks(seg.resources)}</td><td>${esc(seg.notes ?? seg.submit ?? '')}${seg.gatesSession ? `<br/><em>Must finish before the “${esc(allSessions.find((x) => x.id === seg.gatesSession)?.title ?? '?')}” session.</em>` : ''}</td></tr>`,
-              )
-              .join('')}
-          </table>`
-      } else {
-        const rows = timeline(s, arr?.startTime || s.defaultStart, blocks)
-        if (rows) {
-          body = `<table><tr><th style="width:96px">Time</th><th>Block</th><th style="width:80px">Kind</th></tr>
-            ${rows
-              .map(
-                (r) =>
-                  `<tr><td>${r.start}–${r.end}</td><td><strong>${esc(r.block.title)}</strong>${r.block.notes ? `<br/><span class="sub2">${esc(r.block.notes)}</span>` : ''}${resourceLinks(r.block.resources)}</td><td>${esc(KIND_TAG[r.block.kind] ?? r.block.kind)}</td></tr>`,
-              )
-              .join('')}
-          </table>`
-        } else {
-          // No start time arranged yet — show durations instead of clock times.
-          body = `<table><tr><th style="width:96px">Duration</th><th>Block</th><th style="width:80px">Kind</th></tr>
-            ${(blocks ?? [])
-              .map(
-                (b) =>
-                  `<tr><td>${b.durationMin}m</td><td><strong>${esc(b.title)}</strong>${b.notes ? `<br/><span class="sub2">${esc(b.notes)}</span>` : ''}${resourceLinks(b.resources)}</td><td>${esc(KIND_TAG[b.kind] ?? b.kind)}</td></tr>`,
-              )
-              .join('')}
-          </table>`
-        }
-      }
-
-      return `
-        <h2>${dayLabel(s)} — ${esc(s.title)}${s.custom ? ' (added)' : ''}${s.mode === 'at-home' ? ' · at home' : ''}</h2>
-        <p class="sub">${esc(when)}${arr?.startTime || s.defaultStart ? ` · starts ${esc(arr?.startTime || s.defaultStart || '')}` : ''} · ${esc(facil)}${s.location ? ` · 📍 ${esc(s.location)}` : ''}</p>
-        <p><strong>Education time:</strong> ${fmtHours(eduMin)} hrs${under ? ` <span class="flag">below ${t.minEducationHoursPerDay}-hr minimum</span>` : ''}${s.mode === 'at-home' ? ' (LMS + flipped)' : ''}</p>
-        ${objectives}
-        ${body}`
-  }
-
-  const sessionsHtml = weeks
-    .map((wk) => {
-      const wkSessions = allSessions.filter((s) => s.week === wk).sort(byDate)
-      if (!wkSessions.length) return ''
-      return `<h1 style="margin-top:22px">${esc(WEEK_LABELS[wk])}</h1>${wkSessions.map(renderSession).join('')}`
-    })
-    .join('')
-
   return `
     <h1>${esc(cohort.label)} — Academy Schedule</h1>
     <p class="sub">${esc(t.name)} · internal academy record (not CE)</p>
-    ${arc}
-    ${sessionsHtml}
-    <p class="footer">Generated by AMR KC Academy · ${esc(formatDate())} · Field Guide links open the teaching content; CES orchestrates, the Field Guide delivers.</p>`
+    ${weeksHtml}
+    <p class="footer">Generated by AMR KC Academy · ${esc(formatDate())}</p>`
 }
 
 // ----- Printable schedule ------------------------------------------------------
