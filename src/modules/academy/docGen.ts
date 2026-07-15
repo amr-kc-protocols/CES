@@ -8,7 +8,7 @@ import {
 import { CREDENTIAL_LABELS } from '../../data/academy'
 import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import { operationName } from '../../data/operations'
-import { formatDate, fromISODate } from '../../lib/date'
+import { formatDate, fromISODate, toISODate } from '../../lib/date'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -406,26 +406,28 @@ export function phase2ScheduleHTML(
         </table>`
 
   // Group by the actual calendar week the class runs — not the template's fixed
-  // Week 1 / Week 2 tags. Weeks are rolling 7-day windows measured from the first
-  // scheduled date, so moving a day into the next week moves it in the printout
-  // too. Undated sessions fall to an "Unscheduled" group at the end.
+  // Week 1 / Week 2 tags — so moving a day into the next week moves it in the
+  // printout too. Weeks run Sunday–Saturday; each session buckets on the Sunday
+  // that starts its week. Undated sessions fall to an "Unscheduled" group.
   const dated = allSessions.filter((s) => arrangements[s.id]?.date).sort(byDate)
   const undated = allSessions.filter((s) => !arrangements[s.id]?.date).sort(byDate)
-  const anchor = dated[0] ? arrangements[dated[0].id]!.date! : ''
-  const weekOf = (iso: string): number =>
-    Math.floor(Math.round((fromISODate(iso).getTime() - fromISODate(anchor).getTime()) / 86_400_000) / 7)
+  const weekStart = (iso: string): string => {
+    const d = fromISODate(iso)
+    d.setDate(d.getDate() - d.getDay()) // back up to Sunday (getDay 0 = Sunday)
+    return toISODate(d)
+  }
 
-  const buckets = new Map<number, TemplateSession[]>()
+  const buckets = new Map<string, TemplateSession[]>()
   dated.forEach((s) => {
-    const w = weekOf(arrangements[s.id]!.date!)
-    if (!buckets.has(w)) buckets.set(w, [])
-    buckets.get(w)!.push(s)
+    const key = weekStart(arrangements[s.id]!.date!)
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key)!.push(s)
   })
 
   const weeksHtml = [...buckets.keys()]
-    .sort((a, b) => a - b)
-    .map((w, i) => {
-      const rows = buckets.get(w)!
+    .sort()
+    .map((key, i) => {
+      const rows = buckets.get(key)!
       const first = arrangements[rows[0].id]!.date!
       const last = arrangements[rows[rows.length - 1].id]!.date!
       const range = first === last ? formatDate(first) : `${formatDate(first)} – ${formatDate(last)}`
