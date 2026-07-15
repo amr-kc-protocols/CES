@@ -32,15 +32,23 @@ export interface FtoCrew {
   /** Shift length in hours (from the schedule cells). */
   hours: number
   crew: CrewMember[]
-  /** Worked days, 0=Sun … 6=Sat, for each week of the rotation. */
-  week1: number[]
-  week2: number[]
+  /**
+   * Worked days, 0=Sun … 6=Sat, for each week of the two-week rotation. Omit
+   * when the line runs a fixed on/off cycle instead (see `cycle`).
+   */
+  week1?: number[]
+  week2?: number[]
   /**
    * First day of this crew's Week 1, when it differs from the master
    * schedule's FTO_ROTATION_ANCHOR (a crew whose two-week cycle is offset
    * from everyone else's).
    */
   anchor?: string
+  /**
+   * A fixed "N days on, then off" cycle (e.g. 48h-on / 96h-off = 2 on, 6-day
+   * cycle) instead of the weekday rotation. Anchored to a start date.
+   */
+  cycle?: { anchor: string; onDays: number; cycleDays: number }
 }
 
 export const FTO_CREWS: FtoCrew[] = [
@@ -118,6 +126,17 @@ export const FTO_CREWS: FtoCrew[] = [
     week2: [6],
     anchor: '2026-07-11',
   },
+  {
+    unit: 'LC-Medic',
+    level: 'Linn County (48h)',
+    start: '0800',
+    end: '0800',
+    hours: 48,
+    crew: [{ name: 'Joe Stellwagon', fto: true }],
+    // 48h on / 96h off — 2 calendar days on, then 4 off, a 6-day cycle.
+    // First shift began Tuesday 2026-07-14 at 0800.
+    cycle: { anchor: '2026-07-14', onDays: 2, cycleDays: 6 },
+  },
 ]
 
 /** FTOs on the List tab with no recurring line in the master schedule. */
@@ -140,9 +159,16 @@ export function rotationWeek(iso: string, anchor: string = FTO_ROTATION_ANCHOR):
 
 /** Whether one crew line is on shift on a date (honors per-crew anchors). */
 export function crewOnDate(c: FtoCrew, iso: string): boolean {
+  if (c.cycle) {
+    const days = Math.round(
+      (fromISODate(iso).getTime() - fromISODate(c.cycle.anchor).getTime()) / MS_PER_DAY,
+    )
+    const phase = ((days % c.cycle.cycleDays) + c.cycle.cycleDays) % c.cycle.cycleDays
+    return phase < c.cycle.onDays
+  }
   const dow = fromISODate(iso).getDay()
   const week = rotationWeek(iso, c.anchor)
-  return (week === 1 ? c.week1 : c.week2).includes(dow)
+  return (week === 1 ? c.week1 ?? [] : c.week2 ?? []).includes(dow)
 }
 
 /** Crew lines (with an FTO aboard) on shift on a given date. */
@@ -150,10 +176,12 @@ export function crewsOnDate(iso: string): FtoCrew[] {
   return FTO_CREWS.filter((c) => crewOnDate(c, iso))
 }
 
-/** '0700' -> '0700–1900 (+1d when overnight)' display string. */
+/** '0700' -> '0700–1900', with a '(+Nd)' tail for shifts spanning midnight. */
 export function shiftWindow(c: FtoCrew): string {
   const overnight = c.end <= c.start
-  return `${c.start}–${c.end}${overnight ? ' (+1d)' : ''}`
+  // A 24h shift ends +1d, a 48h shift +2d, etc.
+  const dayspan = overnight ? Math.max(1, Math.round(c.hours / 24)) : 0
+  return `${c.start}–${c.end}${dayspan ? ` (+${dayspan}d)` : ''}`
 }
 
 /** Every FTO name, scheduled lines first. */

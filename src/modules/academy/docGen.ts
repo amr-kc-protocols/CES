@@ -391,6 +391,15 @@ export function phase2ScheduleHTML(
   const allSessions = sessionList ?? t.sessions
   const weeks: (1 | 2)[] = [1, 2]
 
+  // "Day N" in the order the class is taught (by date), matching the app.
+  const dayNum = new Map<string, number>()
+  allSessions
+    .filter((s) => !arrangements[s.id]?.skipped && arrangements[s.id]?.date)
+    .sort((a, b) => arrangements[a.id]!.date!.localeCompare(arrangements[b.id]!.date!) || a.order - b.order)
+    .forEach((s, i) => dayNum.set(s.id, i + 1))
+  const dayCell = (s: TemplateSession) => (dayNum.has(s.id) ? String(dayNum.get(s.id)) : s.custom ? '+' : '—')
+  const dayLabel = (s: TemplateSession) => (dayNum.has(s.id) ? `Day ${dayNum.get(s.id)}` : 'Unscheduled')
+
   // Same date-aware sort as the on-screen schedule: dated sessions in calendar
   // order, undated ones after in template order.
   const byDate = (a: TemplateSession, b: TemplateSession): number => {
@@ -408,11 +417,11 @@ export function phase2ScheduleHTML(
       if (!wkSessions.length) return ''
       return `
         <h2>${esc(WEEK_LABELS[wk])}</h2>
-        <table><tr><th class="num">#</th><th>Session</th><th>Focus</th></tr>
+        <table><tr><th class="num">Day</th><th>Session</th><th>Focus</th></tr>
           ${wkSessions
             .map(
               (s) =>
-                `<tr><td class="num">${s.custom ? '+' : s.order}</td><td><strong>${esc(s.title)}</strong>${s.custom ? ' <span class="badge">Added</span>' : ''}${s.mode === 'at-home' ? ' <span class="badge">At home</span>' : ''}${s.location ? ' <span class="badge">Offsite</span>' : ''}</td><td>${esc(s.objectives[0] ?? '')}</td></tr>`,
+                `<tr><td class="num">${dayCell(s)}</td><td><strong>${esc(s.title)}</strong>${s.custom ? ' <span class="badge">Added</span>' : ''}${s.mode === 'at-home' ? ' <span class="badge">At home</span>' : ''}${s.location ? ' <span class="badge">Offsite</span>' : ''}</td><td>${esc(s.objectives[0] ?? '')}</td></tr>`,
             )
             .join('')}
         </table>`
@@ -437,7 +446,7 @@ export function phase2ScheduleHTML(
             ${(s.segments ?? [])
               .map(
                 (seg) =>
-                  `<tr><td class="slot">☐</td><td><strong>${esc(seg.title)}</strong>${seg.hours ? ` — ${seg.hours} hrs` : ''}${resourceLinks(seg.resources)}</td><td>${esc(seg.notes ?? seg.submit ?? '')}${seg.gatesSession ? `<br/><em>Must finish before Session ${allSessions.find((x) => x.id === seg.gatesSession)?.order ?? '?'}.</em>` : ''}</td></tr>`,
+                  `<tr><td class="slot">☐</td><td><strong>${esc(seg.title)}</strong>${seg.hours ? ` — ${seg.hours} hrs` : ''}${resourceLinks(seg.resources)}</td><td>${esc(seg.notes ?? seg.submit ?? '')}${seg.gatesSession ? `<br/><em>Must finish before the “${esc(allSessions.find((x) => x.id === seg.gatesSession)?.title ?? '?')}” session.</em>` : ''}</td></tr>`,
               )
               .join('')}
           </table>`
@@ -466,7 +475,7 @@ export function phase2ScheduleHTML(
       }
 
       return `
-        <h2>${s.custom ? `${esc(s.title)} (added)` : `Session ${s.order} — ${esc(s.title)}`}${s.mode === 'at-home' ? ' · at home' : ''}</h2>
+        <h2>${dayLabel(s)} — ${esc(s.title)}${s.custom ? ' (added)' : ''}${s.mode === 'at-home' ? ' · at home' : ''}</h2>
         <p class="sub">${esc(when)}${arr?.startTime || s.defaultStart ? ` · starts ${esc(arr?.startTime || s.defaultStart || '')}` : ''} · ${esc(facil)}${s.location ? ` · 📍 ${esc(s.location)}` : ''}</p>
         <p><strong>Education time:</strong> ${fmtHours(eduMin)} hrs${under ? ` <span class="flag">below ${t.minEducationHoursPerDay}-hr minimum</span>` : ''}${s.mode === 'at-home' ? ' (LMS + flipped)' : ''}</p>
         ${objectives}

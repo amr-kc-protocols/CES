@@ -163,13 +163,22 @@ export function updateTrainee(id: string, patch: Partial<Trainee>): void {
 export function deleteTrainee(id: string): void {
   const state = getState()
   const trainee = state.trainees.find((t) => t.id === id)
+  // Remove everything that hangs off the trainee, so nothing orphaned lingers
+  // (rides on Home, evals/skills in History, leaderboard points). Each removed
+  // record also emits a sync tombstone, so the deletion propagates in full.
   const attendance = state.academyAttendance.filter((a) => a.traineeId === id)
   const rides = state.rideAssignments.filter((r) => r.traineeId === id)
+  const evals = state.dailyEvals.filter((e) => e.traineeId === id)
+  const skills = state.skillChecks.filter((s) => s.traineeId === id)
+  const surveys = state.surveyResponses.filter((s) => s.traineeId === id)
   setState((db) => ({
     ...db,
     trainees: db.trainees.filter((t) => t.id !== id),
     academyAttendance: db.academyAttendance.filter((a) => a.traineeId !== id),
     rideAssignments: db.rideAssignments.filter((r) => r.traineeId !== id),
+    dailyEvals: db.dailyEvals.filter((e) => e.traineeId !== id),
+    skillChecks: db.skillChecks.filter((s) => s.traineeId !== id),
+    surveyResponses: db.surveyResponses.filter((s) => s.traineeId !== id),
   }))
   if (trainee) {
     pushUndo(`Removed ${trainee.name}`, () =>
@@ -178,6 +187,9 @@ export function deleteTrainee(id: string): void {
         trainees: [...db.trainees, trainee],
         academyAttendance: [...db.academyAttendance, ...attendance],
         rideAssignments: [...db.rideAssignments, ...rides],
+        dailyEvals: [...db.dailyEvals, ...evals],
+        skillChecks: [...db.skillChecks, ...skills],
+        surveyResponses: [...db.surveyResponses, ...surveys],
       })),
     )
   }

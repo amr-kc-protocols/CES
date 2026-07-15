@@ -118,7 +118,7 @@ const SESSIONS: TemplateSession[] = [
       { durationMin: 15, kind: 'break', title: 'Break' },
       { durationMin: 90, kind: 'hands-on', title: 'ImageTrend Field — Guided Chart', notes: 'Instructor enters a chart on the projector; students follow on devices. Pause after each accordion section.', resources: ['imagetrend'] },
       { durationMin: 60, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 90, kind: 'hands-on', title: 'ImageTrend Field — Independent Entry (mechanics)', notes: 'Students enter a chart solo — navigation, required fields, validation. Clinical narrative quality (DCHART / Med-Nec) is taught in Week 2, Session 7.', resources: ['imagetrend'] },
+      { durationMin: 90, kind: 'hands-on', title: 'ImageTrend Field — Independent Entry (mechanics)', notes: 'Students enter a chart solo — navigation, required fields, validation. Clinical narrative quality (DCHART / Med-Nec) is taught on the Week 2 Clinical Mindset & Call Types day.', resources: ['imagetrend'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
       { durationMin: 15, kind: 'assessment', title: 'Charting-mechanics check + retrieval quiz + preview' },
       HOUSEKEEPING,
