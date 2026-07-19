@@ -174,6 +174,10 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   const passedOf = (c?: { results: Record<string, string> }) =>
     Object.values(c?.results ?? {}).filter((r) => r === 'pass').length
   const can = useCan()
+  // New-hire accounts get a read-only card: the server would refuse their
+  // writes anyway, so the UI must not offer them (silently-dropped edits
+  // otherwise look saved on-device and then diverge).
+  const readOnly = !can.editRideWork
   const phase = phaseOf(trainee)
   const modules = curriculumFor(trainee.operation, trainee.credential)
   const done = modules.filter((m) => moduleSatisfied(trainee, m.id)).length
@@ -229,6 +233,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               <input
                 type="date"
                 value={trainee.hireDate ?? ''}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { hireDate: e.target.value || undefined })}
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
               />
@@ -237,6 +242,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               Employment
               <select
                 value={trainee.employment ?? ''}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { employment: (e.target.value || undefined) as Employment | undefined })}
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
               >
@@ -249,6 +255,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               Employee / Kronos #
               <input
                 value={trainee.employeeNumber ?? ''}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { employeeNumber: e.target.value || undefined })}
                 placeholder="Printed on EVOC / fit test forms"
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
@@ -258,6 +265,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               FTOs assigned
               <input
                 value={trainee.ftos ?? ''}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { ftos: e.target.value || undefined })}
                 placeholder="e.g. M. Rodriguez, K. Patel"
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
@@ -268,6 +276,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               <input
                 type="email"
                 value={trainee.email ?? ''}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { email: e.target.value || undefined })}
                 placeholder="name@gmr.net"
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
@@ -278,6 +287,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
               <input
                 type="tel"
                 value={trainee.phone ?? ''}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { phone: e.target.value || undefined })}
                 placeholder="(816) 555-0134"
                 style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
@@ -289,6 +299,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <input
               type="checkbox"
               checked={!!trainee.transfer}
+              disabled={readOnly}
               onChange={(e) => setTransfer(trainee.id, e.target.checked)}
             />
             <span>
@@ -316,33 +327,41 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                       <input
                         type="checkbox"
                         checked={!!trainee.checklist[m.id]}
-                        disabled={waived}
+                        disabled={waived || readOnly}
                         onChange={() => toggleModule(trainee.id, m.id)}
                       />
                       <span style={{ flex: 1, ...(waived ? { textDecoration: 'line-through', opacity: 0.6 } : {}) }}>
                         {m.label}
                       </span>
                       {waived ? (
-                        <button
-                          className="pill muted"
-                          style={{ border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 12 }}
-                          title={`Waived ${formatDate(trainee.waived?.[m.id])} — tap to reinstate the requirement`}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            toggleWaiver(trainee.id, m.id)
-                          }}
-                        >
-                          Waived · {formatDate(trainee.waived?.[m.id])} ✕
-                        </button>
+                        readOnly ? (
+                          <span className="pill muted" style={{ fontSize: 12 }}>
+                            Waived · {formatDate(trainee.waived?.[m.id])}
+                          </span>
+                        ) : (
+                          <button
+                            className="pill muted"
+                            style={{ border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 12 }}
+                            title={`Waived ${formatDate(trainee.waived?.[m.id])} — tap to reinstate the requirement`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              toggleWaiver(trainee.id, m.id)
+                            }}
+                          >
+                            Waived · {formatDate(trainee.waived?.[m.id])} ✕
+                          </button>
+                        )
                       ) : trainee.checklist[m.id] ? (
                         <input
                           type="date"
                           value={trainee.checklist[m.id]}
+                          disabled={readOnly}
                           onChange={(e) => setModuleDate(trainee.id, m.id, e.target.value)}
                           title="Real completion date — edit if it wasn't checked off the same day"
                           style={{ padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, font: 'inherit', fontSize: 12, color: 'var(--text-muted)' }}
                         />
                       ) : (
+                        !readOnly &&
                         trainee.transfer &&
                         WAIVABLE_MODULE_IDS.has(m.id) && (
                           <button
@@ -417,21 +436,22 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <button
               className="btn sm"
               onClick={() => addContacts(trainee.id, -1)}
-              disabled={trainee.contacts === 0}
+              disabled={trainee.contacts === 0 || readOnly}
               title="Correct a mis-tap"
             >
               −1
             </button>
-            <button className="btn sm" onClick={() => addContacts(trainee.id, 1)}>
+            <button className="btn sm" disabled={readOnly} onClick={() => addContacts(trainee.id, 1)}>
               +1 contact
             </button>
-            <button className="btn sm" onClick={() => addContacts(trainee.id, 5)}>
+            <button className="btn sm" disabled={readOnly} onClick={() => addContacts(trainee.id, 5)}>
               +5
             </button>
             <input
               type="number"
               min={0}
               value={trainee.contacts}
+              disabled={readOnly}
               onChange={(e) => setContacts(trainee.id, Number(e.target.value))}
               style={{ width: 70, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6 }}
               aria-label="Patient contacts"
@@ -442,6 +462,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                 type="number"
                 min={1}
                 value={trainee.contactTarget}
+                disabled={readOnly}
                 onChange={(e) => updateTrainee(trainee.id, { contactTarget: Math.max(1, Number(e.target.value) || 1) })}
                 style={{ width: 56, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6 }}
                 aria-label="Contact target"

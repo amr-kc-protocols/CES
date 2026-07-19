@@ -12,6 +12,7 @@ import {
 } from './academyStore'
 import { printDoc, downloadDoc, attendanceSheetHTML, safeFilename } from './docGen'
 import { weekdayLabel } from './calendar'
+import { useCan } from '../../lib/role'
 import type { AcademyCohort, AttendanceStatus } from '../../types'
 
 // Next state when a cell is clicked: blank -> present -> absent -> blank.
@@ -21,11 +22,11 @@ function nextStatus(cur: AttendanceStatus | undefined): AttendanceStatus | null 
   return null
 }
 
-const cellStyle = (status: AttendanceStatus | undefined): React.CSSProperties => ({
+const cellStyle = (status: AttendanceStatus | undefined, canEdit: boolean): React.CSSProperties => ({
   width: 44,
   minWidth: 44,
   textAlign: 'center',
-  cursor: 'pointer',
+  cursor: canEdit ? 'pointer' : 'default',
   fontWeight: 700,
   fontSize: 15,
   background:
@@ -38,6 +39,7 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
   const days = useAcademyDays(cohort.id)
   const records = useAttendance(cohort.id)
   const map = useMemo(() => attendanceMap(records), [records])
+  const { editRideWork: canEdit } = useCan()
 
   // Per-trainee list of missed dated days -> catch-up.
   const catchUp = useMemo(
@@ -68,10 +70,16 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
 
   return (
     <div>
-      <div className="banner info">
-        Tap a cell to cycle <strong>present ✓ → absent ✗ → blank</strong>. Absences roll up into the
-        catch-up list below, across both phases.
-      </div>
+      {canEdit ? (
+        <div className="banner info">
+          Tap a cell to cycle <strong>present ✓ → absent ✗ → blank</strong>. Absences roll up into
+          the catch-up list below, across both phases.
+        </div>
+      ) : (
+        <div className="banner info">
+          View only — attendance is marked by the FTOs and the Clinical Educator.
+        </div>
+      )}
 
       <div className="toolbar" style={{ marginTop: 12 }}>
         <span className="subtle">
@@ -108,14 +116,16 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
                   <div style={{ fontSize: 11, fontWeight: 600 }}>
                     {d.date ? `${weekdayLabel(d.date)} ${formatDate(d.date)}` : 'TBD'}
                   </div>
-                  <button
-                    className="link-btn"
-                    style={{ fontSize: 10 }}
-                    title="Mark all present for this day"
-                    onClick={() => markAllPresent(cohort.id, trainees.map((t) => t.id), d.key)}
-                  >
-                    all ✓
-                  </button>
+                  {canEdit && (
+                    <button
+                      className="link-btn"
+                      style={{ fontSize: 10 }}
+                      title="Mark all present for this day"
+                      onClick={() => markAllPresent(cohort.id, trainees.map((t) => t.id), d.key)}
+                    >
+                      all ✓
+                    </button>
+                  )}
                 </th>
               ))}
             </tr>
@@ -131,8 +141,8 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
                   return (
                     <td
                       key={d.key}
-                      style={cellStyle(status)}
-                      onClick={() => setAttendance(cohort.id, t.id, d.key, nextStatus(status))}
+                      style={cellStyle(status, canEdit)}
+                      onClick={canEdit ? () => setAttendance(cohort.id, t.id, d.key, nextStatus(status)) : undefined}
                       title={`${t.name} · ${d.title}`}
                     >
                       {status === 'present' ? '✓' : status === 'absent' ? '✗' : '·'}
