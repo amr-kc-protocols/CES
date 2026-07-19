@@ -205,12 +205,18 @@ export function deleteTrainee(id: string): void {
  */
 export function purgeOrphanTraineeRecords(): number {
   const db = getState()
-  const roster = new Set(db.trainees.map((t) => t.id))
+  // A trainee whose cohort no longer exists is itself an orphan: rosters are
+  // per-cohort, so no roster can ever reach them for a manual Remove — yet
+  // Home lists every trainee globally, so they linger there forever.
+  const cohorts = new Set(db.academyCohorts.map((c) => c.id))
+  const keepTrainee = (t: Trainee) => cohorts.has(t.cohortId)
+  const roster = new Set(db.trainees.filter(keepTrainee).map((t) => t.id))
   // Only records LINKED to a missing trainee are orphans. Historical imports
   // carry a traineeName but no traineeId — they belong to no roster and must
   // never be swept.
   const keep = (r: { traineeId?: string }) => !r.traineeId || roster.has(r.traineeId)
   const count =
+    db.trainees.filter((t) => !keepTrainee(t)).length +
     db.academyAttendance.filter((r) => !keep(r)).length +
     db.rideAssignments.filter((r) => !keep(r)).length +
     db.dailyEvals.filter((r) => !keep(r)).length +
@@ -219,6 +225,7 @@ export function purgeOrphanTraineeRecords(): number {
   if (count === 0) return 0
   setState((s) => ({
     ...s,
+    trainees: s.trainees.filter(keepTrainee),
     academyAttendance: s.academyAttendance.filter(keep),
     rideAssignments: s.rideAssignments.filter(keep),
     dailyEvals: s.dailyEvals.filter(keep),
