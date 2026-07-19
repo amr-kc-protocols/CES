@@ -135,6 +135,17 @@ export const FTO_CREWS: FtoCrew[] = [
     // First shift began Tuesday 2026-07-14 at 0800.
     cycle: { anchor: '2026-07-14', onDays: 2, cycleDays: 6 },
   },
+  {
+    unit: 'LC-Sup',
+    level: 'Linn County (48h) · Supervisor',
+    start: '0800',
+    end: '0800',
+    hours: 48,
+    crew: [{ name: 'Virgel Swanson', fto: true }],
+    // Supervisor who also FTOs. Same 48h-on / 96h-off cycle as the Linn
+    // medic car, offset: his rotation starts Wednesday 2026-07-22.
+    cycle: { anchor: '2026-07-22', onDays: 2, cycleDays: 6 },
+  },
 ]
 
 /** FTOs on the List tab with no recurring line in the master schedule. */
