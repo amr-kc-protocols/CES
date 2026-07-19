@@ -11,12 +11,14 @@ interface Props {
   value?: string
   /** Called with the PNG data URL on pen-up, or null when cleared. */
   onChange: (dataUrl: string | null) => void
+  /** Read-only: shows any existing signature but takes no ink. */
+  disabled?: boolean
 }
 
 const PEN = '#0b2e4f'
 const HEIGHT = 130
 
-export default function SignaturePad({ label, value, onChange }: Props) {
+export default function SignaturePad({ label, value, onChange, disabled }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const dirtied = useRef(false)
@@ -54,6 +56,7 @@ export default function SignaturePad({ label, value, onChange }: Props) {
   }
 
   const start = (e: React.PointerEvent) => {
+    if (disabled) return
     e.preventDefault()
     drawing.current = true
     last.current = pos(e)
@@ -102,7 +105,7 @@ export default function SignaturePad({ label, value, onChange }: Props) {
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
         <span className="subtle" style={{ fontSize: 12, fontWeight: 700 }}>{label}</span>
-        {hasInk && (
+        {hasInk && !disabled && (
           <button className="link-btn" style={{ fontSize: 12 }} onClick={clear}>
             Clear
           </button>
@@ -123,12 +126,12 @@ export default function SignaturePad({ label, value, onChange }: Props) {
           background: '#fff',
           touchAction: 'none',
           display: 'block',
-          cursor: 'crosshair',
+          cursor: disabled ? 'default' : 'crosshair',
         }}
       />
       {!hasInk && (
         <div className="subtle" style={{ fontSize: 11, marginTop: 2 }}>
-          Sign above with your finger or mouse.
+          {disabled ? 'Not signed yet.' : 'Sign above with your finger or mouse.'}
         </div>
       )}
     </div>

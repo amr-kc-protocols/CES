@@ -13,6 +13,7 @@ import { addDays, formatDate, todayISO } from '../../lib/date'
 import { weekdayLabel } from './calendar'
 import { FT_SLOTS } from '../../data/ftObjectives'
 import { useAllTrainees, useAllRides, toggleRide, removeRide } from './academyStore'
+import { useCan } from '../../lib/role'
 
 // Ride-along planning view: who is on shift with an FTO aboard, day by day,
 // extrapolated from the operations master schedule's two-week rotation.
@@ -47,6 +48,8 @@ export default function FtoScheduleView() {
   const [from, setFrom] = useState(todayISO())
   const [ftoFilter, setFtoFilter] = useState('')
   const [planFor, setPlanFor] = useState('')
+  // New hires can see who's on a truck, but rides are assigned by FTOs/admin.
+  const { editRideWork: canPlan } = useCan()
   const days = Array.from({ length: 14 }, (_, i) => addDays(from, i))
 
   const ftoNames = [...new Set(FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)))]
@@ -100,6 +103,7 @@ export default function FtoScheduleView() {
       </div>
 
       {/* Pick the trainee once, then tap shifts — planning ~6 rides is 7 taps. */}
+      {canPlan && (
       <div className="card" style={{ padding: 12, marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="subtle" style={{ fontSize: 12, fontWeight: 700 }}>
           Plan rides for
@@ -127,6 +131,7 @@ export default function FtoScheduleView() {
           </div>
         )}
       </div>
+      )}
 
       {/* Filter to one FTO when planning that trainee's next ride. */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -175,14 +180,16 @@ export default function FtoScheduleView() {
                         {riders.map((r) => (
                           <span key={r.id} className="pill info" style={{ gap: 6 }}>
                             🎓 {nameOf(r.traineeId)}
-                            <button
-                              onClick={() => removeRide(r.id)}
-                              title="Remove from this shift (undoable)"
-                              aria-label={`Remove ${nameOf(r.traineeId)} from ${c.unit} ${d}`}
-                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', opacity: 0.7 }}
-                            >
-                              ✕
-                            </button>
+                            {canPlan && (
+                              <button
+                                onClick={() => removeRide(r.id)}
+                                title="Remove from this shift (undoable)"
+                                aria-label={`Remove ${nameOf(r.traineeId)} from ${c.unit} ${d}`}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', opacity: 0.7 }}
+                              >
+                                ✕
+                              </button>
+                            )}
                           </span>
                         ))}
                         {planFor && !assigned && (

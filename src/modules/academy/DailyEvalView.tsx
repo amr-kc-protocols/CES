@@ -131,9 +131,14 @@ export default function DailyEvalView() {
         </div>
       </div>
 
-      {saved && <div className="banner ok">{saved}</div>}
-      {error && <div className="banner crit">{error}</div>}
+      {/* New hires read their evals here; only FTOs and the educator file them. */}
+      {!can.editRideWork && (
+        <div className="banner info">
+          View only — daily evaluations are filed by the FTO at the end of each shift.
+        </div>
+      )}
 
+      {can.editRideWork && (
       <div className="card" style={{ padding: 14, marginBottom: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
           <label className="subtle" style={{ fontSize: 12 }}>
@@ -192,10 +197,15 @@ export default function DailyEvalView() {
           <YesNoRow label="Ready to work independently without an FTO?" value={readyIndependent} onChange={setReadyIndependent} />
         </div>
 
+        {/* Feedback lives next to the button that triggers it — on a phone the
+            page top (where banners usually go) is two screens away by now. */}
+        {saved && <div className="banner ok" style={{ marginTop: 10, marginBottom: 0 }}>{saved}</div>}
+        {error && <div className="banner crit" style={{ marginTop: 10, marginBottom: 0 }}>{error}</div>}
         <button className="btn primary" style={{ marginTop: 10 }} onClick={submit}>
           Save evaluation
         </button>
       </div>
+      )}
 
       <div className="section-title">Previous evaluations ({evals.length})</div>
       {evals.length === 0 ? (

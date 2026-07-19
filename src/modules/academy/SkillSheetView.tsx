@@ -5,6 +5,7 @@ import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
 import { SHEETS } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
+import { useCan } from '../../lib/role'
 import { printDoc, downloadDoc, checkoffSheetHTML, safeFilename } from './docGen'
 import type { SkillSheetId } from '../../types'
 import {
@@ -31,6 +32,8 @@ export default function SkillSheetView() {
   const sheet: SkillSheetId =
     sheetParam && sheetParam in SHEETS ? (sheetParam as SkillSheetId) : trainee ? sheetFor(trainee) : 'bls'
   const check = useSkillCheckFor(traineeId, sheet)
+  // New hires can review their sheet (and print it) but not mark or sign it.
+  const readOnly = !useCan().editRideWork
 
   if (!cohort || !trainee) {
     return (
@@ -86,11 +89,18 @@ export default function SkillSheetView() {
 
       {meta.note && <div className="banner info">{meta.note}</div>}
 
+      {readOnly && (
+        <div className="banner info">
+          View only — check-offs are recorded and signed with your FTO or the Clinical Educator.
+        </div>
+      )}
+
       <div className="card" style={{ padding: 14, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="subtle" style={{ fontSize: 12, flex: 1, minWidth: 200 }}>
           Assessed by
           <select
             value={check?.evaluator ?? ''}
+            disabled={readOnly}
             onChange={(e) => setSkillEvaluator(traineeId, sheet, e.target.value)}
             style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
           >
@@ -113,6 +123,7 @@ export default function SkillSheetView() {
                   <button
                     className={`choice${r === 'pass' ? ' active' : ''}`}
                     style={{ padding: '6px 12px', fontSize: 13 }}
+                    disabled={readOnly}
                     onClick={() => setSkillResult(traineeId, sheet, s.id, r === 'pass' ? null : 'pass')}
                   >
                     ✓ Pass
@@ -120,6 +131,7 @@ export default function SkillSheetView() {
                   <button
                     className={`choice${r === 'fail' ? ' active' : ''}`}
                     style={{ padding: '6px 12px', fontSize: 13 }}
+                    disabled={readOnly}
                     onClick={() => setSkillResult(traineeId, sheet, s.id, r === 'fail' ? null : 'fail')}
                   >
                     ↻ Needs practice
@@ -148,6 +160,7 @@ export default function SkillSheetView() {
                       <input
                         type="checkbox"
                         checked={done.has(i)}
+                        disabled={readOnly}
                         onChange={() => toggleSkillStep(traineeId, sheet, s.id, i, s.steps?.length ?? 0)}
                         style={{ marginTop: 3 }}
                       />
@@ -167,6 +180,7 @@ export default function SkillSheetView() {
           <textarea
             key={`${traineeId}:${sheet}`}
             defaultValue={check?.comments ?? ''}
+            disabled={readOnly}
             onBlur={(e) => setSkillComments(traineeId, sheet, e.target.value)}
             rows={3}
             placeholder="Saved when you tap away"
@@ -181,11 +195,13 @@ export default function SkillSheetView() {
         <SignaturePad
           label={`FTO / Evaluator${check?.evaluator ? ` — ${check.evaluator}` : ''}`}
           value={check?.evaluatorSignature}
+          disabled={readOnly}
           onChange={(url) => setSkillSignature(traineeId, sheet, 'evaluator', url)}
         />
         <SignaturePad
           label={`New hire — ${trainee.name}`}
           value={check?.traineeSignature}
+          disabled={readOnly}
           onChange={(url) => setSkillSignature(traineeId, sheet, 'trainee', url)}
         />
       </div>
