@@ -118,13 +118,11 @@ export const FTO_CREWS: FtoCrew[] = [
       { name: 'Frank Alba', fto: true },
       { name: 'Daniel Force', fto: false },
     ],
-    // Frank runs his own 14-day cycle anchored to Saturday 2026-07-11:
-    // works Sat+Sun, four off, Fri+Sat, six off — i.e. Jul 11-12, 17-18,
-    // 25-26, 31-Aug 1, … His "weeks" run Sat-Fri from that anchor, not the
-    // master schedule's Sunday weeks.
-    week1: [0, 5, 6],
-    week2: [6],
-    anchor: '2026-07-11',
+    // 48h on / 96h off — two back-to-back 24h shifts (0700–0700), then four
+    // days off, a 6-day cycle. On-block anchored to Saturday 2026-07-11
+    // (Jul 11-12, 17-18, 23-24, …). A 6-day cycle never fits a two-week
+    // weekday grid, so this line uses `cycle` like Linn's 48h car.
+    cycle: { anchor: '2026-07-11', onDays: 2, cycleDays: 6 },
   },
   {
     unit: 'LC-Medic',
