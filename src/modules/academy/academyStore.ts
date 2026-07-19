@@ -195,6 +195,39 @@ export function deleteTrainee(id: string): void {
   }
 }
 
+/**
+ * Purge records that reference a trainee who is no longer on any roster.
+ * Trainees removed before deleteTrainee learned to cascade left their
+ * attendance, rides, evals, skill checks, and surveys behind — still showing
+ * on Home, in History, and on the leaderboard. Each purged record emits a
+ * sync tombstone, so one device running this cleans every device.
+ * Returns how many records were removed.
+ */
+export function purgeOrphanTraineeRecords(): number {
+  const db = getState()
+  const roster = new Set(db.trainees.map((t) => t.id))
+  // Only records LINKED to a missing trainee are orphans. Historical imports
+  // carry a traineeName but no traineeId — they belong to no roster and must
+  // never be swept.
+  const keep = (r: { traineeId?: string }) => !r.traineeId || roster.has(r.traineeId)
+  const count =
+    db.academyAttendance.filter((r) => !keep(r)).length +
+    db.rideAssignments.filter((r) => !keep(r)).length +
+    db.dailyEvals.filter((r) => !keep(r)).length +
+    db.skillChecks.filter((r) => !keep(r)).length +
+    db.surveyResponses.filter((r) => !keep(r)).length
+  if (count === 0) return 0
+  setState((s) => ({
+    ...s,
+    academyAttendance: s.academyAttendance.filter(keep),
+    rideAssignments: s.rideAssignments.filter(keep),
+    dailyEvals: s.dailyEvals.filter(keep),
+    skillChecks: s.skillChecks.filter(keep),
+    surveyResponses: s.surveyResponses.filter(keep),
+  }))
+  return count
+}
+
 /** Toggle a checklist module; stores the completion date when checking. */
 export function toggleModule(traineeId: string, moduleId: string): void {
   setState((db) => ({

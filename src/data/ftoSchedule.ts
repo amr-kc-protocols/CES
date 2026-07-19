@@ -118,13 +118,11 @@ export const FTO_CREWS: FtoCrew[] = [
       { name: 'Frank Alba', fto: true },
       { name: 'Daniel Force', fto: false },
     ],
-    // Frank runs his own 14-day cycle anchored to Saturday 2026-07-11:
-    // works Sat+Sun, four off, Fri+Sat, six off — i.e. Jul 11-12, 17-18,
-    // 25-26, 31-Aug 1, … His "weeks" run Sat-Fri from that anchor, not the
-    // master schedule's Sunday weeks.
-    week1: [0, 5, 6],
-    week2: [6],
-    anchor: '2026-07-11',
+    // 48h on / 96h off — two back-to-back 24h shifts (0700–0700), then four
+    // days off, a 6-day cycle. On-block anchored to Saturday 2026-07-11
+    // (Jul 11-12, 17-18, 23-24, …). A 6-day cycle never fits a two-week
+    // weekday grid, so this line uses `cycle` like Linn's 48h car.
+    cycle: { anchor: '2026-07-11', onDays: 2, cycleDays: 6 },
   },
   {
     unit: 'LC-Medic',
@@ -136,6 +134,17 @@ export const FTO_CREWS: FtoCrew[] = [
     // 48h on / 96h off — 2 calendar days on, then 4 off, a 6-day cycle.
     // First shift began Tuesday 2026-07-14 at 0800.
     cycle: { anchor: '2026-07-14', onDays: 2, cycleDays: 6 },
+  },
+  {
+    unit: 'LC-Sup',
+    level: 'Linn County (48h) · Supervisor',
+    start: '0800',
+    end: '0800',
+    hours: 48,
+    crew: [{ name: 'Virgel Swanson', fto: true }],
+    // Supervisor who also FTOs. Same 48h-on / 96h-off cycle as the Linn
+    // medic car, offset: his rotation starts Wednesday 2026-07-22.
+    cycle: { anchor: '2026-07-22', onDays: 2, cycleDays: 6 },
   },
 ]
 

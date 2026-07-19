@@ -114,6 +114,11 @@ function setStatus(patch: Partial<SyncStatus>): void {
   listeners.forEach((l) => l())
 }
 
+/** Current status outside React (e.g. deciding whether to run a sweep). */
+export function getSyncStatus(): SyncStatus {
+  return status
+}
+
 export function useSyncStatus(): SyncStatus {
   return useSyncExternalStore(
     (cb) => {
@@ -284,6 +289,16 @@ function isPermissionError(error: { code?: string; message?: string }): boolean 
 
 const PULL_PAGE_SIZE = 1000
 
+// Run after every successful pull, when local state mirrors the server —
+// the one safe moment for integrity sweeps (e.g. purging records orphaned
+// by deletions that predate cascade cleanup). Mid-pull a device can hold
+// children whose parent simply hasn't arrived yet; post-pull it cannot.
+const pullListeners = new Set<() => void>()
+export function onPullComplete(cb: () => void): () => void {
+  pullListeners.add(cb)
+  return () => pullListeners.delete(cb)
+}
+
 async function pull(): Promise<void> {
   const c = await getClient()
   if (!c || !status.signedIn) return
@@ -317,6 +332,7 @@ async function pull(): Promise<void> {
     if (rows.length < PULL_PAGE_SIZE) break
   }
   setStatus({ syncing: false, lastSync: new Date().toISOString() })
+  pullListeners.forEach((cb) => cb())
 }
 
 /** Push what's queued, then pull what's new. */
