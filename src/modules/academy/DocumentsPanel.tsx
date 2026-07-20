@@ -8,6 +8,7 @@ import {
   folderLabelHTML,
   welcomeKitHTML,
   facilitySheetHTML,
+  onboardingRoadmapHTML,
   scheduleHTML,
   agendaHTML,
 } from './docGen'
@@ -72,6 +73,14 @@ export default function DocumentsPanel({
       title: 'KC Facility Cheat Sheet',
       file: 'KC_Facility_Cheat_Sheet',
       html: () => facilitySheetHTML(),
+      disabled: false,
+      disabledReason: '',
+    },
+    {
+      label: '🧭 Onboarding roadmap',
+      title: 'New Hire Onboarding Roadmap — KC / Linn County',
+      file: 'New_Hire_Onboarding_Roadmap',
+      html: () => onboardingRoadmapHTML(),
       disabled: false,
       disabledReason: '',
     },
