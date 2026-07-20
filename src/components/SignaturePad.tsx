@@ -13,12 +13,14 @@ interface Props {
   onChange: (dataUrl: string | null) => void
   /** Read-only: shows any existing signature but takes no ink. */
   disabled?: boolean
+  /** Pad height in px — default 130; ~70 suits initials. */
+  height?: number
 }
 
 const PEN = '#0b2e4f'
-const HEIGHT = 130
 
-export default function SignaturePad({ label, value, onChange, disabled }: Props) {
+export default function SignaturePad({ label, value, onChange, disabled, height = 130 }: Props) {
+  const HEIGHT = height
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const dirtied = useRef(false)

@@ -358,6 +358,8 @@ export interface DailyEval {
   spotter?: boolean
   /** FTO's call: ready to work independently without an FTO. */
   readyIndependent?: boolean
+  /** FTO's drawn initials (PNG data URL) — signs off the eval. */
+  ftoInitials?: string
 }
 
 /** A clinical skill sheet sign-off (KC/Cass BLS sheet or Linn medic sheet). */
