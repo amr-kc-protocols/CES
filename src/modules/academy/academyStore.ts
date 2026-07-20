@@ -1052,7 +1052,13 @@ export function useScheduleDays(cohortId: string | undefined): AcademyDay[] {
             : untimed,
         }
       })
-    return [...days, ...fromSessions].sort((a, b) => a.date.localeCompare(b.date))
+    // The unified schedule is the source of truth: a leftover Phase-1 day
+    // record on a date a session already covers would print that day twice
+    // (the old Phase-1 editor is gone, so nothing else can clear it). Keep
+    // legacy days only for dates no session claims.
+    const sessionDates = new Set(fromSessions.map((d) => d.date))
+    const legacyOnly = days.filter((d) => !sessionDates.has(d.date))
+    return [...legacyOnly, ...fromSessions].sort((a, b) => a.date.localeCompare(b.date))
   }, [days, arrangements, sessions, cohortId])
 }
 
@@ -1061,19 +1067,24 @@ export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
   const arrangements = useArrangements(cohortId)
   const sessions = useCohortSessions(cohortId)
   return useMemo(() => {
-    const p1: AcademyDayRef[] = days.map((d) => ({
-      key: `p1:${d.id}`,
-      phase: 1,
-      date: d.date,
-      title: d.title || 'Academy day',
-    }))
     const templateDays: AcademyDayRef[] = sessions
       .filter((s) => s.mode === 'in-person' && !arrangements[s.id]?.skipped)
       .map((s) => ({
         key: `p2:${s.id}`,
         phase: s.week,
         date: arrangements[s.id]?.date ?? '',
-        title: `S${s.order} · ${s.title}`,
+        title: s.title,
+      }))
+    // Same dedupe as useScheduleDays: a leftover Phase-1 day on a date a
+    // session covers would give attendance two columns for one class day.
+    const sessionDates = new Set(templateDays.map((d) => d.date).filter(Boolean))
+    const p1: AcademyDayRef[] = days
+      .filter((d) => !sessionDates.has(d.date))
+      .map((d) => ({
+        key: `p1:${d.id}`,
+        phase: 1,
+        date: d.date,
+        title: d.title || 'Academy day',
       }))
     return [...p1, ...templateDays].sort((a, b) => {
       if (!a.date && !b.date) return 0
