@@ -393,6 +393,7 @@ export interface DailyEvalInput {
   truckWashed?: boolean
   spotter?: boolean
   readyIndependent?: boolean
+  ftoInitials?: string
 }
 
 export function addDailyEval(traineeId: string, input: DailyEvalInput): DailyEval {

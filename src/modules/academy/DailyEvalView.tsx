@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Empty } from '../../components/ui'
+import SignaturePad from '../../components/SignaturePad'
 import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
 import { useCan } from '../../lib/role'
@@ -82,6 +83,7 @@ export default function DailyEvalView() {
   const [truckWashed, setTruckWashed] = useState<boolean | undefined>()
   const [spotter, setSpotter] = useState<boolean | undefined>()
   const [readyIndependent, setReadyIndependent] = useState<boolean | undefined>()
+  const [ftoInitials, setFtoInitials] = useState<string | undefined>()
   const [saved, setSaved] = useState('')
   const [error, setError] = useState('')
 
@@ -106,6 +108,7 @@ export default function DailyEvalView() {
       truckWashed,
       spotter,
       readyIndependent,
+      ftoInitials,
     })
     setScores({})
     setStrengths('')
@@ -113,6 +116,7 @@ export default function DailyEvalView() {
     setTruckWashed(undefined)
     setSpotter(undefined)
     setReadyIndependent(undefined)
+    setFtoInitials(undefined)
     setError('')
     setSaved(`Evaluation saved for ${formatDate(date)}.`)
     setTimeout(() => setSaved(''), 4000)
@@ -197,6 +201,17 @@ export default function DailyEvalView() {
           <YesNoRow label="Ready to work independently without an FTO?" value={readyIndependent} onChange={setReadyIndependent} />
         </div>
 
+        {/* Quick initials, not a full signature — the eval is a daily rhythm. */}
+        <div style={{ marginTop: 10, maxWidth: 280 }}>
+          <SignaturePad
+            key={`init-${evals.length}`}
+            label={`FTO initials${fto ? ` — ${fto}` : ''}`}
+            value={ftoInitials}
+            height={70}
+            onChange={(url) => setFtoInitials(url ?? undefined)}
+          />
+        </div>
+
         {/* Feedback lives next to the button that triggers it — on a phone the
             page top (where banners usually go) is two screens away by now. */}
         {saved && <div className="banner ok" style={{ marginTop: 10, marginBottom: 0 }}>{saved}</div>}
@@ -219,6 +234,14 @@ export default function DailyEvalView() {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <strong>{formatDate(e.date)}</strong>
                   {e.fto && <span className="subtle">· {e.fto}</span>}
+                  {e.ftoInitials && (
+                    <img
+                      src={e.ftoInitials}
+                      alt={`${e.fto || 'FTO'} initials`}
+                      title="FTO initialed"
+                      style={{ height: 26, maxWidth: 90, border: '1px solid var(--border)', borderRadius: 4, background: '#fff' }}
+                    />
+                  )}
                   {avg !== null && <span className={`pill ${avg >= 4 ? 'ok' : avg >= 3 ? 'info' : 'warn'}`}>{avg.toFixed(1)} avg</span>}
                   {e.readyIndependent === true && <span className="pill ok">Ready</span>}
                   {e.readyIndependent === false && <span className="pill warn">Not ready yet</span>}
