@@ -94,7 +94,8 @@ export interface KitItem {
 
 export const WELCOME_KIT_ITEMS: KitItem[] = [
   { item: 'Printed schedule (1-page color, landscape)', source: 'Academy schedule — print from CES' },
-  { item: 'Printed Field Training Objectives Page', source: 'Generated per trainee from CES (≈3 pages)' },
+  // Field Training Objectives Page dropped — objectives are tracked digitally.
+  { item: 'New Hire Onboarding Roadmap', source: 'Print from CES (Documents tab)' },
   { item: 'KC Facility Cheat Sheet', source: 'Print 1 page from CES' },
   { item: 'Local protocol pocket reference (if available)', source: 'Existing AMR KC protocol pocket guide' },
   { item: 'Name tag', source: 'Front desk / printable badge' },

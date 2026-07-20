@@ -1013,12 +1013,19 @@ export function useScheduleDays(cohortId: string | undefined): AcademyDay[] {
   const arrangements = useArrangements(cohortId)
   const sessions = useCohortSessions(cohortId)
   return useMemo(() => {
+    // "Day N" runs in the order the class is taught (by date), matching the
+    // on-screen schedule — never the template's fixed session order, which
+    // reads as random numbering once days are rearranged.
     const fromSessions: AcademyDay[] = sessions
       .filter((s) => {
         const arr = arrangements[s.id]
         return !!arr?.date && !arr.skipped
       })
-      .map((s) => {
+      .sort(
+        (a, b) =>
+          arrangements[a.id]!.date!.localeCompare(arrangements[b.id]!.date!) || a.order - b.order,
+      )
+      .map((s, dayIdx) => {
         const arr = arrangements[s.id]!
         const blocks = arr.blocks?.length ? arr.blocks : s.blocks ?? []
         const rows = timelineFromBlocks(blocks, arr.startTime || s.defaultStart)
@@ -1032,7 +1039,7 @@ export function useScheduleDays(cohortId: string | undefined): AcademyDay[] {
           id: `sess-${s.id}`,
           cohortId: cohortId ?? '',
           date: arr.date!,
-          title: s.custom ? s.title : `Session ${s.order} — ${s.title}`,
+          title: `Day ${dayIdx + 1} — ${s.title}`,
           facilitators: arr.facilitators || undefined,
           location: s.location,
           blocks: rows
