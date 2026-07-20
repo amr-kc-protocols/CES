@@ -12,8 +12,10 @@ export interface FieldGuideResource {
   ref: string
   label: string
   /**
-   * Path (and optional query) under FIELD_GUIDE_BASE — or an app-local path
-   * starting with '/' for files the PWA serves itself (public/, e.g. decks).
+   * Path (and optional query) under FIELD_GUIDE_BASE, an app-local path
+   * starting with '/' for files the PWA serves itself (public/, e.g. decks),
+   * or a full https:// URL for pages hosted elsewhere (e.g. the protocol
+   * site's forms).
    */
   path: string
 }
@@ -25,6 +27,7 @@ export const FIELD_GUIDE_RESOURCES: FieldGuideResource[] = [
   { ref: 'deck-cardiac-neuro-cases', label: 'Slides: Cardiac & Neuro case studies', path: '/decks/session1-1300-cardiac-neuro-case-studies.pptx' },
   { ref: 'deck-call-types-ii', label: 'Slides: Call Types II — Pulmonary & Medical (BLS)', path: '/decks/session1-1430-call-types-ii.pptx' },
   { ref: 'imagetrend', label: 'ImageTrend Job Aid', path: 'imagetrend-job-aid.html' },
+  { ref: 'immunization-forms', label: 'Immunization Forms (Hep B · TB/PPD)', path: 'https://amr-kc-protocols.vercel.app/immunization-forms.html' },
   { ref: 'vent-academy', label: 'Ventilator Academy (9 modules)', path: 'vta/academy.html' },
   { ref: 'vent-sim', label: 'LTV 1200 simulator', path: 'vent-ltv1200.html' },
   { ref: 'hemo-academy', label: 'Hemodynamics Academy (8 modules)', path: 'hemodynamics-academy.html' },
@@ -48,6 +51,7 @@ export function resourceFor(ref: string): FieldGuideResource | undefined {
 export function resourceUrl(ref: string): string | undefined {
   const r = BY_REF.get(ref)
   if (!r) return undefined
+  if (r.path.startsWith('https://')) return r.path
   if (r.path.startsWith('/')) {
     // App-local file: absolute URL so the link also works from printed /
     // downloaded documents, which open outside the app.

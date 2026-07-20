@@ -57,7 +57,7 @@ const SESSIONS: TemplateSession[] = [
     ],
     blocks: [
       { durationMin: 15, kind: 'education', title: 'Welcome, intros, group-text exercise', notes: 'Sets the tone; from the Captains’ deck.' },
-      { durationMin: 105, kind: 'education', title: 'Day-1 Intro — systems access done live', notes: 'Okta registration, Ninth Brain, Cornerstone access, Respiratory Questionnaire — all completed in the room.' },
+      { durationMin: 105, kind: 'education', title: 'Day-1 Intro — systems access done live', notes: 'Okta registration, Ninth Brain, Cornerstone access, Respiratory Questionnaire, immunization forms (Hep B / TB) — all completed in the room.', resources: ['immunization-forms'] },
       { durationMin: 15, kind: 'break', title: 'Break' },
       { durationMin: 45, kind: 'education', title: 'GPS Portal · I-9 verification · Benefits orientation', notes: 'Focus on what must be done before first shift.' },
       { durationMin: 60, kind: 'lunch', title: 'Lunch + truck walk-around with Captains' },
