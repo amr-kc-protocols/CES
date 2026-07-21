@@ -14,6 +14,8 @@ import {
 } from './docGen'
 import { scheduleICS, downloadICS } from './calendar'
 import { COMPLIANCE_DOCS } from './complianceDocs'
+import { evalsCSV, skillChecksCSV, downloadCSV } from './csvExport'
+import { useSelector } from '../../lib/store'
 import type { AcademyCohort, AcademyDay, Trainee } from '../../types'
 
 // One name in, the whole packet out: each trainee's personalized documents
@@ -51,6 +53,10 @@ export default function DocumentsPanel({
 }) {
   const days = useScheduleDays(cohort.id)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const evals = useSelector((db) => db.dailyEvals)
+  const skillChecks = useSelector((db) => db.skillChecks)
+  const rosterEvals = evals.filter((e) => trainees.some((t) => t.id === e.traineeId)).length
+  const rosterChecks = skillChecks.filter((c) => trainees.some((t) => t.id === c.traineeId)).length
 
   function printAllPackets() {
     printDoc(
@@ -212,6 +218,46 @@ export default function DocumentsPanel({
               </div>
             </div>
           ))}
+          <div className="row" style={{ padding: '8px 12px' }}>
+            <div className="grow" style={{ fontWeight: 600 }}>
+              📊 Daily evals spreadsheet
+              <div className="subtle" style={{ fontWeight: 400, fontSize: 12 }}>
+                One row per eval — scores, average, comments, EOS answers. Opens in Excel.
+              </div>
+              {rosterEvals === 0 && (
+                <div className="help-text" style={{ fontWeight: 400 }}>No evals recorded yet</div>
+              )}
+            </div>
+            <div className="btn-row" style={{ gap: 6 }}>
+              <button
+                className="btn sm"
+                disabled={rosterEvals === 0}
+                onClick={() => downloadCSV(safeFilename(`${cohort.label}_Daily_Evals`), evalsCSV(trainees, evals))}
+              >
+                ⬇ CSV ({rosterEvals})
+              </button>
+            </div>
+          </div>
+          <div className="row" style={{ padding: '8px 12px' }}>
+            <div className="grow" style={{ fontWeight: 600 }}>
+              📊 Skill sheets spreadsheet
+              <div className="subtle" style={{ fontWeight: 400, fontSize: 12 }}>
+                One row per trainee per sheet — passes, evaluator, signature dates.
+              </div>
+              {rosterChecks === 0 && (
+                <div className="help-text" style={{ fontWeight: 400 }}>No check-offs recorded yet</div>
+              )}
+            </div>
+            <div className="btn-row" style={{ gap: 6 }}>
+              <button
+                className="btn sm"
+                disabled={rosterChecks === 0}
+                onClick={() => downloadCSV(safeFilename(`${cohort.label}_Skill_Sheets`), skillChecksCSV(trainees, skillChecks))}
+              >
+                ⬇ CSV ({rosterChecks})
+              </button>
+            </div>
+          </div>
           <div className="row" style={{ padding: '8px 12px' }}>
             <div className="grow" style={{ fontWeight: 600 }}>
               📅 Calendar file (.ics)

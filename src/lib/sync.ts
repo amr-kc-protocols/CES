@@ -111,6 +111,8 @@ const listeners = new Set<() => void>()
 
 function setStatus(patch: Partial<SyncStatus>): void {
   status = { ...status, ...patch, pending: outbox.length }
+  // Debug handle: lets support (or a console) see the live sync state.
+  ;(window as unknown as { __cesSyncStatus?: SyncStatus }).__cesSyncStatus = status
   listeners.forEach((l) => l())
 }
 
@@ -231,7 +233,31 @@ function scheduleFlush(): void {
   flushTimer = setTimeout(() => void flush(), FLUSH_DEBOUNCE_MS)
 }
 
+// A sync attempt must never wedge the status: fetch can throw (dead zone),
+// and a half-dead connection can hang a request without ever settling it.
+// Both would leave "Syncing…" on screen forever while nothing syncs. The
+// timeout only abandons WAITING on the attempt — queued records stay queued,
+// and the next trigger (tap, foreground, timer) retries cleanly.
+const SYNC_ATTEMPT_TIMEOUT_MS = 15_000
+
+function withTimeout(p: Promise<void>, label: string): Promise<void> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out — will retry`)), SYNC_ATTEMPT_TIMEOUT_MS),
+    ),
+  ])
+}
+
 async function flush(): Promise<void> {
+  try {
+    await withTimeout(flushInner(), 'Push')
+  } catch (e) {
+    setStatus({ syncing: false, error: `Push failed: ${e instanceof Error ? e.message : String(e)}` })
+  }
+}
+
+async function flushInner(): Promise<void> {
   const c = await getClient()
   if (!c || !status.signedIn || outbox.length === 0) return
   const batch = outbox.slice()
@@ -300,6 +326,14 @@ export function onPullComplete(cb: () => void): () => void {
 }
 
 async function pull(): Promise<void> {
+  try {
+    await withTimeout(pullInner(), 'Pull')
+  } catch (e) {
+    setStatus({ syncing: false, error: `Pull failed: ${e instanceof Error ? e.message : String(e)}` })
+  }
+}
+
+async function pullInner(): Promise<void> {
   const c = await getClient()
   if (!c || !status.signedIn) return
   setStatus({ syncing: true, error: undefined })
