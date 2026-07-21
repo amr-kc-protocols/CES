@@ -107,6 +107,11 @@ export function applyRemote(
     }
     const def = SLICES.find((s) => s.collection === rec.collection)
     if (!def) continue
+    // A malformed row — hand-inserted SQL whose row id doesn't match the
+    // payload's own identity — must stay inert. Applying it would adopt the
+    // payload under its own id; the device would then re-push that as a NEW
+    // record, and the original row resurrects whatever the user deletes.
+    if (!rec.deleted && def.idOf(rec.data as never) !== rec.id) continue
     const items = next[def.slice] as unknown as never[]
     const idx = items.findIndex((item) => def.idOf(item) === rec.id)
     if (rec.deleted) {
