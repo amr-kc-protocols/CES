@@ -1,4 +1,4 @@
-import { SHEETS } from '../../data/checkoffSheets'
+import { SHEETS, skillsFor } from '../../data/checkoffSheets'
 import { evalAverage } from './academyStore'
 import type { DailyEval, SkillCheck, Trainee } from '../../types'
 
@@ -61,10 +61,15 @@ export function skillChecksCSV(trainees: Trainee[], checks: SkillCheck[]): strin
     ],
     ...rows.map((c) => {
       const meta = SHEETS[c.sheet]
-      const total = meta?.skills.length ?? 0
-      const results = Object.values(c.results ?? {})
-      const passed = results.filter((r) => r === 'pass').length
-      const fails = results.filter((r) => r === 'fail').length
+      // RSI / ventilator scope by operation — measure against the trainee's
+      // own applicable skill list, not the sheet's superset.
+      const trainee = c.traineeId ? roster.get(c.traineeId) : undefined
+      const applicable = trainee ? skillsFor(c.sheet, trainee.operation) : meta?.skills ?? []
+      const ids = new Set(applicable.map((sk) => sk.id))
+      const total = applicable.length
+      const entries = Object.entries(c.results ?? {}).filter(([id]) => ids.has(id))
+      const passed = entries.filter(([, r]) => r === 'pass').length
+      const fails = entries.filter(([, r]) => r === 'fail').length
       return [
         c.traineeName, meta?.label ?? c.sheet, c.date, c.evaluator,
         passed, fails, total, passed === total && total > 0 ? 'Yes' : 'No',

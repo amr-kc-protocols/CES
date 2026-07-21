@@ -1,18 +1,24 @@
 // ---------------------------------------------------------------------------
 // Clinical skill sheet definitions, transcribed from the Microsoft Forms
-// versions. KC and Cass share the BLS clinical skills assessment; Linn County
-// paramedics use their own step-by-step sheet. Keep the two consistent with
-// their operations — do not merge them.
+// versions. The BLS assessment applies to EVERY hire regardless of operation
+// or credential; the ALS paramedic sheet applies to every paramedic, with a
+// per-operation difference: Linn County medics do RSI (KC/Cass do not), and
+// KC/Cass medics do ventilator procedures (Linn does not) — the `ops` field
+// scopes those skills.
 // ---------------------------------------------------------------------------
+
+import type { OperationId } from '../types'
 
 export interface SkillDef {
   id: string
   label: string
-  /** Linn sheet only: the observable steps the FTO checks off. */
+  /** Step-style sheets: the observable steps the FTO checks off. */
   steps?: string[]
+  /** Operations this skill applies to. Absent = every operation. */
+  ops?: OperationId[]
 }
 
-/** BLS Clinical Skills Assessment — every KC / Cass hire. */
+/** BLS Clinical Skills Assessment — every hire, every operation. */
 export const BLS_SKILLS: SkillDef[] = [
   {
     "id": "lifepak_15_vitals_monitoring",
@@ -76,7 +82,7 @@ export const BLS_SKILLS: SkillDef[] = [
   }
 ]
 
-/** Linn County paramedic skill sheet — step-by-step sign-off. */
+/** ALS paramedic skill sheet — step-by-step sign-off, every paramedic. */
 export const LINN_MEDIC_SKILLS: SkillDef[] = [
   {
     "id": "lifepak_15_manual_defibrillation",
@@ -130,6 +136,7 @@ export const LINN_MEDIC_SKILLS: SkillDef[] = [
   {
     "id": "rapid_sequence_intubation_rsi",
     "label": "Rapid Sequence Intubation (RSI)",
+    "ops": ["linn"],
     "steps": [
       "Pre-oxygenate the patient",
       "Give fentanyl (pain), midazolam (sedation), and vecuronium (paralysis)",
@@ -169,6 +176,19 @@ export const LINN_MEDIC_SKILLS: SkillDef[] = [
       "Don’t use if gag reflex is present or there’s a blockage below the glottis",
       "Pick i-gel size by weight: Size 1: 2–5 kg, Size 1.5: 5–12 kg, Size 2: 10–25 kg, Size 2.5: 25–35 kg",
       "Lubricate the i-gel"
+    ]
+  },
+  {
+    "id": "ventilator_management",
+    "label": "Ventilator Management (LTV 1200)",
+    "ops": ["kc", "cass"],
+    "steps": [
+      "Confirm indication and settings order (mode, rate, tidal volume, FiO2, PEEP)",
+      "Assemble and attach the circuit; run the device check",
+      "Set mode and dial in ordered settings",
+      "Verify chest rise, breath sounds, SpO2, and waveform capnography",
+      "Respond to alarms using DOPE (Displacement, Obstruction, Pneumothorax, Equipment)",
+      "Document settings and patient response"
     ]
   }
 ]

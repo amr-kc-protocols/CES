@@ -3,7 +3,7 @@ import { Empty, ProgressBar } from '../../components/ui'
 import SignaturePad from '../../components/SignaturePad'
 import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
-import { SHEETS } from '../../data/checkoffSheets'
+import { SHEETS, skillsFor } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import { useCan } from '../../lib/role'
 import { printDoc, downloadDoc, checkoffSheetHTML, safeFilename } from './docGen'
@@ -11,7 +11,6 @@ import type { SkillSheetId } from '../../types'
 import {
   useCohort,
   useSkillCheckFor,
-  sheetFor,
   setSkillResult,
   toggleSkillStep,
   setSkillEvaluator,
@@ -30,7 +29,7 @@ export default function SkillSheetView() {
   const cohort = useCohort(cohortId)
   const trainee = useSelector((db) => db.trainees.find((t) => t.id === traineeId))
   const sheet: SkillSheetId =
-    sheetParam && sheetParam in SHEETS ? (sheetParam as SkillSheetId) : trainee ? sheetFor(trainee) : 'bls'
+    sheetParam && sheetParam in SHEETS ? (sheetParam as SkillSheetId) : 'bls'
   const check = useSkillCheckFor(traineeId, sheet)
   // New hires can review their sheet (and print it) but not mark or sign it.
   const readOnly = !useCan().editRideWork
@@ -44,7 +43,9 @@ export default function SkillSheetView() {
   }
 
   const meta = SHEETS[sheet]
-  const skills = meta.skills
+  // RSI is Linn-only, ventilator management KC/Cass-only — show each trainee
+  // only the skills their operation performs.
+  const skills = skillsFor(sheet, trainee.operation)
   const stepStyle = skills.some((s) => s.steps?.length)
   const results = check?.results ?? {}
   const passed = skills.filter((s) => results[s.id] === 'pass').length
