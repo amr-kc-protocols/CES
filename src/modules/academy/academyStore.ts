@@ -526,6 +526,24 @@ export function setSkillSignature(
 
 // ----- survey responses (kept locally alongside the Google Sheet post) ----------
 
+/**
+ * When this trainee's exit survey was submitted. Prefers the marker on the
+ * trainee record, but falls back to the synced survey record itself — a
+ * survey filed on the trainee's own signed-in device can write `surveys`
+ * (with the newhire RLS policy) but never the trainee marker, so the
+ * completion state must be derivable from the survey alone.
+ */
+export function useSurveyDateFor(traineeId: string): string | undefined {
+  return useSelector((db) => {
+    const t = db.trainees.find((x) => x.id === traineeId)
+    if (t?.exitSurveyDate) return t.exitSurveyDate
+    const latest = db.surveyResponses
+      .filter((s) => s.traineeId === traineeId)
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0]
+    return latest ? latest.submittedAt.slice(0, 10) : undefined
+  })
+}
+
 export function addSurveyResponse(traineeId: string, data: Record<string, string>): void {
   const resp: SurveyResponse = {
     id: uid('survey'),

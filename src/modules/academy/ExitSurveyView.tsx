@@ -9,7 +9,8 @@ import {
 } from '../../data/exitSurvey'
 import { CREDENTIAL_LABELS } from '../../data/academy'
 import { formatDate, todayISO } from '../../lib/date'
-import { useCohort, useCohortTrainees, updateTrainee, addSurveyResponse } from './academyStore'
+import { useCohort, useCohortTrainees, updateTrainee, addSurveyResponse, useSurveyDateFor } from './academyStore'
+import { useCan } from '../../lib/role'
 import type { Trainee } from '../../types'
 
 // The New Hire Orientation (exit) Survey, ported from the Field Guide site.
@@ -182,6 +183,8 @@ export default function ExitSurveyView() {
   const { cohortId = '', traineeId = '' } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useCohortTrainees(cohortId).find((t) => t.id === traineeId)
+  const surveyDate = useSurveyDateFor(traineeId)
+  const { editRideWork: canMarkTrainee } = useCan()
   const [restoredDraft] = useState(() => loadDraft(traineeId))
   const [answers, setAnswers] = useState<Answers>(() =>
     trainee ? { ...prefill(trainee), ...restoredDraft } : {},
@@ -238,7 +241,10 @@ export default function ExitSurveyView() {
       // Keep a local copy too, so the History tab accumulates responses
       // alongside the legacy imports without depending on the Google Sheet.
       addSurveyResponse(trainee!.id, payload)
-      updateTrainee(trainee!.id, { exitSurveyDate: todayISO() })
+      // The trainee-record marker is FTO/admin-writable only; a new hire's
+      // own device skips it (the server would refuse it) and the completion
+      // state derives from the survey record instead.
+      if (canMarkTrainee) updateTrainee(trainee!.id, { exitSurveyDate: todayISO() })
       clearDraft(traineeId)
       setStatus('done')
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -279,7 +285,7 @@ export default function ExitSurveyView() {
           <h1>New Hire Orientation Survey</h1>
           <div className="subtle">
             {trainee.name} · {CREDENTIAL_LABELS[trainee.credential]}
-            {trainee.exitSurveyDate ? ` · already submitted ${formatDate(trainee.exitSurveyDate)}` : ''}
+            {surveyDate ? ` · already submitted ${formatDate(surveyDate)}` : ''}
           </div>
         </div>
       </div>
@@ -290,14 +296,14 @@ export default function ExitSurveyView() {
         Answer honestly — this is your opportunity to shape the experience for the next new hire.
       </div>
 
-      {trainee.exitSurveyDate && (
+      {surveyDate && (
         <div className="banner warn">
-          A survey was already submitted for {trainee.name} on {formatDate(trainee.exitSurveyDate)}.
+          A survey was already submitted for {trainee.name} on {formatDate(surveyDate)}.
           Submitting again adds a second response to the sheet.
         </div>
       )}
 
-      {restoredDraft && !trainee.exitSurveyDate && (
+      {restoredDraft && !surveyDate && (
         <div className="banner ok">✓ Draft restored — your earlier answers were kept.</div>
       )}
 
