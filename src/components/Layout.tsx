@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { UndoToast } from './ui'
+import SyncChip from './SyncChip'
 import { useCESummary } from '../modules/ce/ceStore'
 import { useSyncStatus } from '../lib/sync'
 import { QA_ENABLED, CE_ENABLED } from '../config/features'
@@ -42,6 +43,9 @@ export default function Layout() {
             AMR KC Academy
             <small>New Hire &amp; FTO Portal</small>
           </div>
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <SyncChip />
         </div>
       </header>
 
