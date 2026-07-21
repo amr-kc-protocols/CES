@@ -3,7 +3,7 @@ import { Empty, ProgressBar } from '../../components/ui'
 import { SHEETS } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import type { SkillSheetId } from '../../types'
-import { useCohort, useCohortTrainees } from './academyStore'
+import { useCohort, useCohortTrainees, sheetFor } from './academyStore'
 
 // Class-day view of one check-off sheet: the whole roster with progress, one
 // tap into each trainee's sheet. Linked from the academy schedule on the days
@@ -24,7 +24,9 @@ export default function ClassCheckoffView() {
   }
   const sheet = sheetParam as SkillSheetId
   const meta = SHEETS[sheet]
-  const total = meta.skills.length
+  // Clinical sheets differ by operation (KC/Cass run BLS, Linn medics their
+  // own) — each trainee's row opens THEIR sheet so nobody fills the wrong one.
+  const clinical = sheet === 'bls' || sheet === 'linn-medic'
 
   return (
     <div>
@@ -41,12 +43,21 @@ export default function ClassCheckoffView() {
       ) : (
         <div className="list">
           {trainees.map((t) => {
-            const check = checks.find((c) => c.traineeId === t.id && c.sheet === sheet)
+            const tSheet = clinical ? sheetFor(t) : sheet
+            const total = SHEETS[tSheet].skills.length
+            const check = checks.find((c) => c.traineeId === t.id && c.sheet === tSheet)
             const passed = Object.values(check?.results ?? {}).filter((r) => r === 'pass').length
             return (
-              <Link key={t.id} to={`/academy/${cohortId}/skills/${t.id}/${sheet}`} className="row" style={{ color: 'inherit' }}>
+              <Link key={t.id} to={`/academy/${cohortId}/skills/${t.id}/${tSheet}`} className="row" style={{ color: 'inherit' }}>
                 <div className="grow">
-                  <div className="title">{t.name}</div>
+                  <div className="title">
+                    {t.name}
+                    {tSheet !== sheet && (
+                      <span className="pill muted" style={{ marginLeft: 8, fontWeight: 500 }}>
+                        {SHEETS[tSheet].label}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ marginTop: 6 }}>
                     <ProgressBar pct={Math.round((passed / total) * 100)} complete={passed === total} />
                   </div>

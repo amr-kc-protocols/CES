@@ -82,7 +82,10 @@ export const SHEETS: Record<SkillSheetId, SheetMeta> = {
 }
 
 /** Academy sessions that carry a class-day digital check-off. */
-export const SESSION_CHECKOFFS: Record<string, SkillSheetId> = {
-  p1s3: 'evoc-track', // EVOC Road Course day
-  p1s5: 'stretcher', // Stretcher & Equipment Check-Off day
+export const SESSION_CHECKOFFS: Record<string, SkillSheetId[]> = {
+  p1s3: ['evoc-track'], // EVOC Road Course day
+  // Stretcher day doubles as the BLS equipment check-off — both sheets run.
+  // 'bls' resolves per trainee on the class page (Linn medics get their own
+  // clinical sheet).
+  p1s5: ['stretcher', 'bls'],
 }

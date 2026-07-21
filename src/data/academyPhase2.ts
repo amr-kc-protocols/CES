@@ -141,7 +141,7 @@ const SESSIONS: TemplateSession[] = [
       { durationMin: 15, kind: 'education', title: 'Opener · objectives · safety brief' },
       { durationMin: 165, kind: 'hands-on', title: 'Stretcher lab', notes: 'PowerLoad + Stryker hand placement, stair chair. Runs against the GMR Safe Stretcher Handling v3.2 deck.' },
       { durationMin: 60, kind: 'lunch', title: 'Lunch' },
-      { durationMin: 150, kind: 'assessment', title: 'Equipment check-off', notes: 'Against the equipment check-off sheet.' },
+      { durationMin: 150, kind: 'assessment', title: 'BLS equipment check-off', notes: 'On the digital clinical skill sheet — signed off and saved in the app like the stretcher check-off (Linn medics use their own sheet).' },
       { durationMin: 30, kind: 'closeout', title: 'Final sign-offs · Week-1 retrieval quiz · housekeeping' },
     ],
     retrieval: { pullsFrom: [] },
