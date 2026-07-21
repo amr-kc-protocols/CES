@@ -10,7 +10,7 @@
 // every sheet stores per-trainee as a SkillCheck record.
 // ---------------------------------------------------------------------------
 
-import type { SkillSheetId } from '../types'
+import type { OperationId, SkillSheetId, Trainee } from '../types'
 import { BLS_SKILLS, LINN_MEDIC_SKILLS, type SkillDef } from './skillSheets'
 
 /** Safe Stretcher Handling v3.2 — stations flattened to one pass line each. */
@@ -63,8 +63,11 @@ export interface SheetMeta {
 }
 
 export const SHEETS: Record<SkillSheetId, SheetMeta> = {
-  bls: { label: 'BLS clinical skills assessment', short: 'Clinical', icon: '🩺', skills: BLS_SKILLS },
-  'linn-medic': { label: 'Linn County paramedic skill sheet', short: 'Clinical', icon: '🩺', skills: LINN_MEDIC_SKILLS },
+  // BLS applies to every hire; the ALS sheet to every paramedic. The
+  // 'linn-medic' id is historical (it began Linn-only) and stays for the
+  // sake of existing synced records.
+  bls: { label: 'BLS clinical skills assessment', short: 'BLS', icon: '🩺', skills: BLS_SKILLS },
+  'linn-medic': { label: 'ALS paramedic skill sheet', short: 'ALS', icon: '💉', skills: LINN_MEDIC_SKILLS },
   stretcher: {
     label: 'Safe stretcher handling (GMR v3.2)',
     short: 'Stretcher',
@@ -81,8 +84,23 @@ export const SHEETS: Record<SkillSheetId, SheetMeta> = {
   },
 }
 
+/**
+ * A sheet's skills for one operation — RSI is Linn-only, ventilator
+ * management is KC/Cass-only, everything else applies everywhere.
+ */
+export function skillsFor(sheet: SkillSheetId, operation: OperationId): SkillDef[] {
+  return SHEETS[sheet].skills.filter((s) => !s.ops || s.ops.includes(operation))
+}
+
+/** The clinical sheets a trainee completes: BLS for all, ALS for paramedics. */
+export function clinicalSheetsFor(t: Trainee): SkillSheetId[] {
+  return t.credential === 'paramedic' ? ['bls', 'linn-medic'] : ['bls']
+}
+
 /** Academy sessions that carry a class-day digital check-off. */
-export const SESSION_CHECKOFFS: Record<string, SkillSheetId> = {
-  p1s3: 'evoc-track', // EVOC Road Course day
-  p1s5: 'stretcher', // Stretcher & Equipment Check-Off day
+export const SESSION_CHECKOFFS: Record<string, SkillSheetId[]> = {
+  p1s3: ['evoc-track'], // EVOC Road Course day
+  // Stretcher day doubles as the BLS equipment check-off — every hire,
+  // every operation. The ALS sheet is separate, done during FTO time.
+  p1s5: ['stretcher', 'bls'],
 }

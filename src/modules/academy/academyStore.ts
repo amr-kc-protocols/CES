@@ -440,11 +440,10 @@ export function evalAverage(e: DailyEval): number | null {
 }
 
 // ----- skill / check-off sheets ---------------------------------------------------
-
-/** Which clinical sheet applies: Linn medics get their own; else the BLS sheet. */
-export function sheetFor(t: Trainee): SkillSheetId {
-  return t.operation === 'linn' && t.credential === 'paramedic' ? 'linn-medic' : 'bls'
-}
+// Which sheets a trainee completes lives in data/checkoffSheets
+// (clinicalSheetsFor / skillsFor): BLS for every hire, the ALS paramedic
+// sheet for every paramedic, with RSI (Linn) / ventilator (KC & Cass)
+// scoped per operation.
 
 // One live SkillCheck per (trainee, sheet). Early records were created before
 // multi-sheet support with id `skill:<traineeId>` — lookups therefore go by

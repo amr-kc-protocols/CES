@@ -203,12 +203,14 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
         ))}
       </ul>
 
-      {/* Hands-on days carry their digital check-off, one tap from the schedule. */}
+      {/* Hands-on days carry their digital check-offs, one tap from the schedule. */}
       {SESSION_CHECKOFFS[session.id] && (
-        <div style={{ margin: '0 0 12px' }}>
-          <Link to={`/academy/${cohortId}/checkoff/${SESSION_CHECKOFFS[session.id]}`} className="btn sm primary">
-            {SHEETS[SESSION_CHECKOFFS[session.id]].icon} Digital check-off — whole class
-          </Link>
+        <div style={{ margin: '0 0 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {SESSION_CHECKOFFS[session.id].map((sheet) => (
+            <Link key={sheet} to={`/academy/${cohortId}/checkoff/${sheet}`} className="btn sm primary">
+              {SHEETS[sheet].icon} {SHEETS[sheet].label} — whole class
+            </Link>
+          ))}
         </div>
       )}
 

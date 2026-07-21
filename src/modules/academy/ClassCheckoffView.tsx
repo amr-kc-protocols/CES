@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Empty, ProgressBar } from '../../components/ui'
-import { SHEETS } from '../../data/checkoffSheets'
+import { SHEETS, skillsFor } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import type { SkillSheetId } from '../../types'
 import { useCohort, useCohortTrainees } from './academyStore'
@@ -24,7 +24,8 @@ export default function ClassCheckoffView() {
   }
   const sheet = sheetParam as SkillSheetId
   const meta = SHEETS[sheet]
-  const total = meta.skills.length
+  // BLS runs for every hire; the ALS paramedic sheet only lists paramedics.
+  const roster = sheet === 'linn-medic' ? trainees.filter((t) => t.credential === 'paramedic') : trainees
 
   return (
     <div>
@@ -36,13 +37,17 @@ export default function ClassCheckoffView() {
         </div>
       </div>
 
-      {trainees.length === 0 ? (
-        <Empty icon="🎓" title="No trainees on this cohort's roster yet" />
+      {roster.length === 0 ? (
+        <Empty icon="🎓" title={trainees.length === 0 ? "No trainees on this cohort's roster yet" : 'No paramedics on this roster'} />
       ) : (
         <div className="list">
-          {trainees.map((t) => {
+          {roster.map((t) => {
+            // RSI / ventilator scope by operation, so totals differ per trainee.
+            const applicable = skillsFor(sheet, t.operation)
+            const ids = new Set(applicable.map((sk) => sk.id))
+            const total = applicable.length
             const check = checks.find((c) => c.traineeId === t.id && c.sheet === sheet)
-            const passed = Object.values(check?.results ?? {}).filter((r) => r === 'pass').length
+            const passed = Object.entries(check?.results ?? {}).filter(([id, r]) => r === 'pass' && ids.has(id)).length
             return (
               <Link key={t.id} to={`/academy/${cohortId}/skills/${t.id}/${sheet}`} className="row" style={{ color: 'inherit' }}>
                 <div className="grow">

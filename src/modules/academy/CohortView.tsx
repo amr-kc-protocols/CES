@@ -32,9 +32,8 @@ import {
   useRidesFor,
   useEvalsFor,
   useSkillCheckFor,
-  sheetFor,
 } from './academyStore'
-import { SHEETS } from '../../data/checkoffSheets'
+import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
@@ -167,8 +166,9 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
   const rides = useRidesFor(trainee.id)
   const evals = useEvalsFor(trainee.id)
-  const clinicalSheet = sheetFor(trainee)
-  const clinicalCheck = useSkillCheckFor(trainee.id, clinicalSheet)
+  // Every hire runs the BLS sheet; paramedics additionally run the ALS sheet.
+  const blsCheck = useSkillCheckFor(trainee.id, 'bls')
+  const alsCheck = useSkillCheckFor(trainee.id, 'linn-medic')
   const stretcherCheck = useSkillCheckFor(trainee.id, 'stretcher')
   const evocCheck = useSkillCheckFor(trainee.id, 'evoc-track')
   const passedOf = (c?: { results: Record<string, string> }) =>
@@ -391,9 +391,14 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <Link to={`/academy/${trainee.cohortId}/eval/${trainee.id}`} className="btn sm">
               ⭐ Daily evals · {evals.length}
             </Link>
-            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}`} className="btn sm">
-              🩺 Clinical · {passedOf(clinicalCheck)}/{SHEETS[clinicalSheet].skills.length}
+            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/bls`} className="btn sm">
+              🩺 BLS · {passedOf(blsCheck)}/{skillsFor('bls', trainee.operation).length}
             </Link>
+            {clinicalSheetsFor(trainee).includes('linn-medic') && (
+              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/linn-medic`} className="btn sm">
+                💉 ALS · {passedOf(alsCheck)}/{skillsFor('linn-medic', trainee.operation).length}
+              </Link>
+            )}
             <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/stretcher`} className="btn sm">
               🛏️ Stretcher · {passedOf(stretcherCheck)}/{SHEETS.stretcher.skills.length}
             </Link>
