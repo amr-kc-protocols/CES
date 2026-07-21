@@ -68,3 +68,13 @@ export function formatDateTime(isoTimestamp?: string): string {
     minute: '2-digit',
   })
 }
+
+/**
+ * Display a signature timestamp. New signatures store a full ISO instant
+ * (date + time, for record-keeping); older records stored a date-only string.
+ * Show the time when we have it, the date otherwise.
+ */
+export function formatSignedAt(iso?: string): string {
+  if (!iso) return '—'
+  return iso.includes('T') ? formatDateTime(iso) : formatDate(iso)
+}

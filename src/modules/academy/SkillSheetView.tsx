@@ -196,12 +196,14 @@ export default function SkillSheetView() {
         <SignaturePad
           label={`FTO / Evaluator${check?.evaluator ? ` — ${check.evaluator}` : ''}`}
           value={check?.evaluatorSignature}
+          signedAt={check?.evaluatorSignedAt}
           disabled={readOnly}
           onChange={(url) => setSkillSignature(traineeId, sheet, 'evaluator', url)}
         />
         <SignaturePad
           label={`New hire — ${trainee.name}`}
           value={check?.traineeSignature}
+          signedAt={check?.traineeSignedAt}
           disabled={readOnly}
           onChange={(url) => setSkillSignature(traineeId, sheet, 'trainee', url)}
         />

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Empty } from '../../components/ui'
 import SignaturePad from '../../components/SignaturePad'
-import { formatDate, todayISO } from '../../lib/date'
+import { formatDate, formatSignedAt, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
 import { useCan } from '../../lib/role'
 import { useSyncStatus } from '../../lib/sync'
@@ -238,9 +238,12 @@ export default function DailyEvalView() {
                     <img
                       src={e.ftoInitials}
                       alt={`${e.fto || 'FTO'} initials`}
-                      title="FTO initialed"
+                      title={e.ftoInitialsAt ? `FTO initialed ${formatSignedAt(e.ftoInitialsAt)}` : 'FTO initialed'}
                       style={{ height: 26, maxWidth: 90, border: '1px solid var(--border)', borderRadius: 4, background: '#fff' }}
                     />
+                  )}
+                  {e.ftoInitialsAt && (
+                    <span className="subtle" style={{ fontSize: 11 }}>🔒 {formatSignedAt(e.ftoInitialsAt)}</span>
                   )}
                   {avg !== null && <span className={`pill ${avg >= 4 ? 'ok' : avg >= 3 ? 'info' : 'warn'}`}>{avg.toFixed(1)} avg</span>}
                   {e.readyIndependent === true && <span className="pill ok">Ready</span>}
