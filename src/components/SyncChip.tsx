@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useSyncStatus, syncNow } from '../lib/sync'
+import { usePersistFailed } from '../lib/store'
 
 // The "is my work safe?" indicator, always visible in the top bar. The app
 // has no save buttons — everything stores instantly and syncs itself — but
@@ -8,8 +9,7 @@ import { useSyncStatus, syncNow } from '../lib/sync'
 
 export default function SyncChip() {
   const { configured, signedIn, pending, syncing, lastSync, error } = useSyncStatus()
-
-  if (!configured) return null
+  const persistFailed = usePersistFailed()
 
   const base: React.CSSProperties = {
     display: 'inline-flex',
@@ -24,6 +24,18 @@ export default function SyncChip() {
     cursor: 'pointer',
     font: 'inherit',
   }
+
+  // Device storage rejecting writes outranks every other state: changes are
+  // surviving only in memory, and closing the app would lose them.
+  if (persistFailed) {
+    return (
+      <Link to="/settings" style={{ ...base, background: '#fde2e1', color: '#991b1b', textDecoration: 'none' }} title="This device's storage is full or blocked — changes are NOT being saved locally. Export a backup and free space.">
+        ⛔ Storage full — not saving
+      </Link>
+    )
+  }
+
+  if (!configured) return null
 
   // Signed out: nothing leaves this device — the one genuinely unsafe state.
   if (!signedIn) {

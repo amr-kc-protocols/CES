@@ -59,10 +59,21 @@ export function onStateChange(cb: ChangeListener): () => void {
   return () => changeListeners.delete(cb)
 }
 
+// When localStorage rejects a write (quota, private mode), changes survive
+// only in memory — the UI must say so instead of letting the user believe
+// everything is saved. Cleared automatically the moment a write succeeds.
+let persistFailed = false
+
+export function usePersistFailed(): boolean {
+  return useSyncExternalStore(subscribe, () => persistFailed, () => persistFailed)
+}
+
 function persist(next: DBShape): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    persistFailed = false
   } catch (err) {
+    persistFailed = true
     console.error('CES: failed to persist state', err)
   }
 }

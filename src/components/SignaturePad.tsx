@@ -85,12 +85,28 @@ export default function SignaturePad({ label, value, onChange, disabled, height 
     if (!hasInk) setHasInk(true)
   }
 
+  // Export at CSS-pixel size, not the DPR-scaled backing store: signatures
+  // live inside synced records and the localStorage DB, and a 3x phone would
+  // otherwise store 9x the pixels for no visible gain on a printed sheet.
+  const exportPNG = (): string | null => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    const off = document.createElement('canvas')
+    off.width = Math.max(1, Math.round(rect.width))
+    off.height = HEIGHT
+    const octx = off.getContext('2d')
+    if (!octx) return canvas.toDataURL('image/png')
+    octx.drawImage(canvas, 0, 0, off.width, off.height)
+    return off.toDataURL('image/png')
+  }
+
   const end = () => {
     if (!drawing.current) return
     drawing.current = false
     last.current = null
     if (dirtied.current) {
-      onChange(canvasRef.current?.toDataURL('image/png') ?? null)
+      onChange(exportPNG())
       dirtied.current = false
     }
   }

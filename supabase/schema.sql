@@ -129,6 +129,23 @@ create policy "fto updates ride-along collections"
     and collection in ('trainees', 'attendance', 'rides', 'evals', 'skills', 'surveys')
   );
 
--- New hires are read-only in v1 (their survey posts via the existing Google
--- Apps Script; checklist marks are entered on the FTO's device). Widen later
--- by adding policies, not by changing the app.
+-- New hires are read-only except their own working set: the exit survey.
+-- The survey filed from the trainee's own signed-in phone must sync — the
+-- in-app completion state derives from the survey record (the trainee-record
+-- marker stays FTO/admin-written). Checklist marks, contacts, evals, and
+-- skill sign-offs remain FTO/admin-only.
+create policy "newhire writes surveys"
+  on public.records for insert
+  to authenticated
+  with check (
+    public.current_role() = 'newhire'
+    and collection = 'surveys'
+  );
+
+create policy "newhire updates surveys"
+  on public.records for update
+  to authenticated
+  using (
+    public.current_role() = 'newhire'
+    and collection = 'surveys'
+  );

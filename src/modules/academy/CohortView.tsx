@@ -32,6 +32,7 @@ import {
   useRidesFor,
   useEvalsFor,
   useSkillCheckFor,
+  useSurveyDateFor,
 } from './academyStore'
 import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
@@ -166,6 +167,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
   const rides = useRidesFor(trainee.id)
   const evals = useEvalsFor(trainee.id)
+  const surveyDate = useSurveyDateFor(trainee.id)
   // Every hire runs the BLS sheet; paramedics additionally run the ALS sheet.
   const blsCheck = useSkillCheckFor(trainee.id, 'bls')
   const alsCheck = useSkillCheckFor(trainee.id, 'linn-medic')
@@ -410,9 +412,9 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                 📋 Field checklist · {fieldProgress(trainee).done}/{fieldProgress(trainee).total} objectives
               </Link>
             )}
-            {trainee.exitSurveyDate ? (
-              <span className="pill ok" title={`Exit survey submitted ${formatDate(trainee.exitSurveyDate)}`}>
-                📝 Survey ✓ {formatDate(trainee.exitSurveyDate)}
+            {surveyDate ? (
+              <span className="pill ok" title={`Exit survey submitted ${formatDate(surveyDate)}`}>
+                📝 Survey ✓ {formatDate(surveyDate)}
               </span>
             ) : (
               <Link to={`/academy/${trainee.cohortId}/survey/${trainee.id}`} className="btn sm">

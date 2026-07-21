@@ -215,6 +215,22 @@ function CloudSyncCard() {
   )
 }
 
+/** Local footprint of the DB, with the browser's rough allowance alongside. */
+function StorageUsage() {
+  const db = useDB()
+  const bytes = JSON.stringify(db).length
+  const mb = (bytes / 1024 / 1024).toFixed(2)
+  // localStorage allowances are ~5–10 MB depending on browser; flag early.
+  const heavy = bytes > 3.5 * 1024 * 1024
+  return (
+    <p className={heavy ? 'help-text' : 'subtle'} style={{ fontSize: 12, marginTop: 0 }}>
+      Local data size: {mb} MB
+      {heavy &&
+        ' — approaching this device\u2019s storage allowance. Export a backup; older cohorts can be cleared after their data is safely in the cloud.'}
+    </p>
+  )
+}
+
 export default function Settings() {
   const db = useDB()
   const [reviewer, setReviewer] = useState(db.settings.reviewer)
@@ -330,6 +346,7 @@ export default function Settings() {
           Data lives on this device first (works fully offline); Cloud sync above shares it across
           devices when configured. Back up or move your data with the buttons below.
         </p>
+        <StorageUsage />
         <div className="btn-row">
           <button className="btn" onClick={doExport}>
             ⬇ Export backup (JSON)
