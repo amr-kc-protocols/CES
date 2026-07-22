@@ -3,7 +3,11 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { initSync, onPullComplete, getSyncStatus, getCloudConfig } from './lib/sync'
+import { initPWA } from './lib/pwa'
 import './index.css'
+
+// Register the service worker and keep it auto-updating to the latest deploy.
+initPWA()
 
 // Wire cloud sync (no-op until a Supabase project is configured in Settings).
 initSync()
