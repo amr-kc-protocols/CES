@@ -94,14 +94,27 @@
   .modcard.locked .num .lock { display: block; }
   .modcard.locked .chev { font-size: 14px; }
 
-  /* Quick links (systems) */
-  .ql { display: grid; gap: 6px; }
-  .ql-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px;
-    background: var(--card); color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 600; }
-  .ql-row.muted { color: var(--muted); font-weight: 500; }
-  .ql-row .ql-go { flex: none; font-size: 12px; font-weight: 700; opacity: .85; }
-  a.ql-row:hover { border-color: var(--navy-2); }
+  /* Screenshots */
+  .shot { margin: 12px 0; }
+  .shot img {
+    display: block; width: 100%; max-width: 320px; height: auto; margin: 0 auto;
+    border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(11,46,79,0.12);
+  }
+  .shot figcaption {
+    text-align: center; font-size: 12px; color: var(--muted);
+    margin-top: 6px; font-style: italic;
+  }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps li {
+    counter-increment: step; position: relative; padding-left: 34px; margin-bottom: 10px;
+  }
+  .steps li::before {
+    content: counter(step); position: absolute; left: 0; top: -1px;
+    width: 24px; height: 24px; border-radius: 50%; background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  }
+
 
   .intro-card {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -281,8 +294,12 @@ const MODULES = [
     body: `
       <div class="section">
         <h3>Okta is your front door</h3>
-        <p><strong>Okta</strong> is the single sign-on (SSO) that unlocks nearly every AMR system — GPS Portal, email, NinthBrain, Cornerstone, and more. Set it up first; everything else depends on it.</p>
-        <div class="callout info"><span class="lbl">Sign in</span><a href="https://gmr.okta.com" target="_blank" rel="noreferrer">gmr.okta.com</a></div>
+        <p><strong>Okta</strong> is the single sign-on (SSO) that unlocks nearly every AMR system — email, NinthBrain, policies, charting, benefits, and more. Set it up first; everything else lives behind it.</p>
+        <div class="callout info"><span class="lbl">Sign in at</span><a href="https://gmr.okta.com" target="_blank" rel="noreferrer">gmr.okta.com</a></div>
+        <figure class="shot">
+          <img src="img/okta-signin.jpg" alt="GMR Okta sign-in screen at gmr.okta.com with Username and Password fields" loading="lazy" />
+          <figcaption>The GMR sign-in screen. Note the <em>Forgot password?</em> and <em>Unlock account?</em> links — you'll want them eventually.</figcaption>
+        </figure>
       </div>
       <div class="section">
         <h3>Your temporary password</h3>
@@ -304,10 +321,41 @@ const MODULES = [
       <div class="section">
         <h3>My Action Items</h3>
         <p>Once you're in Okta, check <strong>My Action Items</strong> on your dashboard. This is one of two mandatory <strong>My Action Items</strong> lists (the other is in GPS Portal). Clear everything it lists.</p>
+      </div>
+      <div class="section">
+        <h3>Finding your apps — the dashboard</h3>
+        <p>After you sign in you land on <strong>My Apps</strong>. There are no separate website addresses to memorize: <strong>every AMR system is a tile here.</strong> To open one:</p>
+        <ol class="steps">
+          <li>Tap the <strong>Search your apps</strong> bar at the top.</li>
+          <li>Type the system name (e.g. "Ninth Brain").</li>
+          <li>Tap the tile to launch it — Okta signs you in automatically.</li>
+        </ol>
+        <figure class="shot">
+          <img src="img/okta-dashboard.jpg" alt="Okta My Apps dashboard with a Search your apps bar and a grid of app tiles" loading="lazy" />
+          <figcaption>Your <strong>My Apps</strong> dashboard. Use <em>Search your apps</em> to jump straight to any tile.</figcaption>
+        </figure>
+        <h4>Tiles you'll use as a new hire</h4>
+        <p>Scroll the dashboard and you'll see tiles like these — search for the name in <strong>bold</strong>:</p>
+        <table>
+          <tr><th>Tile</th><th>What it's for</th></tr>
+          <tr><td><strong>GMR - Ninth Brain</strong></td><td>Your credentials &amp; the Respiratory Questionnaire (Module 4)</td></tr>
+          <tr><td><strong>GMR Policies</strong></td><td>Handbook &amp; company policies (Module 8)</td></tr>
+          <tr><td><strong>GMR - Microsoft Office 365</strong></td><td>Email (Outlook) &amp; Teams</td></tr>
+          <tr><td><strong>GMR - ImageTrend</strong></td><td>ePCR / patient-care charting</td></tr>
+          <tr><td><strong>GMR - UKG Pro</strong></td><td>Timekeeping &amp; workforce info</td></tr>
+          <tr><td><strong>GMR Concur</strong></td><td>Travel &amp; expense</td></tr>
+          <tr><td><strong>GMR - Clinical Support</strong></td><td>Clinical resources</td></tr>
+        </table>
+        <figure class="shot">
+          <img src="img/okta-apps.jpg" alt="Okta app tiles including GMR - Ninth Brain, Transport.net, and Microsoft Teams" loading="lazy" />
+          <figcaption>Scroll to browse, or just search. Names all start with "GMR -".</figcaption>
+        </figure>
+        <div class="callout info"><span class="lbl">Don't see a tile?</span>Some apps are granted a day or two after you start, or by role. If something you need is missing after your first week, tell your supervisor or GMR Support (Module 3).</div>
       </div>`,
     quiz: [
       { q: "What is the temporary Okta password formula?", options: ["Your employee ID + birth year", "Full birth month capitalized + last 5 of SSN + !", "AMR + last 4 of SSN", "First name + #1234"], answer: 1, explain: "e.g. someone born in July with SSN ending 27812 → July27812!" },
-      { q: "Why set up Okta first?", options: ["It's optional", "It's the single sign-on that unlocks most other systems", "It only handles email", "It replaces your paycheck login"], answer: 1, explain: "Okta SSO gates GPS Portal, NinthBrain, Cornerstone and more — set it up before anything else." },
+      { q: "Why set up Okta first?", options: ["It's optional", "It's the single sign-on that unlocks most other systems", "It only handles email", "It replaces your paycheck login"], answer: 1, explain: "Okta SSO gates NinthBrain, policies, charting, benefits and more — set it up before anything else." },
+      { q: "How do you open an AMR system like NinthBrain?", options: ["Google its website and log in separately", "Find its tile on your Okta My Apps dashboard (search by name)", "Ask IT to email you a link each time", "It only works from a station computer"], answer: 1, explain: "Every system is a tile on your Okta dashboard — use 'Search your apps' and tap the tile; Okta signs you in." },
     ],
   },
   {
@@ -583,9 +631,9 @@ const MODULES = [
         </dl>
       </div>
       <div class="section">
-        <h3>Quick links — your systems</h3>
-        <p class="subtle" style="margin-top:0">Every system below is reached through <strong>Okta</strong> single sign-on. Tap a link where one is set; otherwise sign in to Okta and open it from your dashboard.</p>
-        <div id="quicklinks" class="ql"></div>
+        <h3>Getting into your systems</h3>
+        <p>There's just one address to remember — everything else is a tile inside it:</p>
+        <div class="callout info"><span class="lbl">Okta single sign-on</span><a href="https://gmr.okta.com" target="_blank" rel="noreferrer">gmr.okta.com</a> — sign in, then use <strong>Search your apps</strong> to open NinthBrain, Policies, email, ImageTrend, UKG, Concur, and the rest. See <strong>Module 2</strong> for the full walkthrough.</div>
       </div>
       <div class="section">
         <h3>Key numbers to save now</h3>
@@ -635,34 +683,10 @@ const detailHost = document.getElementById("detailHost");
 const pfill = document.getElementById("pfill");
 const plabel = document.getElementById("plabel");
 
-// Direct sign-in URLs for the systems referenced in the course. Every system
-// is reached through Okta SSO, so a URL is optional — leave it "" and the
-// Quick Links card shows the name with an "access through Okta" note instead
-// of a dead link. Drop in the real URL to turn any entry into a live link.
-const SYSTEM_LINKS = [
-  { label: "Okta (single sign-on)",        url: "https://gmr.okta.com" },
-  { label: "GPS Portal",                   url: "" },
-  { label: "NinthBrain (credentials)",     url: "" },
-  { label: "Cornerstone (LMS / training)", url: "" },
-  { label: "Empower (401k)",               url: "" },
-  { label: "Beneplace (discounts)",        url: "" },
-  { label: "GMR Employee Foundation",      url: "" },
-];
-
 // A module unlocks only once the one before it is complete (the first is
 // always open). Keeps hires moving through in order.
 function isUnlocked(i) {
   return i === 0 || done.has(MODULES[i - 1].id);
-}
-
-function populateQuickLinks(root) {
-  const host = root.querySelector("#quicklinks");
-  if (!host) return;
-  host.innerHTML = SYSTEM_LINKS.map((s) =>
-    s.url
-      ? `<a class="ql-row" href="${s.url}" target="_blank" rel="noreferrer"><span>${s.label}</span><span class="ql-go">Open ↗</span></a>`
-      : `<div class="ql-row muted"><span>${s.label}</span><span class="ql-go">via Okta</span></div>`
-  ).join("");
 }
 
 function updateProgress() {
@@ -740,7 +764,6 @@ function openModule(i) {
 
   detailHost.innerHTML = "";
   detailHost.appendChild(wrap);
-  populateQuickLinks(wrap);
 
   const answered = new Array(m.quiz.length).fill(false);
   const completeBtn = wrap.querySelector("#completeBtn");
