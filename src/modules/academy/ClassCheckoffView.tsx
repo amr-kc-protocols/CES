@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Empty, ProgressBar } from '../../components/ui'
-import { SHEETS, skillsFor } from '../../data/checkoffSheets'
+import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import type { SkillSheetId } from '../../types'
 import { useCohort, useCohortTrainees } from './academyStore'
@@ -24,8 +24,10 @@ export default function ClassCheckoffView() {
   }
   const sheet = sheetParam as SkillSheetId
   const meta = SHEETS[sheet]
-  // BLS runs for every hire; the ALS paramedic sheet only lists paramedics.
-  const roster = sheet === 'linn-medic' ? trainees.filter((t) => t.credential === 'paramedic') : trainees
+  // Stretcher & EVOC run for everyone; the clinical sheets (BLS / ALS / RSI /
+  // Vent) list only the trainees that sheet actually applies to.
+  const clinical = sheet === 'bls' || sheet === 'linn-medic' || sheet === 'rsi' || sheet === 'vent'
+  const roster = clinical ? trainees.filter((t) => clinicalSheetsFor(t).includes(sheet)) : trainees
 
   return (
     <div>
@@ -38,7 +40,7 @@ export default function ClassCheckoffView() {
       </div>
 
       {roster.length === 0 ? (
-        <Empty icon="🎓" title={trainees.length === 0 ? "No trainees on this cohort's roster yet" : 'No paramedics on this roster'} />
+        <Empty icon="🎓" title={trainees.length === 0 ? "No trainees on this cohort's roster yet" : `No trainees on this roster do the ${meta.label}`} />
       ) : (
         <div className="list">
           {roster.map((t) => {

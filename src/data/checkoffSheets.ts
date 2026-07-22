@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import type { OperationId, SkillSheetId, Trainee } from '../types'
-import { BLS_SKILLS, LINN_MEDIC_SKILLS, type SkillDef } from './skillSheets'
+import { BLS_SKILLS, LINN_MEDIC_SKILLS, RSI_SKILLS, VENT_SKILLS, type SkillDef } from './skillSheets'
 
 /** Safe Stretcher Handling v3.2 — stations flattened to one pass line each. */
 export const STRETCHER_SKILLS: SkillDef[] = [
@@ -82,6 +82,20 @@ export const SHEETS: Record<SkillSheetId, SheetMeta> = {
     skills: EVOC_TRACK_SKILLS,
     note: 'A station passes when every item is satisfactory. The EVOC certificate + track sheet still upload to Ninth Brain per the paper packet.',
   },
+  rsi: {
+    label: 'Rapid Sequence Intubation (RSI)',
+    short: 'RSI',
+    icon: '💨',
+    skills: RSI_SKILLS,
+    note: 'Linn County paramedics. Time-intensive — run as its own dedicated station, separate from the core ALS sheet.',
+  },
+  vent: {
+    label: 'Ventilator Management (LTV 1200)',
+    short: 'Vent',
+    icon: '🫁',
+    skills: VENT_SKILLS,
+    note: 'KC / Cass paramedics. Time-intensive — run as its own dedicated station, separate from the core ALS sheet.',
+  },
 }
 
 /**
@@ -92,9 +106,14 @@ export function skillsFor(sheet: SkillSheetId, operation: OperationId): SkillDef
   return SHEETS[sheet].skills.filter((s) => !s.ops || s.ops.includes(operation))
 }
 
-/** The clinical sheets a trainee completes: BLS for all, ALS for paramedics. */
+/**
+ * The clinical sheets a trainee completes: BLS for every hire, the core ALS
+ * sheet for every paramedic, plus the operation's advanced-airway sheet —
+ * RSI for Linn County, Ventilator Management for KC/Cass.
+ */
 export function clinicalSheetsFor(t: Trainee): SkillSheetId[] {
-  return t.credential === 'paramedic' ? ['bls', 'linn-medic'] : ['bls']
+  if (t.credential !== 'paramedic') return ['bls']
+  return ['bls', 'linn-medic', t.operation === 'linn' ? 'rsi' : 'vent']
 }
 
 /** Academy sessions that carry a class-day digital check-off. */
