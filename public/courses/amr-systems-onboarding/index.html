@@ -282,6 +282,7 @@ const MODULES = [
       <div class="section">
         <h3>Okta is your front door</h3>
         <p><strong>Okta</strong> is the single sign-on (SSO) that unlocks nearly every AMR system — GPS Portal, email, NinthBrain, Cornerstone, and more. Set it up first; everything else depends on it.</p>
+        <div class="callout info"><span class="lbl">Sign in</span><a href="https://gmr.okta.com" target="_blank" rel="noreferrer">gmr.okta.com</a></div>
       </div>
       <div class="section">
         <h3>Your temporary password</h3>
@@ -537,8 +538,21 @@ const MODULES = [
       </div>
       <div class="section">
         <h3>GMR Life — support for you</h3>
-        <p>This job is hard. GMR provides real mental-health and life support through the <strong>Employee Assistance Program (EAP)</strong> and <strong>GMR Life</strong> — free, confidential counseling sessions, a crisis line, and other resources for you and your household.</p>
-        <div class="callout warn"><span class="lbl">Please confirm the current EAP</span>The EAP vendor, session count, and phone number have varied across our materials. Confirm the <em>current</em> EAP provider and contact number with local HR or in GPS Portal before you need it — then save it in your phone.</div>
+        <p>This job is hard. GMR provides real mental-health and life support through the <strong>Employee Assistance Program (EAP)</strong> and <strong>GMR Life</strong> — free, confidential counseling and resources for you and your household.</p>
+        <h4>Your EAP — Optum Health</h4>
+        <p>The EAP is administered by <strong>Optum Health</strong> for <strong>all</strong> employees — help with family &amp; relationships, child/elder care, financial services, and stress. Free and confidential.</p>
+        <dl class="kv">
+          <dt>Website</dt><dd><a href="https://www.liveandworkwell.com" target="_blank" rel="noreferrer">liveandworkwell.com</a> — company access code <strong>Oneteam</strong></dd>
+          <dt>Phone</dt><dd><a href="tel:18662484094">1-866-248-4094</a></dd>
+        </dl>
+        <h4>More well-being resources</h4>
+        <ul>
+          <li><strong>SonderMind</strong> (select states) — <a href="http://gmr.withsondermind.com/" target="_blank" rel="noreferrer">gmr.withsondermind.com</a></li>
+          <li><strong>Chaplain Services</strong> — <a href="https://www.telechaplain.net" target="_blank" rel="noreferrer">telechaplain.net</a></li>
+          <li><strong>Crisis Text Line</strong> — text <strong>BADGE</strong> to <strong>741-741</strong></li>
+          <li><strong>988 Suicide &amp; Crisis Lifeline</strong> — call or text <a href="tel:988">988</a></li>
+        </ul>
+        <div class="callout"><span class="lbl">Save it now</span>Add the EAP number — <a href="tel:18662484094">1-866-248-4094</a> — and the access code <strong>Oneteam</strong> to your phone before you finish this course.</div>
       </div>`,
     quiz: [
       { q: "Under Just Culture, how is honest human error handled?", options: ["Punished harshly", "Console the person and fix the system", "Ignored entirely", "Reported to the state"], answer: 1, explain: "Human error → console + fix the system; at-risk → coach; reckless → accountability. That's why you can report freely." },
@@ -579,8 +593,9 @@ const MODULES = [
           <dt>GMR Support</dt><dd><a href="tel:8662679111">866.267.9111</a></dd>
           <dt>Compliance Hotline</dt><dd><a href="tel:8776315722">877.631.5722</a></dd>
           <dt>HR (Godinez)</dt><dd><a href="tel:9134242244">913-424-2244</a></dd>
+          <dt>EAP (Optum)</dt><dd><a href="tel:18662484094">1-866-248-4094</a> · code Oneteam</dd>
         </dl>
-        <div class="callout info"><span class="lbl">Do it now</span>Add these three to your phone before you finish this course. Confirm the current EAP number with HR and add that too.</div>
+        <div class="callout info"><span class="lbl">Do it now</span>Add all four to your phone before you finish this course.</div>
       </div>
       <div class="section">
         <h3>Your first 30 days — the map</h3>
@@ -625,7 +640,7 @@ const plabel = document.getElementById("plabel");
 // Quick Links card shows the name with an "access through Okta" note instead
 // of a dead link. Drop in the real URL to turn any entry into a live link.
 const SYSTEM_LINKS = [
-  { label: "Okta (single sign-on)",        url: "" },
+  { label: "Okta (single sign-on)",        url: "https://gmr.okta.com" },
   { label: "GPS Portal",                   url: "" },
   { label: "NinthBrain (credentials)",     url: "" },
   { label: "Cornerstone (LMS / training)", url: "" },
