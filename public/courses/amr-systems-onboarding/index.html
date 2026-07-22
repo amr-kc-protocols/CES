@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AMR Systems Onboarding</title>
+<style>
+  :root {
+    --navy: #0b2e4f;
+    --navy-2: #12406b;
+    --accent: #f0a500;
+    --ink: #16232e;
+    --muted: #5b6b78;
+    --line: #d9e1e8;
+    --bg: #f4f7fa;
+    --card: #ffffff;
+    --good: #1a7f4b;
+    --good-bg: #e5f4ec;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  a { color: var(--navy-2); }
+
+  /* Header */
+  header.top {
+    background: var(--navy);
+    color: #fff;
+    padding: 16px 18px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgba(11,46,79,0.18);
+  }
+  header.top .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .8; }
+  header.top h1 { margin: 2px 0 0; font-size: 20px; font-weight: 700; }
+  .progress-wrap { margin-top: 12px; }
+  .progress-track { height: 8px; background: rgba(255,255,255,0.22); border-radius: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 6px; transition: width .35s ease; }
+  .progress-label { font-size: 12px; opacity: .9; margin-top: 6px; }
+
+  /* Layout */
+  .wrap { max-width: 780px; margin: 0 auto; padding: 16px 16px 80px; }
+
+  /* Module list (home) */
+  .modlist { display: grid; gap: 12px; }
+  .modcard {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    transition: border-color .15s, transform .05s;
+  }
+  .modcard:active { transform: scale(0.995); }
+  .modcard:hover { border-color: var(--navy-2); }
+  .modcard .num {
+    flex: none;
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px;
+    position: relative;
+  }
+  .modcard.done .num { background: var(--good); }
+  .modcard .num .check { display: none; }
+  .modcard.done .num .label { display: none; }
+  .modcard.done .num .check { display: block; }
+  .modcard .body { flex: 1; min-width: 0; }
+  .modcard .body .t { font-weight: 650; }
+  .modcard .body .s { font-size: 13px; color: var(--muted); }
+  .modcard .chev { color: var(--muted); font-size: 20px; flex: none; }
+
+  .intro-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .intro-card h2 { margin: 0 0 6px; font-size: 17px; }
+  .intro-card p { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+
+  /* Module detail */
+  .mod-detail { display: none; }
+  .mod-detail.active { display: block; }
+  .home { display: block; }
+  .home.hidden { display: none; }
+
+  .backbar {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+  }
+  .btn {
+    font: inherit; border: 1px solid var(--line); background: var(--card);
+    border-radius: 10px; padding: 9px 14px; cursor: pointer; color: var(--ink);
+    font-weight: 600;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .btn.accent { background: var(--accent); color: #3a2b00; border-color: var(--accent); }
+  .btn.ghost { background: transparent; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .mod-head { margin-bottom: 6px; }
+  .mod-head .eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .mod-head h2 { margin: 4px 0 0; font-size: 22px; }
+
+  .section {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; margin: 14px 0;
+  }
+  .section h3 { margin: 0 0 8px; font-size: 16px; color: var(--navy); }
+  .section h4 { margin: 14px 0 6px; font-size: 14px; }
+  .section p { margin: 0 0 10px; }
+  .section ul, .section ol { margin: 0 0 10px; padding-left: 20px; }
+  .section li { margin-bottom: 5px; }
+  .section table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 4px 0 10px; }
+  .section th, .section td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+  .section th { background: #eef3f7; font-weight: 650; }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: #fff8e8;
+    padding: 10px 14px; border-radius: 8px; margin: 12px 0;
+    font-size: 14px;
+  }
+  .callout.info { border-left-color: var(--navy-2); background: #eef4fb; }
+  .callout.warn { border-left-color: #c0392b; background: #fdecea; }
+  .callout .lbl { font-weight: 700; display: block; margin-bottom: 2px; }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; margin: 6px 0; }
+  .kv dt { font-weight: 650; color: var(--navy); }
+  .kv dd { margin: 0; }
+
+  code.inline { background: #eef1f4; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+  /* Knowledge check */
+  .quiz { background: #f0f5fa; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 16px 0; }
+  .quiz h3 { margin: 0 0 12px; font-size: 16px; color: var(--navy); }
+  .q { margin-bottom: 16px; }
+  .q .prompt { font-weight: 600; margin-bottom: 8px; }
+  .opt { display: block; width: 100%; text-align: left; font: inherit;
+    border: 1px solid var(--line); background: #fff; border-radius: 9px;
+    padding: 10px 12px; margin-bottom: 7px; cursor: pointer; color: var(--ink); }
+  .opt:hover { border-color: var(--navy-2); }
+  .opt.correct { background: var(--good-bg); border-color: var(--good); color: #12603a; font-weight: 600; }
+  .opt.wrong { background: #fdecea; border-color: #c0392b; color: #922; }
+  .opt.locked { cursor: default; }
+  .explain { font-size: 13px; color: var(--muted); margin-top: 6px; display: none; }
+  .explain.show { display: block; }
+
+  .mod-foot { display: flex; gap: 10px; align-items: center; margin: 20px 0 8px; flex-wrap: wrap; }
+  .complete-note { color: var(--good); font-weight: 650; font-size: 14px; }
+
+  .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; }
+  .reset { background: none; border: none; color: var(--muted); text-decoration: underline; font: inherit; cursor: pointer; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e6edf3; --muted: #97a4b0; --line: #2a3b4a; --bg: #0d1620;
+      --card: #16232e; --good-bg: #12352a;
+    }
+    .section th { background: #1c2c39; }
+    .quiz { background: #14202b; }
+    .opt { background: #1b2a36; }
+    .callout { background: #2a2410; }
+    .callout.info { background: #12253a; }
+    .callout.warn { background: #331815; }
+    code.inline { background: #22323f; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="kicker">AMR Kansas City · GMR</div>
+  <h1>Systems Onboarding</h1>
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="pfill"></div></div>
+    <div class="progress-label" id="plabel">0 of 10 modules complete</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- HOME -->
+  <div class="home" id="home">
+    <div class="intro-card">
+      <h2>Welcome aboard 👋</h2>
+      <p>This course walks you through the systems, logins, and policies you'll use from day one at AMR Kansas City. Work through the modules in order — each ends with a quick knowledge check. Your progress is saved on this device.</p>
+      <p style="margin-bottom:0"><strong>Plan for about 45–60 minutes.</strong> You can stop and come back anytime.</p>
+    </div>
+    <div class="modlist" id="modlist"><!-- module cards injected --></div>
+    <div class="footer">
+      AMR Kansas City New Hire &amp; FTO Portal · Systems Onboarding<br>
+      <button class="reset" id="resetBtn">Reset my progress</button>
+    </div>
+  </div>
+
+  <!-- DETAIL host -->
+  <div id="detailHost"></div>
+</div>
+
+<script>
+// ------------------------------------------------------------------
+// Course data. Each module: id, icon, title, subtitle, html body,
+// and a quiz (array of {q, options[], answer index, explain}).
+// ------------------------------------------------------------------
+const MODULES = [
+  {
+    id: "welcome",
+    icon: "🚑",
+    title: "Welcome & Who We Are",
+    subtitle: "GMR, AMR, and our guiding principles",
+    body: `
+      <div class="section">
+        <h3>One company, many brands</h3>
+        <p>You've joined <strong>American Medical Response (AMR)</strong>, part of <strong>Global Medical Response (GMR)</strong> — the largest medical transportation company in the world. GMR brings together ground, air, and specialty transport under one roof.</p>
+        <ul>
+          <li><strong>AMR</strong> — ground ambulance &amp; mobile healthcare</li>
+          <li><strong>Air Evac Lifeteam / REACH / Guardian</strong> — air medical</li>
+          <li><strong>AMR Federal / Rural Metro Fire</strong> — government &amp; fire services</li>
+        </ul>
+        <p>Locally you're part of the <strong>AMR Kansas City</strong> operation, covering the KC metro plus surrounding Kansas and Missouri counties.</p>
+      </div>
+      <div class="section">
+        <h3>Our Core Behaviors</h3>
+        <p>Everything at GMR rolls up to five behaviors. You'll see them referenced in evaluations and daily work:</p>
+        <table>
+          <tr><th>Behavior</th><th>What it means</th></tr>
+          <tr><td>Keep Care at the Center</td><td>The patient — and each other — come first in every decision.</td></tr>
+          <tr><td>Raise Your Hand</td><td>Speak up about safety, ideas, and problems. No blame for surfacing a concern.</td></tr>
+          <tr><td>Seek to Understand</td><td>Listen first. Assume good intent.</td></tr>
+          <tr><td>Find a Way Together</td><td>Collaborate across teams to solve it.</td></tr>
+          <tr><td>Be Accountable</td><td>Own your commitments and your outcomes.</td></tr>
+        </table>
+      </div>
+      <div class="section">
+        <h3>Our Guiding Principles</h3>
+        <p>AMR crews also carry six guiding principles: <strong>Patient Care, One Team, Innovation, Vigilance, Ownership,</strong> and <strong>Citizenship.</strong></p>
+        <div class="callout info"><span class="lbl">Why this matters</span>These aren't posters on a wall — your FTO evaluations reference these behaviors directly. Knowing them helps you understand what "good" looks like here.</div>
+      </div>`,
+    quiz: [
+      { q: "What is the relationship between AMR and GMR?", options: ["They are competitors", "AMR is part of GMR (Global Medical Response)", "GMR is a customer of AMR", "They are unrelated companies"], answer: 1, explain: "AMR is one of the brands under Global Medical Response, the parent company." },
+      { q: "Which is one of GMR's five Core Behaviors?", options: ["Beat the competition", "Keep Care at the Center", "Minimize costs", "Work independently"], answer: 1, explain: "Keep Care at the Center is one of the five: also Raise Your Hand, Seek to Understand, Find a Way Together, and Be Accountable." },
+    ],
+  },
+  {
+    id: "okta",
+    icon: "🔐",
+    title: "Okta Single Sign-On",
+    subtitle: "Your master login and MFA",
+    body: `
+      <div class="section">
+        <h3>Okta is your front door</h3>
+        <p><strong>Okta</strong> is the single sign-on (SSO) that unlocks nearly every AMR system — GPS Portal, email, NinthBrain, Cornerstone, and more. Set it up first; everything else depends on it.</p>
+      </div>
+      <div class="section">
+        <h3>Your temporary password</h3>
+        <p>Your first-time Okta password follows a fixed formula:</p>
+        <div class="callout"><span class="lbl">Formula</span>Full birth month (capitalized) + last 5 digits of your SSN + <code class="inline">!</code></div>
+        <p>Example — someone born in July with SSN ending <code class="inline">27812</code>:</p>
+        <p style="text-align:center;font-size:18px"><code class="inline">July27812!</code></p>
+        <p>You'll be prompted to set your own permanent password on first login.</p>
+      </div>
+      <div class="section">
+        <h3>Set up MFA right away</h3>
+        <p>Multi-factor authentication (MFA) protects your account. During setup you'll register a second factor — typically the <strong>Okta Verify</strong> app on your phone, or SMS codes.</p>
+        <ul>
+          <li>Install <strong>Okta Verify</strong> from your app store before you start.</li>
+          <li>Keep MFA enrolled on a device you carry — you'll approve logins with it.</li>
+        </ul>
+        <div class="callout warn"><span class="lbl">Don't get locked out</span>If you change phones, re-enroll MFA promptly. If you're locked out, contact the GMR Support Center (see Module 3) — don't share credentials with anyone.</div>
+      </div>
+      <div class="section">
+        <h3>My Action Items</h3>
+        <p>Once you're in Okta, check <strong>My Action Items</strong> on your dashboard. This is one of two mandatory to-do lists (the other is in GPS Portal). Clear everything it lists.</p>
+      </div>`,
+    quiz: [
+      { q: "What is the temporary Okta password formula?", options: ["Your employee ID + birth year", "Full birth month capitalized + last 5 of SSN + !", "AMR + last 4 of SSN", "First name + #1234"], answer: 1, explain: "e.g. someone born in July with SSN ending 27812 → July27812!" },
+      { q: "Why set up Okta first?", options: ["It's optional", "It's the single sign-on that unlocks most other systems", "It only handles email", "It replaces your paycheck login"], answer: 1, explain: "Okta SSO gates GPS Portal, NinthBrain, Cornerstone and more — set it up before anything else." },
+    ],
+  },
+  {
+    id: "gps",
+    icon: "🧭",
+    title: "GPS Portal & To-Do's",
+    subtitle: "Your HR/employee hub and second checklist",
+    body: `
+      <div class="section">
+        <h3>What GPS Portal is</h3>
+        <p>The <strong>GPS Portal</strong> is your employee self-service hub — pay, personal info, benefits enrollment, and company communications all live here. You reach it through Okta.</p>
+      </div>
+      <div class="section">
+        <h3>Your second mandatory checklist</h3>
+        <p>Alongside Okta's <em>My Action Items</em>, GPS Portal has its own new-hire to-do list. Both must be completed. Between the two you'll typically:</p>
+        <ul>
+          <li>Verify and complete your personal profile</li>
+          <li>Complete required onboarding forms</li>
+          <li>Acknowledge policies</li>
+          <li>Enroll in benefits (within your eligibility window — see Module 6)</li>
+        </ul>
+        <div class="callout info"><span class="lbl">Two lists, not one</span>Okta <strong>My Action Items</strong> + GPS Portal <strong>to-do's</strong>. Clearing one does not clear the other.</div>
+      </div>
+      <div class="section">
+        <h3>I-9 employment verification</h3>
+        <p>Federal law requires you to verify your identity and work authorization with an <strong>I-9</strong>. You provide either:</p>
+        <table>
+          <tr><th>Option</th><th>Documents</th></tr>
+          <tr><td>List A</td><td>One document proving both identity <em>and</em> work authorization (e.g. U.S. passport)</td></tr>
+          <tr><td>List B + List C</td><td>One identity doc (e.g. driver's license) <em>plus</em> one work-authorization doc (e.g. Social Security card)</td></tr>
+        </table>
+        <div class="callout warn"><span class="lbl">Bring originals</span>Photocopies aren't accepted for I-9. Bring original, unexpired documents by your deadline.</div>
+      </div>
+      <div class="section">
+        <h3>Support Center</h3>
+        <p>Stuck on a login or portal issue? The GMR Support Center can help:</p>
+        <dl class="kv">
+          <dt>GMR Support</dt><dd>866.267.9111</dd>
+        </dl>
+      </div>`,
+    quiz: [
+      { q: "How many mandatory new-hire checklists are there, and where?", options: ["One, in Okta only", "Two — Okta My Action Items and GPS Portal to-do's", "Three, all in email", "One, in NinthBrain"], answer: 1, explain: "Both Okta My Action Items AND the GPS Portal to-do list must be completed." },
+      { q: "For the I-9, what satisfies verification?", options: ["Any one document", "A List A doc, OR a List B + List C combination", "Only a passport", "A photocopy of your license"], answer: 1, explain: "One List A doc proves both; otherwise you need List B (identity) plus List C (work authorization), originals only." },
+    ],
+  },
+  {
+    id: "credentials",
+    icon: "📋",
+    title: "Credentials & NinthBrain",
+    subtitle: "Certifications, respirator fit, and staying compliant",
+    body: `
+      <div class="section">
+        <h3>NinthBrain tracks your credentials</h3>
+        <p><strong>NinthBrain</strong> is where your certifications and compliance items live — BLS/CPR, state EMS license, driver's license, ACLS, and more. Keep everything current here.</p>
+        <p>Your <strong>first task in NinthBrain</strong> is the <strong>Respiratory Questionnaire</strong>. Complete it early — it feeds your respirator fit clearance.</p>
+      </div>
+      <div class="section">
+        <h3>Expiration = suspension</h3>
+        <div class="callout warn"><span class="lbl">Take this seriously</span>If a required credential expires — <strong>BLS/CPR, State EMS license, driver's license, or ACLS</strong> — you can be <strong>suspended from working for up to 14 days</strong> until it's corrected. Renew <em>before</em> the expiration date, not after.</div>
+        <p>Set your own reminders ahead of every renewal. Don't rely on someone else to catch it.</p>
+      </div>
+      <div class="section">
+        <h3>Respirator fit &amp; facial hair</h3>
+        <p>You may need to wear a fitted respirator (N95/mask) on certain calls. A tight seal is required, so:</p>
+        <ul>
+          <li>Complete the <strong>Respiratory Questionnaire</strong> in NinthBrain first.</li>
+          <li>Be clean-shaven where the respirator seals against your face for the fit test and when wearing one.</li>
+          <li>Facial hair that breaks the seal isn't permitted with a fitted respirator.</li>
+        </ul>
+      </div>`,
+    quiz: [
+      { q: "What is your first task in NinthBrain?", options: ["Upload a selfie", "The Respiratory Questionnaire", "Order a uniform", "Sign the handbook"], answer: 1, explain: "The Respiratory Questionnaire comes first — it feeds your respirator fit clearance." },
+      { q: "What happens if a required credential (e.g. BLS or your EMS license) expires?", options: ["Nothing, you get a grace year", "You may be suspended from working up to 14 days until corrected", "You're immediately terminated", "It only affects your pay rate"], answer: 1, explain: "Expiration of BLS, State EMS license, DL, or ACLS can mean suspension up to 14 days until it's fixed — renew early." },
+    ],
+  },
+  {
+    id: "cornerstone",
+    icon: "🎓",
+    title: "Cornerstone LMS",
+    subtitle: "Required training and how to prioritize it",
+    body: `
+      <div class="section">
+        <h3>Cornerstone is your learning system</h3>
+        <p><strong>Cornerstone</strong> (the LMS) hosts your assigned online training — compliance modules, safety courses, and role-specific learning. You reach it through Okta.</p>
+      </div>
+      <div class="section">
+        <h3>Do these first</h3>
+        <p>Two operational systems training come before general compliance so you can actually function on a shift:</p>
+        <ul>
+          <li><strong>Kronos</strong> — timekeeping (how your hours are recorded)</li>
+          <li><strong>Telestaff</strong> — scheduling / shift bidding</li>
+        </ul>
+        <div class="callout info"><span class="lbl">Order of operations</span>Knock out Kronos and Telestaff training first — you'll use both from day one. Then work through your compliance modules.</div>
+      </div>
+      <div class="section">
+        <h3>Compliance deadline</h3>
+        <div class="callout warn"><span class="lbl">7-day window</span>Assigned compliance training must be completed within <strong>7 days</strong>. Don't let it stack up — the modules are short but add up if ignored.</div>
+      </div>`,
+    quiz: [
+      { q: "Which two systems' training should you complete first in Cornerstone?", options: ["Email and Okta", "Kronos (time) and Telestaff (scheduling)", "NinthBrain and GPS", "Benefits and 401k"], answer: 1, explain: "Kronos and Telestaff come first — you use both from day one — then general compliance." },
+      { q: "What's the deadline for assigned compliance training?", options: ["30 days", "7 days", "No deadline", "1 year"], answer: 1, explain: "Assigned compliance modules must be done within 7 days." },
+    ],
+  },
+  {
+    id: "benefits",
+    icon: "💙",
+    title: "Benefits",
+    subtitle: "Eligibility, enrollment, and retirement",
+    body: `
+      <div class="section">
+        <h3>When you're eligible</h3>
+        <p>Benefits eligibility begins the <strong>first of the month after 30 days</strong> of employment. Watch your enrollment window in GPS Portal — miss it and you may wait for the next open enrollment.</p>
+        <p>AMR's benefits program is branded <strong>TakeCareTakeCharge</strong> — medical, dental, vision, and supplemental coverage.</p>
+      </div>
+      <div class="section">
+        <h3>401(k) retirement</h3>
+        <p>You can contribute to the company 401(k), administered through <strong>Empower</strong>. The company match:</p>
+        <div class="callout"><span class="lbl">Match</span><strong>100% of your first 3%</strong> contributed, plus <strong>50% of the next 2%</strong>. Contribute at least <strong>5%</strong> to capture the full <strong>4%</strong> company match — that's free money.</div>
+      </div>
+      <div class="section">
+        <h3>Employee Foundation</h3>
+        <p>The <strong>GMR Employee Foundation</strong> provides emergency grants to teammates facing hardship (disaster, crisis). You can contribute via payroll and — if you ever need it — apply for help.</p>
+      </div>
+      <div class="section">
+        <h3>Perks</h3>
+        <p><strong>Beneplace</strong> offers discounts on products and services for GMR employees. Worth a look once you're set up.</p>
+      </div>
+      <div class="callout info"><span class="lbl">Please confirm locally</span>Benefit vendors and exact figures can change year to year. Confirm current plan details and your enrollment window in GPS Portal or with local HR.</div>`,
+    quiz: [
+      { q: "When does benefits eligibility begin?", options: ["Day one", "First of the month after 30 days", "After 90 days", "After one year"], answer: 1, explain: "Eligibility starts the first of the month following 30 days of employment." },
+      { q: "How much should you contribute to the 401(k) to get the full match?", options: ["1%", "At least 5% (100% of first 3% + 50% of next 2% = 4% match)", "10%", "There is no match"], answer: 1, explain: "Contribute 5% to capture the full 4% company match via Empower." },
+    ],
+  },
+  {
+    id: "timeoff",
+    icon: "🌴",
+    title: "Time Off, Leave & Payroll",
+    subtitle: "PTO, pay schedule, and leave basics",
+    body: `
+      <div class="section">
+        <h3>Pay schedule</h3>
+        <p>AMR Kansas City (KS &amp; MO) pays on a <strong>biweekly</strong> schedule. Your hours are captured in <strong>Kronos</strong>; make sure your time is accurate each pay period.</p>
+      </div>
+      <div class="section">
+        <h3>PTO — accrual &amp; use</h3>
+        <p>You accrue <strong>Paid Time Off (PTO)</strong> as you work. Key ideas:</p>
+        <ul>
+          <li>PTO accrues based on hours worked and tenure.</li>
+          <li>Request PTO through the scheduling process (Telestaff) per local rules.</li>
+          <li>There may be caps on accrual and options for cashout — check current policy.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <h3>Leaves of absence</h3>
+        <p>Beyond PTO, several leave types exist for life events:</p>
+        <ul>
+          <li><strong>Leave of Absence (LOA)</strong> — medical or personal, per policy/eligibility (e.g. FMLA where applicable).</li>
+          <li><strong>Bereavement</strong> — time off following the death of a family member.</li>
+        </ul>
+        <div class="callout info"><span class="lbl">Start early</span>If you anticipate a leave, notify HR and your supervisor as early as possible so paperwork and coverage are handled smoothly.</div>
+      </div>
+      <div class="section">
+        <h3>Holidays</h3>
+        <p>AMR observes a set of company holidays each year. As a 24/7 operation, many roles work holidays with holiday pay per policy. Confirm the current year's observed-holiday list and pay rules in GPS Portal or with local HR.</p>
+      </div>`,
+    quiz: [
+      { q: "What is the KC pay schedule?", options: ["Weekly", "Biweekly", "Monthly", "Twice a month on fixed dates"], answer: 1, explain: "KS/MO operations are paid biweekly; time is captured in Kronos." },
+      { q: "Which is a leave type beyond PTO?", options: ["Bereavement leave", "Lunch break", "Shift trade", "Overtime"], answer: 0, explain: "Bereavement and LOA/FMLA are leave types separate from PTO accrual." },
+    ],
+  },
+  {
+    id: "policies",
+    icon: "📖",
+    title: "Policies & Conduct",
+    subtitle: "The handbook, standards, and self-disclosure",
+    body: `
+      <div class="section">
+        <h3>The Employee Handbook</h3>
+        <p>Read and acknowledge the <strong>Employee Handbook</strong> — it's the source of truth for conduct expectations. The highlights below aren't a substitute for reading it.</p>
+      </div>
+      <div class="section">
+        <h3>Standards of Conduct</h3>
+        <ul>
+          <li><strong>Anti-harassment &amp; anti-bullying</strong> — a respectful workplace is required; harassment of any kind is prohibited.</li>
+          <li><strong>Social media</strong> — never post patient information or anything that identifies a patient/scene. Represent AMR professionally online.</li>
+          <li><strong>Fraternization</strong> — relationships that create conflicts of interest (especially supervisor/subordinate) are governed by policy.</li>
+          <li><strong>Weapons</strong> — weapons are prohibited on company property and in units per policy.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <h3>Self-disclosure — 5-day rule</h3>
+        <div class="callout warn"><span class="lbl">Report within 5 days</span>You must <strong>self-disclose an arrest within 5 days</strong>. Because you drive and hold clinical credentials, certain legal events must be reported promptly — hiding them is worse than the event itself.</div>
+      </div>
+      <div class="section">
+        <h3>Corrective action</h3>
+        <p>When performance or conduct falls short, AMR uses a <strong>progressive corrective-action</strong> process — typically escalating steps (coaching → written → final → termination) depending on severity. The goal is correction and clarity, not surprise.</p>
+      </div>`,
+    quiz: [
+      { q: "Within how many days must you self-disclose an arrest?", options: ["30 days", "5 days", "You don't have to", "By your next review"], answer: 1, explain: "Arrests must be self-disclosed within 5 days — you drive and hold clinical credentials." },
+      { q: "What is AMR's approach to conduct/performance issues?", options: ["Immediate termination for any issue", "Progressive corrective action (escalating steps)", "No formal process", "Peer voting"], answer: 1, explain: "Corrective action is progressive — coaching through termination depending on severity." },
+    ],
+  },
+  {
+    id: "safety",
+    icon: "🦺",
+    title: "Safety & Just Culture",
+    subtitle: "SMS, Just Culture, and support when it's hard",
+    body: `
+      <div class="section">
+        <h3>Safety Management System (SMS)</h3>
+        <p>GMR runs a formal <strong>Safety Management System</strong> — a structured way to identify hazards, report events, and continuously improve. Safety isn't a slogan; it's a process you participate in.</p>
+        <p>The clearest way you plug in: <strong>Raise Your Hand.</strong> Report near-misses and hazards. Reporting is how the system gets better.</p>
+      </div>
+      <div class="section">
+        <h3>Just Culture</h3>
+        <p>AMR operates a <strong>Just Culture</strong>: when something goes wrong, the response distinguishes between:</p>
+        <ul>
+          <li><strong>Human error</strong> — we console and fix the system.</li>
+          <li><strong>At-risk behavior</strong> — we coach.</li>
+          <li><strong>Reckless behavior</strong> — that's where accountability applies.</li>
+        </ul>
+        <div class="callout info"><span class="lbl">Why report?</span>Because honest error isn't punished, you should report freely. Surfacing problems early prevents patient harm — that's the whole point.</div>
+      </div>
+      <div class="section">
+        <h3>Compliance hotline</h3>
+        <p>To report a compliance or ethics concern (including anonymously):</p>
+        <dl class="kv"><dt>Compliance Hotline</dt><dd>877.631.5722</dd></dl>
+      </div>
+      <div class="section">
+        <h3>GMR Life — support for you</h3>
+        <p>This job is hard. GMR provides real mental-health and life support through the <strong>Employee Assistance Program (EAP)</strong> and <strong>GMR Life</strong> — free, confidential counseling sessions, a crisis line, and other resources for you and your household.</p>
+        <div class="callout warn"><span class="lbl">Please confirm the current EAP</span>The EAP vendor, session count, and phone number have varied across our materials. Confirm the <em>current</em> EAP provider and contact number with local HR or in GPS Portal before you need it — then save it in your phone.</div>
+      </div>`,
+    quiz: [
+      { q: "Under Just Culture, how is honest human error handled?", options: ["Punished harshly", "Console the person and fix the system", "Ignored entirely", "Reported to the state"], answer: 1, explain: "Human error → console + fix the system; at-risk → coach; reckless → accountability. That's why you can report freely." },
+      { q: "What is the best way to make the safety system work?", options: ["Stay quiet to avoid blame", "Raise Your Hand — report hazards and near-misses", "Only report if it caused injury", "Let your supervisor find issues"], answer: 1, explain: "Reporting near-misses and hazards is how the SMS improves — Raise Your Hand." },
+    ],
+  },
+  {
+    id: "contacts",
+    icon: "📇",
+    title: "Local Contacts & First 30 Days",
+    subtitle: "Who to call, and what to do next",
+    body: `
+      <div class="section">
+        <h3>Kansas City / East region operations</h3>
+        <table>
+          <tr><th>Name</th><th>Role / Area</th></tr>
+          <tr><td>Jason Jenkins</td><td>Regional Director (East KS/MO)</td></tr>
+          <tr><td>Dawn Brooks</td><td>Operations — Kansas City</td></tr>
+          <tr><td>Paul Lininger</td><td>Operations — Independence</td></tr>
+          <tr><td>Mary Glover</td><td>Facilities — Kansas City</td></tr>
+        </table>
+      </div>
+      <div class="section">
+        <h3>Human Resources</h3>
+        <dl class="kv">
+          <dt>Gabrielle Godinez</dt><dd>HR Manager · 913-424-2244 · Gabrielle.Godinez@gmr.net</dd>
+          <dt>Chalann Berg</dt><dd>HR Director</dd>
+        </dl>
+      </div>
+      <div class="section">
+        <h3>Key numbers to save now</h3>
+        <dl class="kv">
+          <dt>GMR Support</dt><dd>866.267.9111</dd>
+          <dt>Compliance Hotline</dt><dd>877.631.5722</dd>
+          <dt>HR (Godinez)</dt><dd>913-424-2244</dd>
+        </dl>
+        <div class="callout info"><span class="lbl">Do it now</span>Add these three to your phone before you finish this course. Confirm the current EAP number with HR and add that too.</div>
+      </div>
+      <div class="section">
+        <h3>Your first 30 days — the map</h3>
+        <table>
+          <tr><th>When</th><th>Do</th></tr>
+          <tr><td>Today</td><td>Set up Okta + MFA; check both to-do lists (Okta &amp; GPS); complete NinthBrain Respiratory Questionnaire.</td></tr>
+          <tr><td>Before first shift</td><td>Kronos &amp; Telestaff training; verify credentials in NinthBrain; complete I-9.</td></tr>
+          <tr><td>Week 1</td><td>Compliance training (within 7 days); acknowledge handbook &amp; policies.</td></tr>
+          <tr><td>By 30 days</td><td>Watch your benefits enrollment window (eligible 1st of month after 30 days); set 401(k) to at least 5%.</td></tr>
+          <tr><td>Ongoing</td><td>Renew credentials early; keep NinthBrain current; Raise Your Hand on safety.</td></tr>
+        </table>
+      </div>
+      <div class="callout"><span class="lbl">You made it</span>Finish this last check and you've completed Systems Onboarding. Welcome to the team — we're glad you're here.</div>`,
+    quiz: [
+      { q: "Who is the HR Manager for KS/MO, and their number?", options: ["Jason Jenkins · 866.267.9111", "Gabrielle Godinez · 913-424-2244", "Dawn Brooks · 877.631.5722", "Chalann Berg · 913-000-0000"], answer: 1, explain: "Gabrielle Godinez, HR Manager, 913-424-2244, Gabrielle.Godinez@gmr.net. Chalann Berg is HR Director." },
+      { q: "Which belongs on your 'Today' list?", options: ["Set your 401(k) rate", "Set up Okta + MFA and check both to-do lists", "Complete all compliance training", "Attend your 30-day review"], answer: 1, explain: "Today: Okta + MFA, both to-do lists, and the NinthBrain Respiratory Questionnaire." },
+    ],
+  },
+];
+
+// ------------------------------------------------------------------
+// State + rendering
+// ------------------------------------------------------------------
+const STORE_KEY = "amr.onboarding.progress.v1";
+function loadDone() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORE_KEY) || "[]")); }
+  catch { return new Set(); }
+}
+function saveDone(set) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify([...set])); } catch {}
+}
+let done = loadDone();
+
+const homeEl = document.getElementById("home");
+const listEl = document.getElementById("modlist");
+const detailHost = document.getElementById("detailHost");
+const pfill = document.getElementById("pfill");
+const plabel = document.getElementById("plabel");
+
+function updateProgress() {
+  const n = MODULES.filter(m => done.has(m.id)).length;
+  const pct = Math.round((n / MODULES.length) * 100);
+  pfill.style.width = pct + "%";
+  plabel.textContent = n === MODULES.length
+    ? "✓ All modules complete — nice work!"
+    : `${n} of ${MODULES.length} modules complete`;
+}
+
+function renderHome() {
+  listEl.innerHTML = "";
+  MODULES.forEach((m, i) => {
+    const btn = document.createElement("button");
+    btn.className = "modcard" + (done.has(m.id) ? " done" : "");
+    btn.innerHTML = `
+      <span class="num"><span class="label">${i + 1}</span><span class="check">✓</span></span>
+      <span class="body">
+        <span class="t">${m.icon} ${m.title}</span>
+        <span class="s">${m.subtitle}</span>
+      </span>
+      <span class="chev">›</span>`;
+    btn.addEventListener("click", () => openModule(i));
+    listEl.appendChild(btn);
+  });
+  updateProgress();
+}
+
+function openModule(i) {
+  const m = MODULES[i];
+  window.scrollTo(0, 0);
+  homeEl.classList.add("hidden");
+
+  const wrap = document.createElement("div");
+  wrap.className = "mod-detail active";
+
+  const quizHtml = m.quiz.map((qq, qi) => `
+    <div class="q" data-qi="${qi}">
+      <div class="prompt">${qi + 1}. ${qq.q}</div>
+      ${qq.options.map((opt, oi) =>
+        `<button class="opt" data-oi="${oi}">${opt}</button>`).join("")}
+      <div class="explain"></div>
+    </div>`).join("");
+
+  wrap.innerHTML = `
+    <div class="backbar">
+      <button class="btn ghost" id="backBtn">‹ All modules</button>
+    </div>
+    <div class="mod-head">
+      <div class="eyebrow">Module ${i + 1} of ${MODULES.length}</div>
+      <h2>${m.icon} ${m.title}</h2>
+    </div>
+    ${m.body}
+    <div class="quiz">
+      <h3>Knowledge check</h3>
+      ${quizHtml}
+    </div>
+    <div class="mod-foot">
+      <button class="btn primary" id="completeBtn" disabled>Mark module complete</button>
+      <span class="complete-note" id="completeNote" style="display:none">✓ Completed</span>
+      ${i < MODULES.length - 1
+        ? `<button class="btn accent" id="nextBtn" style="display:none">Next module ›</button>`
+        : `<button class="btn accent" id="finishBtn" style="display:none">Finish ✓</button>`}
+    </div>`;
+
+  detailHost.innerHTML = "";
+  detailHost.appendChild(wrap);
+
+  const answered = new Array(m.quiz.length).fill(false);
+  const completeBtn = wrap.querySelector("#completeBtn");
+  const completeNote = wrap.querySelector("#completeNote");
+  const advanceBtn = wrap.querySelector("#nextBtn") || wrap.querySelector("#finishBtn");
+
+  function maybeEnable() {
+    if (answered.every(Boolean)) completeBtn.disabled = false;
+  }
+
+  wrap.querySelectorAll(".q").forEach((qEl) => {
+    const qi = +qEl.dataset.qi;
+    const correct = m.quiz[qi].answer;
+    const explainEl = qEl.querySelector(".explain");
+    qEl.querySelectorAll(".opt").forEach((optEl) => {
+      optEl.addEventListener("click", () => {
+        if (answered[qi]) return;
+        answered[qi] = true;
+        const oi = +optEl.dataset.oi;
+        qEl.querySelectorAll(".opt").forEach((o, idx) => {
+          o.classList.add("locked");
+          if (idx === correct) o.classList.add("correct");
+        });
+        if (oi !== correct) optEl.classList.add("wrong");
+        explainEl.textContent = (oi === correct ? "Correct. " : "") + m.quiz[qi].explain;
+        explainEl.classList.add("show");
+        maybeEnable();
+      });
+    });
+  });
+
+  function markComplete() {
+    done.add(m.id);
+    saveDone(done);
+    completeBtn.style.display = "none";
+    completeNote.style.display = "inline";
+    if (advanceBtn) advanceBtn.style.display = "inline-block";
+    updateProgress();
+  }
+
+  if (done.has(m.id)) {
+    // Already complete: let them re-mark instantly without redoing quiz.
+    completeBtn.disabled = false;
+  }
+  completeBtn.addEventListener("click", markComplete);
+
+  if (advanceBtn) {
+    advanceBtn.addEventListener("click", () => {
+      if (advanceBtn.id === "nextBtn") openModule(i + 1);
+      else closeModule();
+    });
+  }
+  wrap.querySelector("#backBtn").addEventListener("click", closeModule);
+}
+
+function closeModule() {
+  detailHost.innerHTML = "";
+  homeEl.classList.remove("hidden");
+  renderHome();
+  window.scrollTo(0, 0);
+}
+
+document.getElementById("resetBtn").addEventListener("click", () => {
+  if (confirm("Reset your onboarding progress on this device?")) {
+    done = new Set();
+    saveDone(done);
+    renderHome();
+  }
+});
+
+renderHome();
+</script>
+</body>
+</html>
