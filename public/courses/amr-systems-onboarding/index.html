@@ -78,13 +78,30 @@
     position: relative;
   }
   .modcard.done .num { background: var(--good); }
-  .modcard .num .check { display: none; }
+  .modcard .num .check, .modcard .num .lock { display: none; }
   .modcard.done .num .label { display: none; }
   .modcard.done .num .check { display: block; }
   .modcard .body { flex: 1; min-width: 0; }
   .modcard .body .t { font-weight: 650; }
   .modcard .body .s { font-size: 13px; color: var(--muted); }
   .modcard .chev { color: var(--muted); font-size: 20px; flex: none; }
+  /* Locked module: greyed, not clickable, shows a padlock. */
+  .modcard.locked { opacity: .6; cursor: default; }
+  .modcard.locked:hover { border-color: var(--line); }
+  .modcard.locked:active { transform: none; }
+  .modcard.locked .num { background: var(--muted); font-size: 14px; }
+  .modcard.locked .num .label { display: none; }
+  .modcard.locked .num .lock { display: block; }
+  .modcard.locked .chev { font-size: 14px; }
+
+  /* Quick links (systems) */
+  .ql { display: grid; gap: 6px; }
+  .ql-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--card); color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 600; }
+  .ql-row.muted { color: var(--muted); font-weight: 500; }
+  .ql-row .ql-go { flex: none; font-size: 12px; font-weight: 700; opacity: .85; }
+  a.ql-row:hover { border-color: var(--navy-2); }
 
   .intro-card {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -285,7 +302,7 @@ const MODULES = [
       </div>
       <div class="section">
         <h3>My Action Items</h3>
-        <p>Once you're in Okta, check <strong>My Action Items</strong> on your dashboard. This is one of two mandatory to-do lists (the other is in GPS Portal). Clear everything it lists.</p>
+        <p>Once you're in Okta, check <strong>My Action Items</strong> on your dashboard. This is one of two mandatory <strong>My Action Items</strong> lists (the other is in GPS Portal). Clear everything it lists.</p>
       </div>`,
     quiz: [
       { q: "What is the temporary Okta password formula?", options: ["Your employee ID + birth year", "Full birth month capitalized + last 5 of SSN + !", "AMR + last 4 of SSN", "First name + #1234"], answer: 1, explain: "e.g. someone born in July with SSN ending 27812 → July27812!" },
@@ -295,23 +312,23 @@ const MODULES = [
   {
     id: "gps",
     icon: "🧭",
-    title: "GPS Portal & To-Do's",
-    subtitle: "Your HR/employee hub and second checklist",
+    title: "GPS Portal & My Action Items",
+    subtitle: "Your HR/employee hub and second My Action Items list",
     body: `
       <div class="section">
         <h3>What GPS Portal is</h3>
         <p>The <strong>GPS Portal</strong> is your employee self-service hub — pay, personal info, benefits enrollment, and company communications all live here. You reach it through Okta.</p>
       </div>
       <div class="section">
-        <h3>Your second mandatory checklist</h3>
-        <p>Alongside Okta's <em>My Action Items</em>, GPS Portal has its own new-hire to-do list. Both must be completed. Between the two you'll typically:</p>
+        <h3>Your second My Action Items list</h3>
+        <p>Alongside Okta's <em>My Action Items</em>, GPS Portal has its own <strong>My Action Items</strong> list (it used to be called "to-do items"). Both must be completed. Between the two you'll typically:</p>
         <ul>
           <li>Verify and complete your personal profile</li>
           <li>Complete required onboarding forms</li>
           <li>Acknowledge policies</li>
           <li>Enroll in benefits (within your eligibility window — see Module 6)</li>
         </ul>
-        <div class="callout info"><span class="lbl">Two lists, not one</span>Okta <strong>My Action Items</strong> + GPS Portal <strong>to-do's</strong>. Clearing one does not clear the other.</div>
+        <div class="callout info"><span class="lbl">Two lists, not one</span>You have a <strong>My Action Items</strong> list in <strong>both</strong> Okta and GPS Portal. Clearing one does not clear the other — finish both.</div>
       </div>
       <div class="section">
         <h3>I-9 employment verification</h3>
@@ -327,11 +344,11 @@ const MODULES = [
         <h3>Support Center</h3>
         <p>Stuck on a login or portal issue? The GMR Support Center can help:</p>
         <dl class="kv">
-          <dt>GMR Support</dt><dd>866.267.9111</dd>
+          <dt>GMR Support</dt><dd><a href="tel:8662679111">866.267.9111</a></dd>
         </dl>
       </div>`,
     quiz: [
-      { q: "How many mandatory new-hire checklists are there, and where?", options: ["One, in Okta only", "Two — Okta My Action Items and GPS Portal to-do's", "Three, all in email", "One, in NinthBrain"], answer: 1, explain: "Both Okta My Action Items AND the GPS Portal to-do list must be completed." },
+      { q: "How many mandatory new-hire action lists are there, and where?", options: ["One, in Okta only", "Two — a My Action Items list in both Okta and GPS Portal", "Three, all in email", "One, in NinthBrain"], answer: 1, explain: "You have a My Action Items list in both Okta and GPS Portal — both must be completed." },
       { q: "For the I-9, what satisfies verification?", options: ["Any one document", "A List A doc, OR a List B + List C combination", "Only a passport", "A photocopy of your license"], answer: 1, explain: "One List A doc proves both; otherwise you need List B (identity) plus List C (work authorization), originals only." },
     ],
   },
@@ -516,7 +533,7 @@ const MODULES = [
       <div class="section">
         <h3>Compliance hotline</h3>
         <p>To report a compliance or ethics concern (including anonymously):</p>
-        <dl class="kv"><dt>Compliance Hotline</dt><dd>877.631.5722</dd></dl>
+        <dl class="kv"><dt>Compliance Hotline</dt><dd><a href="tel:8776315722">877.631.5722</a></dd></dl>
       </div>
       <div class="section">
         <h3>GMR Life — support for you</h3>
@@ -547,16 +564,21 @@ const MODULES = [
       <div class="section">
         <h3>Human Resources</h3>
         <dl class="kv">
-          <dt>Gabrielle Godinez</dt><dd>HR Manager · 913-424-2244 · Gabrielle.Godinez@gmr.net</dd>
+          <dt>Gabrielle Godinez</dt><dd>HR Manager · <a href="tel:9134242244">913-424-2244</a> · <a href="mailto:Gabrielle.Godinez@gmr.net">Gabrielle.Godinez@gmr.net</a></dd>
           <dt>Chalann Berg</dt><dd>HR Director</dd>
         </dl>
       </div>
       <div class="section">
+        <h3>Quick links — your systems</h3>
+        <p class="subtle" style="margin-top:0">Every system below is reached through <strong>Okta</strong> single sign-on. Tap a link where one is set; otherwise sign in to Okta and open it from your dashboard.</p>
+        <div id="quicklinks" class="ql"></div>
+      </div>
+      <div class="section">
         <h3>Key numbers to save now</h3>
         <dl class="kv">
-          <dt>GMR Support</dt><dd>866.267.9111</dd>
-          <dt>Compliance Hotline</dt><dd>877.631.5722</dd>
-          <dt>HR (Godinez)</dt><dd>913-424-2244</dd>
+          <dt>GMR Support</dt><dd><a href="tel:8662679111">866.267.9111</a></dd>
+          <dt>Compliance Hotline</dt><dd><a href="tel:8776315722">877.631.5722</a></dd>
+          <dt>HR (Godinez)</dt><dd><a href="tel:9134242244">913-424-2244</a></dd>
         </dl>
         <div class="callout info"><span class="lbl">Do it now</span>Add these three to your phone before you finish this course. Confirm the current EAP number with HR and add that too.</div>
       </div>
@@ -564,7 +586,7 @@ const MODULES = [
         <h3>Your first 30 days — the map</h3>
         <table>
           <tr><th>When</th><th>Do</th></tr>
-          <tr><td>Today</td><td>Set up Okta + MFA; check both to-do lists (Okta &amp; GPS); complete NinthBrain Respiratory Questionnaire.</td></tr>
+          <tr><td>Today</td><td>Set up Okta + MFA; clear <strong>My Action Items</strong> in both Okta &amp; GPS Portal; complete NinthBrain Respiratory Questionnaire.</td></tr>
           <tr><td>Before first shift</td><td>Kronos &amp; Telestaff training; verify credentials in NinthBrain; complete I-9.</td></tr>
           <tr><td>Week 1</td><td>Compliance training (within 7 days); acknowledge handbook &amp; policies.</td></tr>
           <tr><td>By 30 days</td><td>Watch your benefits enrollment window (eligible 1st of month after 30 days); set 401(k) to at least 5%.</td></tr>
@@ -574,7 +596,7 @@ const MODULES = [
       <div class="callout"><span class="lbl">You made it</span>Finish this last check and you've completed Systems Onboarding. Welcome to the team — we're glad you're here.</div>`,
     quiz: [
       { q: "Who is the HR Manager for KS/MO, and their number?", options: ["Jason Jenkins · 866.267.9111", "Gabrielle Godinez · 913-424-2244", "Dawn Brooks · 877.631.5722", "Chalann Berg · 913-000-0000"], answer: 1, explain: "Gabrielle Godinez, HR Manager, 913-424-2244, Gabrielle.Godinez@gmr.net. Chalann Berg is HR Director." },
-      { q: "Which belongs on your 'Today' list?", options: ["Set your 401(k) rate", "Set up Okta + MFA and check both to-do lists", "Complete all compliance training", "Attend your 30-day review"], answer: 1, explain: "Today: Okta + MFA, both to-do lists, and the NinthBrain Respiratory Questionnaire." },
+      { q: "Which belongs on your 'Today' list?", options: ["Set your 401(k) rate", "Set up Okta + MFA and clear My Action Items in both Okta & GPS", "Complete all compliance training", "Attend your 30-day review"], answer: 1, explain: "Today: Okta + MFA, clear My Action Items in both Okta and GPS Portal, and the NinthBrain Respiratory Questionnaire." },
     ],
   },
 ];
@@ -598,6 +620,36 @@ const detailHost = document.getElementById("detailHost");
 const pfill = document.getElementById("pfill");
 const plabel = document.getElementById("plabel");
 
+// Direct sign-in URLs for the systems referenced in the course. Every system
+// is reached through Okta SSO, so a URL is optional — leave it "" and the
+// Quick Links card shows the name with an "access through Okta" note instead
+// of a dead link. Drop in the real URL to turn any entry into a live link.
+const SYSTEM_LINKS = [
+  { label: "Okta (single sign-on)",        url: "" },
+  { label: "GPS Portal",                   url: "" },
+  { label: "NinthBrain (credentials)",     url: "" },
+  { label: "Cornerstone (LMS / training)", url: "" },
+  { label: "Empower (401k)",               url: "" },
+  { label: "Beneplace (discounts)",        url: "" },
+  { label: "GMR Employee Foundation",      url: "" },
+];
+
+// A module unlocks only once the one before it is complete (the first is
+// always open). Keeps hires moving through in order.
+function isUnlocked(i) {
+  return i === 0 || done.has(MODULES[i - 1].id);
+}
+
+function populateQuickLinks(root) {
+  const host = root.querySelector("#quicklinks");
+  if (!host) return;
+  host.innerHTML = SYSTEM_LINKS.map((s) =>
+    s.url
+      ? `<a class="ql-row" href="${s.url}" target="_blank" rel="noreferrer"><span>${s.label}</span><span class="ql-go">Open ↗</span></a>`
+      : `<div class="ql-row muted"><span>${s.label}</span><span class="ql-go">via Okta</span></div>`
+  ).join("");
+}
+
 function updateProgress() {
   const n = MODULES.filter(m => done.has(m.id)).length;
   const pct = Math.round((n / MODULES.length) * 100);
@@ -610,22 +662,31 @@ function updateProgress() {
 function renderHome() {
   listEl.innerHTML = "";
   MODULES.forEach((m, i) => {
+    const isDone = done.has(m.id);
+    const unlocked = isUnlocked(i);
     const btn = document.createElement("button");
-    btn.className = "modcard" + (done.has(m.id) ? " done" : "");
+    btn.className = "modcard" + (isDone ? " done" : "") + (unlocked ? "" : " locked");
+    btn.disabled = !unlocked;
     btn.innerHTML = `
-      <span class="num"><span class="label">${i + 1}</span><span class="check">✓</span></span>
+      <span class="num">
+        <span class="label">${i + 1}</span>
+        <span class="check">✓</span>
+        <span class="lock">🔒</span>
+      </span>
       <span class="body">
         <span class="t">${m.icon} ${m.title}</span>
-        <span class="s">${m.subtitle}</span>
+        <span class="s">${unlocked ? m.subtitle : "Complete the previous module to unlock"}</span>
       </span>
-      <span class="chev">›</span>`;
-    btn.addEventListener("click", () => openModule(i));
+      <span class="chev">${unlocked ? "›" : "🔒"}</span>`;
+    if (unlocked) btn.addEventListener("click", () => openModule(i));
     listEl.appendChild(btn);
   });
   updateProgress();
 }
 
 function openModule(i) {
+  // Guard: never open a module whose predecessor isn't finished.
+  if (!isUnlocked(i)) { closeModule(); return; }
   const m = MODULES[i];
   window.scrollTo(0, 0);
   homeEl.classList.add("hidden");
@@ -664,6 +725,7 @@ function openModule(i) {
 
   detailHost.innerHTML = "";
   detailHost.appendChild(wrap);
+  populateQuickLinks(wrap);
 
   const answered = new Array(m.quiz.length).fill(false);
   const completeBtn = wrap.querySelector("#completeBtn");
