@@ -21,6 +21,7 @@ export interface FieldGuideResource {
 }
 
 export const FIELD_GUIDE_RESOURCES: FieldGuideResource[] = [
+  { ref: 'amr-systems-onboarding', label: 'AMR Systems Onboarding (10 modules)', path: '/courses/amr-systems-onboarding/index.html' },
   { ref: 'call-guide', label: 'IFT Call Guide (Call Types)', path: 'ift-call-guide.html' },
   { ref: 'call-guide-scope', label: 'IFT Call Guide → ALS vs BLS', path: 'ift-call-guide.html#scope' },
   { ref: 'deck-cardiac-neuro-dive', label: 'Slides: Cardiac & Neuro deep dive', path: '/decks/session1-1045-cardiac-neuro-deep-dive.pptx' },

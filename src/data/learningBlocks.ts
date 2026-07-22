@@ -26,6 +26,15 @@ export interface LearningBlock {
 /** Full online course blocks tied to specific academy days. */
 export const COURSE_BLOCKS: LearningBlock[] = [
   {
+    id: 'systems-onboarding',
+    icon: '🚑',
+    title: 'AMR Systems Onboarding',
+    supports: 'Day 1 · New-hire systems, logins & policies',
+    summary:
+      'Your first-week systems course — Okta SSO, GPS Portal, NinthBrain credentials, Cornerstone, benefits, time off, conduct, and Just Culture, plus local contacts and a first-30-days map. Ten short modules, each with a knowledge check. Progress saves on your device; start here.',
+    items: [{ ref: 'amr-systems-onboarding', kind: 'course' }],
+  },
+  {
     id: 'ventilator',
     icon: '🫁',
     title: 'Ventilator Academy',
