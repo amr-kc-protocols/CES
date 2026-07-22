@@ -151,6 +151,13 @@ export const FTO_CREWS: FtoCrew[] = [
 /** FTOs on the List tab with no recurring line in the master schedule. */
 export const FTOS_WITHOUT_LINE: string[] = ['David Richardson']
 
+/**
+ * Clinical educators / staff who assess skill sheets and daily evals but don't
+ * run a ride line — they appear in the evaluator dropdowns and facilitator
+ * chips, but not in the ride planner or its "schedule rides directly" banner.
+ */
+export const ADDITIONAL_EVALUATORS: string[] = ['Jordan Jones']
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**
@@ -193,8 +200,8 @@ export function shiftWindow(c: FtoCrew): string {
   return `${c.start}–${c.end}${dayspan ? ` (+${dayspan}d)` : ''}`
 }
 
-/** Every FTO name, scheduled lines first. */
+/** Every name selectable as an evaluator/facilitator, scheduled lines first. */
 export function allFtos(): string[] {
   const fromCrews = FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name))
-  return [...new Set([...fromCrews, ...FTOS_WITHOUT_LINE])]
+  return [...new Set([...fromCrews, ...FTOS_WITHOUT_LINE, ...ADDITIONAL_EVALUATORS])]
 }

@@ -32,6 +32,7 @@ const FTO_MATCHERS: Record<string, RegExp> = {
   'Joshua Hayden': /\bjosh(ua)?\b|\bhayden\b/i,
   'David Richardson': /\bdav(id|e)\b|\brichardson\b/i,
   'Jessica Sexton': /\bjess(ica)?\b|\bsexton\b/i,
+  'Jordan Jones': /\bjordan\b|\bjones\b/i,
 }
 
 /** Does a free-text facilitator line name this FTO? */
