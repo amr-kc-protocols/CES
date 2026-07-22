@@ -16,6 +16,7 @@ const TABS = [
   { to: '/bot', label: 'QA Bot', icon: '🤖', end: false, qa: true, ce: false, admin: false },
   { to: '/ce', label: 'CE', icon: '📅', end: false, qa: false, ce: true, admin: false },
   { to: '/academy', label: 'Academy', icon: '🎓', end: false, qa: false, ce: false, admin: false },
+  { to: '/courses', label: 'Courses', icon: '📚', end: false, qa: false, ce: false, admin: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
   { to: '/history', label: 'History', icon: '📊', end: false, qa: false, ce: false, admin: true },
   { to: '/settings', label: 'Settings', icon: '⚙️', end: false, qa: false, ce: false, admin: false },
