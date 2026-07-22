@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatSignedAt } from '../lib/date'
 
 // A finger-or-mouse signature field. Uses Pointer Events so one code path
 // covers phone (touch/stylus) and laptop (mouse/trackpad). Captured strokes
 // are exported as a PNG data URL; an existing signature (from a synced record)
 // renders back onto the canvas so it can be reviewed or re-signed.
+//
+// Signature lock: once a signature is captured it locks — the pad stops
+// taking ink so a stray swipe while scrolling can't alter a completed
+// signature — and shows when it was signed. "Clear & re-sign" is a deliberate
+// unlock, so a signature is never changed by accident.
 
 interface Props {
   label: string
   /** Existing signature PNG data URL, if already signed. */
   value?: string
+  /** ISO timestamp the signature was captured — shown, and locks the pad. */
+  signedAt?: string
   /** Called with the PNG data URL on pen-up, or null when cleared. */
   onChange: (dataUrl: string | null) => void
-  /** Read-only: shows any existing signature but takes no ink. */
+  /** Read-only: shows any existing signature but never takes ink or unlocks. */
   disabled?: boolean
   /** Pad height in px — default 130; ~70 suits initials. */
   height?: number
@@ -19,13 +27,18 @@ interface Props {
 
 const PEN = '#0b2e4f'
 
-export default function SignaturePad({ label, value, onChange, disabled, height = 130 }: Props) {
+export default function SignaturePad({ label, value, signedAt, onChange, disabled, height = 130 }: Props) {
   const HEIGHT = height
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const dirtied = useRef(false)
   const last = useRef<{ x: number; y: number } | null>(null)
   const [hasInk, setHasInk] = useState(!!value)
+  // A signature arriving already-signed (reopened sheet, synced from another
+  // device) starts locked; a fresh empty pad starts open for signing.
+  const [locked, setLocked] = useState(!!value)
+
+  const takesInk = !disabled && !locked
 
   // Size the backing store to the element (accounting for device pixel ratio
   // so lines stay crisp), then paint any existing signature back on.
@@ -58,7 +71,7 @@ export default function SignaturePad({ label, value, onChange, disabled, height 
   }
 
   const start = (e: React.PointerEvent) => {
-    if (disabled) return
+    if (!takesInk) return
     e.preventDefault()
     drawing.current = true
     last.current = pos(e)
@@ -111,22 +124,43 @@ export default function SignaturePad({ label, value, onChange, disabled, height 
     }
   }
 
-  const clear = () => {
+  const lock = () => {
+    if (drawing.current) end()
+    setLocked(true)
+  }
+
+  const clearAndResign = () => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
     setHasInk(false)
+    setLocked(false)
     onChange(null)
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
         <span className="subtle" style={{ fontSize: 12, fontWeight: 700 }}>{label}</span>
-        {hasInk && !disabled && (
-          <button className="link-btn" style={{ fontSize: 12 }} onClick={clear}>
-            Clear
+        {locked && (
+          <span className="subtle" style={{ fontSize: 11 }}>
+            🔒 {signedAt ? `Signed ${formatSignedAt(signedAt)}` : 'Locked'}
+          </span>
+        )}
+        {locked && !disabled && (
+          <button className="link-btn" style={{ fontSize: 12 }} onClick={clearAndResign}>
+            Clear &amp; re-sign
           </button>
+        )}
+        {takesInk && hasInk && (
+          <>
+            <button className="link-btn" style={{ fontSize: 12 }} onClick={clearAndResign}>
+              Clear
+            </button>
+            <button className="link-btn" style={{ fontSize: 12, fontWeight: 700 }} onClick={lock}>
+              🔒 Lock signature
+            </button>
+          </>
         )}
       </div>
       <canvas
@@ -139,17 +173,22 @@ export default function SignaturePad({ label, value, onChange, disabled, height 
         style={{
           width: '100%',
           height: HEIGHT,
-          border: '1px solid var(--border-strong)',
+          border: `1px solid ${locked ? 'var(--border)' : 'var(--border-strong)'}`,
           borderRadius: 8,
-          background: '#fff',
+          background: locked ? '#f8fafc' : '#fff',
           touchAction: 'none',
           display: 'block',
-          cursor: disabled ? 'default' : 'crosshair',
+          cursor: takesInk ? 'crosshair' : 'default',
         }}
       />
-      {!hasInk && (
+      {!hasInk && !locked && (
         <div className="subtle" style={{ fontSize: 11, marginTop: 2 }}>
           {disabled ? 'Not signed yet.' : 'Sign above with your finger or mouse.'}
+        </div>
+      )}
+      {takesInk && hasInk && (
+        <div className="subtle" style={{ fontSize: 11, marginTop: 2 }}>
+          Tap <strong>Lock signature</strong> when done — it can't be changed after without “Clear &amp; re-sign”.
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@ import {
 import { CREDENTIAL_LABELS } from '../../data/academy'
 import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import { operationName } from '../../data/operations'
-import { formatDate, fromISODate, toISODate } from '../../lib/date'
+import { formatDate, formatSignedAt, fromISODate, toISODate } from '../../lib/date'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -95,7 +95,7 @@ function sigBlock(role: string, name: string, dataUrl?: string, signedAt?: strin
       ${img}
       <div style="border-top:1px solid #333;margin-top:2px;padding-top:2px">
         <strong>${esc(role)}:</strong> ${esc(name) || '&nbsp;'}
-        ${signedAt ? ` &nbsp; <span class="sub2">Signed ${esc(formatDate(signedAt))}</span>` : ''}
+        ${signedAt ? ` &nbsp; <span class="sub2">Signed ${esc(formatSignedAt(signedAt))}</span>` : ''}
       </div>
     </td>`
 }

@@ -65,14 +65,6 @@ export const BLS_SKILLS: SkillDef[] = [
     "label": "Radio Biocom to Emergency Department - Pulsara App"
   },
   {
-    "id": "truck_equipment_location_check",
-    "label": "Truck Equipment Location Check"
-  },
-  {
-    "id": "truck_fluid_check",
-    "label": "Truck Fluid Check"
-  },
-  {
     "id": "tourniquet_application",
     "label": "Tourniquet Application"
   },
@@ -134,16 +126,6 @@ export const LINN_MEDIC_SKILLS: SkillDef[] = [
     ]
   },
   {
-    "id": "rapid_sequence_intubation_rsi",
-    "label": "Rapid Sequence Intubation (RSI)",
-    "ops": ["linn"],
-    "steps": [
-      "Pre-oxygenate the patient",
-      "Give fentanyl (pain), midazolam (sedation), and vecuronium (paralysis)",
-      "Intubate as above"
-    ]
-  },
-  {
     "id": "analgesic_medication_administration",
     "label": "Analgesic Medication Administration",
     "steps": [
@@ -177,7 +159,32 @@ export const LINN_MEDIC_SKILLS: SkillDef[] = [
       "Pick i-gel size by weight: Size 1: 2–5 kg, Size 1.5: 5–12 kg, Size 2: 10–25 kg, Size 2.5: 25–35 kg",
       "Lubricate the i-gel"
     ]
-  },
+  }
+]
+
+// Time-intensive advanced-airway sheets, split out of the core ALS sheet so
+// each can be run as its own dedicated station. RSI is Linn County only;
+// Ventilator Management is KC/Cass only (kept as `ops` for defense — a wrong-
+// operation medic reaching the sheet directly sees no applicable skills).
+
+/** Rapid Sequence Intubation — Linn County paramedics. */
+export const RSI_SKILLS: SkillDef[] = [
+  {
+    "id": "rapid_sequence_intubation_rsi",
+    "label": "Rapid Sequence Intubation (RSI)",
+    "ops": ["linn"],
+    "steps": [
+      "Pre-oxygenate the patient",
+      "Give fentanyl (pain), midazolam (sedation), and vecuronium (paralysis)",
+      "Intubate: position, laryngoscopy, tube through the cords",
+      "Confirm placement (waveform capnography and auscultation)",
+      "Secure the tube and set post-intubation sedation/analgesia"
+    ]
+  }
+]
+
+/** Ventilator Management (LTV 1200) — KC / Cass paramedics. */
+export const VENT_SKILLS: SkillDef[] = [
   {
     "id": "ventilator_management",
     "label": "Ventilator Management (LTV 1200)",

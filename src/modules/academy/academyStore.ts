@@ -406,6 +406,8 @@ export function addDailyEval(traineeId: string, input: DailyEvalInput): DailyEva
     fto: input.fto?.trim() || undefined,
     strengths: input.strengths?.trim() || undefined,
     improvements: input.improvements?.trim() || undefined,
+    // Stamp the initials at submit for record-keeping.
+    ftoInitialsAt: input.ftoInitials ? new Date().toISOString() : undefined,
   }
   setState((db) => ({ ...db, dailyEvals: [...db.dailyEvals, ev] }))
   return ev
@@ -516,11 +518,13 @@ export function setSkillSignature(
   who: 'trainee' | 'evaluator',
   dataUrl: string | null,
 ): void {
+  // Full ISO instant (date + time) for record-keeping; cleared with the signature.
+  const at = dataUrl ? new Date().toISOString() : undefined
   patchSkillCheck(traineeId, sheet, (s) => {
     if (who === 'trainee') {
-      return { ...s, traineeSignature: dataUrl || undefined, traineeSignedAt: dataUrl ? todayISO() : undefined }
+      return { ...s, traineeSignature: dataUrl || undefined, traineeSignedAt: at }
     }
-    return { ...s, evaluatorSignature: dataUrl || undefined, evaluatorSignedAt: dataUrl ? todayISO() : undefined }
+    return { ...s, evaluatorSignature: dataUrl || undefined, evaluatorSignedAt: at }
   })
 }
 

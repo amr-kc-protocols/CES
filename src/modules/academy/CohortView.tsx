@@ -171,6 +171,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   // Every hire runs the BLS sheet; paramedics additionally run the ALS sheet.
   const blsCheck = useSkillCheckFor(trainee.id, 'bls')
   const alsCheck = useSkillCheckFor(trainee.id, 'linn-medic')
+  const rsiCheck = useSkillCheckFor(trainee.id, 'rsi')
+  const ventCheck = useSkillCheckFor(trainee.id, 'vent')
   const stretcherCheck = useSkillCheckFor(trainee.id, 'stretcher')
   const evocCheck = useSkillCheckFor(trainee.id, 'evoc-track')
   const passedOf = (c?: { results: Record<string, string> }) =>
@@ -399,6 +401,16 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             {clinicalSheetsFor(trainee).includes('linn-medic') && (
               <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/linn-medic`} className="btn sm">
                 💉 ALS · {passedOf(alsCheck)}/{skillsFor('linn-medic', trainee.operation).length}
+              </Link>
+            )}
+            {clinicalSheetsFor(trainee).includes('rsi') && (
+              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/rsi`} className="btn sm">
+                💨 RSI · {passedOf(rsiCheck)}/{skillsFor('rsi', trainee.operation).length}
+              </Link>
+            )}
+            {clinicalSheetsFor(trainee).includes('vent') && (
+              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/vent`} className="btn sm">
+                🫁 Vent · {passedOf(ventCheck)}/{skillsFor('vent', trainee.operation).length}
               </Link>
             )}
             <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/stretcher`} className="btn sm">

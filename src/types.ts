@@ -360,11 +360,13 @@ export interface DailyEval {
   readyIndependent?: boolean
   /** FTO's drawn initials (PNG data URL) — signs off the eval. */
   ftoInitials?: string
+  /** ISO instant the FTO initialed — record-keeping timestamp. */
+  ftoInitialsAt?: string
 }
 
 /** A clinical skill sheet sign-off (KC/Cass BLS sheet or Linn medic sheet). */
 /** Which check-off sheet a SkillCheck record belongs to. */
-export type SkillSheetId = 'bls' | 'linn-medic' | 'stretcher' | 'evoc-track'
+export type SkillSheetId = 'bls' | 'linn-medic' | 'stretcher' | 'evoc-track' | 'rsi' | 'vent'
 
 export interface SkillCheck {
   id: string
