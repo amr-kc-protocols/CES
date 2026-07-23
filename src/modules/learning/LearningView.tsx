@@ -1,8 +1,10 @@
+import { Link } from 'react-router-dom'
 import { COURSE_BLOCKS, PRACTICE_ITEMS, KIND_META, type LearningItem } from '../../data/learningBlocks'
 import { resourceFor, resourceUrl } from '../../data/fieldGuide'
 
 // Self-study course library: online modules that back up the hands-on academy
-// days. Everything links out to the Field Guide; nothing to sign in for.
+// days. Courses open in the in-app viewer (with a back bar) rather than a raw
+// new tab, so there's always a way back. Nothing to sign in for.
 
 function ItemLink({ item }: { item: LearningItem }) {
   const r = resourceFor(item.ref)
@@ -10,18 +12,16 @@ function ItemLink({ item }: { item: LearningItem }) {
   if (!r || !url) return null
   const meta = KIND_META[item.kind]
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
+    <Link
+      to={`/courses/view?ref=${encodeURIComponent(item.ref)}`}
       className="row"
       style={{ color: 'inherit', textDecoration: 'none', alignItems: 'center', gap: 10 }}
     >
       <span style={{ fontSize: 18 }}>{meta.icon}</span>
       <span className="grow">{r.label}</span>
       <span className="pill muted">{meta.label}</span>
-      <span className="subtle" aria-hidden>↗</span>
-    </a>
+      <span className="subtle" aria-hidden>›</span>
+    </Link>
   )
 }
 

@@ -78,13 +78,43 @@
     position: relative;
   }
   .modcard.done .num { background: var(--good); }
-  .modcard .num .check { display: none; }
+  .modcard .num .check, .modcard .num .lock { display: none; }
   .modcard.done .num .label { display: none; }
   .modcard.done .num .check { display: block; }
   .modcard .body { flex: 1; min-width: 0; }
   .modcard .body .t { font-weight: 650; }
   .modcard .body .s { font-size: 13px; color: var(--muted); }
   .modcard .chev { color: var(--muted); font-size: 20px; flex: none; }
+  /* Locked module: greyed, not clickable, shows a padlock. */
+  .modcard.locked { opacity: .6; cursor: default; }
+  .modcard.locked:hover { border-color: var(--line); }
+  .modcard.locked:active { transform: none; }
+  .modcard.locked .num { background: var(--muted); font-size: 14px; }
+  .modcard.locked .num .label { display: none; }
+  .modcard.locked .num .lock { display: block; }
+  .modcard.locked .chev { font-size: 14px; }
+
+  /* Screenshots */
+  .shot { margin: 12px 0; }
+  .shot img {
+    display: block; width: 100%; max-width: 320px; height: auto; margin: 0 auto;
+    border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(11,46,79,0.12);
+  }
+  .shot figcaption {
+    text-align: center; font-size: 12px; color: var(--muted);
+    margin-top: 6px; font-style: italic;
+  }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps li {
+    counter-increment: step; position: relative; padding-left: 34px; margin-bottom: 10px;
+  }
+  .steps li::before {
+    content: counter(step); position: absolute; left: 0; top: -1px;
+    width: 24px; height: 24px; border-radius: 50%; background: var(--navy); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  }
+
 
   .intro-card {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -264,7 +294,12 @@ const MODULES = [
     body: `
       <div class="section">
         <h3>Okta is your front door</h3>
-        <p><strong>Okta</strong> is the single sign-on (SSO) that unlocks nearly every AMR system — GPS Portal, email, NinthBrain, Cornerstone, and more. Set it up first; everything else depends on it.</p>
+        <p><strong>Okta</strong> is the single sign-on (SSO) that unlocks nearly every AMR system — email, NinthBrain, policies, charting, benefits, and more. Set it up first; everything else lives behind it.</p>
+        <div class="callout info"><span class="lbl">Sign in at</span><a href="https://gmr.okta.com" target="_blank" rel="noreferrer">gmr.okta.com</a></div>
+        <figure class="shot">
+          <img src="img/okta-signin.jpg" alt="GMR Okta sign-in screen at gmr.okta.com with Username and Password fields" loading="lazy" />
+          <figcaption>The GMR sign-in screen. Note the <em>Forgot password?</em> and <em>Unlock account?</em> links — you'll want them eventually.</figcaption>
+        </figure>
       </div>
       <div class="section">
         <h3>Your temporary password</h3>
@@ -285,33 +320,80 @@ const MODULES = [
       </div>
       <div class="section">
         <h3>My Action Items</h3>
-        <p>Once you're in Okta, check <strong>My Action Items</strong> on your dashboard. This is one of two mandatory to-do lists (the other is in GPS Portal). Clear everything it lists.</p>
+        <p>Once you're in Okta, check <strong>My Action Items</strong> on your dashboard. This is one of two mandatory <strong>My Action Items</strong> lists (the other is in GPS Portal). Clear everything it lists.</p>
+      </div>
+      <div class="section">
+        <h3>Finding your apps — the dashboard</h3>
+        <p>After you sign in you land on <strong>My Apps</strong>. There are no separate website addresses to memorize: <strong>every AMR system is a tile here.</strong> To open one:</p>
+        <ol class="steps">
+          <li>Tap the <strong>Search your apps</strong> bar at the top.</li>
+          <li>Type the system name (e.g. "Ninth Brain").</li>
+          <li>Tap the tile to launch it — Okta signs you in automatically.</li>
+        </ol>
+        <figure class="shot">
+          <img src="img/okta-dashboard.jpg" alt="Okta My Apps dashboard with a Search your apps bar and a grid of app tiles" loading="lazy" />
+          <figcaption>Your <strong>My Apps</strong> dashboard. Use <em>Search your apps</em> to jump straight to any tile.</figcaption>
+        </figure>
+        <p>The tiles are grouped into sections — <strong>Work</strong>, <strong>Pay and HR</strong>, <strong>Learning and Credentials</strong>, <strong>Quality Assurance</strong>, <strong>Telestaff and Oracle</strong>, and more. Scroll to a section, or just search.</p>
+        <figure class="shot">
+          <img src="img/okta-apps.jpg" alt="Okta 'Work' app tiles including GMR - Ninth Brain and Microsoft Teams" loading="lazy" />
+          <figcaption>The <strong>Work</strong> section — where <em>GMR - Ninth Brain</em> lives.</figcaption>
+        </figure>
+
+        <h4>Tiles you'll use as a new hire</h4>
+        <p>Search for the name in <strong>bold</strong>, or find it in the listed section:</p>
+        <table>
+          <tr><th>Tile</th><th>Section</th><th>What it's for</th></tr>
+          <tr><td><strong>GPS Portal</strong> (People Services)</td><td>Pay and HR</td><td>Employee self-service &amp; your 2nd My Action Items (Module 3)</td></tr>
+          <tr><td><strong>OneGMR Workday</strong></td><td>Pay and HR</td><td>HR system of record — personal info</td></tr>
+          <tr><td><strong>TakeCareTakeCharge</strong> (Benefits)</td><td>Pay and HR</td><td>Benefits enrollment (Module 6)</td></tr>
+          <tr><td><strong>GMR Empower</strong> Retirement</td><td>Pay and HR</td><td>Your 401(k) (Module 6)</td></tr>
+          <tr><td><strong>GMR Employee Foundation</strong></td><td>Pay and HR</td><td>Emergency grants &amp; giving (Module 6)</td></tr>
+          <tr><td><strong>Cornerstone OnDemand</strong></td><td>Learning &amp; Credentials</td><td>Assigned training / LMS (Module 5)</td></tr>
+          <tr><td><strong>GMR - Ninth Brain</strong></td><td>Work</td><td>Credentials &amp; the Respiratory Questionnaire (Module 4)</td></tr>
+          <tr><td><strong>GMR Policies</strong></td><td>Work</td><td>Handbook &amp; company policies (Module 8)</td></tr>
+          <tr><td><strong>GMR - Microsoft Office 365</strong></td><td>Work</td><td>Email (Outlook) &amp; Teams</td></tr>
+          <tr><td><strong>GMR - ImageTrend</strong></td><td>Work</td><td>ePCR / patient-care charting</td></tr>
+          <tr><td><strong>GMR - UKG Pro</strong></td><td>Work</td><td>Timekeeping — your hours (Module 5 &amp; 7)</td></tr>
+          <tr><td><strong>GMR Concur</strong></td><td>Work</td><td>Travel &amp; expense reports</td></tr>
+        </table>
+        <figure class="shot">
+          <img src="img/okta-payhr.jpg" alt="Okta 'Pay and HR' section with Workday, TakeCareTakeCharge Benefits, GPS Portal, Empower, and Employee Foundation tiles" loading="lazy" />
+          <figcaption>The <strong>Pay and HR</strong> section — GPS Portal, Benefits, Empower (401k), and the Employee Foundation.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="img/okta-learning.jpg" alt="Okta 'Learning and Credentials' section with Cornerstone OnDemand and GMR Connect tiles" loading="lazy" />
+          <figcaption>The <strong>Learning and Credentials</strong> section — <em>Cornerstone OnDemand</em> is your LMS.</figcaption>
+        </figure>
+        <div class="callout info"><span class="lbl">Don't see a tile?</span>Some apps are granted a day or two after you start, or by role. If something you need is missing after your first week, tell your supervisor or GMR Support (Module 3).</div>
       </div>`,
     quiz: [
       { q: "What is the temporary Okta password formula?", options: ["Your employee ID + birth year", "Full birth month capitalized + last 5 of SSN + !", "AMR + last 4 of SSN", "First name + #1234"], answer: 1, explain: "e.g. someone born in July with SSN ending 27812 → July27812!" },
-      { q: "Why set up Okta first?", options: ["It's optional", "It's the single sign-on that unlocks most other systems", "It only handles email", "It replaces your paycheck login"], answer: 1, explain: "Okta SSO gates GPS Portal, NinthBrain, Cornerstone and more — set it up before anything else." },
+      { q: "Why set up Okta first?", options: ["It's optional", "It's the single sign-on that unlocks most other systems", "It only handles email", "It replaces your paycheck login"], answer: 1, explain: "Okta SSO gates NinthBrain, policies, charting, benefits and more — set it up before anything else." },
+      { q: "How do you open an AMR system like NinthBrain?", options: ["Google its website and log in separately", "Find its tile on your Okta My Apps dashboard (search by name)", "Ask IT to email you a link each time", "It only works from a station computer"], answer: 1, explain: "Every system is a tile on your Okta dashboard — use 'Search your apps' and tap the tile; Okta signs you in." },
     ],
   },
   {
     id: "gps",
     icon: "🧭",
-    title: "GPS Portal & To-Do's",
-    subtitle: "Your HR/employee hub and second checklist",
+    title: "GPS Portal & My Action Items",
+    subtitle: "Your HR/employee hub and second My Action Items list",
     body: `
       <div class="section">
         <h3>What GPS Portal is</h3>
         <p>The <strong>GPS Portal</strong> is your employee self-service hub — pay, personal info, benefits enrollment, and company communications all live here. You reach it through Okta.</p>
+        <div class="callout info"><span class="lbl">In Okta</span>Open the <strong>GPS Portal</strong> (GMR People Services) tile in the <strong>Pay and HR</strong> section.</div>
       </div>
       <div class="section">
-        <h3>Your second mandatory checklist</h3>
-        <p>Alongside Okta's <em>My Action Items</em>, GPS Portal has its own new-hire to-do list. Both must be completed. Between the two you'll typically:</p>
+        <h3>Your second My Action Items list</h3>
+        <p>Alongside Okta's <em>My Action Items</em>, GPS Portal has its own <strong>My Action Items</strong> list (it used to be called "to-do items"). Both must be completed. Between the two you'll typically:</p>
         <ul>
           <li>Verify and complete your personal profile</li>
           <li>Complete required onboarding forms</li>
           <li>Acknowledge policies</li>
           <li>Enroll in benefits (within your eligibility window — see Module 6)</li>
         </ul>
-        <div class="callout info"><span class="lbl">Two lists, not one</span>Okta <strong>My Action Items</strong> + GPS Portal <strong>to-do's</strong>. Clearing one does not clear the other.</div>
+        <div class="callout info"><span class="lbl">Two lists, not one</span>You have a <strong>My Action Items</strong> list in <strong>both</strong> Okta and GPS Portal. Clearing one does not clear the other — finish both.</div>
       </div>
       <div class="section">
         <h3>I-9 employment verification</h3>
@@ -327,11 +409,11 @@ const MODULES = [
         <h3>Support Center</h3>
         <p>Stuck on a login or portal issue? The GMR Support Center can help:</p>
         <dl class="kv">
-          <dt>GMR Support</dt><dd>866.267.9111</dd>
+          <dt>GMR Support</dt><dd><a href="tel:8662679111">866.267.9111</a></dd>
         </dl>
       </div>`,
     quiz: [
-      { q: "How many mandatory new-hire checklists are there, and where?", options: ["One, in Okta only", "Two — Okta My Action Items and GPS Portal to-do's", "Three, all in email", "One, in NinthBrain"], answer: 1, explain: "Both Okta My Action Items AND the GPS Portal to-do list must be completed." },
+      { q: "How many mandatory new-hire action lists are there, and where?", options: ["One, in Okta only", "Two — a My Action Items list in both Okta and GPS Portal", "Three, all in email", "One, in NinthBrain"], answer: 1, explain: "You have a My Action Items list in both Okta and GPS Portal — both must be completed." },
       { q: "For the I-9, what satisfies verification?", options: ["Any one document", "A List A doc, OR a List B + List C combination", "Only a passport", "A photocopy of your license"], answer: 1, explain: "One List A doc proves both; otherwise you need List B (identity) plus List C (work authorization), originals only." },
     ],
   },
@@ -345,6 +427,7 @@ const MODULES = [
         <h3>NinthBrain tracks your credentials</h3>
         <p><strong>NinthBrain</strong> is where your certifications and compliance items live — BLS/CPR, state EMS license, driver's license, ACLS, and more. Keep everything current here.</p>
         <p>Your <strong>first task in NinthBrain</strong> is the <strong>Respiratory Questionnaire</strong>. Complete it early — it feeds your respirator fit clearance.</p>
+        <div class="callout info"><span class="lbl">In Okta</span>Open the <strong>GMR - Ninth Brain</strong> tile in the <strong>Work</strong> section.</div>
       </div>
       <div class="section">
         <h3>Expiration = suspension</h3>
@@ -374,22 +457,23 @@ const MODULES = [
       <div class="section">
         <h3>Cornerstone is your learning system</h3>
         <p><strong>Cornerstone</strong> (the LMS) hosts your assigned online training — compliance modules, safety courses, and role-specific learning. You reach it through Okta.</p>
+        <div class="callout info"><span class="lbl">In Okta</span>Open the <strong>Cornerstone OnDemand</strong> tile in the <strong>Learning and Credentials</strong> section. <strong>Telestaff</strong> has its own <strong>Telestaff and Oracle</strong> section.</div>
       </div>
       <div class="section">
         <h3>Do these first</h3>
         <p>Two operational systems training come before general compliance so you can actually function on a shift:</p>
         <ul>
-          <li><strong>Kronos</strong> — timekeeping (how your hours are recorded)</li>
+          <li><strong>UKG Pro</strong> — timekeeping (how your hours are recorded)</li>
           <li><strong>Telestaff</strong> — scheduling / shift bidding</li>
         </ul>
-        <div class="callout info"><span class="lbl">Order of operations</span>Knock out Kronos and Telestaff training first — you'll use both from day one. Then work through your compliance modules.</div>
+        <div class="callout info"><span class="lbl">Order of operations</span>Knock out UKG and Telestaff training first — you'll use both from day one. Then work through your compliance modules.</div>
       </div>
       <div class="section">
         <h3>Compliance deadline</h3>
         <div class="callout warn"><span class="lbl">7-day window</span>Assigned compliance training must be completed within <strong>7 days</strong>. Don't let it stack up — the modules are short but add up if ignored.</div>
       </div>`,
     quiz: [
-      { q: "Which two systems' training should you complete first in Cornerstone?", options: ["Email and Okta", "Kronos (time) and Telestaff (scheduling)", "NinthBrain and GPS", "Benefits and 401k"], answer: 1, explain: "Kronos and Telestaff come first — you use both from day one — then general compliance." },
+      { q: "Which two systems' training should you complete first in Cornerstone?", options: ["Email and Okta", "UKG (time) and Telestaff (scheduling)", "NinthBrain and GPS", "Benefits and 401k"], answer: 1, explain: "UKG (timekeeping) and Telestaff (scheduling) come first — you use both from day one — then general compliance." },
       { q: "What's the deadline for assigned compliance training?", options: ["30 days", "7 days", "No deadline", "1 year"], answer: 1, explain: "Assigned compliance modules must be done within 7 days." },
     ],
   },
@@ -403,6 +487,7 @@ const MODULES = [
         <h3>When you're eligible</h3>
         <p>Benefits eligibility begins the <strong>first of the month after 30 days</strong> of employment. Watch your enrollment window in GPS Portal — miss it and you may wait for the next open enrollment.</p>
         <p>AMR's benefits program is branded <strong>TakeCareTakeCharge</strong> — medical, dental, vision, and supplemental coverage.</p>
+        <div class="callout info"><span class="lbl">In Okta</span>Benefits, 401(k), and the Foundation are all in the <strong>Pay and HR</strong> section: <strong>TakeCareTakeCharge (Benefits)</strong>, <strong>GMR Empower</strong> (retirement), and <strong>GMR Employee Foundation</strong>.</div>
       </div>
       <div class="section">
         <h3>401(k) retirement</h3>
@@ -431,7 +516,7 @@ const MODULES = [
     body: `
       <div class="section">
         <h3>Pay schedule</h3>
-        <p>AMR Kansas City (KS &amp; MO) pays on a <strong>biweekly</strong> schedule. Your hours are captured in <strong>Kronos</strong>; make sure your time is accurate each pay period.</p>
+        <p>AMR Kansas City (KS &amp; MO) pays on a <strong>biweekly</strong> schedule. Your hours are captured in <strong>UKG Pro</strong>; make sure your time is accurate each pay period.</p>
       </div>
       <div class="section">
         <h3>PTO — accrual &amp; use</h3>
@@ -456,7 +541,7 @@ const MODULES = [
         <p>AMR observes a set of company holidays each year. As a 24/7 operation, many roles work holidays with holiday pay per policy. Confirm the current year's observed-holiday list and pay rules in GPS Portal or with local HR.</p>
       </div>`,
     quiz: [
-      { q: "What is the KC pay schedule?", options: ["Weekly", "Biweekly", "Monthly", "Twice a month on fixed dates"], answer: 1, explain: "KS/MO operations are paid biweekly; time is captured in Kronos." },
+      { q: "What is the KC pay schedule?", options: ["Weekly", "Biweekly", "Monthly", "Twice a month on fixed dates"], answer: 1, explain: "KS/MO operations are paid biweekly; time is captured in UKG Pro." },
       { q: "Which is a leave type beyond PTO?", options: ["Bereavement leave", "Lunch break", "Shift trade", "Overtime"], answer: 0, explain: "Bereavement and LOA/FMLA are leave types separate from PTO accrual." },
     ],
   },
@@ -516,12 +601,25 @@ const MODULES = [
       <div class="section">
         <h3>Compliance hotline</h3>
         <p>To report a compliance or ethics concern (including anonymously):</p>
-        <dl class="kv"><dt>Compliance Hotline</dt><dd>877.631.5722</dd></dl>
+        <dl class="kv"><dt>Compliance Hotline</dt><dd><a href="tel:8776315722">877.631.5722</a></dd></dl>
       </div>
       <div class="section">
         <h3>GMR Life — support for you</h3>
-        <p>This job is hard. GMR provides real mental-health and life support through the <strong>Employee Assistance Program (EAP)</strong> and <strong>GMR Life</strong> — free, confidential counseling sessions, a crisis line, and other resources for you and your household.</p>
-        <div class="callout warn"><span class="lbl">Please confirm the current EAP</span>The EAP vendor, session count, and phone number have varied across our materials. Confirm the <em>current</em> EAP provider and contact number with local HR or in GPS Portal before you need it — then save it in your phone.</div>
+        <p>This job is hard. GMR provides real mental-health and life support through the <strong>Employee Assistance Program (EAP)</strong> and <strong>GMR Life</strong> — free, confidential counseling and resources for you and your household.</p>
+        <h4>Your EAP — Optum Health</h4>
+        <p>The EAP is administered by <strong>Optum Health</strong> for <strong>all</strong> employees — help with family &amp; relationships, child/elder care, financial services, and stress. Free and confidential.</p>
+        <dl class="kv">
+          <dt>Website</dt><dd><a href="https://www.liveandworkwell.com" target="_blank" rel="noreferrer">liveandworkwell.com</a> — company access code <strong>Oneteam</strong></dd>
+          <dt>Phone</dt><dd><a href="tel:18662484094">1-866-248-4094</a></dd>
+        </dl>
+        <h4>More well-being resources</h4>
+        <ul>
+          <li><strong>SonderMind</strong> (select states) — <a href="http://gmr.withsondermind.com/" target="_blank" rel="noreferrer">gmr.withsondermind.com</a></li>
+          <li><strong>Chaplain Services</strong> — <a href="https://www.telechaplain.net" target="_blank" rel="noreferrer">telechaplain.net</a></li>
+          <li><strong>Crisis Text Line</strong> — text <strong>BADGE</strong> to <strong>741-741</strong></li>
+          <li><strong>988 Suicide &amp; Crisis Lifeline</strong> — call or text <a href="tel:988">988</a></li>
+        </ul>
+        <div class="callout"><span class="lbl">Save it now</span>Add the EAP number — <a href="tel:18662484094">1-866-248-4094</a> — and the access code <strong>Oneteam</strong> to your phone before you finish this course.</div>
       </div>`,
     quiz: [
       { q: "Under Just Culture, how is honest human error handled?", options: ["Punished harshly", "Console the person and fix the system", "Ignored entirely", "Reported to the state"], answer: 1, explain: "Human error → console + fix the system; at-risk → coach; reckless → accountability. That's why you can report freely." },
@@ -547,25 +645,31 @@ const MODULES = [
       <div class="section">
         <h3>Human Resources</h3>
         <dl class="kv">
-          <dt>Gabrielle Godinez</dt><dd>HR Manager · 913-424-2244 · Gabrielle.Godinez@gmr.net</dd>
+          <dt>Gabrielle Godinez</dt><dd>HR Manager · <a href="tel:9134242244">913-424-2244</a> · <a href="mailto:Gabrielle.Godinez@gmr.net">Gabrielle.Godinez@gmr.net</a></dd>
           <dt>Chalann Berg</dt><dd>HR Director</dd>
         </dl>
       </div>
       <div class="section">
+        <h3>Getting into your systems</h3>
+        <p>There's just one address to remember — everything else is a tile inside it:</p>
+        <div class="callout info"><span class="lbl">Okta single sign-on</span><a href="https://gmr.okta.com" target="_blank" rel="noreferrer">gmr.okta.com</a> — sign in, then use <strong>Search your apps</strong> to open NinthBrain, Policies, email, ImageTrend, UKG, Concur, and the rest. See <strong>Module 2</strong> for the full walkthrough.</div>
+      </div>
+      <div class="section">
         <h3>Key numbers to save now</h3>
         <dl class="kv">
-          <dt>GMR Support</dt><dd>866.267.9111</dd>
-          <dt>Compliance Hotline</dt><dd>877.631.5722</dd>
-          <dt>HR (Godinez)</dt><dd>913-424-2244</dd>
+          <dt>GMR Support</dt><dd><a href="tel:8662679111">866.267.9111</a></dd>
+          <dt>Compliance Hotline</dt><dd><a href="tel:8776315722">877.631.5722</a></dd>
+          <dt>HR (Godinez)</dt><dd><a href="tel:9134242244">913-424-2244</a></dd>
+          <dt>EAP (Optum)</dt><dd><a href="tel:18662484094">1-866-248-4094</a> · code Oneteam</dd>
         </dl>
-        <div class="callout info"><span class="lbl">Do it now</span>Add these three to your phone before you finish this course. Confirm the current EAP number with HR and add that too.</div>
+        <div class="callout info"><span class="lbl">Do it now</span>Add all four to your phone before you finish this course.</div>
       </div>
       <div class="section">
         <h3>Your first 30 days — the map</h3>
         <table>
           <tr><th>When</th><th>Do</th></tr>
-          <tr><td>Today</td><td>Set up Okta + MFA; check both to-do lists (Okta &amp; GPS); complete NinthBrain Respiratory Questionnaire.</td></tr>
-          <tr><td>Before first shift</td><td>Kronos &amp; Telestaff training; verify credentials in NinthBrain; complete I-9.</td></tr>
+          <tr><td>Today</td><td>Set up Okta + MFA; clear <strong>My Action Items</strong> in both Okta &amp; GPS Portal; complete NinthBrain Respiratory Questionnaire.</td></tr>
+          <tr><td>Before first shift</td><td>UKG &amp; Telestaff training; verify credentials in NinthBrain; complete I-9.</td></tr>
           <tr><td>Week 1</td><td>Compliance training (within 7 days); acknowledge handbook &amp; policies.</td></tr>
           <tr><td>By 30 days</td><td>Watch your benefits enrollment window (eligible 1st of month after 30 days); set 401(k) to at least 5%.</td></tr>
           <tr><td>Ongoing</td><td>Renew credentials early; keep NinthBrain current; Raise Your Hand on safety.</td></tr>
@@ -574,7 +678,7 @@ const MODULES = [
       <div class="callout"><span class="lbl">You made it</span>Finish this last check and you've completed Systems Onboarding. Welcome to the team — we're glad you're here.</div>`,
     quiz: [
       { q: "Who is the HR Manager for KS/MO, and their number?", options: ["Jason Jenkins · 866.267.9111", "Gabrielle Godinez · 913-424-2244", "Dawn Brooks · 877.631.5722", "Chalann Berg · 913-000-0000"], answer: 1, explain: "Gabrielle Godinez, HR Manager, 913-424-2244, Gabrielle.Godinez@gmr.net. Chalann Berg is HR Director." },
-      { q: "Which belongs on your 'Today' list?", options: ["Set your 401(k) rate", "Set up Okta + MFA and check both to-do lists", "Complete all compliance training", "Attend your 30-day review"], answer: 1, explain: "Today: Okta + MFA, both to-do lists, and the NinthBrain Respiratory Questionnaire." },
+      { q: "Which belongs on your 'Today' list?", options: ["Set your 401(k) rate", "Set up Okta + MFA and clear My Action Items in both Okta & GPS", "Complete all compliance training", "Attend your 30-day review"], answer: 1, explain: "Today: Okta + MFA, clear My Action Items in both Okta and GPS Portal, and the NinthBrain Respiratory Questionnaire." },
     ],
   },
 ];
@@ -598,6 +702,12 @@ const detailHost = document.getElementById("detailHost");
 const pfill = document.getElementById("pfill");
 const plabel = document.getElementById("plabel");
 
+// A module unlocks only once the one before it is complete (the first is
+// always open). Keeps hires moving through in order.
+function isUnlocked(i) {
+  return i === 0 || done.has(MODULES[i - 1].id);
+}
+
 function updateProgress() {
   const n = MODULES.filter(m => done.has(m.id)).length;
   const pct = Math.round((n / MODULES.length) * 100);
@@ -610,22 +720,31 @@ function updateProgress() {
 function renderHome() {
   listEl.innerHTML = "";
   MODULES.forEach((m, i) => {
+    const isDone = done.has(m.id);
+    const unlocked = isUnlocked(i);
     const btn = document.createElement("button");
-    btn.className = "modcard" + (done.has(m.id) ? " done" : "");
+    btn.className = "modcard" + (isDone ? " done" : "") + (unlocked ? "" : " locked");
+    btn.disabled = !unlocked;
     btn.innerHTML = `
-      <span class="num"><span class="label">${i + 1}</span><span class="check">✓</span></span>
+      <span class="num">
+        <span class="label">${i + 1}</span>
+        <span class="check">✓</span>
+        <span class="lock">🔒</span>
+      </span>
       <span class="body">
         <span class="t">${m.icon} ${m.title}</span>
-        <span class="s">${m.subtitle}</span>
+        <span class="s">${unlocked ? m.subtitle : "Complete the previous module to unlock"}</span>
       </span>
-      <span class="chev">›</span>`;
-    btn.addEventListener("click", () => openModule(i));
+      <span class="chev">${unlocked ? "›" : "🔒"}</span>`;
+    if (unlocked) btn.addEventListener("click", () => openModule(i));
     listEl.appendChild(btn);
   });
   updateProgress();
 }
 
 function openModule(i) {
+  // Guard: never open a module whose predecessor isn't finished.
+  if (!isUnlocked(i)) { closeModule(); return; }
   const m = MODULES[i];
   window.scrollTo(0, 0);
   homeEl.classList.add("hidden");
