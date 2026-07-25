@@ -324,6 +324,18 @@ export interface AcademyDayRef {
   /** ISO date, or '' if a Phase 2 session hasn't been dated yet. */
   date: string
   title: string
+  /**
+   * Scheduled wall-clock hours for the day (first block start → last block
+   * end, meal break included). Undefined when the day has no usable times.
+   * Drives the payroll timesheet export.
+   */
+  hours?: number
+  /**
+   * Self-paced at-home (LMS) day: there is no attendance to mark, so the
+   * timesheet credits its hours to every trainee. Timesheet-only — these days
+   * are not columns in the attendance grid.
+   */
+  autoCredit?: boolean
 }
 
 // ----- Daily performance evaluations & clinical skill sheets -----------------

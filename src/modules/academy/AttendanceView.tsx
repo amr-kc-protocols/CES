@@ -5,12 +5,14 @@ import {
   useCohortTrainees,
   useAcademyDays,
   useAttendance,
+  useTimesheetDays,
   attendanceMap,
   attKey,
   setAttendance,
   markAllPresent,
 } from './academyStore'
 import { printDoc, downloadDoc, attendanceSheetHTML, safeFilename } from './docGen'
+import { timesheetCSV, downloadCSV } from './csvExport'
 import { weekdayLabel } from './calendar'
 import { useCan } from '../../lib/role'
 import type { AcademyCohort, AttendanceStatus } from '../../types'
@@ -38,6 +40,8 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
   const trainees = useCohortTrainees(cohort.id)
   const days = useAcademyDays(cohort.id)
   const records = useAttendance(cohort.id)
+  // Timesheet spans the marking grid plus the self-paced LMS days.
+  const timesheetDays = useTimesheetDays(cohort.id)
   const map = useMemo(() => attendanceMap(records), [records])
   const { editRideWork: canEdit } = useCan()
 
@@ -96,6 +100,15 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
           }
         >
           ⬇ Word
+        </button>
+        <button
+          className="btn"
+          title="Timesheet for payroll: hours per attended day, by employee number"
+          onClick={() =>
+            downloadCSV(safeFilename(`${cohort.label}_Timesheet`), timesheetCSV(cohort, timesheetDays, trainees, map))
+          }
+        >
+          ⬇ Excel (timesheet)
         </button>
       </div>
 

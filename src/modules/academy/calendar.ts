@@ -62,6 +62,25 @@ export function parseBlockTime(time: string): ParsedTime | null {
   return { startMin: start, endMin: end, endExplicit }
 }
 
+/**
+ * Wall-clock hours a free-form day covers: earliest block start → latest block
+ * end, meal break included (the academy day is paid straight through). Returns
+ * undefined when no block carries a usable time. Blocks whose end was guessed
+ * still count — a trailing "1600" block is better than dropping the day.
+ */
+export function dayScheduledHours(blocks: ScheduleBlock[]): number | undefined {
+  let start = Infinity
+  let end = -Infinity
+  for (const b of blocks) {
+    const t = parseBlockTime(b.time)
+    if (!t) continue
+    if (t.startMin < start) start = t.startMin
+    if (t.endMin > end) end = t.endMin
+  }
+  if (start === Infinity || end <= start) return undefined
+  return (end - start) / 60
+}
+
 // ----- schedule sanity checks ------------------------------------------------
 
 export interface DayTimeIssue {
