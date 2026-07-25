@@ -264,7 +264,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
                   <button
                     key={n}
                     type="button"
-                    className={`choice${on ? ' active' : ''}`}
+                    className={`choice dense${on ? ' active' : ''}`}
                     style={{ padding: '3px 10px', fontSize: 12 }}
                     title={n}
                     onClick={() => set({ facilitators: toggleFacilitator(arr?.facilitators, n) || undefined })}
@@ -376,7 +376,15 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
               </div>
             </div>
           ) : (
-            <div className="table-wrap">
+            // Collapsed by default: ten sessions of hour-by-hour blocks made the
+            // schedule ~29 phone screens tall, burying the dates and facilitators
+            // that are what you actually scan and arrange. The line above still
+            // shows the run time and teaching hours without opening anything.
+            <details className="timeline-details">
+              <summary className="timeline-toggle">
+                Hour-by-hour timeline · {blocks.length} block{blocks.length === 1 ? '' : 's'}
+              </summary>
+              <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -401,7 +409,8 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </details>
           )}
         </>
       )}
