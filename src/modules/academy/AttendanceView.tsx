@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Empty } from '../../components/ui'
-import { formatDate } from '../../lib/date'
+import { formatDate, todayISO } from '../../lib/date'
 import {
   useCohortTrainees,
   useAcademyDays,
@@ -12,7 +12,7 @@ import {
   markAllPresent,
 } from './academyStore'
 import { printDoc, downloadDoc, attendanceSheetHTML, safeFilename } from './docGen'
-import { timesheetCSV, downloadCSV } from './csvExport'
+import { timesheetCSV, timesheetWeeks, weekStartISO, downloadCSV } from './csvExport'
 import { weekdayLabel } from './calendar'
 import { useCan } from '../../lib/role'
 import type { AcademyCohort, AttendanceStatus } from '../../types'
@@ -44,6 +44,23 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
   const timesheetDays = useTimesheetDays(cohort.id)
   const map = useMemo(() => attendanceMap(records), [records])
   const { editRideWork: canEdit } = useCan()
+
+  // Timesheets go to the timekeeper one pay week at a time (Sun–Sat).
+  const weeks = useMemo(() => timesheetWeeks(timesheetDays), [timesheetDays])
+  const [weekStart, setWeekStart] = useState<string | null>(null)
+  // Default to the week containing today, so the common case is one tap. Falls
+  // back to the last week that has already started — mid-academy that is the
+  // week just worked, and before it starts, the first week.
+  const defaultWeek = useMemo(() => {
+    if (weeks.length === 0) return null
+    const today = weekStartISO(todayISO())
+    const exact = weeks.find((w) => w.startISO === today)
+    if (exact) return exact.startISO
+    const started = weeks.filter((w) => w.startISO <= today)
+    return (started.length ? started[started.length - 1] : weeks[0]).startISO
+  }, [weeks])
+  const selectedStart = weekStart ?? defaultWeek
+  const week = weeks.find((w) => w.startISO === selectedStart) ?? null
 
   // Per-trainee list of missed dated days -> catch-up.
   const catchUp = useMemo(
@@ -101,16 +118,41 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
         >
           ⬇ Word
         </button>
-        <button
-          className="btn"
-          title="Timesheet for payroll: hours per attended day, by employee number"
-          onClick={() =>
-            downloadCSV(safeFilename(`${cohort.label}_Timesheet`), timesheetCSV(cohort, timesheetDays, trainees, map))
-          }
-        >
-          ⬇ Excel (timesheet)
-        </button>
       </div>
+
+      {/* Payroll timesheet — one pay week per sheet, which is how the
+          timekeeper posts it. */}
+      {week && (
+        <div className="toolbar" style={{ marginTop: 8 }}>
+          <label className="subtle" style={{ fontSize: 12 }}>
+            Pay week{' '}
+            <select
+              value={selectedStart ?? ''}
+              onChange={(e) => setWeekStart(e.target.value)}
+              style={{ marginLeft: 4 }}
+            >
+              {weeks.map((w) => (
+                <option key={w.startISO} value={w.startISO}>
+                  {w.label} ({w.days.length} day{w.days.length === 1 ? '' : 's'})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="spacer" />
+          <button
+            className="btn"
+            title={`Timesheet for payroll — ${week.label}: hours per attended day, by employee number`}
+            onClick={() =>
+              downloadCSV(
+                safeFilename(`${cohort.label}_Timesheet_${week.startISO}`),
+                timesheetCSV(cohort, week.days, trainees, map, week.label),
+              )
+            }
+          >
+            ⬇ Excel (timesheet)
+          </button>
+        </div>
+      )}
 
       <div className="table-wrap" style={{ marginTop: 12 }}>
         <table>

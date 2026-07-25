@@ -1,7 +1,7 @@
 import { SHEETS, skillsFor } from '../../data/checkoffSheets'
 import { evalAverage, attKey } from './academyStore'
 import { weekdayLabel } from './calendar'
-import { fromISODate } from '../../lib/date'
+import { addDays, fromISODate } from '../../lib/date'
 import type {
   AcademyCohort,
   AcademyDayRef,
@@ -99,6 +99,58 @@ function columnDate(iso: string): string {
 }
 
 /**
+ * One payroll week of academy days: Sunday through Saturday, the standard US
+ * pay week. Grouping is by calendar week rather than by the academy's own
+ * Week 1 / Week 2 because Phase 2 can be paced one session per week, which
+ * would otherwise put a month of days on a single sheet.
+ */
+export interface TimesheetWeek {
+  /** ISO date of the Sunday that starts the week — also the option value. */
+  startISO: string
+  endISO: string
+  /** 'Jul 13 – 19' (year appended when the week straddles two). */
+  label: string
+  days: AcademyDayRef[]
+}
+
+/** Sunday that starts the pay week containing this date. */
+export function weekStartISO(iso: string): string {
+  return addDays(iso, -fromISODate(iso).getDay())
+}
+
+function weekLabel(startISO: string, endISO: string): string {
+  const a = fromISODate(startISO)
+  const b = fromISODate(endISO)
+  const mon = (d: Date) => MONTHS[d.getMonth()]
+  const sameYear = a.getFullYear() === b.getFullYear()
+  const left = `${mon(a)} ${a.getDate()}${sameYear ? '' : `, ${a.getFullYear()}`}`
+  const right = a.getMonth() === b.getMonth() && sameYear
+    ? `${b.getDate()}`
+    : `${mon(b)} ${b.getDate()}`
+  return `${left} – ${right}, ${b.getFullYear()}`
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Group dated days into Sun–Sat pay weeks, chronologically. */
+export function timesheetWeeks(days: AcademyDayRef[]): TimesheetWeek[] {
+  const byStart = new Map<string, AcademyDayRef[]>()
+  for (const d of days) {
+    if (!d.date) continue
+    const key = weekStartISO(d.date)
+    const list = byStart.get(key)
+    if (list) list.push(d)
+    else byStart.set(key, [d])
+  }
+  return [...byStart.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([startISO, weekDays]) => {
+      const endISO = addDays(startISO, 6)
+      return { startISO, endISO, label: weekLabel(startISO, endISO), days: weekDays }
+    })
+}
+
+/**
  * Attendance as a payroll timesheet: one row per trainee, one column per
  * scheduled academy day, and the day's hours in the cell only where the
  * trainee is marked present. Absent and unmarked cells are left blank — a
@@ -113,6 +165,8 @@ export function timesheetCSV(
   days: AcademyDayRef[],
   trainees: Trainee[],
   map: Map<string, AttendanceStatus>,
+  /** Pay week this sheet covers, e.g. 'Jul 13 – 19, 2026'. */
+  periodLabel?: string,
 ): string {
   const dated = days.filter((d) => d.date)
   const hrs = (n: number): string => n.toFixed(2)
@@ -148,6 +202,7 @@ export function timesheetCSV(
 
   return csv([
     [`${cohort.label} — Academy attendance timesheet`],
+    [periodLabel ? `Pay week: ${periodLabel}` : 'All academy days'],
     ['Hours are scheduled class time, meal break included. Blank = not attended.'],
     ['(LMS) = self-paced Cornerstone day — credited to everyone, no attendance taken.'],
     [],
