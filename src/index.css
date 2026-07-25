@@ -92,6 +92,15 @@ textarea {
   font: inherit;
 }
 
+/* Touch floor for every form control, including the inline ones that skip the
+   .field wrapper (schedule times, facilitator lines). Checkboxes and radios
+   are excluded — stretching those distorts the control itself. */
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  min-height: 40px;
+}
+
 /* iOS Safari paints empty date inputs as a borderless gray box; strip the
    native appearance so they render like every other text field. */
 input[type='date'] {
@@ -134,12 +143,25 @@ input[type='date']::-webkit-date-and-time-value {
   gap: 10px;
   font-weight: 700;
   letter-spacing: 0.3px;
+  line-height: 1.2;
+  /* Must be allowed to shrink, or the sync chip pushes the title into extra
+     lines that overflow the fixed-height bar and clip. */
+  min-width: 0;
 }
 
 .topbar .brand img {
   width: 30px;
   height: 30px;
   border-radius: 7px;
+  flex: none;
+}
+
+/* Title truncates rather than wrapping — the bar has no room to grow. */
+.topbar .brand .brand-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .topbar .brand small {
@@ -147,6 +169,21 @@ input[type='date']::-webkit-date-and-time-value {
   opacity: 0.75;
   font-size: 12px;
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar .sync-slot {
+  margin-left: auto;
+  flex: none;
+}
+
+/* On a phone the subtitle is decorative — drop it so the name stays whole. */
+@media (max-width: 470px) {
+  .topbar .brand small { display: none; }
+  /* Sync chip keeps its state word but sheds the trailing instruction, which
+     the title tag and the tap itself already carry. */
+  .chip-extra { display: none; }
 }
 
 .content {
@@ -343,6 +380,9 @@ input[type='date']::-webkit-date-and-time-value {
   background: var(--surface);
   color: var(--text);
   padding: 9px 14px;
+  /* Thumb-sized: the whole app is used one-handed on a phone, often in a
+     moving truck or with a glove on. */
+  min-height: 40px;
   border-radius: var(--radius-sm);
   font-weight: 600;
   font-size: 14px;
@@ -398,6 +438,9 @@ input[type='date']::-webkit-date-and-time-value {
 .btn.sm {
   padding: 6px 10px;
   font-size: 13px;
+  /* Still visually secondary, but a skill sheet is 13 rows of pass/fail taps —
+     a mis-tap writes the wrong result, so don't shrink these to 29px. */
+  min-height: 36px;
 }
 
 .btn:disabled {
@@ -429,6 +472,7 @@ input[type='date']::-webkit-date-and-time-value {
 .field textarea {
   width: 100%;
   padding: 10px 12px;
+  min-height: 40px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -535,6 +579,7 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 .stat.alert .value { color: var(--crit); }
+
 
 /* ---------- Lists ---------- */
 .list {
@@ -717,7 +762,10 @@ tbody tr:hover td {
 .segmented button {
   border: none;
   background: transparent;
-  padding: 6px 12px;
+  /* 40px min height: these are primary navigation on a phone, often tapped
+     with a gloved hand in the back of a truck. */
+  padding: 9px 12px;
+  min-height: 40px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
@@ -756,7 +804,12 @@ tbody tr:hover td {
   border: none;
   color: var(--navy-600);
   font-weight: 600;
-  padding: 0;
+  /* Vertical padding only, so these stay flush left where they sit as back
+     links at the top of a screen while gaining a thumb-sized hit area. */
+  padding: 8px 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .help-text {
@@ -783,6 +836,14 @@ tbody tr:hover td {
 .choice {
   flex: 0 1 auto;
   padding: 10px 14px;
+  /* Floor the height even where a screen passes tighter inline padding: these
+     record graded results (pass / needs practice, 1-5 ratings), so a mis-tap
+     writes the wrong answer into a trainee's record. Centred so the label
+     stays put whatever padding the caller sets. */
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--surface-2);
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -792,6 +853,13 @@ tbody tr:hover td {
   color: var(--text);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+/* Dense multi-select chips (e.g. the FTO picker): a dozen of these sit in one
+   wrapped cloud, and toggling one is trivially reversible, so they trade a
+   little height for a picker that fits on screen. */
+.choice.dense {
+  min-height: 34px;
 }
 
 .choice:hover {
@@ -871,3 +939,51 @@ tbody tr:hover td {
 @media (max-width: 560px) {
   .backbar-course .cv-title { display: none; }
 }
+
+/* ---------- Phone density ----------
+   Must stay at the end of the file: these override base rules defined above,
+   and a media query adds no specificity of its own.
+
+   On a 390px screen the header, title, and a 2x2 stat block consumed the whole
+   first viewport, so opening a cohort showed counts and nothing actionable.
+   Tighten the tiles and let the tab row use the full width so the tabs and the
+   list underneath are reachable without scrolling first. */
+@media (max-width: 560px) {
+  .stat { padding: 10px 12px; }
+  .stat .value { font-size: 21px; }
+  .stat-grid { gap: 8px; }
+
+  .segmented { display: flex; width: 100%; }
+  /* Equal widths, so the last tab can't sit half-clipped at the container edge
+     and read as "there is nothing further right". */
+  .segmented button { flex: 1; padding: 9px 4px; font-size: 12px; }
+}
+
+/* Collapsed session timeline (Phase 2 schedule). The summary sits outside the
+   .table-wrap scroller so the toggle never scrolls away with the table. */
+.timeline-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 10px;
+}
+.timeline-details[open] { padding-bottom: 10px; }
+.timeline-details .table-wrap { border-radius: var(--radius-sm); }
+.timeline-toggle {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy-600);
+  padding: 9px 2px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+.timeline-toggle::-webkit-details-marker { display: none; }
+.timeline-toggle::before {
+  content: '▸';
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+details[open] > .timeline-toggle::before { transform: rotate(90deg); }

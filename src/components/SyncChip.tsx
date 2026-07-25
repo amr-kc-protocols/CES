@@ -30,7 +30,7 @@ export default function SyncChip() {
   if (persistFailed) {
     return (
       <Link to="/settings" style={{ ...base, background: '#fde2e1', color: '#991b1b', textDecoration: 'none' }} title="This device's storage is full or blocked — changes are NOT being saved locally. Export a backup and free space.">
-        ⛔ Storage full — not saving
+        ⛔ Storage full<span className="chip-extra"> — not saving</span>
       </Link>
     )
   }
@@ -41,7 +41,7 @@ export default function SyncChip() {
   if (!signedIn) {
     return (
       <Link to="/settings" style={{ ...base, background: '#fde2e1', color: '#991b1b', textDecoration: 'none' }} title="Changes stay on this device until you sign in — tap to sign in">
-        ⚠ Not backed up — sign in
+        ⚠ Not backed up<span className="chip-extra"> — sign in</span>
       </Link>
     )
   }
@@ -71,7 +71,7 @@ export default function SyncChip() {
   if (error) {
     return (
       <button style={{ ...base, background: '#fde2e1', color: '#991b1b' }} onClick={() => void syncNow()} title={error}>
-        ⚠ Sync issue — tap to retry
+        ⚠ Sync issue<span className="chip-extra"> — tap to retry</span>
       </button>
     )
   }
@@ -85,7 +85,7 @@ export default function SyncChip() {
       onClick={() => void syncNow()}
       title={`Everything on this device is in the cloud${at ? ` · last sync ${at}` : ''} — tap to sync again`}
     >
-      ✓ Backed up{at ? ` · ${at}` : ''}
+      ✓ Backed up{at && <span className="chip-extra"> · {at}</span>}
     </button>
   )
 }

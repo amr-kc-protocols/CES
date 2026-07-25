@@ -33,12 +33,15 @@ function RatingRow({ label, value, onChange }: { label: string; value?: number; 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', flexWrap: 'wrap' }}>
       <span style={{ flex: 1, minWidth: 180 }}>{label}</span>
-      <div style={{ display: 'flex', gap: 4 }}>
+      {/* Grows into the rest of the row, and takes the full width once the
+          label pushes it onto its own line — on a phone that turns five 32px
+          targets into five ~66px ones instead of leaving half the row empty. */}
+      <div style={{ display: 'flex', gap: 4, flex: '1 1 200px' }}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             className={`choice${value === n ? ' active' : ''}`}
-            style={{ padding: '6px 11px', fontSize: 14 }}
+            style={{ flex: 1, padding: '6px 4px', fontSize: 14 }}
             onClick={() => onChange(value === n ? undefined : n)}
             aria-label={`${label}: ${n} of 5`}
           >

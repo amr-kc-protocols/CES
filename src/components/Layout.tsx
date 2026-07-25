@@ -40,12 +40,12 @@ export default function Layout() {
       <header className="topbar">
         <div className="brand">
           <img src="/pwa-192x192.png" alt="" />
-          <div>
+          <div className="brand-text">
             AMR KC Academy
             <small>New Hire &amp; FTO Portal</small>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div className="sync-slot">
           <SyncChip />
         </div>
       </header>

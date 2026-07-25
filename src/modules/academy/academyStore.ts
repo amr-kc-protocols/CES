@@ -13,7 +13,8 @@ import {
   WAIVABLE_MODULE_IDS,
 } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
-import { PHASE2_TEMPLATE, timelineFromBlocks } from '../../data/academyPhase2'
+import { PHASE2_TEMPLATE, educationMinutes, timelineFromBlocks } from '../../data/academyPhase2'
+import { dayScheduledHours } from './calendar'
 import { FT_SLOTS, requiredMarks, sectionsFor } from '../../data/ftObjectives'
 import type {
   AcademyCohort,
@@ -1091,12 +1092,20 @@ export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
   return useMemo(() => {
     const templateDays: AcademyDayRef[] = sessions
       .filter((s) => s.mode === 'in-person' && !arrangements[s.id]?.skipped)
-      .map((s) => ({
-        key: `p2:${s.id}`,
-        phase: s.week,
-        date: arrangements[s.id]?.date ?? '',
-        title: s.title,
-      }))
+      .map((s) => {
+        const arr = arrangements[s.id]
+        // Wall-clock length of the session as this class runs it: the arranged
+        // blocks when edited, else the template's. Breaks and lunch included.
+        const blocks = arr?.blocks?.length ? arr.blocks : s.blocks ?? []
+        const minutes = blocks.reduce((sum, b) => sum + b.durationMin, 0)
+        return {
+          key: `p2:${s.id}`,
+          phase: s.week,
+          date: arr?.date ?? '',
+          title: s.title,
+          hours: minutes > 0 ? minutes / 60 : undefined,
+        }
+      })
     // Same dedupe as useScheduleDays: a leftover Phase-1 day on a date a
     // session covers would give attendance two columns for one class day.
     const sessionDates = new Set(templateDays.map((d) => d.date).filter(Boolean))
@@ -1107,14 +1116,49 @@ export function useAcademyDays(cohortId: string | undefined): AcademyDayRef[] {
         phase: 1,
         date: d.date,
         title: d.title || 'Academy day',
+        hours: dayScheduledHours(d.blocks),
       }))
-    return [...p1, ...templateDays].sort((a, b) => {
-      if (!a.date && !b.date) return 0
-      if (!a.date) return 1
-      if (!b.date) return -1
-      return a.date.localeCompare(b.date)
-    })
+    return [...p1, ...templateDays].sort(byDateUndatedLast)
   }, [days, arrangements, sessions])
+}
+
+/** Chronological, with not-yet-dated sessions pushed to the end. */
+function byDateUndatedLast(a: AcademyDayRef, b: AcademyDayRef): number {
+  if (!a.date && !b.date) return 0
+  if (!a.date) return 1
+  if (!b.date) return -1
+  return a.date.localeCompare(b.date)
+}
+
+/**
+ * Days for the payroll timesheet: the in-person days that attendance is marked
+ * on, plus the dated at-home Cornerstone (LMS) days. LMS days are self-paced,
+ * so there is no attendance to mark and their hours are credited to every
+ * trainee; their length comes from the session's segment hours.
+ */
+export function useTimesheetDays(cohortId: string | undefined): AcademyDayRef[] {
+  const inPerson = useAcademyDays(cohortId)
+  const arrangements = useArrangements(cohortId)
+  const sessions = useCohortSessions(cohortId)
+  return useMemo(() => {
+    const atHome: AcademyDayRef[] = sessions
+      .filter((s) => {
+        const arr = arrangements[s.id]
+        return s.mode === 'at-home' && !!arr?.date && !arr.skipped
+      })
+      .map((s) => {
+        const minutes = educationMinutes(s)
+        return {
+          key: `lms:${s.id}`,
+          phase: s.week,
+          date: arrangements[s.id]!.date!,
+          title: s.title,
+          hours: minutes > 0 ? minutes / 60 : undefined,
+          autoCredit: true,
+        }
+      })
+    return [...inPerson, ...atHome].sort(byDateUndatedLast)
+  }, [inPerson, arrangements, sessions])
 }
 
 // ----- attendance ------------------------------------------------------------

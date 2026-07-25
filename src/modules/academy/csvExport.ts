@@ -1,6 +1,15 @@
 import { SHEETS, skillsFor } from '../../data/checkoffSheets'
-import { evalAverage } from './academyStore'
-import type { DailyEval, SkillCheck, Trainee } from '../../types'
+import { evalAverage, attKey } from './academyStore'
+import { weekdayLabel } from './calendar'
+import { fromISODate } from '../../lib/date'
+import type {
+  AcademyCohort,
+  AcademyDayRef,
+  AttendanceStatus,
+  DailyEval,
+  SkillCheck,
+  Trainee,
+} from '../../types'
 
 // ---------------------------------------------------------------------------
 // Spreadsheet exports: evals and skill sheets as CSV, one row per record —
@@ -78,6 +87,73 @@ export function skillChecksCSV(trainees: Trainee[], checks: SkillCheck[]): strin
         c.comments,
       ]
     }),
+  ])
+}
+
+// ----- payroll timesheet -----------------------------------------------------
+
+/** 'Mon 7/13/2026' — unambiguous for a timekeeper reconciling a pay period. */
+function columnDate(iso: string): string {
+  const d = fromISODate(iso)
+  return `${weekdayLabel(iso)} ${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
+}
+
+/**
+ * Attendance as a payroll timesheet: one row per trainee, one column per
+ * scheduled academy day, and the day's hours in the cell only where the
+ * trainee is marked present. Absent and unmarked cells are left blank — a
+ * blank reads as "don't pay for this day", where a 0 could be misread as a
+ * worked day with no hours.
+ *
+ * Hours are the day's full scheduled span, meal break included. Undated Phase 2
+ * sessions are omitted: a timekeeper can't post hours to a day with no date.
+ */
+export function timesheetCSV(
+  cohort: AcademyCohort,
+  days: AcademyDayRef[],
+  trainees: Trainee[],
+  map: Map<string, AttendanceStatus>,
+): string {
+  const dated = days.filter((d) => d.date)
+  const hrs = (n: number): string => n.toFixed(2)
+
+  const header = [
+    'Employee name',
+    'Employee #',
+    ...dated.map((d) => (d.autoCredit ? `${columnDate(d.date)} (LMS)` : columnDate(d.date))),
+    'Total hours',
+  ]
+
+  // Reference row: what each day is scheduled for, so the timekeeper can see
+  // at a glance which days carry no hours and why a column is empty.
+  const scheduled = [
+    'Scheduled hours',
+    '',
+    ...dated.map((d) => (d.hours ? hrs(d.hours) : '')),
+    hrs(dated.reduce((sum, d) => sum + (d.hours ?? 0), 0)),
+  ]
+
+  const rows = trainees.map((t) => {
+    let total = 0
+    const cells = dated.map((d) => {
+      if (!d.hours) return ''
+      // At-home LMS days are self-paced with nothing to mark, so they are
+      // credited to everyone; in-person days need a present mark.
+      if (!d.autoCredit && map.get(attKey(t.id, d.key)) !== 'present') return ''
+      total += d.hours
+      return hrs(d.hours)
+    })
+    return [t.name, t.employeeNumber ?? '', ...cells, hrs(total)]
+  })
+
+  return csv([
+    [`${cohort.label} — Academy attendance timesheet`],
+    ['Hours are scheduled class time, meal break included. Blank = not attended.'],
+    ['(LMS) = self-paced Cornerstone day — credited to everyone, no attendance taken.'],
+    [],
+    header,
+    scheduled,
+    ...rows,
   ])
 }
 

@@ -5,12 +5,14 @@ import {
   useCohortTrainees,
   useAcademyDays,
   useAttendance,
+  useTimesheetDays,
   attendanceMap,
   attKey,
   setAttendance,
   markAllPresent,
 } from './academyStore'
 import { printDoc, downloadDoc, attendanceSheetHTML, safeFilename } from './docGen'
+import { timesheetCSV, downloadCSV } from './csvExport'
 import { weekdayLabel } from './calendar'
 import { useCan } from '../../lib/role'
 import type { AcademyCohort, AttendanceStatus } from '../../types'
@@ -38,6 +40,8 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
   const trainees = useCohortTrainees(cohort.id)
   const days = useAcademyDays(cohort.id)
   const records = useAttendance(cohort.id)
+  // Timesheet spans the marking grid plus the self-paced LMS days.
+  const timesheetDays = useTimesheetDays(cohort.id)
   const map = useMemo(() => attendanceMap(records), [records])
   const { editRideWork: canEdit } = useCan()
 
@@ -97,6 +101,15 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
         >
           ⬇ Word
         </button>
+        <button
+          className="btn"
+          title="Timesheet for payroll: hours per attended day, by employee number"
+          onClick={() =>
+            downloadCSV(safeFilename(`${cohort.label}_Timesheet`), timesheetCSV(cohort, timesheetDays, trainees, map))
+          }
+        >
+          ⬇ Excel (timesheet)
+        </button>
       </div>
 
       <div className="table-wrap" style={{ marginTop: 12 }}>
@@ -119,7 +132,9 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
                   {canEdit && (
                     <button
                       className="link-btn"
-                      style={{ fontSize: 10 }}
+                      // Denser than a standalone link so the header row stays
+                      // compact, but ~3x the old 22x12 target.
+                      style={{ fontSize: 11, padding: '5px 10px', minHeight: 30 }}
                       title="Mark all present for this day"
                       onClick={() => markAllPresent(cohort.id, trainees.map((t) => t.id), d.key)}
                     >
