@@ -5,7 +5,7 @@
 // existing Field Guide resource, so URLs live in one place (data/fieldGuide).
 // ---------------------------------------------------------------------------
 
-export type LearningKind = 'course' | 'sim' | 'quiz' | 'reference'
+export type LearningKind = 'course' | 'sim' | 'quiz' | 'reference' | 'slides'
 
 export interface LearningItem {
   /** Field Guide resource ref (resolved to a URL via data/fieldGuide). */
@@ -40,9 +40,10 @@ export const COURSE_BLOCKS: LearningBlock[] = [
     title: 'Ventilator Academy',
     supports: 'Mechanical Ventilation (LTV 1200) · Week 2',
     summary:
-      'The complete ventilator course — physiology, modes, alarms, and DOPE troubleshooting across nine modules, plus a hands-on LTV 1200 simulator. Complete the modules before the vent day and use the simulator to rehearse setup and alarm response.',
+      'The complete ventilator course — physiology, modes, alarms, and DOPE troubleshooting across nine modules, plus the full illustrated slide deck and a hands-on LTV 1200 simulator. Complete the modules before the vent day and use the simulator to rehearse setup and alarm response.',
     items: [
       { ref: 'vent-academy', kind: 'course' },
+      { ref: 'vent-deck', kind: 'slides' },
       { ref: 'vent-sim', kind: 'sim' },
       { ref: 'quiz-vent', kind: 'quiz' },
     ],
@@ -82,6 +83,7 @@ export const PRACTICE_ITEMS: LearningItem[] = [
 
 export const KIND_META: Record<LearningKind, { label: string; icon: string }> = {
   course: { label: 'Course', icon: '📘' },
+  slides: { label: 'Slides', icon: '📊' },
   sim: { label: 'Simulator', icon: '🎮' },
   quiz: { label: 'Quiz', icon: '✅' },
   reference: { label: 'Reference', icon: '📄' },

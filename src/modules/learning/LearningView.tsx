@@ -6,16 +6,33 @@ import { resourceFor, resourceUrl } from '../../data/fieldGuide'
 // days. Courses open in the in-app viewer (with a back bar) rather than a raw
 // new tab, so there's always a way back. Nothing to sign in for.
 
+// Files the browser can't render inside an iframe (Office docs, PDFs) must
+// open directly instead of going through the in-app viewer.
+const DOWNLOADABLE = /\.(pptx?|pdf|xlsx?|docx?|csv)$/i
+
 function ItemLink({ item }: { item: LearningItem }) {
   const r = resourceFor(item.ref)
   const url = resourceUrl(item.ref)
   if (!r || !url) return null
   const meta = KIND_META[item.kind]
+  const rowStyle = { color: 'inherit', textDecoration: 'none', alignItems: 'center', gap: 10 } as const
+
+  if (DOWNLOADABLE.test(url)) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="row" style={rowStyle}>
+        <span style={{ fontSize: 18 }}>{meta.icon}</span>
+        <span className="grow">{r.label}</span>
+        <span className="pill muted">{meta.label}</span>
+        <span className="subtle" aria-hidden>↓</span>
+      </a>
+    )
+  }
+
   return (
     <Link
       to={`/courses/view?ref=${encodeURIComponent(item.ref)}`}
       className="row"
-      style={{ color: 'inherit', textDecoration: 'none', alignItems: 'center', gap: 10 }}
+      style={rowStyle}
     >
       <span style={{ fontSize: 18 }}>{meta.icon}</span>
       <span className="grow">{r.label}</span>

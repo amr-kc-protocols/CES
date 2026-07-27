@@ -30,6 +30,7 @@ export const FIELD_GUIDE_RESOURCES: FieldGuideResource[] = [
   { ref: 'imagetrend', label: 'ImageTrend Job Aid', path: 'imagetrend-job-aid.html' },
   { ref: 'immunization-forms', label: 'Immunization Forms (Hep B · TB/PPD)', path: 'https://amr-kc-protocols.vercel.app/immunization-forms.html' },
   { ref: 'vent-academy', label: 'Ventilator Academy (9 modules)', path: 'vta/academy.html' },
+  { ref: 'vent-deck', label: 'Ventilator Academy — Full Course (slides)', path: '/decks/ventilator-academy-full-course.pptx' },
   { ref: 'vent-sim', label: 'LTV 1200 simulator', path: 'vent-ltv1200.html' },
   { ref: 'hemo-academy', label: 'Hemodynamics Academy (8 modules)', path: 'hemodynamics-academy.html' },
   { ref: 'organ', label: 'Organ Transport (familiarization)', path: 'organ-transport.html' },
