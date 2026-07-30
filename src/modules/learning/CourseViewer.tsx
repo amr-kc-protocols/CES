@@ -51,8 +51,21 @@ export default function CourseViewer() {
         />
       </div>
 
-      <div className="subtle cv-hint">
-        Trouble viewing? Use <strong>Open in new tab ↗</strong> above.
+      <div className="cv-hint">
+        <div className="banner info" style={{ marginTop: 0 }}>
+          🖨️ <strong>Printing or saving a certificate?</strong> Do it from the course's own
+          page — tap <strong>Open in new tab ↗</strong> above, then print from there. Printing
+          this in-app view comes out blank, because the course is displayed in a frame.
+        </div>
+      </div>
+
+      {/* Shown only when the page is printed — the framed course can't print,
+          so give a non-blank page that points to where printing works. */}
+      <div className="cv-print-only">
+        <h2>{r.label}</h2>
+        <p>This course is displayed inside the AMR KC Academy app and can't be printed from here.</p>
+        <p>To print it or save a certificate, open the course directly and print from that page:</p>
+        <p><strong>{url}</strong></p>
       </div>
     </div>
   )

@@ -936,6 +936,9 @@ tbody tr:hover td {
   text-align: center;
   margin-top: 8px;
 }
+/* The print-only notice is hidden on screen; the @media print block at the
+   end of this file reveals it (and hides the un-printable framed course). */
+.cv-print-only { display: none; }
 @media (max-width: 560px) {
   .backbar-course .cv-title { display: none; }
 }
@@ -987,3 +990,18 @@ tbody tr:hover td {
   transition: transform 0.15s;
 }
 details[open] > .timeline-toggle::before { transform: rotate(90deg); }
+
+/* ---------- Print ----------
+   Printing the in-app course viewer produced a BLANK page: the course renders
+   in a cross-origin iframe, which browsers refuse to print from the parent. So
+   on print we hide the app chrome + the frame and show a plain notice pointing
+   to the course's own page, where its certificate/print actually works. */
+@media print {
+  .topbar, .tabbar { display: none !important; }
+  .course-viewer .backbar-course,
+  .course-viewer .cv-frame-wrap,
+  .course-viewer .cv-hint { display: none !important; }
+  .course-viewer .cv-print-only { display: block !important; }
+  .cv-print-only h2 { margin: 0 0 10px; }
+  .cv-print-only p { margin: 0 0 8px; }
+}
