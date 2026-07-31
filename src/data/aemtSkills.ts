@@ -13,6 +13,55 @@
 
 export type SkillLevel = 'emt' | 'aemt' | 'paramedic'
 
+/**
+ * What a sheet is FOR, which is a different question from who may perform it.
+ *
+ *   'bls'       Skills an EMT already performs. An incoming AEMT student is
+ *               credentialed and proficient in these, so re-checking them is
+ *               not what the AEMT course is for.
+ *   'advanced'  The skills the AEMT credential actually adds — what the course
+ *               teaches and what its psychomotor record has to show.
+ *   'paramedic' Above AEMT scope.
+ *
+ * The AEMT Skills tab shows 'advanced' only. This table is the single place
+ * that judgement lives, so any one sheet can be reclassified on its own.
+ */
+export type SkillScope = 'bls' | 'advanced' | 'paramedic'
+
+export const SKILL_SCOPE: Record<string, SkillScope> = {
+  // ----- the AEMT credential's own skills ----------------------------------
+  'iv-start': 'advanced',            // K.A.R. 109-11-8: 20 venipunctures
+  'ez-io': 'advanced',               // K.A.R. 109-11-8: 5 IO infusions
+  'ekg-acquisition': 'advanced',     // K.A.R. 109-11-8: 8 ECG applications
+  'supraglottic-airways-igel': 'advanced', // advanced airway, AEMT scope
+  'cpap-bipap-mask-flow-safe-ii': 'advanced',
+  'glucometer': 'advanced',          // glucometry, listed under AEMT monitoring (PA5)
+
+  // ----- EMT-level; the student arrives already proficient ------------------
+  'pcr-documentation': 'bls',
+  'radios-and-communications': 'bls',
+  'stair-chair-stryker': 'bls',
+  'stretcher-stryker-power-pro': 'bls',
+  'portable-suction': 'bls',
+  'hemorrhage-control-tournquet': 'bls',
+  'junctional-tourniquet-inguinal': 'bls',
+  'junctional-tourniquet-axilla': 'bls',
+  'pelvic-binder': 'bls',
+  'autopulse-check-off': 'bls',
+  'lucas': 'bls',
+  'zoll-x-series': 'bls',            // AED/monitor use; the AEMT-level 12-lead
+                                     // acquisition is covered by ekg-acquisition
+
+  // ----- above AEMT scope ---------------------------------------------------
+  'ventilator-equipment': 'paramedic',
+  'intubation-equipment': 'paramedic',
+  'ng-tube-insertion': 'paramedic',
+  'needle-pleural-decompression': 'paramedic',
+  'i-view': 'paramedic',             // video laryngoscopy — intubation adjunct
+  'quick-trach': 'paramedic',        // surgical airway
+  'narcotic-access-procedures': 'paramedic', // controlled substances
+}
+
 export interface SkillCriterion {
   id: string
   label: string
@@ -1252,9 +1301,17 @@ export function skillSheet(id: string): AemtSkillSheet | undefined {
   return BY_ID.get(id)
 }
 
-/** Sheets an AEMT student is checked off on — excludes Paramedic-only skills. */
+/**
+ * Sheets an AEMT student is checked off on: the advanced skills the credential
+ * adds. Excludes both the EMT-level skills the student already holds and
+ * anything above AEMT scope.
+ */
 export function sheetsForAemt(): AemtSkillSheet[] {
-  return AEMT_SKILL_SHEETS.filter((s) => s.levels.includes('aemt'))
+  return AEMT_SKILL_SHEETS.filter((s) => SKILL_SCOPE[s.id] === 'advanced')
+}
+
+export function sheetsByScope(scope: SkillScope): AemtSkillSheet[] {
+  return AEMT_SKILL_SHEETS.filter((s) => SKILL_SCOPE[s.id] === scope)
 }
 
 /** Total gradeable criteria on a sheet. */

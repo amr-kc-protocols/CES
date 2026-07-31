@@ -10,11 +10,13 @@ import {
   toggleCriticalFailure,
   setSkillSignoff,
 } from './aemtStore'
-import { sheetsForAemt, skillSheet } from '../../data/aemtSkills'
+import { sheetsForAemt, sheetsByScope, skillSheet } from '../../data/aemtSkills'
 import { useCan } from '../../lib/role'
 import type { AemtCourse } from '../../types'
 
 const SHEETS = sheetsForAemt()
+const BLS_SHEETS = sheetsByScope('bls')
+const MEDIC_SHEETS = sheetsByScope('paramedic')
 
 function SheetDetail({
   course,
@@ -214,6 +216,7 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
   const checks = useSkillChecks(course.id)
   const [selectedId, setSelected] = useState<string | null>(null)
   const [openSheet, setOpenSheet] = useState<string | null>(null)
+  const [showExcluded, setShowExcluded] = useState(false)
 
   if (students.length === 0) {
     return (
@@ -243,9 +246,34 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
   return (
     <div>
       <div className="banner info">
-        Psychomotor check-offs at AEMT scope. Paramedic-only sheets from the packet — intubation,
-        ventilator, NG tube, needle decompression — are not shown.
+        The <strong>{SHEETS.length} advanced skills</strong> the AEMT credential adds. The packet's
+        EMT-level sheets are left out — the student already holds those — as is anything above AEMT
+        scope.{' '}
+        <button className="link-btn" style={{ minHeight: 0 }} onClick={() => setShowExcluded(!showExcluded)}>
+          {showExcluded ? 'Hide' : 'What was excluded?'}
+        </button>
       </div>
+
+      {showExcluded && (
+        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>
+            EMT-level — student arrives proficient ({BLS_SHEETS.length})
+          </div>
+          <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
+            {BLS_SHEETS.map((s) => s.title).join(' · ')}
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginTop: 10 }}>
+            Above AEMT scope ({MEDIC_SHEETS.length})
+          </div>
+          <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
+            {MEDIC_SHEETS.map((s) => s.title).join(' · ')}
+          </div>
+          <div className="help-text">
+            Scope is set per sheet in <code>data/aemtSkills.ts</code>; any one can be moved without
+            touching the others.
+          </div>
+        </div>
+      )}
 
       <div className="field" style={{ marginTop: 12 }}>
         <label htmlFor="sk-student">Student</label>
