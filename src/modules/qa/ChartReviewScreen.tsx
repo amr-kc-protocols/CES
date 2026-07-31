@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { SegmentedRadio } from '../../components/Tabs'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Empty } from '../../components/ui'
 import { operationName } from '../../data/operations'
@@ -100,18 +101,15 @@ export default function ChartReviewScreen() {
                   {c.critical && <span className="pill crit" style={{ marginLeft: 8 }}>Critical</span>}
                 </div>
                 {c.help && <div className="help-text" style={{ marginTop: -4, marginBottom: 8 }}>{c.help}</div>}
-                <div className="segmented" style={{ width: '100%' }}>
-                  {STATUS_ORDER.map((s) => (
-                    <button
-                      key={s}
-                      className={scores[c.id] === s ? 'active' : ''}
-                      style={{ flex: 1 }}
-                      onClick={() => setStatus(c.id, s)}
-                    >
-                      {STATUS_LABELS[s]}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedRadio
+                  idPrefix={`score-${c.id}`}
+                  label={c.label}
+                  style={{ width: '100%' }}
+                  optionStyle={{ flex: 1 }}
+                  value={scores[c.id]}
+                  onChange={(s) => setStatus(c.id, s)}
+                  options={STATUS_ORDER.map((s) => ({ id: s, label: STATUS_LABELS[s] }))}
+                />
               </div>
             ))}
           </div>

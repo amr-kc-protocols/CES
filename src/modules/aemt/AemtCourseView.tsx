@@ -1,6 +1,7 @@
 
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Empty, Stat } from '../../components/ui'
+import { Tabs, tabPanelProps } from '../../components/Tabs'
 import { formatDate } from '../../lib/date'
 import { useCourse, useSessions, useStudents, courseHourTotals } from './aemtStore'
 import RosterTab from './RosterTab'
@@ -79,20 +80,20 @@ export default function AemtCourseView() {
         <Stat value={totals.byKind.lab} label="Lab hours" />
       </div>
 
-      <div className="segmented" style={{ marginTop: 14 }}>
-        {TABS.map((t) => (
-          <button
-            key={t}
-            className={tab === t ? 'active' : ''}
-            onClick={() => setTab(t)}
-          >
-            {TAB_LABEL[t]}
-            {t === 'roster' && students.length > 0 ? ` (${students.length})` : ''}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        idPrefix="aemt"
+        label="Course sections"
+        style={{ marginTop: 14 }}
+        tabs={TABS.map((t) => ({
+          id: t,
+          label:
+            TAB_LABEL[t] + (t === 'roster' && students.length > 0 ? ` (${students.length})` : ''),
+        }))}
+        value={tab}
+        onChange={setTab}
+      />
 
-      <div style={{ marginTop: 14 }}>
+      <div style={{ marginTop: 14 }} {...tabPanelProps('aemt', tab)}>
         {tab === 'roster' && <RosterTab course={course} />}
         {tab === 'sessions' && <SessionsTab course={course} />}
         {tab === 'hours' && <HoursTab course={course} />}

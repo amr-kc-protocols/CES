@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Tabs } from '../../components/Tabs'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Empty, ProgressBar, Stat } from '../../components/ui'
 import { operationName } from '../../data/operations'
@@ -220,14 +221,17 @@ export default function QAPeriodView() {
 
       <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span>Charts</span>
-        <div className="segmented" style={{ marginLeft: 'auto' }}>
-          <button className={filter === 'queue' ? 'active' : ''} onClick={() => setFilter('queue')}>
-            Queue ({queue.length})
-          </button>
-          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
-            All ({charts.length})
-          </button>
-        </div>
+        <Tabs
+          idPrefix="qa"
+          label="Chart filter"
+          style={{ marginLeft: 'auto' }}
+          value={filter}
+          onChange={setFilter}
+          tabs={[
+            { id: 'queue', label: `Queue (${queue.length})` },
+            { id: 'all', label: `All (${charts.length})` },
+          ]}
+        />
       </div>
 
       {shown.length === 0 ? (

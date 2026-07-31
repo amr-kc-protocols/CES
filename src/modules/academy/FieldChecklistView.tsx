@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
+import { SegmentedRadio } from '../../components/Tabs'
 import { Empty, ProgressBar } from '../../components/ui'
 import {
   FT_SLOTS,
@@ -136,17 +137,13 @@ export default function FieldChecklistView() {
             <div className="subtle" style={{ fontSize: 12, marginBottom: 4 }}>
               Current shift
             </div>
-            <div className="segmented">
-              {Array.from({ length: FT_SLOTS }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  className={shift === n ? 'active' : ''}
-                  onClick={() => updateTrainee(trainee.id, { currentShift: n })}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            <SegmentedRadio
+              idPrefix="shift"
+              label="Current shift"
+              value={shift}
+              onChange={(n) => updateTrainee(trainee.id, { currentShift: n })}
+              options={Array.from({ length: FT_SLOTS }, (_, i) => ({ id: i + 1, label: i + 1 }))}
+            />
           </div>
           <label className="subtle" style={{ fontSize: 12, flex: 1, minWidth: 150 }}>
             FTO initials (stamped on new marks)

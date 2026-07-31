@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Tabs } from '../../components/Tabs'
 import { Modal } from '../../components/ui'
 import { parseTable } from '../../lib/csv'
 import { addCharts, importBotReviews, type ChartInput } from './qaStore'
@@ -177,17 +178,18 @@ export default function ImportCharts({
 
   return (
     <Modal title="Add charts" onClose={onClose}>
-      <div className="segmented" style={{ marginBottom: 14 }}>
-        <button className={tab === 'csv' ? 'active' : ''} onClick={() => setTab('csv')}>
-          Import CSV
-        </button>
-        <button className={tab === 'manual' ? 'active' : ''} onClick={() => setTab('manual')}>
-          Manual add
-        </button>
-        <button className={tab === 'bot' ? 'active' : ''} onClick={() => setTab('bot')}>
-          Bot reviews
-        </button>
-      </div>
+      <Tabs
+        idPrefix="import"
+        label="Import method"
+        style={{ marginBottom: 14 }}
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: 'csv', label: 'Import CSV' },
+          { id: 'manual', label: 'Manual add' },
+          { id: 'bot', label: 'Bot reviews' },
+        ]}
+      />
 
       {error && <div className="banner crit">{error}</div>}
 
