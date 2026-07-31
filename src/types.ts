@@ -443,13 +443,19 @@ export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
  * global: the same tool runs AMR KC's program and another sponsoring
  * organization's, and their approved hour structures differ.
  */
+/**
+ * Filed hour commitments. Every field is optional and independent: a course
+ * may know its classroom numbers before its clinical affiliation is signed,
+ * and reconciling the ones that exist beats reconciling nothing until all four
+ * do. An absent field means "not filed", never zero.
+ */
 export interface AemtHourTargets {
-  didactic: number
-  lab: number
+  didactic?: number
+  lab?: number
   /** Hospital clinical hours. */
-  clinical: number
+  clinical?: number
   /** Field internship hours, all sites combined. */
-  field: number
+  field?: number
 }
 
 /**

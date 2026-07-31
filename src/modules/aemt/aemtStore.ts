@@ -411,8 +411,8 @@ export function seedShortfall(targets: AemtHourTargets | undefined): {
 } {
   const plan = blockPlanTotals()
   if (!targets) return { didactic: 0, lab: 0, total: 0 }
-  const didactic = Math.max(0, targets.didactic - plan.didactic)
-  const lab = Math.max(0, targets.lab - plan.lab)
+  const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
+  const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
   return { didactic, lab, total: didactic + lab }
 }
 
@@ -521,10 +521,15 @@ export function reconcileHours(
 ): HourReconciliation[] {
   if (!targets) return []
   const { byKind } = courseHourTotals(sessions)
+  // One row per target the course actually filed. A category left unset is
+  // omitted rather than compared against zero — "not filed" and "filed as 0"
+  // are different claims, and only one of them is a commitment.
   return [
     { id: 'didactic', label: 'Didactic', target: targets.didactic, scheduled: byKind.didactic },
     { id: 'lab', label: 'Lab / psychomotor', target: targets.lab, scheduled: byKind.lab },
-  ].map((r) => ({ ...r, delta: r.scheduled - r.target }))
+  ]
+    .filter((r): r is HourReconciliation & { target: number } => typeof r.target === 'number')
+    .map((r) => ({ ...r, delta: r.scheduled - r.target }))
 }
 
 /** AMR KC's filed commitments, offered as the default when creating a course. */
@@ -987,17 +992,60 @@ export function studentHourGaps(
   targets: AemtHourTargets | undefined,
 ): StudentHourGap[] {
   if (!targets) return []
+  // Classroom needs BOTH didactic and lab: attendance is taken per session and
+  // earned classroom hours mix the two, so comparing them against only one
+  // filed number would report a shortfall that does not exist. Clinical and
+  // field come from shifts tagged by setting, so each stands alone.
+  const classTarget =
+    typeof targets.didactic === 'number' && typeof targets.lab === 'number'
+      ? targets.didactic + targets.lab
+      : undefined
   return [
-    { id: 'class' as const, label: 'Classroom', target: targets.didactic + targets.lab, earned: h.earned },
+    { id: 'class' as const, label: 'Classroom', target: classTarget, earned: h.earned },
     { id: 'clinical' as const, label: 'Hospital clinical', target: targets.clinical, earned: h.clinicalHours },
     { id: 'field' as const, label: 'Field internship', target: targets.field, earned: h.fieldHours },
-  ].map((r) => ({ ...r, delta: r.earned - r.target, met: r.earned >= r.target }))
+  ]
+    .filter((r): r is StudentHourGap & { target: number } => typeof r.target === 'number')
+    .map((r) => ({ ...r, delta: r.earned - r.target, met: r.earned >= r.target }))
 }
 
-/** Sum of every hour the course committed to. */
+/** Which hour commitments this course has filed, and which it has not. */
+export interface TargetCoverage {
+  filed: { id: keyof AemtHourTargets; label: string; hours: number }[]
+  missing: { id: keyof AemtHourTargets; label: string }[]
+  /** Total of the filed commitments only. */
+  total: number
+  complete: boolean
+  any: boolean
+}
+
+const TARGET_LABELS: { id: keyof AemtHourTargets; label: string }[] = [
+  { id: 'didactic', label: 'Didactic' },
+  { id: 'lab', label: 'Lab / psychomotor' },
+  { id: 'clinical', label: 'Hospital clinical' },
+  { id: 'field', label: 'Field internship' },
+]
+
+export function targetCoverage(targets: AemtHourTargets | undefined): TargetCoverage {
+  const filed: TargetCoverage['filed'] = []
+  const missing: TargetCoverage['missing'] = []
+  for (const t of TARGET_LABELS) {
+    const v = targets?.[t.id]
+    if (typeof v === 'number') filed.push({ ...t, hours: v })
+    else missing.push(t)
+  }
+  return {
+    filed,
+    missing,
+    total: filed.reduce((n, f) => n + f.hours, 0),
+    complete: missing.length === 0,
+    any: filed.length > 0,
+  }
+}
+
+/** Sum of the hour commitments the course has actually filed. */
 export function totalHourTarget(targets: AemtHourTargets | undefined): number {
-  if (!targets) return 0
-  return targets.didactic + targets.lab + targets.clinical + targets.field
+  return targetCoverage(targets).total
 }
 
 /**
@@ -1007,19 +1055,34 @@ export function totalHourTarget(targets: AemtHourTargets | undefined): number {
  */
 function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): ReadinessCheck {
   const gaps = studentHourGaps(h, targets)
+  const cover = targetCoverage(targets)
+  // Nothing comparable was filed, so there is nothing to compute. Falls to
+  // attestation rather than passing by default.
+  if (gaps.length === 0) {
+    return {
+      id: 'hours',
+      label: 'Program hours complete',
+      status: 'attest',
+      detail: cover.any
+        ? 'Filed targets are not comparable to recorded hours — attest manually'
+        : 'Course filed no hour targets — nothing to reconcile against',
+    }
+  }
   const short = gaps.filter((g) => !g.met)
-  const total = totalHourTarget(targets)
+  const partial = cover.complete
+    ? ''
+    : ` · ${cover.missing.map((m) => m.label.toLowerCase()).join(', ')} not filed`
   return {
     id: 'hours',
     label: 'Program hours complete',
     status: short.length === 0 ? 'met' : 'unmet',
     detail:
-      short.length === 0
-        ? `${h.totalHours.toFixed(2)} of ${total} h`
+      (short.length === 0
+        ? `${gaps.reduce((n, g) => n + g.earned, 0).toFixed(2)} of ${gaps.reduce((n, g) => n + g.target, 0)} h filed`
         : `${short.map((g) => `${(-g.delta).toFixed(2)} h ${g.label.toLowerCase()}`).join(', ')} still owed` +
           (h.unattestedShiftHours > 0
             ? ` · ${h.unattestedShiftHours} h logged but not attested`
-            : ''),
+            : '')) + partial,
   }
 }
 

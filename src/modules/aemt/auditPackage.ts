@@ -96,11 +96,17 @@ export function auditPackageHTML(d: AuditPackageInput): string {
   // shifts. An auditor adds all three; so does this table, and it shows the
   // shortfall rather than only the totals.
   const t = d.course.targets
-  const classTarget = t ? t.didactic + t.lab : 0
-  const cell = (n: number, target: number) =>
-    `<td style="text-align:right" class="${!t ? '' : n >= target ? 'ok' : 'crit'}">${n.toFixed(2)}${
-      t ? ` / ${target}` : ''
-    }</td>`
+  // Classroom needs both halves filed: attendance mixes didactic and lab, so
+  // one number alone cannot be compared against earned classroom hours.
+  const classTarget =
+    typeof t?.didactic === 'number' && typeof t?.lab === 'number' ? t.didactic + t.lab : undefined
+  const filedTotal = [classTarget, t?.clinical, t?.field]
+    .filter((x): x is number => typeof x === 'number')
+    .reduce((a, x) => a + x, 0)
+  const cell = (n: number, target: number | undefined) =>
+    typeof target !== 'number'
+      ? `<td style="text-align:right" class="muted">${n.toFixed(2)} <span class="warn">/ not filed</span></td>`
+      : `<td style="text-align:right" class="${n >= target ? 'ok' : 'crit'}">${n.toFixed(2)} / ${target}</td>`
   const attendance = d.students
     .map((st) => {
       let earned = 0
@@ -115,9 +121,9 @@ export function auditPackageHTML(d: AuditPackageInput): string {
       const field = mine.filter((s) => s.setting === 'field').reduce((a, s) => a + s.hours, 0)
       const over = absent > MAX_ABSENT_HOURS
       return `<tr><td>${esc(st.name)}</td><td>${esc(st.certNumber ?? '—')}</td>
-        ${cell(earned, classTarget)}${cell(clin, t?.clinical ?? 0)}${cell(field, t?.field ?? 0)}
+        ${cell(earned, classTarget)}${cell(clin, t?.clinical)}${cell(field, t?.field)}
         <td style="text-align:right"><strong>${(earned + clin + field).toFixed(2)}</strong>${
-          t ? ` / ${classTarget + t.clinical + t.field}` : ''
+          filedTotal > 0 ? ` / ${filedTotal}` : ''
         }</td>
         <td style="text-align:right" class="${over ? 'crit' : ''}">${absent.toFixed(2)}</td>
         <td>${over ? '<span class="crit">over policy</span>' : '<span class="ok">within policy</span>'}</td></tr>`
@@ -259,9 +265,9 @@ ${schedule || '<tr><td colspan="6" class="crit">No sessions</td></tr>'}</table>
 <table><tr><th>Student</th><th>Cert #</th><th>Classroom</th><th>Clinical</th><th>Field</th><th>Total</th><th>Class hours missed</th><th>Policy (max ${MAX_ABSENT_HOURS} h)</th></tr>
 ${attendance || '<tr><td colspan="8" class="muted">No students</td></tr>'}</table>
 <div class="note">${
-  d.course.targets
-    ? 'Hours shown against the targets filed for this course. Clinical and field count only from attested shifts.'
-    : '<span class="crit">This course filed no hour targets, so nothing reconciles these totals against a commitment.</span>'
+  filedTotal > 0
+    ? 'Hours shown against the targets filed for this course; a category marked "not filed" is recorded but reconciles against no commitment. Clinical and field count only from attested shifts.'
+    : '<span class="crit">This course filed no comparable hour targets, so nothing reconciles these totals against a commitment.</span>'
 }</div>
 
 <h2>4 · Clinical minimums (K.A.R. 109-11-8(a)(4))</h2>

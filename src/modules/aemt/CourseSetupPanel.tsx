@@ -52,6 +52,14 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
     course.primaryInstructorCredential ?? 'paramedic',
   )
   const [instructorCert, setInstructorCert] = useState(course.primaryInstructorCertNumber ?? '')
+  // Hour commitments are editable here because they are rarely all known at
+  // once — a clinical affiliation is often still being negotiated when the
+  // classroom hours are already fixed.
+  const num = (v?: number) => (typeof v === 'number' ? String(v) : '')
+  const [didactic, setDidactic] = useState(num(course.targets?.didactic))
+  const [lab, setLab] = useState(num(course.targets?.lab))
+  const [clinical, setClinical] = useState(num(course.targets?.clinical))
+  const [field, setField] = useState(num(course.targets?.field))
 
   const valid = label.trim() !== '' && startDate !== '' && endDate !== '' && startDate <= endDate
 
@@ -131,12 +139,57 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
         </div>
       </div>
 
+      <div className="section-title" style={{ marginTop: 16 }}>
+        Filed hours
+      </div>
+      <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+        Each is reconciled independently. Fill in what has been filed and leave the rest blank —
+        blank means "not filed", which is reported as such rather than treated as zero.
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="ce-did">Didactic</label>
+          <input id="ce-did" type="number" min={0} value={didactic} onChange={(e) => setDidactic(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="ce-lab">Lab</label>
+          <input id="ce-lab" type="number" min={0} value={lab} onChange={(e) => setLab(e.target.value)} />
+        </div>
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="ce-clin">Hospital clinical</label>
+          <input id="ce-clin" type="number" min={0} value={clinical} onChange={(e) => setClinical(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="ce-field">Field internship</label>
+          <input id="ce-field" type="number" min={0} value={field} onChange={(e) => setField(e.target.value)} />
+        </div>
+      </div>
+      {didactic.trim() !== '' && lab.trim() === '' && (
+        <div className="banner warn">
+          Classroom hours are reconciled as didactic + lab together, because attendance is taken
+          per session. With only one filed, classroom time cannot be compared to anything.
+        </div>
+      )}
+
       <div className="btn-row" style={{ marginTop: 12 }}>
         <button
           className="btn primary"
           disabled={!valid}
           onClick={() => {
+            const t = (v: string) => {
+              const n = Number(v)
+              return v.trim() !== '' && Number.isFinite(n) && n > 0 ? n : undefined
+            }
+            const targets = {
+              didactic: t(didactic),
+              lab: t(lab),
+              clinical: t(clinical),
+              field: t(field),
+            }
             updateCourse(course.id, {
+              targets: Object.values(targets).some((v) => v !== undefined) ? targets : undefined,
               label: label.trim(),
               organization: organization.trim() || undefined,
               courseNumber: courseNumber.trim() || undefined,

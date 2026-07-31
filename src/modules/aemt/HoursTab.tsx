@@ -13,12 +13,18 @@ import {
   markAllPresent,
   creditedHours,
   studentHourGaps,
-  totalHourTarget,
+  targetCoverage,
 } from './aemtStore'
 import { MAX_ABSENT_HOURS } from '../../data/aemt'
 import { AttendanceCell, attendanceGridKeys } from '../../components/AttendanceCell'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AttendanceStatus } from '../../types'
+
+/** "a", "a and b", "a, b and c" — a bare join reads as a run-on. */
+function listOf(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
 
 // blank -> present -> absent -> blank
 function nextStatus(cur: AttendanceStatus | undefined): AttendanceStatus | null {
@@ -34,6 +40,21 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
   const map = useMemo(() => attendanceMap(records), [records])
   const hours = useStudentHours(course.id)
   const { editRideWork: canEdit } = useCan()
+  const cover = targetCoverage(course.targets)
+  // Every student shares the course's target set, so one row defines the
+  // columns. Falls back to an empty student so the header renders on a course
+  // with a roster of nobody.
+  const columns = studentHourGaps(
+    hours[0] ?? {
+      student: { id: '', courseId: course.id, name: '', status: 'active' },
+      earned: 0, clinicalHours: 0, fieldHours: 0, unattestedShiftHours: 0, totalHours: 0,
+      missedHours: 0, missed: [], classAbsentHours: 0, absenceRemaining: 0, overAbsenceCap: false,
+    },
+    course.targets,
+  )
+  const classroomUnreconciled =
+    !columns.some((c) => c.id === 'class') &&
+    (typeof course.targets?.didactic === 'number' || typeof course.targets?.lab === 'number')
 
   if (students.length === 0) {
     return (
@@ -126,37 +147,29 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
           field from attested shifts on the Clinical tab — the two halves of
           the total a Kansas course record has to show, reconciled in one
           place against what the course filed. */}
-      {course.targets ? (
+      {cover.any ? (
         <>
           <div className="section-title">
             Program hours vs filed targets
             <span className="subtle" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
-              {totalHourTarget(course.targets)} h total
+              {cover.total} h filed
             </span>
           </div>
+          {/* Columns follow whatever the course filed. A category left unset
+              is named below rather than shown as a target of zero. */}
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th style={{ minWidth: 150 }}>Student</th>
-                  <th style={{ textAlign: 'center' }}>
-                    Classroom
-                    <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
-                      of {course.targets.didactic + course.targets.lab} h
-                    </div>
-                  </th>
-                  <th style={{ textAlign: 'center' }}>
-                    Clinical
-                    <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
-                      of {course.targets.clinical} h
-                    </div>
-                  </th>
-                  <th style={{ textAlign: 'center' }}>
-                    Field
-                    <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
-                      of {course.targets.field} h
-                    </div>
-                  </th>
+                  {columns.map((g) => (
+                    <th key={g.id} style={{ textAlign: 'center' }}>
+                      {g.label}
+                      <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
+                        of {g.target} h
+                      </div>
+                    </th>
+                  ))}
                   <th style={{ textAlign: 'center' }}>Total</th>
                   <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Still owed</th>
                 </tr>
@@ -212,6 +225,22 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
             Clinical and field hours count only from shifts a preceptor has attested. Log them on
             the Clinical tab.
           </div>
+          {!cover.complete && (
+            <div className="banner warn">
+              <strong>
+                {listOf(cover.missing.map((m) => m.label))} not filed.
+              </strong>{' '}
+              Those hours are recorded but reconcile against nothing, and the total above is only
+              the {cover.total} h that were filed. Set them in <strong>Course setup</strong>.
+            </div>
+          )}
+          {classroomUnreconciled && (
+            <div className="banner warn">
+              Classroom time cannot be reconciled from a partial pair — attendance is taken per
+              session and earned hours mix didactic and lab, so both have to be filed before the
+              comparison means anything.
+            </div>
+          )}
         </>
       ) : (
         <div className="banner warn" style={{ marginTop: 14 }}>
