@@ -1,3 +1,4 @@
+import { notifyUser } from '../../lib/dialog'
 import { FT_SECTIONS, FT_SLOTS, EXPOSURE_GROUPS, EXPOSURE_SLOTS } from '../../data/ftObjectives'
 import {
   WELCOME_KIT_ITEMS,
@@ -167,7 +168,7 @@ export function checkoffSheetHTML(
 export function printDoc(title: string, body: string): void {
   const w = window.open('', '_blank')
   if (!w) {
-    alert('Pop-up blocked — allow pop-ups for this site to print documents.')
+    notifyUser('Pop-up blocked — allow pop-ups for this site to print documents.', 'warn')
     return
   }
   w.document.write(docShell(title, body))

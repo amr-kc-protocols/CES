@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Empty, Modal, ProgressBar, Stat } from '../../components/ui'
+import { Tabs, tabPanelProps } from '../../components/Tabs'
 import { OPERATIONS, operationShort } from '../../data/operations'
 import {
   curriculumFor,
@@ -331,7 +332,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                     >
                       <input
                         type="checkbox"
-                        checked={!!trainee.checklist[m.id]}
+                        checked={!!trainee.checklist?.[m.id]}
                         disabled={waived || readOnly}
                         onChange={() => toggleModule(trainee.id, m.id)}
                       />
@@ -356,10 +357,10 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                             Waived · {formatDate(trainee.waived?.[m.id])} ✕
                           </button>
                         )
-                      ) : trainee.checklist[m.id] ? (
+                      ) : trainee.checklist?.[m.id] ? (
                         <input
                           type="date"
-                          value={trainee.checklist[m.id]}
+                          value={trainee.checklist?.[m.id]}
                           disabled={readOnly}
                           onChange={(e) => setModuleDate(trainee.id, m.id, e.target.value)}
                           title="Real completion date — edit if it wasn't checked off the same day"
@@ -586,20 +587,18 @@ export default function CohortView() {
       </div>
 
       <div className="toolbar" style={{ marginTop: 14 }}>
-        <div className="segmented">
-          <button className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>
-            Roster ({trainees.length})
-          </button>
-          <button className={tab === 'schedule' ? 'active' : ''} onClick={() => setTab('schedule')}>
-            Schedule
-          </button>
-          <button className={tab === 'attendance' ? 'active' : ''} onClick={() => setTab('attendance')}>
-            Attendance
-          </button>
-          <button className={tab === 'docs' ? 'active' : ''} onClick={() => setTab('docs')}>
-            Documents
-          </button>
-        </div>
+        <Tabs
+          idPrefix="cohort"
+          label="Cohort sections"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { id: 'roster', label: `Roster (${trainees.length})` },
+            { id: 'schedule', label: 'Schedule' },
+            { id: 'attendance', label: 'Attendance' },
+            { id: 'docs', label: 'Documents' },
+          ]}
+        />
         <div className="spacer" />
         {tab === 'roster' && can.manageAcademy && (
           <button className="btn primary" onClick={() => setShowAdd(true)}>
@@ -608,24 +607,27 @@ export default function CohortView() {
         )}
       </div>
 
-      {tab === 'roster' &&
-        (trainees.length === 0 ? (
-          <Empty icon="🧑‍🚒" title="No trainees on the roster yet">
-            Add the cohort roster — academies average ~6 participants across all three operations.
-          </Empty>
-        ) : (
-          <div className="list">
-            {trainees.map((t) => (
-              <TraineeCard key={t.id} trainee={t} />
-            ))}
-          </div>
-        ))}
+      <div {...tabPanelProps('cohort', tab)}>
+        {tab === 'roster' &&
+          (trainees.length === 0 ? (
+            <Empty icon="🧑‍🚒" title="No trainees on the roster yet">
+              Add the cohort roster — academies average ~6 participants across all three
+              operations.
+            </Empty>
+          ) : (
+            <div className="list">
+              {trainees.map((t) => (
+                <TraineeCard key={t.id} trainee={t} />
+              ))}
+            </div>
+          ))}
 
-      {tab === 'schedule' && <ScheduleView cohort={cohort} />}
+        {tab === 'schedule' && <ScheduleView cohort={cohort} />}
 
-      {tab === 'attendance' && <AttendanceView cohort={cohort} />}
+        {tab === 'attendance' && <AttendanceView cohort={cohort} />}
 
-      {tab === 'docs' && <DocumentsPanel cohort={cohort} trainees={trainees} />}
+        {tab === 'docs' && <DocumentsPanel cohort={cohort} trainees={trainees} />}
+      </div>
 
       {showAdd && <AddTraineeModal cohortId={cohort.id} onClose={() => setShowAdd(false)} />}
       {showEdit && (

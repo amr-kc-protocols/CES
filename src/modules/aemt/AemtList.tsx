@@ -118,8 +118,10 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
         Filed hours (optional)
       </div>
       <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
-        What this course's approved proposal commits to. The Sessions tab reconciles the schedule
-        you build against these. Leave blank if not yet filed.
+        What this course's approved proposal commits to. Fill in the ones you know and leave the
+        rest blank — each is reconciled independently, so a clinical affiliation still being
+        negotiated does not stop the classroom hours from being checked. They can be set or changed
+        later in Course setup.
       </div>
       <div className="field-row">
         <div className="field">
@@ -145,10 +147,10 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
         className="btn sm"
         type="button"
         onClick={() => {
-          setDidactic(String(KC_DEFAULT_TARGETS.didactic))
-          setLab(String(KC_DEFAULT_TARGETS.lab))
-          setClinical(String(KC_DEFAULT_TARGETS.clinical))
-          setField(String(KC_DEFAULT_TARGETS.field))
+          setDidactic(String(KC_DEFAULT_TARGETS.didactic ?? ''))
+          setLab(String(KC_DEFAULT_TARGETS.lab ?? ''))
+          setClinical(String(KC_DEFAULT_TARGETS.clinical ?? ''))
+          setField(String(KC_DEFAULT_TARGETS.field ?? ''))
         }}
       >
         Use AMR KC proposal hours
@@ -161,10 +163,20 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
           className="btn primary"
           disabled={!canSave}
           onClick={() => {
-            // Targets are all-or-nothing: a partial set would reconcile
-            // against numbers nobody filed.
-            const nums = [didactic, lab, clinical, field].map((v) => Number(v))
-            const hasTargets = nums.every((n) => Number.isFinite(n) && n > 0)
+            // Keep whatever was filed. Each commitment is independent, and a
+            // course that knows three of its four numbers should reconcile
+            // against those three rather than against nothing.
+            const num = (v: string) => {
+              const n = Number(v)
+              return v.trim() !== '' && Number.isFinite(n) && n > 0 ? n : undefined
+            }
+            const targets = {
+              didactic: num(didactic),
+              lab: num(lab),
+              clinical: num(clinical),
+              field: num(field),
+            }
+            const anyTarget = Object.values(targets).some((v) => v !== undefined)
             const c = createCourse({
               label: label.trim(),
               startDate,
@@ -173,9 +185,7 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
               courseNumber: courseNumber.trim() || undefined,
               coordinator: coordinator.trim() || undefined,
               monitorSheetId: monitor || undefined,
-              targets: hasTargets
-                ? { didactic: nums[0], lab: nums[1], clinical: nums[2], field: nums[3] }
-                : undefined,
+              targets: anyTarget ? targets : undefined,
             })
             onClose()
             navigate(`/aemt/${c.id}`)

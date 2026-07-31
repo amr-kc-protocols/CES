@@ -285,7 +285,7 @@ export function setModuleDate(traineeId: string, moduleId: string, date: string)
   setState((db) => ({
     ...db,
     trainees: db.trainees.map((t) =>
-      t.id === traineeId && t.checklist[moduleId]
+      t.id === traineeId && t.checklist?.[moduleId]
         ? { ...t, checklist: { ...t.checklist, [moduleId]: date } }
         : t,
     ),

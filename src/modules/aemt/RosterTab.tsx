@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { Empty, Modal } from '../../components/ui'
 import {
   useStudents,
@@ -109,14 +110,17 @@ function StudentForm({
           <button
             className="btn danger"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
+            onClick={async () => {
               const n = studentRecordCount(existing.id)
-              const msg =
-                `Permanently remove ${existing.name} and ${n} linked record${n === 1 ? '' : 's'} ` +
-                `(attendance, clinical encounters, skill check-offs, evaluations)?\n\n` +
-                `Course records are normally kept — set status to Withdrawn instead unless this ` +
-                `student was added by mistake.`
-              if (confirm(msg)) {
+              const ok = await confirmAction({
+                title: `Remove ${existing.name}?`,
+                body:
+                  `This deletes ${n} linked record${n === 1 ? '' : 's'} — attendance, clinical ` +
+                  `encounters, skill check-offs and evaluations. Course records are normally ` +
+                  `kept: set status to Withdrawn instead unless this student was added by mistake.`,
+                confirmLabel: 'Remove student',
+              })
+              if (ok) {
                 deleteStudent(existing.id)
                 onClose()
               }

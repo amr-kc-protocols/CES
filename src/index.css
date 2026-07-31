@@ -277,12 +277,27 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 /* ---------- Undo toast ---------- */
-.undo-toast {
+/* Toasts stack in one fixed column — an undo offer and a notice can be live
+   at the same moment, and two independently-positioned toasts would land on
+   top of each other. */
+.toast-stack {
   position: fixed;
   left: 50%;
-  transform: translate(-50%, 0);
+  transform: translateX(-50%);
   bottom: calc(72px + env(safe-area-inset-bottom));
   z-index: 30;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast-stack > * {
+  pointer-events: auto;
+}
+
+.undo-toast {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -297,11 +312,11 @@ input[type='date']::-webkit-date-and-time-value {
 
 @keyframes toast-up {
   from {
-    transform: translate(-50%, 12px);
+    transform: translateY(12px);
     opacity: 0;
   }
   to {
-    transform: translate(-50%, 0);
+    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -665,6 +680,51 @@ tbody tr:last-child td {
 
 tbody tr:hover td {
   background: var(--surface-2);
+}
+
+/* ---------- Attendance grid cell ----------
+   The cell is a button filling its <td>, so the whole coloured square is the
+   hit target rather than a control sitting inside padding. */
+.att-td {
+  padding: 0;
+  width: 48px;
+  min-width: 48px;
+}
+
+.att-cell {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 42px;
+  text-align: center;
+  color: var(--border-strong);
+  cursor: pointer;
+}
+
+span.att-cell {
+  cursor: default;
+}
+
+.att-cell.present {
+  background: var(--ok-bg);
+  color: #166534;
+}
+
+.att-cell.absent {
+  background: var(--crit-bg);
+  color: #991b1b;
+}
+
+/* Inset ring: an offset outline would be clipped by the scroll container. */
+.att-cell:focus-visible {
+  outline: 2px solid var(--navy-600);
+  outline-offset: -3px;
 }
 
 .table-wrap::-webkit-scrollbar {

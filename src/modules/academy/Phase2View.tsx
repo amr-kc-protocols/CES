@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { Link } from 'react-router-dom'
 import { Modal } from '../../components/ui'
 import { SHEETS, SESSION_CHECKOFFS } from '../../data/checkoffSheets'
@@ -311,8 +312,14 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
                 {customized && (
                   <button
                     className="btn sm ghost"
-                    onClick={() => {
-                      if (confirm('Reset this session’s blocks to the template default?')) {
+                    onClick={async () => {
+                      if (
+                        await confirmAction({
+                          title: 'Reset this session?',
+                          body: 'Its blocks go back to the template default, discarding any changes made to this session.',
+                          confirmLabel: 'Reset session',
+                        })
+                      ) {
                         resetSessionBlocks(cohortId, session.id)
                         setEditing(false)
                       }
@@ -434,8 +441,14 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
           {session.custom ? (
             <button
               className="btn sm danger ghost"
-              onClick={() => {
-                if (confirm(`Delete the added session “${session.title}” from this class?`)) {
+              onClick={async () => {
+                if (
+                  await confirmAction({
+                    title: `Delete “${session.title}”?`,
+                    body: 'This removes the added session from this class.',
+                    confirmLabel: 'Delete session',
+                  })
+                ) {
                   deleteCustomSession(cohortId, session.id)
                 }
               }}

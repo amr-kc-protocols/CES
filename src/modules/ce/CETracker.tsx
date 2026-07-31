@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Tabs } from '../../components/Tabs'
 import { Empty, Stat } from '../../components/ui'
 import { ceLocationName } from '../../data/operations'
 import { formatDate } from '../../lib/date'
@@ -147,14 +148,16 @@ export default function CETracker() {
       )}
 
       <div className="toolbar" style={{ marginTop: 14 }}>
-        <div className="segmented">
-          <button className={view === 'deadline' ? 'active' : ''} onClick={() => setView('deadline')}>
-            By deadline
-          </button>
-          <button className={view === 'instructor' ? 'active' : ''} onClick={() => setView('instructor')}>
-            By instructor
-          </button>
-        </div>
+        <Tabs
+          idPrefix="ce"
+          label="Grouping"
+          value={view}
+          onChange={setView}
+          tabs={[
+            { id: 'deadline', label: 'By deadline' },
+            { id: 'instructor', label: 'By instructor' },
+          ]}
+        />
         <div className="spacer" />
         <label className="subtle" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />

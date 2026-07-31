@@ -1,5 +1,10 @@
 import { formatDate } from '../../lib/date'
-import { KAR_109_11_8, PRECEPTOR_LABELS, MAX_ABSENT_HOURS } from '../../data/aemt'
+import {
+  KAR_109_11_8,
+  PROGRAM_COMPETENCIES,
+  PRECEPTOR_LABELS,
+  MAX_ABSENT_HOURS,
+} from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import { REQUIRED_RECORDS, retentionUntil, RETENTION_YEARS } from '../../data/aemtRecords'
 import { sheetsForCourse } from '../../data/aemtSkills'
@@ -91,11 +96,17 @@ export function auditPackageHTML(d: AuditPackageInput): string {
   // shifts. An auditor adds all three; so does this table, and it shows the
   // shortfall rather than only the totals.
   const t = d.course.targets
-  const classTarget = t ? t.didactic + t.lab : 0
-  const cell = (n: number, target: number) =>
-    `<td style="text-align:right" class="${!t ? '' : n >= target ? 'ok' : 'crit'}">${n.toFixed(2)}${
-      t ? ` / ${target}` : ''
-    }</td>`
+  // Classroom needs both halves filed: attendance mixes didactic and lab, so
+  // one number alone cannot be compared against earned classroom hours.
+  const classTarget =
+    typeof t?.didactic === 'number' && typeof t?.lab === 'number' ? t.didactic + t.lab : undefined
+  const filedTotal = [classTarget, t?.clinical, t?.field]
+    .filter((x): x is number => typeof x === 'number')
+    .reduce((a, x) => a + x, 0)
+  const cell = (n: number, target: number | undefined) =>
+    typeof target !== 'number'
+      ? `<td style="text-align:right" class="muted">${n.toFixed(2)} <span class="warn">/ not filed</span></td>`
+      : `<td style="text-align:right" class="${n >= target ? 'ok' : 'crit'}">${n.toFixed(2)} / ${target}</td>`
   const attendance = d.students
     .map((st) => {
       let earned = 0
@@ -110,9 +121,9 @@ export function auditPackageHTML(d: AuditPackageInput): string {
       const field = mine.filter((s) => s.setting === 'field').reduce((a, s) => a + s.hours, 0)
       const over = absent > MAX_ABSENT_HOURS
       return `<tr><td>${esc(st.name)}</td><td>${esc(st.certNumber ?? '—')}</td>
-        ${cell(earned, classTarget)}${cell(clin, t?.clinical ?? 0)}${cell(field, t?.field ?? 0)}
+        ${cell(earned, classTarget)}${cell(clin, t?.clinical)}${cell(field, t?.field)}
         <td style="text-align:right"><strong>${(earned + clin + field).toFixed(2)}</strong>${
-          t ? ` / ${classTarget + t.clinical + t.field}` : ''
+          filedTotal > 0 ? ` / ${filedTotal}` : ''
         }</td>
         <td style="text-align:right" class="${over ? 'crit' : ''}">${absent.toFixed(2)}</td>
         <td>${over ? '<span class="crit">over policy</span>' : '<span class="ok">within policy</span>'}</td></tr>`
@@ -120,9 +131,11 @@ export function auditPackageHTML(d: AuditPackageInput): string {
     .join('')
 
   // ----- clinical minimums -----
-  const clinical = d.students
-    .map((st) => {
-      const cells = KAR_109_11_8.map((req) => {
+  // Statutory minimums and program competencies are tabulated separately: an
+  // auditor must never see something the program chose to track presented as
+  // a number Kansas requires.
+  const reqRow = (reqs: typeof KAR_109_11_8) => (st: (typeof d.students)[number]) => {
+      const cells = reqs.map((req) => {
         const mine = d.encounters.filter(
           (e) => e.studentId === st.id && e.requirementId === req.id,
         )
@@ -139,8 +152,9 @@ export function auditPackageHTML(d: AuditPackageInput): string {
         return `<td style="text-align:right" class="${met ? 'ok' : 'crit'}">${n}/${req.minimum}</td>`
       }).join('')
       return `<tr><td>${esc(st.name)}</td>${cells}</tr>`
-    })
-    .join('')
+  }
+  const clinical = d.students.map(reqRow(KAR_109_11_8)).join('')
+  const competencies = d.students.map(reqRow(PROGRAM_COMPETENCIES)).join('')
 
   // ----- shifts -----
   const shifts = d.shifts
@@ -251,16 +265,24 @@ ${schedule || '<tr><td colspan="6" class="crit">No sessions</td></tr>'}</table>
 <table><tr><th>Student</th><th>Cert #</th><th>Classroom</th><th>Clinical</th><th>Field</th><th>Total</th><th>Class hours missed</th><th>Policy (max ${MAX_ABSENT_HOURS} h)</th></tr>
 ${attendance || '<tr><td colspan="8" class="muted">No students</td></tr>'}</table>
 <div class="note">${
-  d.course.targets
-    ? 'Hours shown against the targets filed for this course. Clinical and field count only from attested shifts.'
-    : '<span class="crit">This course filed no hour targets, so nothing reconciles these totals against a commitment.</span>'
+  filedTotal > 0
+    ? 'Hours shown against the targets filed for this course; a category marked "not filed" is recorded but reconciles against no commitment. Clinical and field count only from attested shifts.'
+    : '<span class="crit">This course filed no comparable hour targets, so nothing reconciles these totals against a commitment.</span>'
 }</div>
 
-<h2>4 · Clinical minimums (K.A.R. 109-11-8)</h2>
+<h2>4 · Clinical minimums (K.A.R. 109-11-8(a)(4))</h2>
 <table><tr><th>Student</th>${KAR_109_11_8.map((r) => `<th>${esc(r.label)}</th>`).join('')}</tr>
 ${clinical || '<tr><td class="muted">No students</td></tr>'}</table>
-<div class="note">Counts include only reps in an allowed setting, supervised by an eligible
-credential, on an attested shift.</div>
+<div class="note">The seven categories at K.A.R. 109-11-8(a)(4)(A)-(G), current as of the
+6 March 2026 amendment. Counts include only reps in an allowed setting, supervised by an
+eligible credential, on an attested shift.</div>
+
+<h2>4a · Program competencies (not K.A.R. minimums)</h2>
+<table><tr><th>Student</th>${PROGRAM_COMPETENCIES.map((r) => `<th>${esc(r.label)}</th>`).join('')}</tr>
+${competencies || '<tr><td class="muted">No students</td></tr>'}</table>
+<div class="note">Tracked by this program under K.A.R. 109-11-8(a)(2), which requires practical
+skills be completed to the primary instructor's satisfaction. These are not numbered minimums
+and do not gate completion.</div>
 
 <h2>5 · Clinical and field shifts</h2>
 <table><tr><th>Date</th><th>Student</th><th>Setting</th><th>Site</th><th>Hrs</th><th>Preceptor</th><th>Attestation</th></tr>

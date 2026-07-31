@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
 import {
@@ -24,6 +25,16 @@ const SETTINGS: { value: AemtSiteKind; label: string }[] = [
   { value: 'hospital', label: 'Hospital clinical' },
   { value: 'lab', label: 'Skills lab / sim' },
 ]
+
+/** An hours figure, shown against its filed target where one exists. */
+function Against({ n, target }: { n: number; target?: number }) {
+  if (typeof target !== 'number') return <strong>{n} h</strong>
+  return (
+    <strong style={{ color: n >= target ? '#166534' : undefined }}>
+      {n}/{target} h
+    </strong>
+  )
+}
 
 export function shiftLabel(s: AemtClinicalShift): string {
   return `${formatDate(s.date)} · ${s.site || SETTINGS.find((x) => x.value === s.setting)?.label}`
@@ -168,8 +179,13 @@ function ShiftForm({
           <button
             className="btn danger"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
-              if (confirm('Delete this shift? Encounters logged on it go too.')) {
+            onClick={async () => {
+              const ok = await confirmAction({
+                title: 'Delete this shift?',
+                body: 'Encounters logged on it go too — a rep with no shift behind it has no date, site or preceptor. Undo is offered afterwards.',
+                confirmLabel: 'Delete shift',
+              })
+              if (ok) {
                 deleteShift(existing.id)
                 onClose()
               }
@@ -206,22 +222,10 @@ export default function ShiftPanel({
         {/* Attested hours against the course's filed commitment — the number
             that has to be defensible, not the number of shifts logged. */}
         <span className="subtle">
-          {course.targets ? (
-            <>
-              <strong style={{ color: totals.hospital >= course.targets.clinical ? '#166534' : undefined }}>
-                {totals.hospital}/{course.targets.clinical} h
-              </strong>{' '}
-              hospital ·{' '}
-              <strong style={{ color: totals.field >= course.targets.field ? '#166534' : undefined }}>
-                {totals.field}/{course.targets.field} h
-              </strong>{' '}
-              field attested
-            </>
-          ) : (
-            <>
-              {totals.hospital} h hospital · {totals.field} h field attested
-            </>
-          )}
+          {/* Each figure carries its target only when the course filed one —
+              an unfiled category shows the hours worked and nothing implied. */}
+          <Against n={totals.hospital} target={course.targets?.clinical} /> hospital ·{' '}
+          <Against n={totals.field} target={course.targets?.field} /> field attested
           {totals.unattested > 0 && (
             <span style={{ color: 'var(--warn)' }}>
               {' '}

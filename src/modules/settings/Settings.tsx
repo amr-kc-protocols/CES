@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { useDB, setState, exportDB, importDB, resetDB } from '../../lib/store'
 import { QA_ENABLED, CE_ENABLED } from '../../config/features'
 import { useCan } from '../../lib/role'
@@ -361,8 +362,16 @@ export default function Settings() {
           {can.manageAcademy && (
           <button
             className="btn danger"
-            onClick={() => {
-              if (confirm('Erase ALL local data (CE classes, academy cohorts, attendance)? A backup JSON downloads first, so you can re-import if this was a mistake.')) {
+            onClick={async () => {
+              const ok = await confirmAction({
+                title: 'Erase all local data?',
+                body:
+                  'CE classes, academy cohorts, AEMT courses, attendance and every record on ' +
+                  'this device. A backup JSON downloads first, so this can be re-imported if it ' +
+                  'was a mistake. There is no undo.',
+                confirmLabel: 'Erase everything',
+              })
+              if (ok) {
                 doExport()
                 resetDB()
                 setReviewer('')

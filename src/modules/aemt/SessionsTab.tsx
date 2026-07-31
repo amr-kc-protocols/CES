@@ -1,4 +1,7 @@
-import { Empty } from '../../components/ui'
+import { useState } from 'react'
+import { Empty, Modal } from '../../components/ui'
+import SavedIndicator from '../../components/SavedIndicator'
+import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
 import {
@@ -9,6 +12,9 @@ import {
   courseHourTotals,
   reconcileHours,
   seedKcSchedule,
+  seedShortfall,
+  addPlaceholderSessions,
+  sessionProblems,
 } from './aemtStore'
 import { blockPlanTotals } from '../../data/aemt'
 import { useCan } from '../../lib/role'
@@ -25,7 +31,15 @@ const KIND_CLS: Record<AemtSessionKind, string> = Object.fromEntries(
   KINDS.map((k) => [k.value, k.cls]),
 ) as Record<AemtSessionKind, string>
 
-function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boolean }) {
+function SessionRow({
+  session,
+  canEdit,
+  problems,
+}: {
+  session: AemtSession
+  canEdit: boolean
+  problems: string[]
+}) {
   if (!canEdit) {
     return (
       <div className="row">
@@ -122,11 +136,23 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
           />
         </label>
       </div>
+      {problems.length > 0 && (
+        <div className="banner warn" style={{ marginTop: 8, marginBottom: 0 }}>
+          {problems.map((t) => (
+            <div key={t}>{t}</div>
+          ))}
+        </div>
+      )}
       <div className="btn-row" style={{ marginTop: 8 }}>
         <button
           className="btn sm danger"
-          onClick={() => {
-            if (confirm('Delete this session? Attendance for it goes too.')) deleteSession(session.id)
+          onClick={async () => {
+            const ok = await confirmAction({
+              title: 'Delete this session?',
+              body: 'Attendance marked against it goes too, and the hours it carried come off every student who attended.',
+              confirmLabel: 'Delete session',
+            })
+            if (ok) deleteSession(session.id)
           }}
         >
           Delete
@@ -136,11 +162,261 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
   )
 }
 
+/**
+ * Adding a session goes through a form rather than dropping an empty row into
+ * the schedule. "+ Session" used to write immediately: a stray tap created an
+ * untitled 4-hour didactic session, which counted toward the filed hour totals
+ * and synced, and the only way back was to find and delete it.
+ */
+function AddSessionModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+  const [date, setDate] = useState(course.startDate)
+  const [title, setTitle] = useState('')
+  const [kind, setKind] = useState<AemtSessionKind>('didactic')
+  const [startTime, setStartTime] = useState('18:00')
+  const [endTime, setEndTime] = useState('22:00')
+  const [hours, setHours] = useState('4')
+  const [instructor, setInstructor] = useState('')
+
+  const hoursNum = Number(hours)
+  const outOfRange = date < course.startDate || date > course.endDate
+  const timesBackwards = !!startTime && !!endTime && endTime <= startTime
+  const valid = !!date && hoursNum > 0 && !timesBackwards
+
+  // Times are what the filing needs; hours follow from them unless overridden.
+  function setSpan(start: string, end: string): void {
+    setStartTime(start)
+    setEndTime(end)
+    if (start && end && end > start) {
+      const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+      setHours(String((mins(end) - mins(start)) / 60))
+    }
+  }
+
+  return (
+    <Modal title="Add session" onClose={onClose}>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="as-date">Date</label>
+          <input
+            id="as-date"
+            type="date"
+            value={date}
+            min={course.startDate}
+            max={course.endDate}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="as-kind">Kind</label>
+          <select
+            id="as-kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as AemtSessionKind)}
+          >
+            {KINDS.map((k) => (
+              <option key={k.value} value={k.value}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="as-title">Subject</label>
+        <input
+          id="as-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Airway management — supraglottic devices"
+        />
+        <div className="help-text">
+          K.A.R. 109-11-1a(b3): the filed schedule shows the subject of each session.
+        </div>
+      </div>
+
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="as-start">Start</label>
+          <input
+            id="as-start"
+            type="time"
+            value={startTime}
+            onChange={(e) => setSpan(e.target.value, endTime)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="as-end">End</label>
+          <input
+            id="as-end"
+            type="time"
+            value={endTime}
+            onChange={(e) => setSpan(startTime, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="as-hours">Hours</label>
+          <input
+            id="as-hours"
+            type="number"
+            min={0}
+            step={0.25}
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="as-instr">Instructor</label>
+        <input id="as-instr" value={instructor} onChange={(e) => setInstructor(e.target.value)} />
+      </div>
+
+      {timesBackwards && (
+        <div className="banner crit">The end time is at or before the start time.</div>
+      )}
+      {outOfRange && !timesBackwards && (
+        <div className="banner warn">
+          This date is outside the course ({formatDate(course.startDate)} –{' '}
+          {formatDate(course.endDate)}). It can still be added, but it will be flagged.
+        </div>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!valid}
+          onClick={() => {
+            addSession(course.id, {
+              date,
+              title: title.trim(),
+              kind,
+              hours: hoursNum,
+              startTime: startTime || undefined,
+              endTime: endTime || undefined,
+              instructor: instructor.trim() || undefined,
+            })
+            onClose()
+          }}
+        >
+          Add session
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Seeding states the arithmetic before it writes anything.
+ *
+ * The bundled plan is the proposal's §3 content schedule, which sums to 90
+ * didactic hours. §2 of the same proposal claims ~110. Building from the plan
+ * therefore lands short of the course's own filed target by construction, and
+ * the previous button did it silently — leaving the gap to be discovered from
+ * a reconciliation table, or not at all.
+ */
+function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+  const plan = blockPlanTotals()
+  const short = seedShortfall(course.targets)
+  const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
+
+  return (
+    <Modal title="Build the AMR KC 16-week plan" onClose={onClose}>
+      <p style={{ marginTop: 0, lineHeight: 1.55 }}>
+        Creates Tue/Thu sessions across 16 weeks from the proposal's content sequence —{' '}
+        <strong>
+          {plan.didactic} didactic + {plan.lab} lab
+        </strong>
+        , {plan.classroom} classroom hours in total.
+      </p>
+
+      {course.targets ? (
+        short.total > 0 ? (
+          <div className="banner crit">
+            <strong>This plan cannot reach your filed target on its own.</strong> The course files{' '}
+            {course.targets.didactic} didactic and {course.targets.lab} lab hours; the plan lays out{' '}
+            {plan.didactic} and {plan.lab}. That leaves{' '}
+            <strong>
+              {short.didactic > 0 && `${short.didactic} h didactic`}
+              {short.didactic > 0 && short.lab > 0 && ' and '}
+              {short.lab > 0 && `${short.lab} h lab`}
+            </strong>{' '}
+            unaccounted for. The proposal's own §2 and §3 tables disagree by this amount — it is a
+            defect in the source document, not a rounding error, and it has to be closed before a
+            KBEMS submission.
+          </div>
+        ) : (
+          <div className="banner ok">
+            ✓ The plan meets this course's filed classroom targets exactly.
+          </div>
+        )
+      ) : (
+        <div className="banner warn">
+          This course has filed no hour targets, so there is nothing to check the plan against.
+        </div>
+      )}
+
+      {short.total > 0 && (
+        <label
+          className="subtle"
+          style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12 }}
+        >
+          <input
+            type="checkbox"
+            checked={alsoPlace}
+            onChange={(e) => setAlsoPlace(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            Also add the missing {short.total} h as unplaced sessions. They carry the hours so the
+            schedule reconciles, but have no date or subject, so each stays flagged until a
+            coordinator places it. Leave unchecked to seed exactly what the proposal filed.
+          </span>
+        </label>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 14 }}>
+        <button
+          className="btn primary"
+          onClick={() => {
+            const out = seedKcSchedule(course.id, course.startDate)
+            let extra = 0
+            if (alsoPlace && short.didactic > 0) {
+              extra += addPlaceholderSessions(course.id, 'didactic', short.didactic, course.startDate)
+            }
+            if (alsoPlace && short.lab > 0) {
+              extra += addPlaceholderSessions(course.id, 'lab', short.lab, course.startDate)
+            }
+            notifyUser(
+              `Created ${out.sessions} sessions (${out.didactic} h didactic, ${out.lab} h lab)` +
+                (extra > 0 ? ` plus ${extra} unplaced session${extra === 1 ? '' : 's'} to fill in.` : '.'),
+              extra > 0 || short.total > 0 ? 'warn' : 'info',
+            )
+            onClose()
+          }}
+        >
+          Build schedule
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function SessionsTab({ course }: { course: AemtCourse }) {
   const sessions = useSessions(course.id)
   const { manageAcademy } = useCan()
+  const [adding, setAdding] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const totals = courseHourTotals(sessions)
   const recon = reconcileHours(sessions, course.targets)
+  const problems = sessionProblems(sessions, course)
+  const shortRows = recon.filter((r) => r.delta < 0)
 
   return (
     <div>
@@ -190,13 +466,53 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           </div>
           <div className="help-text">
             Targets are this course's filed hour commitments, set on the course record.
-            {course.targets && course.targets.didactic !== blockPlanTotals().didactic && (
-              <>
-                {' '}The bundled 16-week plan lays out {blockPlanTotals().didactic} didactic hours,
-                so building from it alone will not reach {course.targets.didactic}.
-              </>
-            )}
           </div>
+
+          {/* The gap the bundled plan cannot close. Stated as an amount owed
+              with a way to act on it, not as a footnote under a table. */}
+          {shortRows.length > 0 && (
+            <div className="banner crit" style={{ marginTop: 10 }}>
+              <strong>
+                {shortRows.reduce((n, r) => n + -r.delta, 0)} hours short of the filed target.
+              </strong>{' '}
+              {shortRows.map((r) => `${-r.delta} h ${r.label.toLowerCase()}`).join(', ')} still has
+              to be scheduled.
+              {manageAcademy && (
+                <div className="btn-row" style={{ marginTop: 10 }}>
+                  {shortRows.map((r) => (
+                    <button
+                      key={r.id}
+                      className="btn sm"
+                      onClick={() => {
+                        const n = addPlaceholderSessions(
+                          course.id,
+                          r.id === 'lab' ? 'lab' : 'didactic',
+                          -r.delta,
+                          course.startDate,
+                        )
+                        notifyUser(
+                          `Added ${n} unplaced ${r.label.toLowerCase()} session${n === 1 ? '' : 's'} — each needs a date and a subject.`,
+                          'warn',
+                        )
+                      }}
+                    >
+                      Add {-r.delta} h of {r.label.toLowerCase()} to place
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {problems.length > 0 && (
+        <div className="banner warn" style={{ marginTop: 12 }}>
+          <strong>
+            {problems.length} schedule problem{problems.length === 1 ? '' : 's'}.
+          </strong>{' '}
+          Each is flagged on the session it belongs to. None of this blocks editing — a half-built
+          schedule is normal — but these are the things a KBEMS reviewer checks.
         </div>
       )}
 
@@ -218,19 +534,14 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           <button
             className="btn"
             title="Create Tue/Thu sessions for 16 weeks from the AMR KC proposal's content plan. Adjust for another program."
-            onClick={() => {
-              const n = seedKcSchedule(course.id, course.startDate)
-              alert(`Created ${n} sessions from the 16-week plan. Adjust dates and hours as needed.`)
-            }}
+            onClick={() => setSeeding(true)}
           >
             ⚡ Build AMR KC 16-week plan
           </button>
         )}
+        {manageAcademy && <SavedIndicator />}
         {manageAcademy && (
-          <button
-            className="btn primary"
-            onClick={() => addSession(course.id, { date: course.startDate })}
-          >
+          <button className="btn primary" onClick={() => setAdding(true)}>
             + Session
           </button>
         )}
@@ -248,10 +559,18 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           style={manageAcademy ? { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 } : { marginTop: 12 }}
         >
           {sessions.map((s) => (
-            <SessionRow key={s.id} session={s} canEdit={manageAcademy} />
+            <SessionRow
+              key={s.id}
+              session={s}
+              canEdit={manageAcademy}
+              problems={problems.filter((p) => p.sessionId === s.id).map((p) => p.text)}
+            />
           ))}
         </div>
       )}
+
+      {adding && <AddSessionModal course={course} onClose={() => setAdding(false)} />}
+      {seeding && <SeedModal course={course} onClose={() => setSeeding(false)} />}
     </div>
   )
 }

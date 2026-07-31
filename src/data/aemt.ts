@@ -84,11 +84,28 @@ export interface KarMinimum {
   /** Where the proposal plans to source these. */
   site: string
   note?: string
+  /**
+   * Where the number comes from.
+   *
+   * 'kar'     — one of the seven categories in K.A.R. 109-11-8(a)(4)(A)-(G).
+   *             A statutory minimum; completion is gated on it.
+   * 'program' — a competency the program tracks itself. Subsection (a)(2)
+   *             requires practical skills be completed to the primary
+   *             instructor's satisfaction, and a syllabus or Kansas portfolio
+   *             may add its own. Tracked and reported, but never counted as a
+   *             statutory minimum.
+   */
+  basis: 'kar' | 'program'
 }
 
-export const KAR_109_11_8: KarMinimum[] = [
+/**
+ * Everything tracked as a counted clinical requirement, statutory or not.
+ * Split by `basis` — read KAR_109_11_8 for the regulated seven.
+ */
+export const CLINICAL_REQUIREMENTS: KarMinimum[] = [
   {
     id: 'venipuncture',
+    basis: 'kar',
     label: 'Venipunctures',
     minimum: 20,
     allowedSettings: ['hospital', 'field'],
@@ -98,6 +115,7 @@ export const KAR_109_11_8: KarMinimum[] = [
   },
   {
     id: 'io',
+    basis: 'kar',
     label: 'IO infusions',
     minimum: 5,
     allowedSettings: ['hospital', 'field', 'lab'],
@@ -106,20 +124,30 @@ export const KAR_109_11_8: KarMinimum[] = [
   },
   {
     id: 'injection',
+    basis: 'kar',
     label: 'IM / SubQ injections',
     minimum: 10,
     allowedSettings: ['hospital', 'field'],
     site: 'AdventHealth KC (ED / med-surg / infusion)',
   },
   {
+    // NOT a statutory AEMT minimum. Nebulized treatment appears under the EMT
+    // requirement at K.A.R. 109-11-8(a)(3)(B), not in the AEMT list at
+    // (a)(4) — verified against the 2021, 2023 and current (6 Mar 2026)
+    // regulation text, in all three of which it is absent from (a)(4).
+    // Kept as a program competency under (a)(2), which requires practical
+    // skills be completed to the primary instructor's satisfaction.
     id: 'nebulizer',
+    basis: 'program',
     label: 'Nebulized breathing treatments',
     minimum: 1,
     allowedSettings: ['hospital', 'field'],
     site: 'AdventHealth KC (ED or respiratory therapy)',
+    note: 'Program competency, not a K.A.R. 109-11-8(a)(4) minimum. Does not gate completion.',
   },
   {
     id: 'ecg',
+    basis: 'kar',
     label: 'ECG application & interpretation',
     minimum: 8,
     allowedSettings: ['hospital', 'field'],
@@ -128,6 +156,7 @@ export const KAR_109_11_8: KarMinimum[] = [
   },
   {
     id: 'assessment',
+    basis: 'kar',
     label: 'Complete patient assessments',
     minimum: 15,
     allowedSettings: ['hospital', 'field'],
@@ -137,6 +166,7 @@ export const KAR_109_11_8: KarMinimum[] = [
   },
   {
     id: 'calls',
+    basis: 'kar',
     label: 'Supervised ambulance calls',
     minimum: 10,
     allowedSettings: ['field'],
@@ -149,6 +179,7 @@ export const KAR_109_11_8: KarMinimum[] = [
   },
   {
     id: 'pcr',
+    basis: 'kar',
     label: 'Patient care reports / charts',
     minimum: 10,
     allowedSettings: ['field'],
@@ -156,6 +187,23 @@ export const KAR_109_11_8: KarMinimum[] = [
     site: 'Field internship — both AMR sites (ImageTrend)',
   },
 ]
+
+/**
+ * The seven AEMT minimums in K.A.R. 109-11-8(a)(4)(A)-(G), current as of the
+ * 6 March 2026 amendment. These gate course completion.
+ */
+export const KAR_109_11_8: KarMinimum[] = CLINICAL_REQUIREMENTS.filter(
+  (r) => r.basis === 'kar',
+)
+
+/**
+ * Counted competencies the program tracks that the regulation does not set a
+ * number for. Reported separately so a course record never implies Kansas
+ * requires something it does not.
+ */
+export const PROGRAM_COMPETENCIES: KarMinimum[] = CLINICAL_REQUIREMENTS.filter(
+  (r) => r.basis === 'program',
+)
 
 // ----- program hour targets (proposal §2) ------------------------------------
 

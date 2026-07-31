@@ -14,6 +14,7 @@ import {
 import { printDoc, downloadDoc, attendanceSheetHTML, safeFilename } from './docGen'
 import { timesheetCSV, timesheetWeeks, weekStartISO, downloadCSV } from './csvExport'
 import { weekdayLabel } from './calendar'
+import { AttendanceCell, attendanceGridKeys } from '../../components/AttendanceCell'
 import { useCan } from '../../lib/role'
 import type { AcademyCohort, AttendanceStatus } from '../../types'
 
@@ -23,18 +24,6 @@ function nextStatus(cur: AttendanceStatus | undefined): AttendanceStatus | null 
   if (cur === 'present') return 'absent'
   return null
 }
-
-const cellStyle = (status: AttendanceStatus | undefined, canEdit: boolean): React.CSSProperties => ({
-  width: 44,
-  minWidth: 44,
-  textAlign: 'center',
-  cursor: canEdit ? 'pointer' : 'default',
-  fontWeight: 700,
-  fontSize: 15,
-  background:
-    status === 'present' ? 'var(--ok-bg)' : status === 'absent' ? 'var(--crit-bg)' : undefined,
-  color: status === 'present' ? '#166534' : status === 'absent' ? '#991b1b' : 'var(--border-strong)',
-})
 
 export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
   const trainees = useCohortTrainees(cohort.id)
@@ -154,7 +143,7 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
         </div>
       )}
 
-      <div className="table-wrap" style={{ marginTop: 12 }}>
+      <div className="table-wrap" style={{ marginTop: 12 }} onKeyDown={attendanceGridKeys}>
         <table>
           <thead>
             <tr>
@@ -188,22 +177,24 @@ export default function AttendanceView({ cohort }: { cohort: AcademyCohort }) {
             </tr>
           </thead>
           <tbody>
-            {trainees.map((t) => (
+            {trainees.map((t, ri) => (
               <tr key={t.id}>
                 <td style={{ position: 'sticky', left: 0, background: 'var(--surface)', fontWeight: 600 }}>
                   {t.name}
                 </td>
-                {days.map((d) => {
+                {days.map((d, ci) => {
                   const status = map.get(attKey(t.id, d.key))
                   return (
-                    <td
+                    <AttendanceCell
                       key={d.key}
-                      style={cellStyle(status, canEdit)}
-                      onClick={canEdit ? () => setAttendance(cohort.id, t.id, d.key, nextStatus(status)) : undefined}
+                      status={status}
+                      canEdit={canEdit}
+                      row={ri}
+                      col={ci}
+                      label={`${t.name}, ${d.title}${d.date ? ` ${formatDate(d.date)}` : ''}`}
                       title={`${t.name} · ${d.title}`}
-                    >
-                      {status === 'present' ? '✓' : status === 'absent' ? '✗' : '·'}
-                    </td>
+                      onCycle={() => setAttendance(cohort.id, t.id, d.key, nextStatus(status))}
+                    />
                   )
                 })}
               </tr>

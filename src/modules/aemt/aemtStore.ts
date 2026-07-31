@@ -5,7 +5,8 @@ import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import {
-  KAR_109_11_8,
+  blockPlanTotals,
+  CLINICAL_REQUIREMENTS,
   KBEMS_DEADLINES,
   KC_BLOCK_PLAN,
   MAX_ABSENT_HOURS,
@@ -31,6 +32,7 @@ import type {
   AemtSkillCheck,
   AemtStudent,
   AttendanceStatus,
+  DBShape,
 } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -84,29 +86,92 @@ export function updateCourse(id: string, patch: Partial<AemtCourse>): void {
   }))
 }
 
+/** Every table a course owns. Anything keyed by courseId belongs here. */
+const COURSE_OWNED = [
+  'aemtStudents',
+  'aemtSessions',
+  'aemtAttendance',
+  'aemtEncounters',
+  'aemtShifts',
+  'aemtDeadlines',
+  'aemtSkillChecks',
+  'aemtFormResponses',
+  'aemtCompletions',
+  'aemtRecordDocs',
+  'aemtAudit',
+] as const
+
+type CourseOwnedKey = (typeof COURSE_OWNED)[number]
+
+/** What deleting a course would take with it — shown before it happens. */
+export interface CourseFootprint {
+  students: number
+  sessions: number
+  shifts: number
+  encounters: number
+  skillChecks: number
+  formResponses: number
+  /** Verified completions. A course with these is a real record, not a test. */
+  completions: number
+  auditEvents: number
+  /** Filings recorded as submitted to KBEMS. */
+  submissions: number
+  /** Nothing has been recorded against this course at all. */
+  empty: boolean
+}
+
+export function useCourseFootprint(courseId: string | undefined): CourseFootprint {
+  const db = useSelector((d) => d)
+  return useMemo(() => {
+    const n = (k: CourseOwnedKey) => db[k].filter((r) => r.courseId === courseId).length
+    const f = {
+      students: n('aemtStudents'),
+      sessions: n('aemtSessions'),
+      shifts: n('aemtShifts'),
+      encounters: n('aemtEncounters'),
+      skillChecks: n('aemtSkillChecks'),
+      formResponses: n('aemtFormResponses'),
+      completions: n('aemtCompletions'),
+      auditEvents: n('aemtAudit'),
+      submissions: db.aemtDeadlines.filter((d) => d.courseId === courseId && d.submittedDate).length,
+    }
+    return { ...f, empty: Object.values(f).every((v) => v === 0) }
+  }, [db, courseId])
+}
+
+/**
+ * Delete a course and everything it owns.
+ *
+ * Every AEMT table is keyed by courseId, and each one left behind is an orphan
+ * that nothing can reach and nothing will clean up — including audit events,
+ * which are append-only by design and would outlive the course they describe.
+ * The whole set is captured first so undo restores the course intact.
+ */
 export function deleteCourse(id: string): void {
   setState((db) => {
     const course = db.aemtCourses.find((c) => c.id === id)
-    const students = db.aemtStudents.filter((s) => s.courseId === id)
-    const sessions = db.aemtSessions.filter((s) => s.courseId === id)
-    const attendance = db.aemtAttendance.filter((a) => a.courseId === id)
-    if (course) {
-      pushUndo(`Deleted ${course.label}`, () =>
-        setState((cur) => ({
-          ...cur,
-          aemtCourses: [...cur.aemtCourses, course],
-          aemtStudents: [...cur.aemtStudents, ...students],
-          aemtSessions: [...cur.aemtSessions, ...sessions],
-          aemtAttendance: [...cur.aemtAttendance, ...attendance],
-        })),
-      )
-    }
+    if (!course) return db
+
+    const owned = Object.fromEntries(
+      COURSE_OWNED.map((k) => [k, db[k].filter((r) => r.courseId === id)]),
+    ) as { [K in CourseOwnedKey]: DBShape[K] }
+
+    pushUndo(`Deleted ${course.label}`, () =>
+      setState((cur) => ({
+        ...cur,
+        ...(Object.fromEntries(
+          COURSE_OWNED.map((k) => [k, [...cur[k], ...owned[k]]]),
+        ) as Partial<DBShape>),
+        aemtCourses: [...cur.aemtCourses, course],
+      })),
+    )
+
     return {
       ...db,
+      ...(Object.fromEntries(
+        COURSE_OWNED.map((k) => [k, db[k].filter((r) => r.courseId !== id)]),
+      ) as Partial<DBShape>),
       aemtCourses: db.aemtCourses.filter((c) => c.id !== id),
-      aemtStudents: db.aemtStudents.filter((s) => s.courseId !== id),
-      aemtSessions: db.aemtSessions.filter((s) => s.courseId !== id),
-      aemtAttendance: db.aemtAttendance.filter((a) => a.courseId !== id),
     }
   })
 }
@@ -203,6 +268,59 @@ export function useSessions(courseId: string | undefined): AemtSession[] {
   )
 }
 
+export interface SessionProblem {
+  sessionId: string
+  /** Short enough to sit under the row it belongs to. */
+  text: string
+}
+
+/**
+ * Schedule problems a KBEMS reviewer would spot. Nothing here blocks editing —
+ * a half-built schedule is a normal intermediate state — but a session outside
+ * the course dates, or one whose times contradict its hours, is a filing error
+ * that is far cheaper to catch now than after submission.
+ */
+export function sessionProblems(
+  sessions: AemtSession[],
+  course: Pick<AemtCourse, 'startDate' | 'endDate'>,
+): SessionProblem[] {
+  const out: SessionProblem[] = []
+  for (const s of sessions) {
+    const label = s.title || 'Untitled session'
+    if (!s.date) {
+      out.push({ sessionId: s.id, text: `${label} has no date` })
+    } else if (s.date < course.startDate || s.date > course.endDate) {
+      out.push({
+        sessionId: s.id,
+        text: `${label} falls outside the course dates (${course.startDate} – ${course.endDate})`,
+      })
+    }
+    if (!s.title.trim()) {
+      out.push({ sessionId: s.id, text: 'This session has no subject — K.A.R. 109-11-1a(b3) requires one' })
+    }
+    if (s.hours <= 0) {
+      out.push({ sessionId: s.id, text: `${label} is worth no hours` })
+    }
+    if (s.startTime && s.endTime) {
+      if (s.endTime <= s.startTime) {
+        out.push({ sessionId: s.id, text: `${label} ends at or before it starts` })
+      } else {
+        // Times and hours are filed together, so they have to agree. A quarter
+        // hour of slack absorbs rounding without waving through a real gap.
+        const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+        const span = (mins(s.endTime) - mins(s.startTime)) / 60
+        if (Math.abs(span - s.hours) > 0.25) {
+          out.push({
+            sessionId: s.id,
+            text: `${label} runs ${span.toFixed(2)} h by the clock but is filed as ${s.hours} h`,
+          })
+        }
+      }
+    }
+  }
+  return out
+}
+
 export function addSession(
   courseId: string,
   input?: Partial<Omit<AemtSession, 'id' | 'courseId'>>,
@@ -270,7 +388,66 @@ function onOrAfterWeekday(iso: string, weekday: number): string {
  *
  * Returns the number of sessions created.
  */
-export function seedKcSchedule(courseId: string, startISO: string): number {
+export interface SeedOutcome {
+  sessions: number
+  didactic: number
+  lab: number
+}
+
+/**
+ * What seeding the bundled plan would leave unscheduled against a course's own
+ * filed targets.
+ *
+ * This is not a rounding gap. The AMR KC proposal's §3 content schedule sums
+ * to 90 didactic hours while its §2 summary claims ~110, so building from the
+ * bundled plan alone lands 20 hours short of the number the course filed. The
+ * numbers are transcribed as filed rather than adjusted, which means the
+ * shortfall is real and has to be stated before anyone builds on it.
+ */
+export function seedShortfall(targets: AemtHourTargets | undefined): {
+  didactic: number
+  lab: number
+  total: number
+} {
+  const plan = blockPlanTotals()
+  if (!targets) return { didactic: 0, lab: 0, total: 0 }
+  const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
+  const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
+  return { didactic, lab, total: didactic + lab }
+}
+
+/**
+ * Sessions carrying hours that are allocated but not yet placed. Created
+ * deliberately, never as a side effect of seeding: they have hours and no
+ * subject, so the schedule reconciles to the filed target while every one of
+ * them stays flagged until a coordinator gives it a date and a topic.
+ */
+export function addPlaceholderSessions(
+  courseId: string,
+  kind: AemtSessionKind,
+  hours: number,
+  startISO: string,
+  chunk = 4,
+): number {
+  const created: AemtSession[] = []
+  let left = hours
+  while (left > 0.001) {
+    const h = Math.min(chunk, left)
+    created.push({
+      id: uid('asess'),
+      courseId,
+      date: startISO,
+      title: '',
+      kind,
+      hours: Math.round(h * 100) / 100,
+    })
+    left -= h
+  }
+  setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
+  return created.length
+}
+
+export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
   const firstTue = onOrAfterWeekday(startISO, 2)
   const created: AemtSession[] = []
   let weekIndex = 0
@@ -313,7 +490,11 @@ export function seedKcSchedule(courseId: string, startISO: string): number {
   }
 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
-  return created.length
+  return {
+    sessions: created.length,
+    didactic: created.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0),
+    lab: created.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0),
+  }
 }
 
 export interface HourReconciliation {
@@ -340,10 +521,15 @@ export function reconcileHours(
 ): HourReconciliation[] {
   if (!targets) return []
   const { byKind } = courseHourTotals(sessions)
+  // One row per target the course actually filed. A category left unset is
+  // omitted rather than compared against zero — "not filed" and "filed as 0"
+  // are different claims, and only one of them is a commitment.
   return [
     { id: 'didactic', label: 'Didactic', target: targets.didactic, scheduled: byKind.didactic },
     { id: 'lab', label: 'Lab / psychomotor', target: targets.lab, scheduled: byKind.lab },
-  ].map((r) => ({ ...r, delta: r.scheduled - r.target }))
+  ]
+    .filter((r): r is HourReconciliation & { target: number } => typeof r.target === 'number')
+    .map((r) => ({ ...r, delta: r.scheduled - r.target }))
 }
 
 /** AMR KC's filed commitments, offered as the default when creating a course. */
@@ -521,7 +707,9 @@ export function deleteFormResponse(id: string): void {
  * in a list of hundreds.
  */
 export function flaggedResponses(responses: AemtFormResponse[]): AemtFormResponse[] {
-  return responses.filter((r) => r.values.remedial === true || r.values.concernRaised === true)
+  // Optional-chained deliberately: this feeds readiness for every student, so
+  // one malformed row reaching it from storage would blank the whole tab.
+  return responses.filter((r) => r.values?.remedial === true || r.values?.concernRaised === true)
 }
 
 // ----- program records --------------------------------------------------------
@@ -804,17 +992,60 @@ export function studentHourGaps(
   targets: AemtHourTargets | undefined,
 ): StudentHourGap[] {
   if (!targets) return []
+  // Classroom needs BOTH didactic and lab: attendance is taken per session and
+  // earned classroom hours mix the two, so comparing them against only one
+  // filed number would report a shortfall that does not exist. Clinical and
+  // field come from shifts tagged by setting, so each stands alone.
+  const classTarget =
+    typeof targets.didactic === 'number' && typeof targets.lab === 'number'
+      ? targets.didactic + targets.lab
+      : undefined
   return [
-    { id: 'class' as const, label: 'Classroom', target: targets.didactic + targets.lab, earned: h.earned },
+    { id: 'class' as const, label: 'Classroom', target: classTarget, earned: h.earned },
     { id: 'clinical' as const, label: 'Hospital clinical', target: targets.clinical, earned: h.clinicalHours },
     { id: 'field' as const, label: 'Field internship', target: targets.field, earned: h.fieldHours },
-  ].map((r) => ({ ...r, delta: r.earned - r.target, met: r.earned >= r.target }))
+  ]
+    .filter((r): r is StudentHourGap & { target: number } => typeof r.target === 'number')
+    .map((r) => ({ ...r, delta: r.earned - r.target, met: r.earned >= r.target }))
 }
 
-/** Sum of every hour the course committed to. */
+/** Which hour commitments this course has filed, and which it has not. */
+export interface TargetCoverage {
+  filed: { id: keyof AemtHourTargets; label: string; hours: number }[]
+  missing: { id: keyof AemtHourTargets; label: string }[]
+  /** Total of the filed commitments only. */
+  total: number
+  complete: boolean
+  any: boolean
+}
+
+const TARGET_LABELS: { id: keyof AemtHourTargets; label: string }[] = [
+  { id: 'didactic', label: 'Didactic' },
+  { id: 'lab', label: 'Lab / psychomotor' },
+  { id: 'clinical', label: 'Hospital clinical' },
+  { id: 'field', label: 'Field internship' },
+]
+
+export function targetCoverage(targets: AemtHourTargets | undefined): TargetCoverage {
+  const filed: TargetCoverage['filed'] = []
+  const missing: TargetCoverage['missing'] = []
+  for (const t of TARGET_LABELS) {
+    const v = targets?.[t.id]
+    if (typeof v === 'number') filed.push({ ...t, hours: v })
+    else missing.push(t)
+  }
+  return {
+    filed,
+    missing,
+    total: filed.reduce((n, f) => n + f.hours, 0),
+    complete: missing.length === 0,
+    any: filed.length > 0,
+  }
+}
+
+/** Sum of the hour commitments the course has actually filed. */
 export function totalHourTarget(targets: AemtHourTargets | undefined): number {
-  if (!targets) return 0
-  return targets.didactic + targets.lab + targets.clinical + targets.field
+  return targetCoverage(targets).total
 }
 
 /**
@@ -824,19 +1055,34 @@ export function totalHourTarget(targets: AemtHourTargets | undefined): number {
  */
 function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): ReadinessCheck {
   const gaps = studentHourGaps(h, targets)
+  const cover = targetCoverage(targets)
+  // Nothing comparable was filed, so there is nothing to compute. Falls to
+  // attestation rather than passing by default.
+  if (gaps.length === 0) {
+    return {
+      id: 'hours',
+      label: 'Program hours complete',
+      status: 'attest',
+      detail: cover.any
+        ? 'Filed targets are not comparable to recorded hours — attest manually'
+        : 'Course filed no hour targets — nothing to reconcile against',
+    }
+  }
   const short = gaps.filter((g) => !g.met)
-  const total = totalHourTarget(targets)
+  const partial = cover.complete
+    ? ''
+    : ` · ${cover.missing.map((m) => m.label.toLowerCase()).join(', ')} not filed`
   return {
     id: 'hours',
     label: 'Program hours complete',
     status: short.length === 0 ? 'met' : 'unmet',
     detail:
-      short.length === 0
-        ? `${h.totalHours.toFixed(2)} of ${total} h`
+      (short.length === 0
+        ? `${gaps.reduce((n, g) => n + g.earned, 0).toFixed(2)} of ${gaps.reduce((n, g) => n + g.target, 0)} h filed`
         : `${short.map((g) => `${(-g.delta).toFixed(2)} h ${g.label.toLowerCase()}`).join(', ')} still owed` +
           (h.unattestedShiftHours > 0
             ? ` · ${h.unattestedShiftHours} h logged but not attested`
-            : ''),
+            : '')) + partial,
   }
 }
 
@@ -1010,7 +1256,11 @@ export interface RequirementProgress {
   met: boolean
 }
 
-/** One student's standing against all eight K.A.R. 109-11-8 minimums. */
+/**
+ * One student's standing against every counted clinical requirement — the
+ * seven K.A.R. 109-11-8(a)(4) minimums plus any program competency. Callers
+ * split the result by `requirement.basis`; only 'kar' gates completion.
+ */
 export function progressFor(
   encounters: AemtEncounter[],
   studentId: string,
@@ -1018,7 +1268,7 @@ export function progressFor(
 ): RequirementProgress[] {
   const mine = encounters.filter((e) => e.studentId === studentId)
   const byId = new Map(shifts.map((s) => [s.id, s]))
-  return KAR_109_11_8.map((requirement) => {
+  return CLINICAL_REQUIREMENTS.map((requirement) => {
     const rows = mine.filter((e) => e.requirementId === requirement.id)
     // Three conditions, each of which the review found could be bypassed:
     // the setting must count for this requirement, the shift's preceptor must
@@ -1046,9 +1296,13 @@ export function progressFor(
 
 export interface StudentClinicalStanding {
   student: AemtStudent
+  /** Every counted requirement, statutory and program. */
   progress: RequirementProgress[]
-  /** How many of the eight requirements are fully satisfied. */
+  /** The seven K.A.R. 109-11-8(a)(4) minimums only. */
+  statutory: RequirementProgress[]
+  /** How many of the seven statutory minimums are fully satisfied. */
   metCount: number
+  /** All seven statutory minimums met. Program competencies do not gate this. */
   complete: boolean
 }
 
@@ -1060,8 +1314,12 @@ export function useClinicalStanding(courseId: string | undefined): StudentClinic
     () =>
       students.map((student) => {
         const progress = progressFor(encounters, student.id, shifts)
-        const metCount = progress.filter((p) => p.met).length
-        return { student, progress, metCount, complete: metCount === progress.length }
+        // Completion is gated on the regulation, not on what the program
+        // chooses to also track. A program competency short does not make a
+        // student ineligible under K.A.R. 109-11-8.
+        const statutory = progress.filter((p) => p.requirement.basis === 'kar')
+        const metCount = statutory.filter((p) => p.met).length
+        return { student, progress, statutory, metCount, complete: metCount === statutory.length }
       }),
     [students, encounters, shifts],
   )
@@ -1204,7 +1462,7 @@ export function useStudentReadiness(
           id: 'clinical',
           label: 'Clinical minimums met',
           status: c?.complete ? 'met' : 'unmet',
-          detail: c ? `${c.metCount} of ${c.progress.length} K.A.R. 109-11-8 minimums` : '—',
+          detail: c ? `${c.metCount} of ${c.statutory.length} K.A.R. 109-11-8(a)(4) minimums` : '—',
         },
         {
           id: 'skills',
