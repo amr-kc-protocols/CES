@@ -452,12 +452,37 @@ export interface AemtHourTargets {
   field: number
 }
 
+/**
+ * A clinical or field internship site named on the course approval
+ * application. K.A.R. 109-11-4a requires the sites, and the executed
+ * agreement has to be in place before the application is submitted.
+ */
+export interface AemtSite {
+  id: string
+  name: string
+  kind: 'clinical' | 'field'
+  /** Agreement state — 'executed' is the bar for submitting the application. */
+  agreement: 'none' | 'draft' | 'executed'
+  contact?: string
+  notes?: string
+}
+
 export interface AemtCourse {
   id: string
   /** Display label, e.g. 'Fall 2026 AEMT'. */
   label: string
   /** Sponsoring organization, e.g. 'AMR Kansas City'. */
   organization?: string
+  /**
+   * Primary instructor of record, named on the KBEMS application. Under
+   * K.A.R. 109-17-1 they must be certified or licensed in what they teach;
+   * no separate Instructor-Coordinator credential is required.
+   */
+  primaryInstructor?: string
+  primaryInstructorCredential?: PreceptorCredentialId
+  primaryInstructorCertNumber?: string
+  /** Clinical and field sites named on the application. */
+  sites?: AemtSite[]
   /** Kansas BEMS course approval number, printed on course records. */
   courseNumber?: string
   startDate: string
@@ -512,14 +537,89 @@ export interface AemtFormResponse {
   date: string
   values: Record<string, string | number | boolean>
   submittedAt: string
+  /** Set when a flagged concern (remediation / conference) has been closed out. */
+  resolvedDate?: string
+  resolvedBy?: string
+  resolutionNote?: string
+}
+
+/**
+ * A recorded course completion. Completion is a verified state, not a status
+ * anyone can pick from a dropdown: it gates a student's eligibility to sit the
+ * NREMT cognitive exam, so it carries who verified it and against what.
+ */
+export interface AemtCompletion {
+  courseId: string
+  studentId: string
+  /** ISO date completion was recorded. */
+  completedDate: string
+  /** Primary instructor or program manager attesting to it. */
+  verifiedBy: string
+  /**
+   * Final course grade. Attested rather than computed — grades live in the
+   * Navigate LMS, not in this app, so recording the figure is the honest
+   * option and inventing a gradebook would be worse.
+   */
+  finalGradePercent: number
+  /** Present only when recorded despite a readiness check that had not passed. */
+  override?: {
+    reason: string
+    approver: string
+    /** Ids of the checks that were unmet at the time. */
+    unmetChecks: string[]
+  }
+}
+
+/**
+ * Tracking for a program record the app does not itself hold — the syllabus,
+ * lesson plans, the gradebook. CES-held records need no entry; the tab that
+ * owns them is the record.
+ */
+export interface AemtRecordDoc {
+  courseId: string
+  /** Matches a REQUIRED_RECORDS id in data/aemtRecords.ts. */
+  typeId: string
+  status: 'missing' | 'draft' | 'in-review' | 'approved'
+  owner?: string
+  version?: string
+  approvedBy?: string
+  approvedDate?: string
+  /** Where the document actually lives — a path, a link, or a description. */
+  location?: string
+  notes?: string
+}
+
+/**
+ * Append-only record of consequential actions. Written for completions,
+ * overrides and revocations — the events an audit would ask about.
+ */
+export interface AemtAuditEvent {
+  id: string
+  courseId: string
+  studentId?: string
+  /** ISO timestamp. */
+  at: string
+  actor: string
+  action: string
+  detail: string
 }
 
 /** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
+/**
+ * A KBEMS submission and its evidence. Kansas submissions go through the
+ * Licensing Portal, so the portal confirmation is the receipt — "marked done"
+ * on its own proves nothing to an auditor.
+ */
 export interface AemtDeadlineRecord {
   courseId: string
   deadlineId: string
-  /** ISO date it was actually submitted. */
-  completedDate: string
+  status: 'submitted' | 'accepted' | 'rejected' | 'corrected'
+  /** ISO date it was submitted. */
+  submittedDate: string
+  submittedBy: string
+  /** Portal confirmation / receipt number. */
+  confirmationNumber?: string
+  note?: string
 }
 
 export interface AemtStudent {
@@ -545,7 +645,15 @@ export interface AemtSession {
   kind: AemtSessionKind
   /** Scheduled contact hours. State approval is documented in these. */
   hours: number
+  /**
+   * Clock times, 'HH:MM'. K.A.R. 109-11-1a(b3) requires the filed schedule to
+   * show the date AND time of each session, not just its length.
+   */
+  startTime?: string
+  endTime?: string
   instructor?: string
+  /** Instructor's qualification for this subject, per K.A.R. 109-17-1. */
+  instructorCredential?: PreceptorCredentialId
   notes?: string
 }
 
@@ -568,6 +676,45 @@ export interface AemtAttendanceRecord {
 export type AemtSiteKind = 'hospital' | 'field' | 'lab'
 
 /**
+ * A clinical or field internship shift. Encounters hang off a shift rather
+ * than standing alone, so every logged rep inherits a date, a site, and an
+ * identified preceptor who attested to it — the difference between a count
+ * someone typed and a record that can be defended.
+ */
+export interface AemtClinicalShift {
+  id: string
+  courseId: string
+  studentId: string
+  /** ISO date of the shift. */
+  date: string
+  setting: AemtSiteKind
+  /** Site name, e.g. 'AdventHealth KC — ED'. */
+  site: string
+  /** Hours worked — feeds clinical and field hour reconciliation. */
+  hours: number
+  preceptorName: string
+  preceptorCredential: PreceptorCredentialId
+  /** Licence or certificate number, so the supervisor is identifiable. */
+  preceptorCertNumber?: string
+  /**
+   * ISO timestamp the preceptor attested the shift record is accurate.
+   * Encounters on an unattested shift are logged but not yet defensible.
+   */
+  attestedAt?: string
+  notes?: string
+}
+
+/** Mirrors PreceptorCredential in data/aemt.ts. */
+export type PreceptorCredentialId =
+  | 'aemt'
+  | 'paramedic'
+  | 'rn'
+  | 'lpn'
+  | 'aprn'
+  | 'pa'
+  | 'physician'
+
+/**
  * One line of the student patient encounter log. NEVER carries PHI — the
  * regulation-facing record is date, site, skill, count and preceptor only.
  */
@@ -586,6 +733,13 @@ export interface AemtEncounter {
   count: number
   /** Venipuncture only — whether the stick initiated an IV infusion. */
   initiatedInfusion?: boolean
+  /** The shift this happened on. Encounters without one predate shift linking. */
+  shiftId?: string
+  /**
+   * Non-PHI reference back to the source record — an ImageTrend incident
+   * number or run number. Never a patient identifier.
+   */
+  sourceRef?: string
   preceptor?: string
   notes?: string
 }
@@ -610,8 +764,12 @@ export interface DBShape {
   aemtSessions: AemtSession[]
   aemtAttendance: AemtAttendanceRecord[]
   aemtEncounters: AemtEncounter[]
+  aemtShifts: AemtClinicalShift[]
   aemtDeadlines: AemtDeadlineRecord[]
   aemtSkillChecks: AemtSkillCheck[]
   aemtFormResponses: AemtFormResponse[]
+  aemtCompletions: AemtCompletion[]
+  aemtRecordDocs: AemtRecordDoc[]
+  aemtAudit: AemtAuditEvent[]
   settings: Settings
 }

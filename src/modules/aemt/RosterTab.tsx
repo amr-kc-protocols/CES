@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { Empty, Modal } from '../../components/ui'
-import { useStudents, addStudent, updateStudent, deleteStudent } from './aemtStore'
+import {
+  useStudents,
+  useStudentReadiness,
+  addStudent,
+  updateStudent,
+  deleteStudent,
+  studentRecordCount,
+} from './aemtStore'
+import CompletionPanel from './CompletionPanel'
+import CourseSetupPanel from './CourseSetupPanel'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtStudent, AemtStudentStatus } from '../../types'
 
@@ -80,9 +89,13 @@ function StudentForm({
             onChange={(e) => setStatus(e.target.value as AemtStudentStatus)}
           >
             <option value="active">Active</option>
-            <option value="completed">Completed</option>
             <option value="withdrawn">Withdrawn</option>
+            {existing.status === 'completed' && <option value="completed">Completed</option>}
           </select>
+          <div className="help-text">
+            Completed is set by verifying readiness below, not chosen here — it is what makes a
+            student eligible to sit the NREMT cognitive exam.
+          </div>
         </div>
       )}
       <div className="btn-row" style={{ marginTop: 12 }}>
@@ -97,7 +110,13 @@ function StudentForm({
             className="btn danger"
             style={{ marginLeft: 'auto' }}
             onClick={() => {
-              if (confirm(`Remove ${existing.name} from this course? Their attendance goes too.`)) {
+              const n = studentRecordCount(existing.id)
+              const msg =
+                `Permanently remove ${existing.name} and ${n} linked record${n === 1 ? '' : 's'} ` +
+                `(attendance, clinical encounters, skill check-offs, evaluations)?\n\n` +
+                `Course records are normally kept — set status to Withdrawn instead unless this ` +
+                `student was added by mistake.`
+              if (confirm(msg)) {
                 deleteStudent(existing.id)
                 onClose()
               }
@@ -116,9 +135,13 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const { manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
+  const readiness = useStudentReadiness(course.id, course.monitorSheetId)
 
   return (
     <div>
+      <CourseSetupPanel course={course} canEdit={manageAcademy} />
+
+      <div className="section-title">Roster</div>
       {manageAcademy && (
         <div className="toolbar">
           <div className="spacer" />
@@ -160,6 +183,10 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
             </div>
           ))}
         </div>
+      )}
+
+      {students.length > 0 && (
+        <CompletionPanel course={course} readiness={readiness} canEdit={manageAcademy} />
       )}
 
       {adding && <StudentForm courseId={course.id} onClose={() => setAdding(false)} />}

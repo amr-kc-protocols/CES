@@ -12,6 +12,8 @@ import {
   setAttendance,
   markAllPresent,
   creditedHours,
+  studentHourGaps,
+  totalHourTarget,
 } from './aemtStore'
 import { MAX_ABSENT_HOURS } from '../../data/aemt'
 import { useCan } from '../../lib/role'
@@ -133,6 +135,104 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
           </tbody>
         </table>
       </div>
+
+      {/* Program hours. Classroom time comes from the grid above, clinical and
+          field from attested shifts on the Clinical tab — the two halves of
+          the total a Kansas course record has to show, reconciled in one
+          place against what the course filed. */}
+      {course.targets ? (
+        <>
+          <div className="section-title">
+            Program hours vs filed targets
+            <span className="subtle" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+              {totalHourTarget(course.targets)} h total
+            </span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 150 }}>Student</th>
+                  <th style={{ textAlign: 'center' }}>
+                    Classroom
+                    <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
+                      of {course.targets.didactic + course.targets.lab} h
+                    </div>
+                  </th>
+                  <th style={{ textAlign: 'center' }}>
+                    Clinical
+                    <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
+                      of {course.targets.clinical} h
+                    </div>
+                  </th>
+                  <th style={{ textAlign: 'center' }}>
+                    Field
+                    <div className="subtle" style={{ fontSize: 11, fontWeight: 400 }}>
+                      of {course.targets.field} h
+                    </div>
+                  </th>
+                  <th style={{ textAlign: 'center' }}>Total</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Still owed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hours.map((h) => {
+                  const gaps = studentHourGaps(h, course.targets)
+                  const owed = gaps.reduce((n, g) => n + Math.max(0, -g.delta), 0)
+                  return (
+                    <tr key={h.student.id}>
+                      <td style={{ fontWeight: 600 }}>
+                        {h.student.name}
+                        {h.unattestedShiftHours > 0 && (
+                          <div className="subtle" style={{ fontSize: 11, color: 'var(--warn)' }}>
+                            +{h.unattestedShiftHours} h logged, not attested
+                          </div>
+                        )}
+                      </td>
+                      {gaps.map((g) => (
+                        <td
+                          key={g.id}
+                          style={{
+                            textAlign: 'center',
+                            fontWeight: 600,
+                            color: g.met ? '#166534' : undefined,
+                          }}
+                          title={
+                            g.met
+                              ? `${g.label} met (${g.delta > 0 ? `+${g.delta}` : '0'} h)`
+                              : `${-g.delta} h of ${g.label.toLowerCase()} still owed`
+                          }
+                        >
+                          {g.earned.toFixed(g.id === 'class' ? 2 : 0)}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                        {h.totalHours.toFixed(2)}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {owed === 0 ? (
+                          <span className="pill ok">✓ complete</span>
+                        ) : (
+                          <span className="pill warn">{owed.toFixed(2)} h</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="help-text">
+            Clinical and field hours count only from shifts a preceptor has attested. Log them on
+            the Clinical tab.
+          </div>
+        </>
+      ) : (
+        <div className="banner warn" style={{ marginTop: 14 }}>
+          This course has filed no hour targets, so classroom, clinical and field time cannot be
+          reconciled against anything. Set them in <strong>Course setup</strong>.
+        </div>
+      )}
 
       {/* Attendance policy is a hard gate: more than 8 hours of class time
           missed fails the course outright, so it gets its own callout rather
