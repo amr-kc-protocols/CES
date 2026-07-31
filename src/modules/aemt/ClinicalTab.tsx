@@ -11,7 +11,12 @@ import {
   deleteEncounter,
   progressFor,
 } from './aemtStore'
-import { KAR_109_11_8, PRECEPTOR_LABELS } from '../../data/aemt'
+import {
+  CLINICAL_REQUIREMENTS,
+  KAR_109_11_8,
+  PROGRAM_COMPETENCIES,
+  PRECEPTOR_LABELS,
+} from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import ShiftPanel, { shiftLabel } from './ShiftPanel'
 import { useCan } from '../../lib/role'
@@ -40,7 +45,7 @@ function LogForm({
   const [initiatedInfusion, setInfusion] = useState(false)
   const [sourceRef, setSourceRef] = useState('')
 
-  const req = KAR_109_11_8.find((r) => r.id === requirementId)!
+  const req = CLINICAL_REQUIREMENTS.find((r) => r.id === requirementId)!
   const shift = shifts.find((s) => s.id === shiftId)
   const siteKind = shift?.setting
   const settingOk = !!siteKind && req.allowedSettings.includes(siteKind)
@@ -69,11 +74,20 @@ function LogForm({
       <div className="field">
         <label htmlFor="ae-req">Requirement</label>
         <select id="ae-req" value={requirementId} onChange={(e) => setReq(e.target.value)}>
-          {KAR_109_11_8.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.label} (min {r.minimum})
-            </option>
-          ))}
+          <optgroup label="K.A.R. 109-11-8(a)(4) minimums">
+            {KAR_109_11_8.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label} (min {r.minimum})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Program competencies">
+            {PROGRAM_COMPETENCIES.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label} (min {r.minimum})
+              </option>
+            ))}
+          </optgroup>
         </select>
       </div>
       <div className="field">
@@ -194,15 +208,18 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const shifts = allShifts.filter((s) => s.studentId === student.id)
   const progress = progressFor(encounters, student.id, shifts)
   const mine = encounters.filter((e) => e.studentId === student.id)
-  const metCount = progress.filter((p) => p.met).length
+  // Only the seven K.A.R. 109-11-8(a)(4) minimums count toward standing.
+  const statutory = progress.filter((p) => p.requirement.basis === 'kar')
+  const program = progress.filter((p) => p.requirement.basis === 'program')
+  const metCount = statutory.filter((p) => p.met).length
 
   return (
     <div>
       <div className="banner info">
-        Progress toward the <strong>K.A.R. 109-11-8</strong> clinical minimums. A rep counts only
-        when the setting is allowed for that requirement, the preceptor holds a credential the
-        regulation accepts for it, and the shift has been attested. Anything short of that is kept
-        and shown, never folded into the total.
+        Progress toward the <strong>seven K.A.R. 109-11-8(a)(4)</strong> clinical minimums. A rep
+        counts only when the setting is allowed for that requirement, the preceptor holds a
+        credential the regulation accepts for it, and the shift has been attested. Anything short
+        of that is kept and shown, never folded into the total.
       </div>
 
       {/* Class overview — who is short, at a glance. */}
@@ -224,11 +241,11 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
             <div className="grow">
               <div className="title">{s.student.name}</div>
               <div className="meta">
-                {s.metCount} of {s.progress.length} requirements complete
+                {s.metCount} of {s.statutory.length} K.A.R. minimums complete
               </div>
               <div style={{ marginTop: 6 }}>
                 <ProgressBar
-                  pct={Math.round((s.metCount / s.progress.length) * 100)}
+                  pct={Math.round((s.metCount / s.statutory.length) * 100)}
                   complete={s.complete}
                 />
               </div>
@@ -239,10 +256,39 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       </div>
 
       <div className="section-title">
-        {student.name} · {metCount} of {progress.length} met
+        {student.name} · {metCount} of {statutory.length} met
       </div>
 
       <ShiftPanel course={course} studentId={student.id} shifts={shifts} canEdit={canEdit} />
+
+      {program.length > 0 && (
+        <>
+          <div className="section-title" style={{ marginTop: 16 }}>
+            Program competencies
+          </div>
+          <div className="help-text" style={{ marginTop: 0 }}>
+            Tracked by this program, not numbered by K.A.R. 109-11-8(a)(4). These do not gate
+            completion — subsection (a)(2) has the primary instructor attest practical skills
+            instead.
+          </div>
+          <div className="list">
+            {program.map((p) => (
+              <div
+                key={p.requirement.id}
+                className={`row left-accent ${p.met ? 'acc-ok' : 'acc-warn'}`}
+              >
+                <div className="grow">
+                  <div className="title">{p.requirement.label}</div>
+                  <div className="meta">{p.requirement.site}</div>
+                </div>
+                <span className={`pill ${p.met ? 'ok' : 'warn'}`}>
+                  {p.total}/{p.requirement.minimum}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {canEdit && (
         <div className="toolbar">
@@ -269,7 +315,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
             </tr>
           </thead>
           <tbody>
-            {progress.map((p) => (
+            {statutory.map((p) => (
               <tr key={p.requirement.id}>
                 <td>
                   <div style={{ fontWeight: 600 }}>{p.requirement.label}</div>
@@ -317,7 +363,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       ) : (
         <div className="list">
           {mine.map((e) => {
-            const req = KAR_109_11_8.find((r) => r.id === e.requirementId)
+            const req = CLINICAL_REQUIREMENTS.find((r) => r.id === e.requirementId)
             return (
               <div key={e.id} className="row">
                 <div className="grow">

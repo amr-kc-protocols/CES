@@ -1,5 +1,10 @@
 import { formatDate } from '../../lib/date'
-import { KAR_109_11_8, PRECEPTOR_LABELS, MAX_ABSENT_HOURS } from '../../data/aemt'
+import {
+  KAR_109_11_8,
+  PROGRAM_COMPETENCIES,
+  PRECEPTOR_LABELS,
+  MAX_ABSENT_HOURS,
+} from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import { REQUIRED_RECORDS, retentionUntil, RETENTION_YEARS } from '../../data/aemtRecords'
 import { sheetsForCourse } from '../../data/aemtSkills'
@@ -120,9 +125,11 @@ export function auditPackageHTML(d: AuditPackageInput): string {
     .join('')
 
   // ----- clinical minimums -----
-  const clinical = d.students
-    .map((st) => {
-      const cells = KAR_109_11_8.map((req) => {
+  // Statutory minimums and program competencies are tabulated separately: an
+  // auditor must never see something the program chose to track presented as
+  // a number Kansas requires.
+  const reqRow = (reqs: typeof KAR_109_11_8) => (st: (typeof d.students)[number]) => {
+      const cells = reqs.map((req) => {
         const mine = d.encounters.filter(
           (e) => e.studentId === st.id && e.requirementId === req.id,
         )
@@ -139,8 +146,9 @@ export function auditPackageHTML(d: AuditPackageInput): string {
         return `<td style="text-align:right" class="${met ? 'ok' : 'crit'}">${n}/${req.minimum}</td>`
       }).join('')
       return `<tr><td>${esc(st.name)}</td>${cells}</tr>`
-    })
-    .join('')
+  }
+  const clinical = d.students.map(reqRow(KAR_109_11_8)).join('')
+  const competencies = d.students.map(reqRow(PROGRAM_COMPETENCIES)).join('')
 
   // ----- shifts -----
   const shifts = d.shifts
@@ -256,11 +264,19 @@ ${attendance || '<tr><td colspan="8" class="muted">No students</td></tr>'}</tabl
     : '<span class="crit">This course filed no hour targets, so nothing reconciles these totals against a commitment.</span>'
 }</div>
 
-<h2>4 · Clinical minimums (K.A.R. 109-11-8)</h2>
+<h2>4 · Clinical minimums (K.A.R. 109-11-8(a)(4))</h2>
 <table><tr><th>Student</th>${KAR_109_11_8.map((r) => `<th>${esc(r.label)}</th>`).join('')}</tr>
 ${clinical || '<tr><td class="muted">No students</td></tr>'}</table>
-<div class="note">Counts include only reps in an allowed setting, supervised by an eligible
-credential, on an attested shift.</div>
+<div class="note">The seven categories at K.A.R. 109-11-8(a)(4)(A)-(G), current as of the
+6 March 2026 amendment. Counts include only reps in an allowed setting, supervised by an
+eligible credential, on an attested shift.</div>
+
+<h2>4a · Program competencies (not K.A.R. minimums)</h2>
+<table><tr><th>Student</th>${PROGRAM_COMPETENCIES.map((r) => `<th>${esc(r.label)}</th>`).join('')}</tr>
+${competencies || '<tr><td class="muted">No students</td></tr>'}</table>
+<div class="note">Tracked by this program under K.A.R. 109-11-8(a)(2), which requires practical
+skills be completed to the primary instructor's satisfaction. These are not numbered minimums
+and do not gate completion.</div>
 
 <h2>5 · Clinical and field shifts</h2>
 <table><tr><th>Date</th><th>Student</th><th>Setting</th><th>Site</th><th>Hrs</th><th>Preceptor</th><th>Attestation</th></tr>

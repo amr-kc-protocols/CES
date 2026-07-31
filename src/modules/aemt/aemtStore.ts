@@ -5,7 +5,7 @@ import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import {
-  KAR_109_11_8,
+  CLINICAL_REQUIREMENTS,
   KBEMS_DEADLINES,
   KC_BLOCK_PLAN,
   MAX_ABSENT_HOURS,
@@ -1126,7 +1126,11 @@ export interface RequirementProgress {
   met: boolean
 }
 
-/** One student's standing against all eight K.A.R. 109-11-8 minimums. */
+/**
+ * One student's standing against every counted clinical requirement — the
+ * seven K.A.R. 109-11-8(a)(4) minimums plus any program competency. Callers
+ * split the result by `requirement.basis`; only 'kar' gates completion.
+ */
 export function progressFor(
   encounters: AemtEncounter[],
   studentId: string,
@@ -1134,7 +1138,7 @@ export function progressFor(
 ): RequirementProgress[] {
   const mine = encounters.filter((e) => e.studentId === studentId)
   const byId = new Map(shifts.map((s) => [s.id, s]))
-  return KAR_109_11_8.map((requirement) => {
+  return CLINICAL_REQUIREMENTS.map((requirement) => {
     const rows = mine.filter((e) => e.requirementId === requirement.id)
     // Three conditions, each of which the review found could be bypassed:
     // the setting must count for this requirement, the shift's preceptor must
@@ -1162,9 +1166,13 @@ export function progressFor(
 
 export interface StudentClinicalStanding {
   student: AemtStudent
+  /** Every counted requirement, statutory and program. */
   progress: RequirementProgress[]
-  /** How many of the eight requirements are fully satisfied. */
+  /** The seven K.A.R. 109-11-8(a)(4) minimums only. */
+  statutory: RequirementProgress[]
+  /** How many of the seven statutory minimums are fully satisfied. */
   metCount: number
+  /** All seven statutory minimums met. Program competencies do not gate this. */
   complete: boolean
 }
 
@@ -1176,8 +1184,12 @@ export function useClinicalStanding(courseId: string | undefined): StudentClinic
     () =>
       students.map((student) => {
         const progress = progressFor(encounters, student.id, shifts)
-        const metCount = progress.filter((p) => p.met).length
-        return { student, progress, metCount, complete: metCount === progress.length }
+        // Completion is gated on the regulation, not on what the program
+        // chooses to also track. A program competency short does not make a
+        // student ineligible under K.A.R. 109-11-8.
+        const statutory = progress.filter((p) => p.requirement.basis === 'kar')
+        const metCount = statutory.filter((p) => p.met).length
+        return { student, progress, statutory, metCount, complete: metCount === statutory.length }
       }),
     [students, encounters, shifts],
   )
@@ -1320,7 +1332,7 @@ export function useStudentReadiness(
           id: 'clinical',
           label: 'Clinical minimums met',
           status: c?.complete ? 'met' : 'unmet',
-          detail: c ? `${c.metCount} of ${c.progress.length} K.A.R. 109-11-8 minimums` : '—',
+          detail: c ? `${c.metCount} of ${c.statutory.length} K.A.R. 109-11-8(a)(4) minimums` : '—',
         },
         {
           id: 'skills',
