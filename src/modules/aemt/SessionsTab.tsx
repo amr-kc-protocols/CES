@@ -1,7 +1,16 @@
 import { Empty } from '../../components/ui'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
-import { useSessions, addSession, updateSession, deleteSession, courseHourTotals } from './aemtStore'
+import {
+  useSessions,
+  addSession,
+  updateSession,
+  deleteSession,
+  courseHourTotals,
+  reconcileHours,
+  seedKcSchedule,
+} from './aemtStore'
+import { KC_HOUR_TARGETS, blockPlanTotals } from '../../data/aemt'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
 
@@ -110,13 +119,61 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
   const sessions = useSessions(course.id)
   const { manageAcademy } = useCan()
   const totals = courseHourTotals(sessions)
+  const recon = reconcileHours(sessions)
 
   return (
     <div>
       <div className="banner info">
         Every session carries the <strong>contact hours</strong> it is worth. Those hours are what a
-        student's course record — and a Kansas course audit — is built from.
+        student's course record — and a KBEMS course audit — is built from.
       </div>
+
+      {/* The filed proposal commits to specific hour totals; KBEMS compares the
+          submitted schedule against them. Show the gap while it is still cheap
+          to fix. */}
+      {sessions.length > 0 && (
+        <div className="card" style={{ padding: 12, marginTop: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
+            Against the filed proposal
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th style={{ textAlign: 'right' }}>Scheduled</th>
+                  <th style={{ textAlign: 'right' }}>Target</th>
+                  <th style={{ textAlign: 'right' }}>Gap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recon.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.label}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.scheduled}</td>
+                    <td style={{ textAlign: 'right' }} className="subtle">{r.target}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {r.delta === 0 ? (
+                        <span className="pill ok">even</span>
+                      ) : (
+                        <span className={`pill ${r.delta < 0 ? 'crit' : 'warn'}`}>
+                          {r.delta > 0 ? '+' : ''}
+                          {r.delta} h
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="help-text">
+            Targets come from §2 of the proposal. Note its own §3 schedule sums to{' '}
+            {blockPlanTotals().didactic} didactic hours, not {KC_HOUR_TARGETS[0].hours} — that
+            20-hour gap has to be resolved before the KBEMS application goes in.
+          </div>
+        </div>
+      )}
 
       <div className="toolbar" style={{ marginTop: 12 }}>
         <span className="subtle">
@@ -124,6 +181,18 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           {totals.byKind.clinical} clinical · {totals.byKind.exam} exam
         </span>
         <div className="spacer" />
+        {manageAcademy && sessions.length === 0 && (
+          <button
+            className="btn"
+            title="Create Tue/Thu sessions for all 16 weeks from the proposal's content plan"
+            onClick={() => {
+              const n = seedKcSchedule(course.id, course.startDate)
+              alert(`Created ${n} sessions from the 16-week plan. Adjust dates and hours as needed.`)
+            }}
+          >
+            ⚡ Build 16-week plan
+          </button>
+        )}
         {manageAcademy && (
           <button
             className="btn primary"

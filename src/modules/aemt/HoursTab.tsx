@@ -13,6 +13,7 @@ import {
   markAllPresent,
   creditedHours,
 } from './aemtStore'
+import { MAX_ABSENT_HOURS } from '../../data/aemt'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AttendanceStatus } from '../../types'
 
@@ -132,6 +133,39 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
           </tbody>
         </table>
       </div>
+
+      {/* Attendance policy is a hard gate: more than 8 hours of class time
+          missed fails the course outright, so it gets its own callout rather
+          than being buried in the make-up list. */}
+      {hours.some((h) => h.classAbsentHours > 0) && (
+        <>
+          <div className="section-title">Attendance policy · {MAX_ABSENT_HOURS} h maximum</div>
+          <div className="list">
+            {hours
+              .filter((h) => h.classAbsentHours > 0)
+              .sort((a, b) => b.classAbsentHours - a.classAbsentHours)
+              .map((h) => (
+                <div
+                  key={h.student.id}
+                  className={`row left-accent ${h.overAbsenceCap ? 'acc-crit' : 'acc-warn'}`}
+                >
+                  <div className="grow">
+                    <div className="title">{h.student.name}</div>
+                    <div className="meta">
+                      {h.classAbsentHours} h of class time missed
+                      {h.overAbsenceCap
+                        ? ' — over the limit, course failure under the attendance policy'
+                        : ` · ${h.absenceRemaining} h remaining before course failure`}
+                    </div>
+                  </div>
+                  <span className={`pill ${h.overAbsenceCap ? 'crit' : 'warn'}`}>
+                    {h.overAbsenceCap ? 'Over limit' : `${h.absenceRemaining} h left`}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
 
       <div className="section-title">Make-up needed</div>
       {hours.every((h) => h.missed.length === 0) ? (

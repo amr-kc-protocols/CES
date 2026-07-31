@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
-import { todayISO } from '../../lib/date'
+import { addDays, fromISODate, todayISO } from '../../lib/date'
+import { KC_BLOCK_PLAN, KC_HOUR_TARGETS, MAX_ABSENT_HOURS } from '../../data/aemt'
 import type {
   AemtAttendanceRecord,
   AemtCourse,
@@ -200,6 +201,96 @@ export function deleteSession(id: string): void {
   })
 }
 
+// ----- seeding the KC 16-week plan -------------------------------------------
+
+/** Next occurrence of a weekday (0=Sun) on or after an ISO date. */
+function onOrAfterWeekday(iso: string, weekday: number): string {
+  const d = fromISODate(iso)
+  const delta = (weekday - d.getDay() + 7) % 7
+  return addDays(iso, delta)
+}
+
+/**
+ * Lay the proposal's 12-block content plan onto real Tuesday/Thursday dates,
+ * starting from the first Tuesday on or after the course start.
+ *
+ * Hours are placed exactly as the proposal states them — didactic on Tuesday,
+ * lab on Thursday, split evenly across the weeks a block spans. Blocks whose
+ * week does not add up to the Tue/Thu 4+4 structure are reproduced faithfully
+ * rather than smoothed, so the reconciliation panel surfaces the mismatch
+ * instead of this function hiding it.
+ *
+ * Returns the number of sessions created.
+ */
+export function seedKcSchedule(courseId: string, startISO: string): number {
+  const firstTue = onOrAfterWeekday(startISO, 2)
+  const created: AemtSession[] = []
+  let weekIndex = 0
+
+  for (const block of KC_BLOCK_PLAN) {
+    const dPerWeek = block.didacticHours / block.spanWeeks
+    const lPerWeek = block.labHours / block.spanWeeks
+    for (let w = 0; w < block.spanWeeks; w++) {
+      const tue = addDays(firstTue, weekIndex * 7)
+      const thu = addDays(tue, 2)
+      const push = (date: string, kind: AemtSessionKind, hours: number) => {
+        if (hours <= 0) return
+        created.push({
+          id: uid('asess'),
+          courseId,
+          date,
+          title: block.title,
+          kind,
+          hours: Math.round(hours * 100) / 100,
+        })
+      }
+      if (dPerWeek > 0 && lPerWeek > 0) {
+        push(tue, 'didactic', dPerWeek)
+        push(thu, 'lab', lPerWeek)
+      } else if (dPerWeek > 0) {
+        // Lecture-only week: split across both class days.
+        push(tue, 'didactic', dPerWeek / 2)
+        push(thu, 'didactic', dPerWeek / 2)
+      } else {
+        push(tue, 'lab', lPerWeek / 2)
+        push(thu, 'lab', lPerWeek / 2)
+      }
+      weekIndex++
+    }
+  }
+
+  setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
+  return created.length
+}
+
+export interface HourReconciliation {
+  id: string
+  label: string
+  target: number
+  scheduled: number
+  /** scheduled - target. Negative = short of the filed commitment. */
+  delta: number
+}
+
+/**
+ * Scheduled hours against the proposal's committed targets. This is the number
+ * a KBEMS reviewer compares, so it is shown live while the schedule is built.
+ */
+export function reconcileHours(sessions: AemtSession[]): HourReconciliation[] {
+  const { byKind } = courseHourTotals(sessions)
+  const scheduledFor: Record<string, number> = {
+    didactic: byKind.didactic,
+    lab: byKind.lab,
+    // Clinical and field hours are logged as shifts, not class sessions; any
+    // session marked 'clinical' counts toward the combined clinical/field goal.
+    clinical: byKind.clinical,
+  }
+  return KC_HOUR_TARGETS.filter((t) => t.id === 'didactic' || t.id === 'lab').map((t) => {
+    const scheduled = scheduledFor[t.id] ?? 0
+    return { id: t.id, label: t.label, target: t.hours, scheduled, delta: scheduled - t.hours }
+  })
+}
+
 // ----- attendance & hours ----------------------------------------------------
 
 export function useAemtAttendance(courseId: string | undefined): AemtAttendanceRecord[] {
@@ -276,6 +367,16 @@ export interface StudentHours {
   missedHours: number
   /** Sessions missed (marked absent), for the make-up list. */
   missed: AemtSession[]
+  /**
+   * Absence against the course policy: more than MAX_ABSENT_HOURS of scheduled
+   * CLASS time (didactic + lab) fails the course outright. Clinical shifts are
+   * excluded — those are rescheduled rather than counted against the cap.
+   */
+  classAbsentHours: number
+  /** Class-absence hours remaining before the policy fails the student. */
+  absenceRemaining: number
+  /** Already over the cap — course failure under the attendance policy. */
+  overAbsenceCap: boolean
 }
 
 /** Per-student hour totals — the number a Kansas course record has to show. */
@@ -293,11 +394,17 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
         earned += creditedHours(s, rec)
         if (rec?.status === 'absent') missed.push(s)
       }
+      const classAbsentHours = missed
+        .filter((s) => s.kind === 'didactic' || s.kind === 'lab' || s.kind === 'exam')
+        .reduce((sum, s) => sum + s.hours, 0)
       return {
         student,
         earned,
         missedHours: missed.reduce((sum, s) => sum + s.hours, 0),
         missed,
+        classAbsentHours,
+        absenceRemaining: Math.max(0, MAX_ABSENT_HOURS - classAbsentHours),
+        overAbsenceCap: classAbsentHours > MAX_ABSENT_HOURS,
       }
     })
   }, [students, sessions, records])
