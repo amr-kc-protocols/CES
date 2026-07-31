@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { UndoToast } from './ui'
+import ErrorBoundary from './ErrorBoundary'
 import SyncChip from './SyncChip'
 import { useCESummary } from '../modules/ce/ceStore'
 import { useSyncStatus } from '../lib/sync'
@@ -30,6 +31,7 @@ export default function Layout() {
   // deliberately does NOT apply here, so an FTO who signs out gains nothing.
   const { signedIn, role } = useSyncStatus()
   const tabs = TABS.filter((t) => !t.admin || (signedIn && role === 'admin'))
+  const { pathname } = useLocation()
 
   return (
     <div className="app">
@@ -51,10 +53,14 @@ export default function Layout() {
         </div>
       </header>
 
+      {/* Boundary sits inside <main>, so a crashed screen keeps the header and
+          the tab bar — the user can navigate out instead of being stranded. */}
       <main className="content">
-        <Suspense fallback={<div className="subtle" style={{ padding: 20 }}>Loading…</div>}>
-          <Outlet />
-        </Suspense>
+        <ErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<div className="subtle" style={{ padding: 20 }}>Loading…</div>}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       <UndoToast />
