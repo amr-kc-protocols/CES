@@ -203,9 +203,31 @@ export default function ShiftPanel({
     <>
       <div className="section-title">Clinical &amp; field shifts</div>
       <div className="toolbar">
+        {/* Attested hours against the course's filed commitment — the number
+            that has to be defensible, not the number of shifts logged. */}
         <span className="subtle">
-          {totals.hospital} h hospital · {totals.field} h field attested
-          {totals.unattested > 0 && ` · ${totals.unattested} h awaiting attestation`}
+          {course.targets ? (
+            <>
+              <strong style={{ color: totals.hospital >= course.targets.clinical ? '#166534' : undefined }}>
+                {totals.hospital}/{course.targets.clinical} h
+              </strong>{' '}
+              hospital ·{' '}
+              <strong style={{ color: totals.field >= course.targets.field ? '#166534' : undefined }}>
+                {totals.field}/{course.targets.field} h
+              </strong>{' '}
+              field attested
+            </>
+          ) : (
+            <>
+              {totals.hospital} h hospital · {totals.field} h field attested
+            </>
+          )}
+          {totals.unattested > 0 && (
+            <span style={{ color: 'var(--warn)' }}>
+              {' '}
+              · {totals.unattested} h awaiting attestation
+            </span>
+          )}
         </span>
         <div className="spacer" />
         {canEdit && (

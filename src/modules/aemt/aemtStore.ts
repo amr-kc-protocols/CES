@@ -712,8 +712,19 @@ export function creditedHours(
 
 export interface StudentHours {
   student: AemtStudent
-  /** Hours credited so far. */
+  /** Classroom hours credited so far (didactic, lab, exam). */
   earned: number
+  /** Attested hospital clinical hours. */
+  clinicalHours: number
+  /** Attested field internship hours, all sites combined. */
+  fieldHours: number
+  /**
+   * Shift hours logged but not yet attested. They are real time worked, but a
+   * preceptor has not signed for them, so they count toward nothing yet.
+   */
+  unattestedShiftHours: number
+  /** Classroom + attested clinical + attested field: the program total. */
+  totalHours: number
   /** Hours lost to sessions marked absent — what a make-up has to recover. */
   missedHours: number
   /** Sessions missed (marked absent), for the make-up list. */
@@ -735,6 +746,7 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
   const students = useStudents(courseId)
   const sessions = useSessions(courseId)
   const records = useAemtAttendance(courseId)
+  const shifts = useShifts(courseId)
   return useMemo(() => {
     const map = attendanceMap(records)
     return students.map((student) => {
@@ -748,9 +760,14 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
       const classAbsentHours = missed
         .filter((s) => s.kind === 'didactic' || s.kind === 'lab' || s.kind === 'exam')
         .reduce((sum, s) => sum + s.hours, 0)
+      const totals = shiftHourTotals(shifts.filter((s) => s.studentId === student.id))
       return {
         student,
         earned,
+        clinicalHours: totals.hospital,
+        fieldHours: totals.field,
+        unattestedShiftHours: totals.unattested,
+        totalHours: earned + totals.hospital + totals.field,
         missedHours: missed.reduce((sum, s) => sum + s.hours, 0),
         missed,
         classAbsentHours,
@@ -758,7 +775,69 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
         overAbsenceCap: classAbsentHours > MAX_ABSENT_HOURS,
       }
     })
-  }, [students, sessions, records])
+  }, [students, sessions, records, shifts])
+}
+
+export interface StudentHourGap {
+  id: 'class' | 'clinical' | 'field'
+  label: string
+  target: number
+  earned: number
+  /** earned - target. Negative = short of the filed commitment. */
+  delta: number
+  met: boolean
+}
+
+/**
+ * A student's hours against the course's filed commitments. This is the
+ * question the Records tab could not answer before shifts existed: classroom
+ * time came from attendance, clinical and field time came from nowhere, so
+ * "376 hours" was an assertion rather than a total.
+ *
+ * Classroom target is didactic + lab combined — attendance is taken per
+ * session, and a session is one or the other, so splitting the comparison
+ * would only reconcile against how the schedule happens to be labelled.
+ * Returns [] when the course filed no targets.
+ */
+export function studentHourGaps(
+  h: StudentHours,
+  targets: AemtHourTargets | undefined,
+): StudentHourGap[] {
+  if (!targets) return []
+  return [
+    { id: 'class' as const, label: 'Classroom', target: targets.didactic + targets.lab, earned: h.earned },
+    { id: 'clinical' as const, label: 'Hospital clinical', target: targets.clinical, earned: h.clinicalHours },
+    { id: 'field' as const, label: 'Field internship', target: targets.field, earned: h.fieldHours },
+  ].map((r) => ({ ...r, delta: r.earned - r.target, met: r.earned >= r.target }))
+}
+
+/** Sum of every hour the course committed to. */
+export function totalHourTarget(targets: AemtHourTargets | undefined): number {
+  if (!targets) return 0
+  return targets.didactic + targets.lab + targets.clinical + targets.field
+}
+
+/**
+ * Hour completion as a readiness check. Names the categories still short
+ * rather than reporting one aggregate number, because "12 hours owed" does
+ * not tell a coordinator whether to schedule a hospital shift or a make-up.
+ */
+function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): ReadinessCheck {
+  const gaps = studentHourGaps(h, targets)
+  const short = gaps.filter((g) => !g.met)
+  const total = totalHourTarget(targets)
+  return {
+    id: 'hours',
+    label: 'Program hours complete',
+    status: short.length === 0 ? 'met' : 'unmet',
+    detail:
+      short.length === 0
+        ? `${h.totalHours.toFixed(2)} of ${total} h`
+        : `${short.map((g) => `${(-g.delta).toFixed(2)} h ${g.label.toLowerCase()}`).join(', ')} still owed` +
+          (h.unattestedShiftHours > 0
+            ? ` · ${h.unattestedShiftHours} h logged but not attested`
+            : ''),
+  }
 }
 
 /** Headline counts for a course row. */
@@ -1083,6 +1162,7 @@ export function useStudentReadiness(
   const checks = useSkillChecks(courseId)
   const responses = useFormResponses(courseId)
   const completions = useCompletions(courseId)
+  const targets = useCourse(courseId)?.targets
 
   return useMemo(() => {
     const sheets = sheetsForCourse(monitorSheetId)
@@ -1105,6 +1185,21 @@ export function useStudentReadiness(
             ? `${h.classAbsentHours} h of class missed (limit ${MAX_ABSENT_HOURS})`
             : 'No attendance recorded',
         },
+        // Hours and clinical minimums are different questions. A student can
+        // hit every K.A.R. 109-11-8 rep count in half the hours the course
+        // filed, and the course still owes those hours.
+        ...(targets && h
+          ? [hourReadinessCheck(h, targets)]
+          : [
+              {
+                id: 'hours',
+                label: 'Program hours complete',
+                status: 'attest' as const,
+                detail: targets
+                  ? 'No hours recorded for this student'
+                  : 'Course filed no hour targets — nothing to reconcile against',
+              },
+            ]),
         {
           id: 'clinical',
           label: 'Clinical minimums met',
@@ -1145,7 +1240,7 @@ export function useStudentReadiness(
         completion: completions.find((x) => x.studentId === student.id),
       }
     })
-  }, [students, hours, clinical, checks, responses, completions, monitorSheetId])
+  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets])
 }
 
 /**
