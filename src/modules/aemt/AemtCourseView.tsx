@@ -8,8 +8,9 @@ import SessionsTab from './SessionsTab'
 import HoursTab from './HoursTab'
 import ClinicalTab from './ClinicalTab'
 import SkillsTab from './SkillsTab'
+import FormsTab from './FormsTab'
 
-const TABS = ['roster', 'sessions', 'hours', 'skills', 'clinical'] as const
+const TABS = ['roster', 'sessions', 'hours', 'skills', 'clinical', 'forms'] as const
 type Tab = (typeof TABS)[number]
 
 const TAB_LABEL: Record<Tab, string> = {
@@ -18,6 +19,7 @@ const TAB_LABEL: Record<Tab, string> = {
   hours: 'Hours',
   skills: 'Skills',
   clinical: 'Clinical',
+  forms: 'Forms',
 }
 
 export default function AemtCourseView() {
@@ -94,6 +96,7 @@ export default function AemtCourseView() {
         {tab === 'hours' && <HoursTab course={course} />}
         {tab === 'skills' && <SkillsTab course={course} />}
         {tab === 'clinical' && <ClinicalTab course={course} />}
+        {tab === 'forms' && <FormsTab course={course} />}
       </div>
     </div>
   )

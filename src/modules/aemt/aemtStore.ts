@@ -11,6 +11,7 @@ import type {
   AemtEncounter,
   AemtCourse,
   AemtDeadlineRecord,
+  AemtFormResponse,
   AemtHourTargets,
   AemtSession,
   AemtSessionKind,
@@ -424,6 +425,56 @@ export function standingFor(
       signedOff: !!check?.passedDate,
     }
   })
+}
+
+// ----- evaluation forms ------------------------------------------------------
+
+export function useFormResponses(courseId: string | undefined): AemtFormResponse[] {
+  return useSelector((db) =>
+    db.aemtFormResponses
+      .filter((r) => r.courseId === courseId)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+  )
+}
+
+export function addFormResponse(
+  courseId: string,
+  formId: string,
+  input: { studentId?: string; date: string; values: Record<string, string | number | boolean> },
+): AemtFormResponse {
+  const res: AemtFormResponse = {
+    id: uid('aform'),
+    courseId,
+    formId,
+    studentId: input.studentId,
+    date: input.date,
+    values: input.values,
+    submittedAt: new Date().toISOString(),
+  }
+  setState((db) => ({ ...db, aemtFormResponses: [...db.aemtFormResponses, res] }))
+  return res
+}
+
+export function deleteFormResponse(id: string): void {
+  setState((db) => {
+    const res = db.aemtFormResponses.find((r) => r.id === id)
+    if (res) {
+      pushUndo('Deleted evaluation', () =>
+        setState((cur) => ({ ...cur, aemtFormResponses: [...cur.aemtFormResponses, res] })),
+      )
+    }
+    return { ...db, aemtFormResponses: db.aemtFormResponses.filter((r) => r.id !== id) }
+  })
+}
+
+/**
+ * Responses that need Program Manager attention: a daily evaluation flagged
+ * for remedial education, or an affective evaluation flagged for a conference.
+ * The proposal commits to reviewing these, so they surface rather than sitting
+ * in a list of hundreds.
+ */
+export function flaggedResponses(responses: AemtFormResponse[]): AemtFormResponse[] {
+  return responses.filter((r) => r.values.remedial === true || r.values.concernRaised === true)
 }
 
 // ----- KBEMS submission deadlines --------------------------------------------

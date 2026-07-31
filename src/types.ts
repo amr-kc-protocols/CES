@@ -496,6 +496,24 @@ export interface AemtSkillCheck {
   passedDate?: string
 }
 
+/**
+ * A completed evaluation form (see data/aemtForms.ts). Values are keyed by
+ * field id; the form definition supplies the labels, so editing a form's
+ * wording never rewrites stored responses.
+ */
+export interface AemtFormResponse {
+  id: string
+  courseId: string
+  formId: string
+  /** The student the form concerns — or, for course/instructor evals, the
+   *  student who filled it in. */
+  studentId?: string
+  /** ISO date the evaluation covers. */
+  date: string
+  values: Record<string, string | number | boolean>
+  submittedAt: string
+}
+
 /** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
 export interface AemtDeadlineRecord {
   courseId: string
@@ -594,5 +612,6 @@ export interface DBShape {
   aemtEncounters: AemtEncounter[]
   aemtDeadlines: AemtDeadlineRecord[]
   aemtSkillChecks: AemtSkillCheck[]
+  aemtFormResponses: AemtFormResponse[]
   settings: Settings
 }
