@@ -281,13 +281,18 @@ export function seedKcSchedule(courseId: string, startISO: string): number {
       const thu = addDays(tue, 2)
       const push = (date: string, kind: AemtSessionKind, hours: number) => {
         if (hours <= 0) return
+        const h = Math.round(hours * 100) / 100
+        // The proposal runs class 09:00-13:00 Tue/Thu; end follows the hours.
+        const endH = 9 + h
         created.push({
           id: uid('asess'),
           courseId,
           date,
           title: block.title,
           kind,
-          hours: Math.round(hours * 100) / 100,
+          hours: h,
+          startTime: '09:00',
+          endTime: `${String(Math.floor(endH)).padStart(2, '0')}:${endH % 1 ? '30' : '00'}`,
         })
       }
       if (dPerWeek > 0 && lPerWeek > 0) {
@@ -523,13 +528,22 @@ export function useDeadlineRecords(): AemtDeadlineRecord[] {
   return useSelector((db) => db.aemtDeadlines)
 }
 
-export function setDeadlineDone(courseId: string, deadlineId: string, date: string | null): void {
+/**
+ * Record a KBEMS submission with its evidence, or clear it when passed null.
+ * Kansas submissions go through the Licensing Portal, so the confirmation
+ * number is the receipt — "marked done" alone proves nothing to an auditor.
+ */
+export function setDeadlineSubmission(
+  courseId: string,
+  deadlineId: string,
+  input: Omit<AemtDeadlineRecord, 'courseId' | 'deadlineId'> | null,
+): void {
   setState((db) => {
     const rest = db.aemtDeadlines.filter(
       (d) => !(d.courseId === courseId && d.deadlineId === deadlineId),
     )
-    if (!date) return { ...db, aemtDeadlines: rest }
-    return { ...db, aemtDeadlines: [...rest, { courseId, deadlineId, completedDate: date }] }
+    if (!input) return { ...db, aemtDeadlines: rest }
+    return { ...db, aemtDeadlines: [...rest, { courseId, deadlineId, ...input }] }
   })
 }
 
@@ -540,8 +554,11 @@ export interface DueDeadline {
   dueDate: string
   /** Days from today; negative = overdue. */
   daysOut: number
-  completedDate?: string
+  record?: AemtDeadlineRecord
+  /** Submitted in any state — the deadline itself is met. */
   done: boolean
+  /** Submitted but the portal rejected it; still needs work. */
+  rejected: boolean
   overdue: boolean
 }
 
@@ -573,14 +590,16 @@ export function useDeadlines(): DueDeadline[] {
         const daysOut = Math.round(
           (fromISODate(dueDate).getTime() - fromISODate(today).getTime()) / 86400000,
         )
+        const rejected = rec?.status === 'rejected'
         out.push({
           course,
           deadline,
           dueDate,
           daysOut,
-          completedDate: rec?.completedDate,
-          done: !!rec,
-          overdue: !rec && daysOut < 0,
+          record: rec,
+          done: !!rec && !rejected,
+          rejected,
+          overdue: (!rec || rejected) && daysOut < 0,
         })
       }
     }

@@ -9,6 +9,7 @@ import {
   studentRecordCount,
 } from './aemtStore'
 import CompletionPanel from './CompletionPanel'
+import CourseSetupPanel from './CourseSetupPanel'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtStudent, AemtStudentStatus } from '../../types'
 
@@ -138,6 +139,9 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
 
   return (
     <div>
+      <CourseSetupPanel course={course} canEdit={manageAcademy} />
+
+      <div className="section-title">Roster</div>
       {manageAcademy && (
         <div className="toolbar">
           <div className="spacer" />

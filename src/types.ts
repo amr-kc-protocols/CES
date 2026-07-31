@@ -452,12 +452,37 @@ export interface AemtHourTargets {
   field: number
 }
 
+/**
+ * A clinical or field internship site named on the course approval
+ * application. K.A.R. 109-11-4a requires the sites, and the executed
+ * agreement has to be in place before the application is submitted.
+ */
+export interface AemtSite {
+  id: string
+  name: string
+  kind: 'clinical' | 'field'
+  /** Agreement state — 'executed' is the bar for submitting the application. */
+  agreement: 'none' | 'draft' | 'executed'
+  contact?: string
+  notes?: string
+}
+
 export interface AemtCourse {
   id: string
   /** Display label, e.g. 'Fall 2026 AEMT'. */
   label: string
   /** Sponsoring organization, e.g. 'AMR Kansas City'. */
   organization?: string
+  /**
+   * Primary instructor of record, named on the KBEMS application. Under
+   * K.A.R. 109-17-1 they must be certified or licensed in what they teach;
+   * no separate Instructor-Coordinator credential is required.
+   */
+  primaryInstructor?: string
+  primaryInstructorCredential?: PreceptorCredentialId
+  primaryInstructorCertNumber?: string
+  /** Clinical and field sites named on the application. */
+  sites?: AemtSite[]
   /** Kansas BEMS course approval number, printed on course records. */
   courseNumber?: string
   startDate: string
@@ -561,11 +586,21 @@ export interface AemtAuditEvent {
 }
 
 /** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
+/**
+ * A KBEMS submission and its evidence. Kansas submissions go through the
+ * Licensing Portal, so the portal confirmation is the receipt — "marked done"
+ * on its own proves nothing to an auditor.
+ */
 export interface AemtDeadlineRecord {
   courseId: string
   deadlineId: string
-  /** ISO date it was actually submitted. */
-  completedDate: string
+  status: 'submitted' | 'accepted' | 'rejected' | 'corrected'
+  /** ISO date it was submitted. */
+  submittedDate: string
+  submittedBy: string
+  /** Portal confirmation / receipt number. */
+  confirmationNumber?: string
+  note?: string
 }
 
 export interface AemtStudent {
@@ -591,7 +626,15 @@ export interface AemtSession {
   kind: AemtSessionKind
   /** Scheduled contact hours. State approval is documented in these. */
   hours: number
+  /**
+   * Clock times, 'HH:MM'. K.A.R. 109-11-1a(b3) requires the filed schedule to
+   * show the date AND time of each session, not just its length.
+   */
+  startTime?: string
+  endTime?: string
   instructor?: string
+  /** Instructor's qualification for this subject, per K.A.R. 109-17-1. */
+  instructorCredential?: PreceptorCredentialId
   notes?: string
 }
 

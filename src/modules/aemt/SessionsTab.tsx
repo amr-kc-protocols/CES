@@ -32,7 +32,8 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
         <div className="grow">
           <div className="title">{session.title || 'Untitled session'}</div>
           <div className="meta">
-            {session.date ? `${weekdayLabel(session.date)} ${formatDate(session.date)}` : 'No date'} ·{' '}
+            {session.date ? `${weekdayLabel(session.date)} ${formatDate(session.date)}` : 'No date'}
+            {session.startTime && ` ${session.startTime}${session.endTime ? `–${session.endTime}` : ''}`} ·{' '}
             {session.hours} h
             {session.instructor && <> · {session.instructor}</>}
           </div>
@@ -66,6 +67,26 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
             onChange={(e) =>
               updateSession(session.id, { hours: Math.max(0, Number(e.target.value) || 0) })
             }
+            style={{ display: 'block', width: '100%', marginTop: 2 }}
+          />
+        </label>
+        {/* K.A.R. 109-11-1a(b3) requires the filed schedule to show the time of
+            each session, not only its length. */}
+        <label className="subtle" style={{ fontSize: 12 }}>
+          Start
+          <input
+            type="time"
+            value={session.startTime ?? ''}
+            onChange={(e) => updateSession(session.id, { startTime: e.target.value || undefined })}
+            style={{ display: 'block', width: '100%', marginTop: 2 }}
+          />
+        </label>
+        <label className="subtle" style={{ fontSize: 12 }}>
+          End
+          <input
+            type="time"
+            value={session.endTime ?? ''}
+            onChange={(e) => updateSession(session.id, { endTime: e.target.value || undefined })}
             style={{ display: 'block', width: '100%', marginTop: 2 }}
           />
         </label>
@@ -176,6 +197,14 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {sessions.length > 0 && sessions.some((s) => !s.startTime) && (
+        <div className="banner warn" style={{ marginTop: 12 }}>
+          {sessions.filter((s) => !s.startTime).length} session
+          {sessions.filter((s) => !s.startTime).length === 1 ? ' has' : 's have'} no start time. The
+          filed schedule has to show the time of each session, not only its length.
         </div>
       )}
 
