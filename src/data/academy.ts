@@ -86,5 +86,6 @@ export const PHASE_LABELS: Record<TraineePhase, string> = {
 
 export const CREDENTIAL_LABELS: Record<Credential, string> = {
   emt: 'EMT',
+  aemt: 'AEMT',
   paramedic: 'Paramedic',
 }

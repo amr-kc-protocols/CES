@@ -4,7 +4,12 @@ export interface OperationMeta {
   id: OperationId
   name: string
   short: string
-  state: 'MO' | 'KS'
+  /**
+   * States the operation actually runs in. Kansas City straddles the line —
+   * the metro operation covers Kansas City, Kansas as well as Missouri, and
+   * is the KBEMS-facing sponsoring organization for Kansas courses.
+   */
+  states: ('MO' | 'KS')[]
   /** Typical monthly call volume, used to pre-fill new QA periods. null = unknown. */
   typicalVolume: number | null
   note?: string
@@ -15,9 +20,9 @@ export interface OperationMeta {
 export const OPERATIONS: OperationMeta[] = [
   {
     id: 'kc',
-    name: 'Kansas City (MO)',
+    name: 'Kansas City',
     short: 'KC',
-    state: 'MO',
+    states: ['MO', 'KS'],
     typicalVolume: 1000,
     note: 'Interfacility critical care — vent, vasopressor & sedative infusions.',
   },
@@ -25,7 +30,7 @@ export const OPERATIONS: OperationMeta[] = [
     id: 'cass',
     name: 'Cass County (MO)',
     short: 'Cass',
-    state: 'MO',
+    states: ['MO'],
     typicalVolume: null,
     note: 'Single transport truck. Monthly volume TBD.',
   },
@@ -33,7 +38,7 @@ export const OPERATIONS: OperationMeta[] = [
     id: 'linn',
     name: 'Linn County (KS)',
     short: 'Linn',
-    state: 'KS',
+    states: ['KS'],
     typicalVolume: null,
     note: 'Rural 911, two 24/7 trucks. Monthly volume TBD.',
   },

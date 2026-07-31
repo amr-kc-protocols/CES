@@ -8,6 +8,8 @@
 // many must be filled. Section G applies to paramedics only.
 // ---------------------------------------------------------------------------
 
+import type { Credential } from '../types'
+
 export interface FTObjective {
   id: string
   text: string
@@ -138,8 +140,11 @@ export function requiredMarks(target: string): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, FT_SLOTS) : 1
 }
 
-/** Sections that apply to a credential (Section G is paramedic-only). */
-export function sectionsFor(credential: 'emt' | 'paramedic'): FTSection[] {
+/**
+ * Sections that apply to a credential (Section G is paramedic-only). AEMT
+ * behaves like EMT here: the advanced sections are paramedic scope.
+ */
+export function sectionsFor(credential: Credential): FTSection[] {
   return FT_SECTIONS.filter((s) => !s.paramedicOnly || credential === 'paramedic')
 }
 

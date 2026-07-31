@@ -104,7 +104,7 @@ export interface Settings {
 
 // ----- Module D: New Hire Academy -------------------------------------------
 
-export type Credential = 'emt' | 'paramedic'
+export type Credential = 'emt' | 'aemt' | 'paramedic'
 
 /** Progression: academy checklist -> FTO rides -> released. Derived, not stored. */
 export type TraineePhase = 'academy' | 'fto' | 'released'

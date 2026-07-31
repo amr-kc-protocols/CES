@@ -23,7 +23,7 @@ function prefill(t: Trainee): Answers {
   return {
     fullName: t.name,
     employeeNumber: t.employeeNumber ?? '',
-    certLevel: t.credential === 'paramedic' ? 'Paramedic' : 'EMT',
+    certLevel: CREDENTIAL_LABELS[t.credential],
     ftoList: t.ftos ?? '',
   }
 }
