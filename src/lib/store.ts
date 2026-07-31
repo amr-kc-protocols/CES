@@ -29,6 +29,10 @@ function emptyDB(): DBShape {
     dailyEvals: [],
     skillChecks: [],
     surveyResponses: [],
+    aemtCourses: [],
+    aemtStudents: [],
+    aemtSessions: [],
+    aemtAttendance: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }

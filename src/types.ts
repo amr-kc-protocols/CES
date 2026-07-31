@@ -424,6 +424,75 @@ export interface RideAssignment {
   window?: string
 }
 
+// ----- AEMT certification course (Kansas) -----------------------------------
+// A state-approved Advanced EMT class: students, documented contact hours,
+// psychomotor competency, and clinical/field internship. Distinct from the
+// New Hire Academy — that is internal onboarding, this leads to a Kansas
+// certification and an NREMT exam, so its records are the ones an audit asks
+// for. Skill lists and clinical minimums are program data (src/data/aemt.ts),
+// not hard-coded here.
+
+/** Where a student stands in the course. */
+export type AemtStudentStatus = 'active' | 'withdrawn' | 'completed'
+
+/** Didactic lecture, hands-on lab, or a written/practical exam sitting. */
+export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
+
+export interface AemtCourse {
+  id: string
+  /** Display label, e.g. 'Fall 2026 AEMT'. */
+  label: string
+  /** Kansas BEMS course approval number, printed on course records. */
+  courseNumber?: string
+  startDate: string
+  endDate: string
+  /** Course coordinator of record. */
+  coordinator?: string
+  medicalDirector?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AemtStudent {
+  id: string
+  courseId: string
+  name: string
+  /** Kansas EMS certification number (the student's existing EMT cert). */
+  certNumber?: string
+  /** Employee number, for students who are also AMR staff. */
+  employeeNumber?: string
+  email?: string
+  phone?: string
+  status: AemtStudentStatus
+}
+
+/** One meeting of the class, carrying the hours it is worth. */
+export interface AemtSession {
+  id: string
+  courseId: string
+  /** ISO date. */
+  date: string
+  title: string
+  kind: AemtSessionKind
+  /** Scheduled contact hours. State approval is documented in these. */
+  hours: number
+  instructor?: string
+  notes?: string
+}
+
+export interface AemtAttendanceRecord {
+  courseId: string
+  studentId: string
+  sessionId: string
+  status: AttendanceStatus
+  /**
+   * Hours credited when they differ from the session's scheduled hours —
+   * a late arrival or a partial make-up. Absent = the session's hours.
+   */
+  hours?: number
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -439,5 +508,9 @@ export interface DBShape {
   dailyEvals: DailyEval[]
   skillChecks: SkillCheck[]
   surveyResponses: SurveyResponse[]
+  aemtCourses: AemtCourse[]
+  aemtStudents: AemtStudent[]
+  aemtSessions: AemtSession[]
+  aemtAttendance: AemtAttendanceRecord[]
   settings: Settings
 }
