@@ -13,6 +13,7 @@ import {
   useAuditEvents,
   useRecordDocs,
   setRecordDoc,
+  useRecordSafety,
 } from './aemtStore'
 import {
   REQUIRED_RECORDS,
@@ -138,6 +139,7 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
   const deadlines = useSelector((db) => db.aemtDeadlines.filter((d) => d.courseId === course.id))
   const { manageAcademy } = useCan()
   const [editing, setEditing] = useState<RequiredRecord | null>(null)
+  const safety = useRecordSafety()
 
   const buildPackage = () =>
     auditPackageHTML({
@@ -167,6 +169,13 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
         Program records must be retained for {RETENTION_YEARS} years under K.A.R. 109-17-3 — for
         this course, until <strong>{formatDate(retentionUntil(course.endDate))}</strong>.
       </div>
+
+      {!safety.canRecordOfficial && (
+        <div className="banner crit">
+          <strong>Draft only.</strong> {safety.reason} The audit package can still be generated, but
+          it will not carry an attributable submission or completion.
+        </div>
+      )}
 
       <div className="toolbar" style={{ marginTop: 12 }}>
         <span className="subtle">
@@ -234,6 +243,38 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
           )
         })}
       </div>
+
+      <div className="section-title">
+        Audit trail
+        <span className="subtle" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+          append-only
+        </span>
+      </div>
+      {audit.length === 0 ? (
+        <div className="banner info">
+          No consequential actions recorded yet. Completions, overrides, revocations, shift
+          attestations and KBEMS submissions are logged here as they happen.
+        </div>
+      ) : (
+        <div className="list">
+          {audit.slice(0, 40).map((e) => (
+            <div
+              key={e.id}
+              className={`row left-accent ${/OVERRIDE|revoked|withdrawn/.test(e.action) ? 'acc-crit' : ''}`}
+            >
+              <div className="grow">
+                <div className="title" style={{ fontSize: 14 }}>
+                  {e.action}
+                </div>
+                <div className="meta">{e.detail}</div>
+                <div className="meta">
+                  {e.at.replace('T', ' ').slice(0, 16)} · {e.actor}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {editing && (
         <RecordModal

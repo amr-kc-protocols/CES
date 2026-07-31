@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
-import { addShift, updateShift, attestShift, deleteShift, shiftHourTotals } from './aemtStore'
+import {
+  addShift,
+  updateShift,
+  attestShift,
+  deleteShift,
+  shiftHourTotals,
+  useRecordSafety,
+} from './aemtStore'
 import { PRECEPTOR_LABELS, SETTING_PRECEPTORS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import type { AemtClinicalShift, AemtCourse, AemtSiteKind, PreceptorCredentialId } from '../../types'
@@ -189,6 +196,7 @@ export default function ShiftPanel({
 }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtClinicalShift | null>(null)
+  const safety = useRecordSafety()
   const totals = shiftHourTotals(shifts)
 
   return (
@@ -243,7 +251,7 @@ export default function ShiftPanel({
                   </button>
                   <button
                     className={`btn sm ${s.attestedAt ? '' : 'primary'}`}
-                    onClick={() => attestShift(s.id, !s.attestedAt)}
+                    onClick={() => attestShift(s.id, !s.attestedAt, safety.actor)}
                   >
                     {s.attestedAt ? 'Un-attest' : 'Attest'}
                   </button>

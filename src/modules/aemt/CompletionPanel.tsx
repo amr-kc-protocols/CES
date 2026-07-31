@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '../../components/ui'
 import { formatDate } from '../../lib/date'
-import { recordCompletion, revokeCompletion } from './aemtStore'
+import { recordCompletion, revokeCompletion, useRecordSafety } from './aemtStore'
 import type { StudentReadiness } from './aemtStore'
 import { MIN_PASSING_PERCENT } from '../../data/aemt'
 import type { AemtCourse } from '../../types'
@@ -142,6 +142,7 @@ export default function CompletionPanel({
   canEdit: boolean
 }) {
   const [verifying, setVerifying] = useState<StudentReadiness | null>(null)
+  const safety = useRecordSafety()
 
   if (readiness.length === 0) return null
 
@@ -152,6 +153,18 @@ export default function CompletionPanel({
         Completion is what makes a student eligible to sit the NREMT cognitive exam, so it is
         computed from the course record and verified explicitly rather than set by hand.
       </div>
+
+      {!safety.canRecordOfficial && (
+        <div className="banner crit">
+          <strong>Draft only.</strong> {safety.reason}
+        </div>
+      )}
+      {safety.canRecordOfficial && safety.unsyncedCount > 0 && (
+        <div className="banner warn">
+          {safety.unsyncedCount} change{safety.unsyncedCount === 1 ? '' : 's'} on this device have
+          not uploaded yet. A completion recorded now is still local until they do.
+        </div>
+      )}
 
       <div className="list">
         {readiness.map((r) => {
@@ -211,6 +224,8 @@ export default function CompletionPanel({
                 ) : (
                   <button
                     className={`btn sm ${r.computedMet ? 'primary' : ''}`}
+                    disabled={!safety.canRecordOfficial}
+                    title={safety.reason}
                     onClick={() => setVerifying(r)}
                   >
                     Verify

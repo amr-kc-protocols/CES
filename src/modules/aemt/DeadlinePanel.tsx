@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
-import { useDeadlines, setDeadlineSubmission } from './aemtStore'
+import { useDeadlines, setDeadlineSubmission, useRecordSafety } from './aemtStore'
 import type { DueDeadline } from './aemtStore'
 import { useCan } from '../../lib/role'
 import type { AemtDeadlineRecord } from '../../types'
@@ -30,6 +30,7 @@ const STATUS_PILL: Record<AemtDeadlineRecord['status'], string> = {
 }
 
 function SubmissionModal({ due, onClose }: { due: DueDeadline; onClose: () => void }) {
+  const safety = useRecordSafety()
   const r = due.record
   const [status, setStatus] = useState<AemtDeadlineRecord['status']>(r?.status ?? 'submitted')
   const [submittedDate, setDate] = useState(r?.submittedDate ?? todayISO())
@@ -99,13 +100,18 @@ function SubmissionModal({ due, onClose }: { due: DueDeadline; onClose: () => vo
           className="btn primary"
           disabled={submittedBy.trim() === '' || submittedDate === ''}
           onClick={() => {
-            setDeadlineSubmission(due.course.id, due.deadline.id, {
-              status,
-              submittedDate,
-              submittedBy: submittedBy.trim(),
-              confirmationNumber: confirmationNumber.trim() || undefined,
-              note: note.trim() || undefined,
-            })
+            setDeadlineSubmission(
+              due.course.id,
+              due.deadline.id,
+              {
+                status,
+                submittedDate,
+                submittedBy: submittedBy.trim(),
+                confirmationNumber: confirmationNumber.trim() || undefined,
+                note: note.trim() || undefined,
+              },
+              safety.actor,
+            )
             onClose()
           }}
         >
@@ -119,7 +125,7 @@ function SubmissionModal({ due, onClose }: { due: DueDeadline; onClose: () => vo
             className="btn danger"
             style={{ marginLeft: 'auto' }}
             onClick={() => {
-              setDeadlineSubmission(due.course.id, due.deadline.id, null)
+              setDeadlineSubmission(due.course.id, due.deadline.id, null, safety.actor)
               onClose()
             }}
           >
@@ -136,6 +142,7 @@ export default function DeadlinePanel() {
   const { manageAcademy } = useCan()
   const [showDone, setShowDone] = useState(false)
   const [editing, setEditing] = useState<DueDeadline | null>(null)
+  const safety = useRecordSafety()
 
   if (all.length === 0) return null
 
@@ -183,6 +190,12 @@ export default function DeadlinePanel() {
           </span>
         )}
       </div>
+
+      {!safety.canRecordOfficial && (
+        <div className="banner crit">
+          <strong>Draft only.</strong> {safety.reason}
+        </div>
+      )}
 
       <div className="list">
         {visible.map((d) => {
@@ -238,6 +251,8 @@ export default function DeadlinePanel() {
               {manageAcademy && (
                 <button
                   className={`btn sm${d.record ? '' : ' primary'}`}
+                  disabled={!safety.canRecordOfficial}
+                  title={safety.reason}
                   onClick={() => setEditing(d)}
                 >
                   {d.record ? 'Edit' : 'Record'}

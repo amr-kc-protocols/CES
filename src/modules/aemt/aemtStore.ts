@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { getState, setState, useSelector } from '../../lib/store'
+import { getState, setState, useSelector, usePersistFailed } from '../../lib/store'
+import { useSyncStatus } from '../../lib/sync'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
@@ -561,7 +562,17 @@ export function setDeadlineSubmission(
   courseId: string,
   deadlineId: string,
   input: Omit<AemtDeadlineRecord, 'courseId' | 'deadlineId'> | null,
+  actor = 'local',
 ): void {
+  audit(
+    courseId,
+    undefined,
+    actor,
+    input ? `KBEMS submission ${input.status}` : 'KBEMS submission cleared',
+    input
+      ? `${deadlineId} · ${input.submittedDate} · by ${input.submittedBy}${input.confirmationNumber ? ` · conf. ${input.confirmationNumber}` : ' · NO confirmation recorded'}`
+      : deadlineId,
+  )
   setState((db) => {
     const rest = db.aemtDeadlines.filter(
       (d) => !(d.courseId === courseId && d.deadlineId === deadlineId),
@@ -795,9 +806,24 @@ export function updateShift(id: string, patch: Partial<AemtClinicalShift>): void
   }))
 }
 
-/** Preceptor attestation that the shift record is accurate. */
-export function attestShift(id: string, attested: boolean): void {
+/**
+ * Preceptor attestation that the shift record is accurate. Audited: attesting
+ * is what makes the shift's encounters count toward a regulated minimum, and
+ * un-attesting silently removes them again.
+ */
+export function attestShift(id: string, attested: boolean, actor = 'local'): void {
+  const shift = getState().aemtShifts.find((s) => s.id === id)
   updateShift(id, { attestedAt: attested ? new Date().toISOString() : undefined })
+  if (shift) {
+    const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
+    audit(
+      shift.courseId,
+      shift.studentId,
+      actor,
+      attested ? 'shift attested' : 'shift attestation withdrawn',
+      `${who} · ${shift.date} · ${shift.site} · ${shift.preceptorName}`,
+    )
+  }
 }
 
 export function deleteShift(id: string): void {
@@ -1178,4 +1204,59 @@ export function revokeCompletion(courseId: string, studentId: string, actor: str
     ),
   }))
   audit(courseId, studentId, actor, 'completion revoked', `${name} · reason: ${reason}`)
+}
+
+// ----- official-record safety -------------------------------------------------
+//
+// A signed-out device keeps everything in localStorage and nothing leaves it.
+// That is fine for working a shift, but it is not a place to create records
+// somebody else will rely on: a completion that makes a student exam-eligible,
+// or a KBEMS submission receipt. Those need to be durable and attributable, so
+// they are gated on being signed in and persisting.
+
+export interface RecordSafety {
+  /** Safe to create a record that will be relied on outside this device. */
+  canRecordOfficial: boolean
+  /** Why not, when it is not. */
+  reason?: string
+  /** Signed in but with local changes still queued. */
+  unsyncedCount: number
+  /** Who the audit trail should attribute actions to. */
+  actor: string
+}
+
+export function useRecordSafety(): RecordSafety {
+  const { configured, signedIn, pending, email } = useSyncStatus()
+  const persistFailed = usePersistFailed()
+
+  if (persistFailed) {
+    return {
+      canRecordOfficial: false,
+      reason:
+        'This device is not saving — storage is full or blocked. Nothing recorded now would survive closing the app.',
+      unsyncedCount: pending,
+      actor: email ?? 'unknown',
+    }
+  }
+  if (configured && !signedIn) {
+    return {
+      canRecordOfficial: false,
+      reason:
+        'Signed out. Everything stays on this device, so a completion or a submission recorded here would not reach anyone else and could not be attributed. Sign in from Settings first.',
+      unsyncedCount: pending,
+      actor: 'local',
+    }
+  }
+  return { canRecordOfficial: true, unsyncedCount: pending, actor: email ?? 'local' }
+}
+
+/** Write an audit event from outside this module's own actions. */
+export function recordAuditEvent(
+  courseId: string,
+  studentId: string | undefined,
+  actor: string,
+  action: string,
+  detail: string,
+): void {
+  audit(courseId, studentId, actor, action, detail)
 }
