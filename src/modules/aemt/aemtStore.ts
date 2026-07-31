@@ -3,12 +3,14 @@ import { setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
-import { KAR_109_11_8, KC_BLOCK_PLAN, KC_HOUR_TARGETS, MAX_ABSENT_HOURS } from '../../data/aemt'
+import { KAR_109_11_8, KBEMS_DEADLINES, KC_BLOCK_PLAN, MAX_ABSENT_HOURS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
 import type {
   AemtAttendanceRecord,
   AemtEncounter,
   AemtCourse,
+  AemtDeadlineRecord,
+  AemtHourTargets,
   AemtSession,
   AemtSessionKind,
   AemtStudent,
@@ -43,14 +45,13 @@ export function createCourse(
 ): AemtCourse {
   const now = new Date().toISOString()
   const course: AemtCourse = {
+    // Spread first so every optional field on the input carries through; an
+    // explicit field list here silently dropped whatever was added later.
+    ...input,
     id: uid('aemt'),
     label: input.label,
     startDate: input.startDate,
     endDate: input.endDate,
-    courseNumber: input.courseNumber,
-    coordinator: input.coordinator,
-    medicalDirector: input.medicalDirector,
-    notes: input.notes,
     createdAt: now,
     updatedAt: now,
   }
@@ -275,22 +276,103 @@ export interface HourReconciliation {
 }
 
 /**
- * Scheduled hours against the proposal's committed targets. This is the number
- * a KBEMS reviewer compares, so it is shown live while the schedule is built.
+ * Scheduled hours against the course's own filed targets — the comparison a
+ * KBEMS reviewer makes. Targets come from the course record rather than a
+ * constant, so a second sponsoring organization running its own approved
+ * program reconciles against its numbers, not AMR KC's.
+ *
+ * Returns [] when the course has declared no targets: showing a gap against
+ * numbers nobody filed would be noise.
  */
-export function reconcileHours(sessions: AemtSession[]): HourReconciliation[] {
+export function reconcileHours(
+  sessions: AemtSession[],
+  targets: AemtHourTargets | undefined,
+): HourReconciliation[] {
+  if (!targets) return []
   const { byKind } = courseHourTotals(sessions)
-  const scheduledFor: Record<string, number> = {
-    didactic: byKind.didactic,
-    lab: byKind.lab,
-    // Clinical and field hours are logged as shifts, not class sessions; any
-    // session marked 'clinical' counts toward the combined clinical/field goal.
-    clinical: byKind.clinical,
-  }
-  return KC_HOUR_TARGETS.filter((t) => t.id === 'didactic' || t.id === 'lab').map((t) => {
-    const scheduled = scheduledFor[t.id] ?? 0
-    return { id: t.id, label: t.label, target: t.hours, scheduled, delta: scheduled - t.hours }
+  return [
+    { id: 'didactic', label: 'Didactic', target: targets.didactic, scheduled: byKind.didactic },
+    { id: 'lab', label: 'Lab / psychomotor', target: targets.lab, scheduled: byKind.lab },
+  ].map((r) => ({ ...r, delta: r.scheduled - r.target }))
+}
+
+/** AMR KC's filed commitments, offered as the default when creating a course. */
+export const KC_DEFAULT_TARGETS: AemtHourTargets = {
+  didactic: 110,
+  lab: 50,
+  clinical: 72,
+  field: 144,
+}
+
+// ----- KBEMS submission deadlines --------------------------------------------
+
+export function useDeadlineRecords(): AemtDeadlineRecord[] {
+  return useSelector((db) => db.aemtDeadlines)
+}
+
+export function setDeadlineDone(courseId: string, deadlineId: string, date: string | null): void {
+  setState((db) => {
+    const rest = db.aemtDeadlines.filter(
+      (d) => !(d.courseId === courseId && d.deadlineId === deadlineId),
+    )
+    if (!date) return { ...db, aemtDeadlines: rest }
+    return { ...db, aemtDeadlines: [...rest, { courseId, deadlineId, completedDate: date }] }
   })
+}
+
+export interface DueDeadline {
+  course: AemtCourse
+  deadline: (typeof KBEMS_DEADLINES)[number]
+  /** ISO date the submission is due. */
+  dueDate: string
+  /** Days from today; negative = overdue. */
+  daysOut: number
+  completedDate?: string
+  done: boolean
+  overdue: boolean
+}
+
+/**
+ * Every KBEMS submission across every course, soonest first. Deliberately
+ * spans courses — the coordinator's real question is "what is due next",
+ * which does not respect cohort boundaries when two classes overlap.
+ */
+export function useDeadlines(): DueDeadline[] {
+  const courses = useCourses()
+  const records = useDeadlineRecords()
+  const sessions = useSelector((db) => db.aemtSessions)
+  return useMemo(() => {
+    const today = todayISO()
+    const out: DueDeadline[] = []
+    for (const course of courses) {
+      const mine = sessions
+        .filter((s) => s.courseId === course.id && s.date)
+        .map((s) => s.date)
+        .sort()
+      // Fall back to the course's own dates before any session exists.
+      const first = mine[0] ?? course.startDate
+      const last = mine[mine.length - 1] ?? course.endDate
+      for (const deadline of KBEMS_DEADLINES) {
+        const anchor = deadline.anchor === 'first-session' ? first : last
+        if (!anchor) continue
+        const dueDate = addDays(anchor, deadline.offsetDays)
+        const rec = records.find((r) => r.courseId === course.id && r.deadlineId === deadline.id)
+        const daysOut = Math.round(
+          (fromISODate(dueDate).getTime() - fromISODate(today).getTime()) / 86400000,
+        )
+        out.push({
+          course,
+          deadline,
+          dueDate,
+          daysOut,
+          completedDate: rec?.completedDate,
+          done: !!rec,
+          overdue: !rec && daysOut < 0,
+        })
+      }
+    }
+    return out.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  }, [courses, records, sessions])
 }
 
 // ----- attendance & hours ----------------------------------------------------

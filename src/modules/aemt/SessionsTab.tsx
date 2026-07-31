@@ -10,7 +10,7 @@ import {
   reconcileHours,
   seedKcSchedule,
 } from './aemtStore'
-import { KC_HOUR_TARGETS, blockPlanTotals } from '../../data/aemt'
+import { blockPlanTotals } from '../../data/aemt'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
 
@@ -119,7 +119,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
   const sessions = useSessions(course.id)
   const { manageAcademy } = useCan()
   const totals = courseHourTotals(sessions)
-  const recon = reconcileHours(sessions)
+  const recon = reconcileHours(sessions, course.targets)
 
   return (
     <div>
@@ -131,10 +131,10 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
       {/* The filed proposal commits to specific hour totals; KBEMS compares the
           submitted schedule against them. Show the gap while it is still cheap
           to fix. */}
-      {sessions.length > 0 && (
+      {sessions.length > 0 && recon.length > 0 && (
         <div className="card" style={{ padding: 12, marginTop: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-            Against the filed proposal
+            Against the filed hours
           </div>
           <div className="table-wrap">
             <table>
@@ -168,9 +168,13 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
             </table>
           </div>
           <div className="help-text">
-            Targets come from §2 of the proposal. Note its own §3 schedule sums to{' '}
-            {blockPlanTotals().didactic} didactic hours, not {KC_HOUR_TARGETS[0].hours} — that
-            20-hour gap has to be resolved before the KBEMS application goes in.
+            Targets are this course's filed hour commitments, set on the course record.
+            {course.targets && course.targets.didactic !== blockPlanTotals().didactic && (
+              <>
+                {' '}The bundled 16-week plan lays out {blockPlanTotals().didactic} didactic hours,
+                so building from it alone will not reach {course.targets.didactic}.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -184,13 +188,13 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
         {manageAcademy && sessions.length === 0 && (
           <button
             className="btn"
-            title="Create Tue/Thu sessions for all 16 weeks from the proposal's content plan"
+            title="Create Tue/Thu sessions for 16 weeks from the AMR KC proposal's content plan. Adjust for another program."
             onClick={() => {
               const n = seedKcSchedule(course.id, course.startDate)
               alert(`Created ${n} sessions from the 16-week plan. Adjust dates and hours as needed.`)
             }}
           >
-            ⚡ Build 16-week plan
+            ⚡ Build AMR KC 16-week plan
           </button>
         )}
         {manageAcademy && (

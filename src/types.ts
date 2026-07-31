@@ -438,10 +438,26 @@ export type AemtStudentStatus = 'active' | 'withdrawn' | 'completed'
 /** Didactic lecture, hands-on lab, or a written/practical exam sitting. */
 export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
 
+/**
+ * Hours a course commits to in its filed proposal. Per-course rather than
+ * global: the same tool runs AMR KC's program and another sponsoring
+ * organization's, and their approved hour structures differ.
+ */
+export interface AemtHourTargets {
+  didactic: number
+  lab: number
+  /** Hospital clinical hours. */
+  clinical: number
+  /** Field internship hours, all sites combined. */
+  field: number
+}
+
 export interface AemtCourse {
   id: string
   /** Display label, e.g. 'Fall 2026 AEMT'. */
   label: string
+  /** Sponsoring organization, e.g. 'AMR Kansas City'. */
+  organization?: string
   /** Kansas BEMS course approval number, printed on course records. */
   courseNumber?: string
   startDate: string
@@ -449,9 +465,19 @@ export interface AemtCourse {
   /** Course coordinator of record. */
   coordinator?: string
   medicalDirector?: string
+  /** Filed hour commitments. Absent = not yet declared, so no reconciliation. */
+  targets?: AemtHourTargets
   notes?: string
   createdAt: string
   updatedAt: string
+}
+
+/** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
+export interface AemtDeadlineRecord {
+  courseId: string
+  deadlineId: string
+  /** ISO date it was actually submitted. */
+  completedDate: string
 }
 
 export interface AemtStudent {
@@ -542,5 +568,6 @@ export interface DBShape {
   aemtSessions: AemtSession[]
   aemtAttendance: AemtAttendanceRecord[]
   aemtEncounters: AemtEncounter[]
+  aemtDeadlines: AemtDeadlineRecord[]
   settings: Settings
 }

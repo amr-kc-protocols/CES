@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Empty, Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
-import { useCourses, useCourseTotals, createCourse, byStartDesc } from './aemtStore'
+import { useCourses, useCourseTotals, createCourse, byStartDesc, KC_DEFAULT_TARGETS } from './aemtStore'
+import DeadlinePanel from './DeadlinePanel'
 import { useCan } from '../../lib/role'
 import type { AemtCourse } from '../../types'
 
@@ -24,6 +25,7 @@ function CourseRow({ course }: { course: AemtCourse }) {
           {formatDate(course.startDate)} – {formatDate(course.endDate)}
           {course.courseNumber && <> · KSBEMS #{course.courseNumber}</>}
         </div>
+        {course.organization && <div className="meta">{course.organization}</div>}
         <div className="meta">
           {totals.students} student{totals.students === 1 ? '' : 's'} ·{' '}
           {totals.scheduledHours} scheduled hour{totals.scheduledHours === 1 ? '' : 's'} ·{' '}
@@ -42,6 +44,11 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
   const [endDate, setEnd] = useState('')
   const [courseNumber, setNumber] = useState('')
   const [coordinator, setCoordinator] = useState('')
+  const [organization, setOrg] = useState('')
+  const [didactic, setDidactic] = useState('')
+  const [lab, setLab] = useState('')
+  const [clinical, setClinical] = useState('')
+  const [field, setField] = useState('')
 
   const canSave = label.trim() !== '' && startDate !== '' && endDate !== '' && startDate <= endDate
 
@@ -76,9 +83,60 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
         />
       </div>
       <div className="field">
+        <label htmlFor="ac-org">Sponsoring organization</label>
+        <input
+          id="ac-org"
+          value={organization}
+          onChange={(e) => setOrg(e.target.value)}
+          placeholder="AMR Kansas City"
+        />
+      </div>
+      <div className="field">
         <label htmlFor="ac-coord">Course coordinator (optional)</label>
         <input id="ac-coord" value={coordinator} onChange={(e) => setCoordinator(e.target.value)} />
       </div>
+
+      {/* Filed hour commitments are per course: a second sponsoring
+          organization runs its own approved program with its own numbers. */}
+      <div className="section-title" style={{ marginTop: 16 }}>
+        Filed hours (optional)
+      </div>
+      <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+        What this course's approved proposal commits to. The Sessions tab reconciles the schedule
+        you build against these. Leave blank if not yet filed.
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="ac-did">Didactic</label>
+          <input id="ac-did" type="number" min={0} value={didactic} onChange={(e) => setDidactic(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="ac-lab">Lab</label>
+          <input id="ac-lab" type="number" min={0} value={lab} onChange={(e) => setLab(e.target.value)} />
+        </div>
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="ac-clin">Hospital clinical</label>
+          <input id="ac-clin" type="number" min={0} value={clinical} onChange={(e) => setClinical(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="ac-field">Field internship</label>
+          <input id="ac-field" type="number" min={0} value={field} onChange={(e) => setField(e.target.value)} />
+        </div>
+      </div>
+      <button
+        className="btn sm"
+        type="button"
+        onClick={() => {
+          setDidactic(String(KC_DEFAULT_TARGETS.didactic))
+          setLab(String(KC_DEFAULT_TARGETS.lab))
+          setClinical(String(KC_DEFAULT_TARGETS.clinical))
+          setField(String(KC_DEFAULT_TARGETS.field))
+        }}
+      >
+        Use AMR KC proposal hours
+      </button>
       {startDate && endDate && startDate > endDate && (
         <div className="banner crit">The end date is before the start date.</div>
       )}
@@ -87,12 +145,20 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
           className="btn primary"
           disabled={!canSave}
           onClick={() => {
+            // Targets are all-or-nothing: a partial set would reconcile
+            // against numbers nobody filed.
+            const nums = [didactic, lab, clinical, field].map((v) => Number(v))
+            const hasTargets = nums.every((n) => Number.isFinite(n) && n > 0)
             const c = createCourse({
               label: label.trim(),
               startDate,
               endDate,
+              organization: organization.trim() || undefined,
               courseNumber: courseNumber.trim() || undefined,
               coordinator: coordinator.trim() || undefined,
+              targets: hasTargets
+                ? { didactic: nums[0], lab: nums[1], clinical: nums[2], field: nums[3] }
+                : undefined,
             })
             onClose()
             navigate(`/aemt/${c.id}`)
@@ -127,6 +193,8 @@ export default function AemtList() {
           </button>
         )}
       </div>
+
+      <DeadlinePanel />
 
       {sorted.length === 0 ? (
         <Empty icon="🎓" title="No AEMT courses yet">
