@@ -24,6 +24,7 @@ import type {
   AemtDeadlineRecord,
   AemtFormResponse,
   AemtHourTargets,
+  AemtRecordDoc,
   AemtSession,
   AemtSessionKind,
   AemtSkillCheck,
@@ -520,6 +521,29 @@ export function deleteFormResponse(id: string): void {
  */
 export function flaggedResponses(responses: AemtFormResponse[]): AemtFormResponse[] {
   return responses.filter((r) => r.values.remedial === true || r.values.concernRaised === true)
+}
+
+// ----- program records --------------------------------------------------------
+
+export function useRecordDocs(courseId: string | undefined): AemtRecordDoc[] {
+  return useSelector((db) => db.aemtRecordDocs.filter((r) => r.courseId === courseId))
+}
+
+export function setRecordDoc(
+  courseId: string,
+  typeId: string,
+  patch: Partial<Omit<AemtRecordDoc, 'courseId' | 'typeId'>>,
+): void {
+  setState((db) => {
+    const i = db.aemtRecordDocs.findIndex((r) => r.courseId === courseId && r.typeId === typeId)
+    const base: AemtRecordDoc =
+      i >= 0 ? db.aemtRecordDocs[i] : { courseId, typeId, status: 'missing' }
+    const next = { ...base, ...patch }
+    const list = [...db.aemtRecordDocs]
+    if (i >= 0) list[i] = next
+    else list.push(next)
+    return { ...db, aemtRecordDocs: list }
+  })
 }
 
 // ----- KBEMS submission deadlines --------------------------------------------

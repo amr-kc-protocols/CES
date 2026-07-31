@@ -571,6 +571,25 @@ export interface AemtCompletion {
 }
 
 /**
+ * Tracking for a program record the app does not itself hold — the syllabus,
+ * lesson plans, the gradebook. CES-held records need no entry; the tab that
+ * owns them is the record.
+ */
+export interface AemtRecordDoc {
+  courseId: string
+  /** Matches a REQUIRED_RECORDS id in data/aemtRecords.ts. */
+  typeId: string
+  status: 'missing' | 'draft' | 'in-review' | 'approved'
+  owner?: string
+  version?: string
+  approvedBy?: string
+  approvedDate?: string
+  /** Where the document actually lives — a path, a link, or a description. */
+  location?: string
+  notes?: string
+}
+
+/**
  * Append-only record of consequential actions. Written for completions,
  * overrides and revocations — the events an audit would ask about.
  */
@@ -750,6 +769,7 @@ export interface DBShape {
   aemtSkillChecks: AemtSkillCheck[]
   aemtFormResponses: AemtFormResponse[]
   aemtCompletions: AemtCompletion[]
+  aemtRecordDocs: AemtRecordDoc[]
   aemtAudit: AemtAuditEvent[]
   settings: Settings
 }
