@@ -93,6 +93,7 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
           <label>Credential</label>
           <select value={credential} onChange={(e) => setCredential(e.target.value as Credential)}>
             <option value="paramedic">Paramedic</option>
+            <option value="aemt">AEMT</option>
             <option value="emt">EMT</option>
           </select>
         </div>

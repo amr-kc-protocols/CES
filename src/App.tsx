@@ -15,6 +15,8 @@ const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
 const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
 const SkillSheetView = lazy(() => import('./modules/academy/SkillSheetView'))
 const ClassCheckoffView = lazy(() => import('./modules/academy/ClassCheckoffView'))
+const AemtList = lazy(() => import('./modules/aemt/AemtList'))
+const AemtCourseView = lazy(() => import('./modules/aemt/AemtCourseView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
 const LearningView = lazy(() => import('./modules/learning/LearningView'))
 const CourseViewer = lazy(() => import('./modules/learning/CourseViewer'))
@@ -49,6 +51,8 @@ export default function App() {
         <Route path="academy/:cohortId/skills/:traineeId/:sheet" element={<SkillSheetView />} />
         <Route path="academy/:cohortId/checkoff/:sheet" element={<ClassCheckoffView />} />
         <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
+        <Route path="aemt" element={<AemtList />} />
+        <Route path="aemt/:courseId" element={<AemtCourseView />} />
         <Route path="courses" element={<LearningView />} />
         <Route path="courses/view" element={<CourseViewer />} />
         <Route path="history" element={<HistoryView />} />

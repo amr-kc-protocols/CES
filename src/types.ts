@@ -104,7 +104,7 @@ export interface Settings {
 
 // ----- Module D: New Hire Academy -------------------------------------------
 
-export type Credential = 'emt' | 'paramedic'
+export type Credential = 'emt' | 'aemt' | 'paramedic'
 
 /** Progression: academy checklist -> FTO rides -> released. Derived, not stored. */
 export type TraineePhase = 'academy' | 'fto' | 'released'
@@ -424,6 +424,172 @@ export interface RideAssignment {
   window?: string
 }
 
+// ----- AEMT certification course (Kansas) -----------------------------------
+// A state-approved Advanced EMT class: students, documented contact hours,
+// psychomotor competency, and clinical/field internship. Distinct from the
+// New Hire Academy — that is internal onboarding, this leads to a Kansas
+// certification and an NREMT exam, so its records are the ones an audit asks
+// for. Skill lists and clinical minimums are program data (src/data/aemt.ts),
+// not hard-coded here.
+
+/** Where a student stands in the course. */
+export type AemtStudentStatus = 'active' | 'withdrawn' | 'completed'
+
+/** Didactic lecture, hands-on lab, or a written/practical exam sitting. */
+export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
+
+/**
+ * Hours a course commits to in its filed proposal. Per-course rather than
+ * global: the same tool runs AMR KC's program and another sponsoring
+ * organization's, and their approved hour structures differ.
+ */
+export interface AemtHourTargets {
+  didactic: number
+  lab: number
+  /** Hospital clinical hours. */
+  clinical: number
+  /** Field internship hours, all sites combined. */
+  field: number
+}
+
+export interface AemtCourse {
+  id: string
+  /** Display label, e.g. 'Fall 2026 AEMT'. */
+  label: string
+  /** Sponsoring organization, e.g. 'AMR Kansas City'. */
+  organization?: string
+  /** Kansas BEMS course approval number, printed on course records. */
+  courseNumber?: string
+  startDate: string
+  endDate: string
+  /** Course coordinator of record. */
+  coordinator?: string
+  medicalDirector?: string
+  /** Filed hour commitments. Absent = not yet declared, so no reconciliation. */
+  targets?: AemtHourTargets
+  /**
+   * Cardiac monitor this operation runs, by skill-sheet id. Students are
+   * checked off on their own monitor only — AMR KC uses the LIFEPAK 15,
+   * Wichita the Zoll X-Series.
+   */
+  monitorSheetId?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * One student's check-off on one psychomotor skill sheet. Criteria are graded
+ * individually; a critical-failure item fails the sheet outright, which is why
+ * it is tracked separately rather than as just another failed criterion.
+ */
+export interface AemtSkillCheck {
+  courseId: string
+  studentId: string
+  sheetId: string
+  /** criterionId -> result. Absent = not yet assessed. */
+  results: Record<string, 'pass' | 'fail'>
+  /** Critical-failure items triggered, by their text. */
+  criticalFailed?: string[]
+  evaluator?: string
+  /** ISO date the sheet was signed off as passed. */
+  passedDate?: string
+}
+
+/**
+ * A completed evaluation form (see data/aemtForms.ts). Values are keyed by
+ * field id; the form definition supplies the labels, so editing a form's
+ * wording never rewrites stored responses.
+ */
+export interface AemtFormResponse {
+  id: string
+  courseId: string
+  formId: string
+  /** The student the form concerns — or, for course/instructor evals, the
+   *  student who filled it in. */
+  studentId?: string
+  /** ISO date the evaluation covers. */
+  date: string
+  values: Record<string, string | number | boolean>
+  submittedAt: string
+}
+
+/** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
+export interface AemtDeadlineRecord {
+  courseId: string
+  deadlineId: string
+  /** ISO date it was actually submitted. */
+  completedDate: string
+}
+
+export interface AemtStudent {
+  id: string
+  courseId: string
+  name: string
+  /** Kansas EMS certification number (the student's existing EMT cert). */
+  certNumber?: string
+  /** Employee number, for students who are also AMR staff. */
+  employeeNumber?: string
+  email?: string
+  phone?: string
+  status: AemtStudentStatus
+}
+
+/** One meeting of the class, carrying the hours it is worth. */
+export interface AemtSession {
+  id: string
+  courseId: string
+  /** ISO date. */
+  date: string
+  title: string
+  kind: AemtSessionKind
+  /** Scheduled contact hours. State approval is documented in these. */
+  hours: number
+  instructor?: string
+  notes?: string
+}
+
+export interface AemtAttendanceRecord {
+  courseId: string
+  studentId: string
+  sessionId: string
+  status: AttendanceStatus
+  /**
+   * Hours credited when they differ from the session's scheduled hours —
+   * a late arrival or a partial make-up. Absent = the session's hours.
+   */
+  hours?: number
+}
+
+/**
+ * Where an encounter happened. Only 'field' counts toward the field-specific
+ * minimums in K.A.R. 109-11-8 (assessments, supervised calls, PCRs).
+ */
+export type AemtSiteKind = 'hospital' | 'field' | 'lab'
+
+/**
+ * One line of the student patient encounter log. NEVER carries PHI — the
+ * regulation-facing record is date, site, skill, count and preceptor only.
+ */
+export interface AemtEncounter {
+  id: string
+  courseId: string
+  studentId: string
+  /** ISO date of the shift. */
+  date: string
+  siteKind: AemtSiteKind
+  /** Free-text site, e.g. 'AdventHealth KC — ED'. */
+  site?: string
+  /** Which K.A.R. 109-11-8 requirement this counts toward (see data/aemt.ts). */
+  requirementId: string
+  /** Reps this line represents; usually 1. */
+  count: number
+  /** Venipuncture only — whether the stick initiated an IV infusion. */
+  initiatedInfusion?: boolean
+  preceptor?: string
+  notes?: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -439,5 +605,13 @@ export interface DBShape {
   dailyEvals: DailyEval[]
   skillChecks: SkillCheck[]
   surveyResponses: SurveyResponse[]
+  aemtCourses: AemtCourse[]
+  aemtStudents: AemtStudent[]
+  aemtSessions: AemtSession[]
+  aemtAttendance: AemtAttendanceRecord[]
+  aemtEncounters: AemtEncounter[]
+  aemtDeadlines: AemtDeadlineRecord[]
+  aemtSkillChecks: AemtSkillCheck[]
+  aemtFormResponses: AemtFormResponse[]
   settings: Settings
 }
