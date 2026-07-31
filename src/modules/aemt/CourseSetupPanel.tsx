@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Modal } from '../../components/ui'
-import { updateCourse } from './aemtStore'
+import { updateCourse, deleteCourse, useCourseFootprint } from './aemtStore'
 import { PRECEPTOR_LABELS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import type { AemtCourse, AemtSite, PreceptorCredentialId } from '../../types'
@@ -258,6 +259,119 @@ function SiteModal({
   )
 }
 
+/**
+ * Deleting a course takes its roster, schedule, encounters, skill check-offs,
+ * completions and audit trail with it. That is the right behaviour — orphaned
+ * rows help nobody — but it is not something to do behind a one-line confirm,
+ * so the modal counts what will go and makes a course carrying real records
+ * harder to delete than an empty test one.
+ */
+function DeleteModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+  const f = useCourseFootprint(course.id)
+  const navigate = useNavigate()
+  const [typed, setTyped] = useState('')
+
+  // A course with verified completions, recorded KBEMS filings or a course
+  // number is a filed record with a three-year retention obligation under
+  // K.A.R. 109-17-3. Deleting one should take deliberate effort.
+  const isOfficial = f.completions > 0 || f.submissions > 0 || !!course.courseNumber
+  const canDelete = !isOfficial || typed.trim() === course.label
+
+  const counts: [number, string][] = [
+    [f.students, 'student'],
+    [f.sessions, 'session'],
+    [f.shifts, 'shift'],
+    [f.encounters, 'logged encounter'],
+    [f.skillChecks, 'skill check-off'],
+    [f.formResponses, 'form response'],
+    [f.completions, 'verified completion'],
+    [f.auditEvents, 'audit event'],
+  ]
+  const nonZero = counts.filter(([n]) => n > 0)
+
+  return (
+    <Modal title={`Delete ${course.label}?`} onClose={onClose}>
+      {f.empty ? (
+        <div className="banner info" style={{ marginTop: 0 }}>
+          Nothing has been recorded against this course. Deleting it removes the course record
+          only.
+        </div>
+      ) : (
+        <>
+          <div className="banner crit" style={{ marginTop: 0 }}>
+            <strong>This deletes everything the course owns.</strong> Undo is offered for ten
+            seconds afterwards — after that the records are gone.
+          </div>
+          <div className="list" style={{ marginTop: 10 }}>
+            {nonZero.map(([n, label]) => (
+              <div key={label} className="row">
+                <div className="grow">
+                  <div className="title" style={{ fontSize: 14 }}>
+                    {n} {label}
+                    {n === 1 ? '' : 's'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {isOfficial && (
+        <>
+          <div className="banner warn">
+            <strong>This looks like a filed course, not a test.</strong>{' '}
+            {course.courseNumber && <>It carries KSBEMS #{course.courseNumber}. </>}
+            {f.completions > 0 && (
+              <>
+                {f.completions} student completion{f.completions === 1 ? ' has' : 's have'} been
+                verified against it.{' '}
+              </>
+            )}
+            {f.submissions > 0 && (
+              <>
+                {f.submissions} filing{f.submissions === 1 ? ' has' : 's have'} been recorded as
+                submitted to KBEMS.{' '}
+              </>
+            )}
+            Program records must be kept for three years under K.A.R. 109-17-3 — export the audit
+            package from the Records tab before deleting.
+          </div>
+          <div className="field">
+            <label htmlFor="del-confirm">
+              Type <strong>{course.label}</strong> to confirm
+            </label>
+            <input
+              id="del-confirm"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        </>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          className="btn danger"
+          disabled={!canDelete}
+          style={{ marginLeft: 'auto' }}
+          onClick={() => {
+            deleteCourse(course.id)
+            onClose()
+            navigate('/aemt')
+          }}
+        >
+          Delete course
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function CourseSetupPanel({
   course,
   canEdit,
@@ -268,6 +382,7 @@ export default function CourseSetupPanel({
   const [editing, setEditing] = useState(false)
   const [site, setSite] = useState<AemtSite | null>(null)
   const [addingSite, setAddingSite] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const gaps = applicationGaps(course)
   const sites = course.sites ?? []
 
@@ -360,9 +475,19 @@ export default function CourseSetupPanel({
         </div>
       )}
 
+      {canEdit && (
+        <div className="toolbar" style={{ marginTop: 10 }}>
+          <div className="spacer" />
+          <button className="btn sm danger" onClick={() => setDeleting(true)}>
+            Delete course
+          </button>
+        </div>
+      )}
+
       {editing && <EditModal course={course} onClose={() => setEditing(false)} />}
       {addingSite && <SiteModal course={course} onClose={() => setAddingSite(false)} />}
       {site && <SiteModal course={course} existing={site} onClose={() => setSite(null)} />}
+      {deleting && <DeleteModal course={course} onClose={() => setDeleting(false)} />}
     </>
   )
 }

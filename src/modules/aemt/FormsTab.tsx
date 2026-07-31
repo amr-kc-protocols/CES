@@ -249,7 +249,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
                   <div className="title">{nameOf(r.studentId)}</div>
                   <div className="meta">
                     {aemtForm(r.formId)?.title} · {formatDate(r.date)} ·{' '}
-                    {r.values.remedial === true
+                    {r.values?.remedial === true
                       ? 'remedial education indicated'
                       : 'behaviour conference indicated'}
                   </div>

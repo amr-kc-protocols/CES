@@ -31,6 +31,7 @@ import type {
   AemtSkillCheck,
   AemtStudent,
   AttendanceStatus,
+  DBShape,
 } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -84,29 +85,92 @@ export function updateCourse(id: string, patch: Partial<AemtCourse>): void {
   }))
 }
 
+/** Every table a course owns. Anything keyed by courseId belongs here. */
+const COURSE_OWNED = [
+  'aemtStudents',
+  'aemtSessions',
+  'aemtAttendance',
+  'aemtEncounters',
+  'aemtShifts',
+  'aemtDeadlines',
+  'aemtSkillChecks',
+  'aemtFormResponses',
+  'aemtCompletions',
+  'aemtRecordDocs',
+  'aemtAudit',
+] as const
+
+type CourseOwnedKey = (typeof COURSE_OWNED)[number]
+
+/** What deleting a course would take with it — shown before it happens. */
+export interface CourseFootprint {
+  students: number
+  sessions: number
+  shifts: number
+  encounters: number
+  skillChecks: number
+  formResponses: number
+  /** Verified completions. A course with these is a real record, not a test. */
+  completions: number
+  auditEvents: number
+  /** Filings recorded as submitted to KBEMS. */
+  submissions: number
+  /** Nothing has been recorded against this course at all. */
+  empty: boolean
+}
+
+export function useCourseFootprint(courseId: string | undefined): CourseFootprint {
+  const db = useSelector((d) => d)
+  return useMemo(() => {
+    const n = (k: CourseOwnedKey) => db[k].filter((r) => r.courseId === courseId).length
+    const f = {
+      students: n('aemtStudents'),
+      sessions: n('aemtSessions'),
+      shifts: n('aemtShifts'),
+      encounters: n('aemtEncounters'),
+      skillChecks: n('aemtSkillChecks'),
+      formResponses: n('aemtFormResponses'),
+      completions: n('aemtCompletions'),
+      auditEvents: n('aemtAudit'),
+      submissions: db.aemtDeadlines.filter((d) => d.courseId === courseId && d.submittedDate).length,
+    }
+    return { ...f, empty: Object.values(f).every((v) => v === 0) }
+  }, [db, courseId])
+}
+
+/**
+ * Delete a course and everything it owns.
+ *
+ * Every AEMT table is keyed by courseId, and each one left behind is an orphan
+ * that nothing can reach and nothing will clean up — including audit events,
+ * which are append-only by design and would outlive the course they describe.
+ * The whole set is captured first so undo restores the course intact.
+ */
 export function deleteCourse(id: string): void {
   setState((db) => {
     const course = db.aemtCourses.find((c) => c.id === id)
-    const students = db.aemtStudents.filter((s) => s.courseId === id)
-    const sessions = db.aemtSessions.filter((s) => s.courseId === id)
-    const attendance = db.aemtAttendance.filter((a) => a.courseId === id)
-    if (course) {
-      pushUndo(`Deleted ${course.label}`, () =>
-        setState((cur) => ({
-          ...cur,
-          aemtCourses: [...cur.aemtCourses, course],
-          aemtStudents: [...cur.aemtStudents, ...students],
-          aemtSessions: [...cur.aemtSessions, ...sessions],
-          aemtAttendance: [...cur.aemtAttendance, ...attendance],
-        })),
-      )
-    }
+    if (!course) return db
+
+    const owned = Object.fromEntries(
+      COURSE_OWNED.map((k) => [k, db[k].filter((r) => r.courseId === id)]),
+    ) as { [K in CourseOwnedKey]: DBShape[K] }
+
+    pushUndo(`Deleted ${course.label}`, () =>
+      setState((cur) => ({
+        ...cur,
+        ...(Object.fromEntries(
+          COURSE_OWNED.map((k) => [k, [...cur[k], ...owned[k]]]),
+        ) as Partial<DBShape>),
+        aemtCourses: [...cur.aemtCourses, course],
+      })),
+    )
+
     return {
       ...db,
+      ...(Object.fromEntries(
+        COURSE_OWNED.map((k) => [k, db[k].filter((r) => r.courseId !== id)]),
+      ) as Partial<DBShape>),
       aemtCourses: db.aemtCourses.filter((c) => c.id !== id),
-      aemtStudents: db.aemtStudents.filter((s) => s.courseId !== id),
-      aemtSessions: db.aemtSessions.filter((s) => s.courseId !== id),
-      aemtAttendance: db.aemtAttendance.filter((a) => a.courseId !== id),
     }
   })
 }
@@ -521,7 +585,9 @@ export function deleteFormResponse(id: string): void {
  * in a list of hundreds.
  */
 export function flaggedResponses(responses: AemtFormResponse[]): AemtFormResponse[] {
-  return responses.filter((r) => r.values.remedial === true || r.values.concernRaised === true)
+  // Optional-chained deliberately: this feeds readiness for every student, so
+  // one malformed row reaching it from storage would blank the whole tab.
+  return responses.filter((r) => r.values?.remedial === true || r.values?.concernRaised === true)
 }
 
 // ----- program records --------------------------------------------------------
