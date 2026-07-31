@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Tabs } from '../../components/Tabs'
+import { notifyUser } from '../../lib/dialog'
 import { Modal } from '../../components/ui'
 import { parseTable } from '../../lib/csv'
 import { addCharts, importBotReviews, type ChartInput } from './qaStore'
@@ -118,13 +119,10 @@ export default function ImportCharts({
     }
     onClose()
     if (res.skipped > 0) {
-      setTimeout(
-        () =>
-          alert(
-            `Imported ${res.added} chart${res.added === 1 ? '' : 's'}; ` +
-              `skipped ${res.skipped} duplicate${res.skipped === 1 ? '' : 's'} already in this period.`,
-          ),
-        50,
+      notifyUser(
+        `Imported ${res.added} chart${res.added === 1 ? '' : 's'}; ` +
+          `skipped ${res.skipped} duplicate${res.skipped === 1 ? '' : 's'} already in this period.`,
+        'warn',
       )
     }
   }
@@ -166,13 +164,9 @@ export default function ImportCharts({
     setError('')
     onClose()
     // Surface a quick summary of what landed where.
-    setTimeout(
-      () =>
-        alert(
-          `Imported ${res.total} bot review${res.total === 1 ? '' : 's'}: ` +
-            `${res.matched} matched to existing charts, ${res.created} added as new.`,
-        ),
-      50,
+    notifyUser(
+      `Imported ${res.total} bot review${res.total === 1 ? '' : 's'}: ` +
+        `${res.matched} matched to existing charts, ${res.created} added as new.`,
     )
   }
 

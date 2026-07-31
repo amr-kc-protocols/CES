@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { Modal } from '../../components/ui'
 import { addDays, formatDate, todayISO } from '../../lib/date'
 import { ACADEMY_LENGTH_DAYS } from '../../data/academy'
@@ -41,8 +42,14 @@ export default function CohortForm({
     onClose()
   }
 
-  function remove() {
-    if (editing && confirm('Delete this cohort and its entire roster, schedule, and documents?')) {
+  async function remove() {
+    if (!editing) return
+    const ok = await confirmAction({
+      title: `Delete ${editing.label}?`,
+      body: 'The entire roster, schedule, attendance and documents go with it. Undo is offered for a few seconds afterwards.',
+      confirmLabel: 'Delete cohort',
+    })
+    if (ok) {
       deleteCohort(editing.id)
       onClose()
       onDeleted?.()

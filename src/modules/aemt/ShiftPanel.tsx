@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
 import {
@@ -168,8 +169,13 @@ function ShiftForm({
           <button
             className="btn danger"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
-              if (confirm('Delete this shift? Encounters logged on it go too.')) {
+            onClick={async () => {
+              const ok = await confirmAction({
+                title: 'Delete this shift?',
+                body: 'Encounters logged on it go too — a rep with no shift behind it has no date, site or preceptor. Undo is offered afterwards.',
+                confirmLabel: 'Delete shift',
+              })
+              if (ok) {
                 deleteShift(existing.id)
                 onClose()
               }

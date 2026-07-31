@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { UndoToast } from './ui'
 import ErrorBoundary from './ErrorBoundary'
+import { ConfirmHost, NoticeToast } from './DialogHost'
 import SyncChip from './SyncChip'
 import { useCESummary } from '../modules/ce/ceStore'
 import { useSyncStatus } from '../lib/sync'
@@ -63,7 +64,11 @@ export default function Layout() {
         </ErrorBoundary>
       </main>
 
-      <UndoToast />
+      <div className="toast-stack">
+        <UndoToast />
+        <NoticeToast />
+      </div>
+      <ConfirmHost />
 
       <nav className="tabbar">
         {tabs.map((t) => (

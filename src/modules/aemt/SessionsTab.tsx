@@ -1,4 +1,5 @@
 import { Empty } from '../../components/ui'
+import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
 import {
@@ -125,8 +126,13 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
       <div className="btn-row" style={{ marginTop: 8 }}>
         <button
           className="btn sm danger"
-          onClick={() => {
-            if (confirm('Delete this session? Attendance for it goes too.')) deleteSession(session.id)
+          onClick={async () => {
+            const ok = await confirmAction({
+              title: 'Delete this session?',
+              body: 'Attendance marked against it goes too, and the hours it carried come off every student who attended.',
+              confirmLabel: 'Delete session',
+            })
+            if (ok) deleteSession(session.id)
           }}
         >
           Delete
@@ -220,7 +226,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
             title="Create Tue/Thu sessions for 16 weeks from the AMR KC proposal's content plan. Adjust for another program."
             onClick={() => {
               const n = seedKcSchedule(course.id, course.startDate)
-              alert(`Created ${n} sessions from the 16-week plan. Adjust dates and hours as needed.`)
+              notifyUser(`Created ${n} sessions from the 16-week plan — adjust dates and hours as needed.`)
             }}
           >
             ⚡ Build AMR KC 16-week plan

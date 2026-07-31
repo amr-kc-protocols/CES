@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { confirmAction } from '../../lib/dialog'
 import { Tabs } from '../../components/Tabs'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Empty, ProgressBar, Stat } from '../../components/ui'
@@ -265,8 +266,14 @@ export default function QAPeriodView() {
         )}
         <button
           className="btn danger"
-          onClick={() => {
-            if (confirm('Delete this period and all its charts? This cannot be undone.')) {
+          onClick={async () => {
+            if (
+              await confirmAction({
+                title: 'Delete this review period?',
+                body: 'Every chart imported into it goes too. This cannot be undone.',
+                confirmLabel: 'Delete period',
+              })
+            ) {
               deletePeriod(id)
               navigate('/qa')
             }
