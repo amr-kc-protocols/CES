@@ -331,7 +331,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                     >
                       <input
                         type="checkbox"
-                        checked={!!trainee.checklist[m.id]}
+                        checked={!!trainee.checklist?.[m.id]}
                         disabled={waived || readOnly}
                         onChange={() => toggleModule(trainee.id, m.id)}
                       />
@@ -356,10 +356,10 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                             Waived · {formatDate(trainee.waived?.[m.id])} ✕
                           </button>
                         )
-                      ) : trainee.checklist[m.id] ? (
+                      ) : trainee.checklist?.[m.id] ? (
                         <input
                           type="date"
-                          value={trainee.checklist[m.id]}
+                          value={trainee.checklist?.[m.id]}
                           disabled={readOnly}
                           onChange={(e) => setModuleDate(trainee.id, m.id, e.target.value)}
                           title="Real completion date — edit if it wasn't checked off the same day"

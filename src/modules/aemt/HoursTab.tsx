@@ -16,6 +16,7 @@ import {
   totalHourTarget,
 } from './aemtStore'
 import { MAX_ABSENT_HOURS } from '../../data/aemt'
+import { AttendanceCell, attendanceGridKeys } from '../../components/AttendanceCell'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AttendanceStatus } from '../../types'
 
@@ -25,22 +26,6 @@ function nextStatus(cur: AttendanceStatus | undefined): AttendanceStatus | null 
   if (cur === 'present') return 'absent'
   return null
 }
-
-const cellStyle = (
-  status: AttendanceStatus | undefined,
-  canEdit: boolean,
-): React.CSSProperties => ({
-  width: 48,
-  minWidth: 48,
-  textAlign: 'center',
-  cursor: canEdit ? 'pointer' : 'default',
-  fontWeight: 700,
-  fontSize: 15,
-  background:
-    status === 'present' ? 'var(--ok-bg)' : status === 'absent' ? 'var(--crit-bg)' : undefined,
-  color:
-    status === 'present' ? '#166534' : status === 'absent' ? '#991b1b' : 'var(--border-strong)',
-})
 
 export default function HoursTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
@@ -68,12 +53,13 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
   return (
     <div>
       <div className="banner info">
-        Tap a cell to cycle <strong>present ✓ → absent ✗ → blank</strong>. Hours credit
-        automatically from each session's hours, and anyone marked absent rolls up into the
-        make-up list below.
+        Tap a cell — or focus one and press space — to cycle{' '}
+        <strong>present ✓ → absent ✗ → blank</strong>. Arrow keys move between cells. Hours credit
+        automatically from each session's hours, and anyone marked absent rolls up into the make-up
+        list below.
       </div>
 
-      <div className="table-wrap" style={{ marginTop: 12 }}>
+      <div className="table-wrap" style={{ marginTop: 12 }} onKeyDown={attendanceGridKeys}>
         <table>
           <thead>
             <tr>
@@ -102,28 +88,28 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
             </tr>
           </thead>
           <tbody>
-            {students.map((t) => {
+            {students.map((t, ri) => {
               const row = hours.find((h) => h.student.id === t.id)
               return (
                 <tr key={t.id}>
                   <td style={{ position: 'sticky', left: 0, background: 'var(--surface)', fontWeight: 600 }}>
                     {t.name}
                   </td>
-                  {sessions.map((s) => {
+                  {sessions.map((s, ci) => {
                     const rec = map.get(attKey(t.id, s.id))
                     return (
-                      <td
+                      <AttendanceCell
                         key={s.id}
-                        style={cellStyle(rec?.status, canEdit)}
-                        onClick={
-                          canEdit
-                            ? () => setAttendance(course.id, t.id, s.id, nextStatus(rec?.status))
-                            : undefined
-                        }
+                        status={rec?.status}
+                        canEdit={canEdit}
+                        row={ri}
+                        col={ci}
+                        label={`${t.name}, ${s.title || 'session'}${s.date ? ` ${formatDate(s.date)}` : ''}`}
                         title={`${t.name} · ${s.title || 'session'} · ${creditedHours(s, rec)} h`}
-                      >
-                        {rec?.status === 'present' ? '✓' : rec?.status === 'absent' ? '✗' : '·'}
-                      </td>
+                        onCycle={() =>
+                          setAttendance(course.id, t.id, s.id, nextStatus(rec?.status))
+                        }
+                      />
                     )
                   })}
                   <td style={{ textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>

@@ -63,9 +63,16 @@ export function requiredContacts(t: Trainee): number {
 /** Academy runs ~1.5 weeks (spec); default cohort length in calendar days. */
 export const ACADEMY_LENGTH_DAYS = 10
 
-/** A module counts when completed — or waived for an AMR transfer. */
+/**
+ * A module counts when completed — or waived for an AMR transfer.
+ *
+ * Both maps are optional-chained: this runs for every trainee on cohort load,
+ * so a row that reached storage without a checklist (an older save, a partial
+ * sync) would otherwise take out the whole cohort view rather than showing
+ * that one trainee as having nothing done.
+ */
 export function moduleSatisfied(t: Trainee, moduleId: string): boolean {
-  return !!t.checklist[moduleId] || !!t.waived?.[moduleId]
+  return !!t.checklist?.[moduleId] || !!t.waived?.[moduleId]
 }
 
 export function checklistDone(t: Trainee): boolean {
