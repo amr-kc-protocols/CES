@@ -267,6 +267,56 @@ export function useSessions(courseId: string | undefined): AemtSession[] {
   )
 }
 
+export interface SessionProblem {
+  sessionId: string
+  /** Short enough to sit under the row it belongs to. */
+  text: string
+}
+
+/**
+ * Schedule problems a KBEMS reviewer would spot. Nothing here blocks editing —
+ * a half-built schedule is a normal intermediate state — but a session outside
+ * the course dates, or one whose times contradict its hours, is a filing error
+ * that is far cheaper to catch now than after submission.
+ */
+export function sessionProblems(
+  sessions: AemtSession[],
+  course: Pick<AemtCourse, 'startDate' | 'endDate'>,
+): SessionProblem[] {
+  const out: SessionProblem[] = []
+  for (const s of sessions) {
+    const label = s.title || 'Untitled session'
+    if (!s.date) {
+      out.push({ sessionId: s.id, text: `${label} has no date` })
+    } else if (s.date < course.startDate || s.date > course.endDate) {
+      out.push({
+        sessionId: s.id,
+        text: `${label} falls outside the course dates (${course.startDate} – ${course.endDate})`,
+      })
+    }
+    if (s.hours <= 0) {
+      out.push({ sessionId: s.id, text: `${label} is worth no hours` })
+    }
+    if (s.startTime && s.endTime) {
+      if (s.endTime <= s.startTime) {
+        out.push({ sessionId: s.id, text: `${label} ends at or before it starts` })
+      } else {
+        // Times and hours are filed together, so they have to agree. A quarter
+        // hour of slack absorbs rounding without waving through a real gap.
+        const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+        const span = (mins(s.endTime) - mins(s.startTime)) / 60
+        if (Math.abs(span - s.hours) > 0.25) {
+          out.push({
+            sessionId: s.id,
+            text: `${label} runs ${span.toFixed(2)} h by the clock but is filed as ${s.hours} h`,
+          })
+        }
+      }
+    }
+  }
+  return out
+}
+
 export function addSession(
   courseId: string,
   input?: Partial<Omit<AemtSession, 'id' | 'courseId'>>,

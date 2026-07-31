@@ -80,10 +80,29 @@ export function usePersistFailed(): boolean {
   return useSyncExternalStore(subscribe, () => persistFailed, () => persistFailed)
 }
 
+// Counter, not a timestamp: two writes in the same millisecond are still two
+// writes, and a monotonic number is a stable useSyncExternalStore snapshot.
+let saveTick = 0
+
+/**
+ * Increments on every successful persist. There is no save button anywhere in
+ * this app, so screens that edit on keystroke need something to hang a "saved"
+ * indicator on — without it the only feedback for typing into a field that
+ * writes straight through is nothing at all.
+ */
+export function useSaveTick(): number {
+  return useSyncExternalStore(
+    subscribe,
+    () => saveTick,
+    () => saveTick,
+  )
+}
+
 function persist(next: DBShape): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
     persistFailed = false
+    saveTick++
   } catch (err) {
     persistFailed = true
     console.error('CES: failed to persist state', err)

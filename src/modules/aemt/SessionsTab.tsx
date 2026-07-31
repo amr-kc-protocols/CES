@@ -1,4 +1,6 @@
-import { Empty } from '../../components/ui'
+import { useState } from 'react'
+import { Empty, Modal } from '../../components/ui'
+import SavedIndicator from '../../components/SavedIndicator'
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
@@ -10,6 +12,7 @@ import {
   courseHourTotals,
   reconcileHours,
   seedKcSchedule,
+  sessionProblems,
 } from './aemtStore'
 import { blockPlanTotals } from '../../data/aemt'
 import { useCan } from '../../lib/role'
@@ -26,7 +29,15 @@ const KIND_CLS: Record<AemtSessionKind, string> = Object.fromEntries(
   KINDS.map((k) => [k.value, k.cls]),
 ) as Record<AemtSessionKind, string>
 
-function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boolean }) {
+function SessionRow({
+  session,
+  canEdit,
+  problems,
+}: {
+  session: AemtSession
+  canEdit: boolean
+  problems: string[]
+}) {
   if (!canEdit) {
     return (
       <div className="row">
@@ -123,6 +134,13 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
           />
         </label>
       </div>
+      {problems.length > 0 && (
+        <div className="banner warn" style={{ marginTop: 8, marginBottom: 0 }}>
+          {problems.map((t) => (
+            <div key={t}>{t}</div>
+          ))}
+        </div>
+      )}
       <div className="btn-row" style={{ marginTop: 8 }}>
         <button
           className="btn sm danger"
@@ -142,11 +160,160 @@ function SessionRow({ session, canEdit }: { session: AemtSession; canEdit: boole
   )
 }
 
+/**
+ * Adding a session goes through a form rather than dropping an empty row into
+ * the schedule. "+ Session" used to write immediately: a stray tap created an
+ * untitled 4-hour didactic session, which counted toward the filed hour totals
+ * and synced, and the only way back was to find and delete it.
+ */
+function AddSessionModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+  const [date, setDate] = useState(course.startDate)
+  const [title, setTitle] = useState('')
+  const [kind, setKind] = useState<AemtSessionKind>('didactic')
+  const [startTime, setStartTime] = useState('18:00')
+  const [endTime, setEndTime] = useState('22:00')
+  const [hours, setHours] = useState('4')
+  const [instructor, setInstructor] = useState('')
+
+  const hoursNum = Number(hours)
+  const outOfRange = date < course.startDate || date > course.endDate
+  const timesBackwards = !!startTime && !!endTime && endTime <= startTime
+  const valid = !!date && hoursNum > 0 && !timesBackwards
+
+  // Times are what the filing needs; hours follow from them unless overridden.
+  function setSpan(start: string, end: string): void {
+    setStartTime(start)
+    setEndTime(end)
+    if (start && end && end > start) {
+      const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+      setHours(String((mins(end) - mins(start)) / 60))
+    }
+  }
+
+  return (
+    <Modal title="Add session" onClose={onClose}>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="as-date">Date</label>
+          <input
+            id="as-date"
+            type="date"
+            value={date}
+            min={course.startDate}
+            max={course.endDate}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="as-kind">Kind</label>
+          <select
+            id="as-kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as AemtSessionKind)}
+          >
+            {KINDS.map((k) => (
+              <option key={k.value} value={k.value}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="as-title">Subject</label>
+        <input
+          id="as-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Airway management — supraglottic devices"
+        />
+        <div className="help-text">
+          K.A.R. 109-11-1a(b3): the filed schedule shows the subject of each session.
+        </div>
+      </div>
+
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="as-start">Start</label>
+          <input
+            id="as-start"
+            type="time"
+            value={startTime}
+            onChange={(e) => setSpan(e.target.value, endTime)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="as-end">End</label>
+          <input
+            id="as-end"
+            type="time"
+            value={endTime}
+            onChange={(e) => setSpan(startTime, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="as-hours">Hours</label>
+          <input
+            id="as-hours"
+            type="number"
+            min={0}
+            step={0.25}
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="as-instr">Instructor</label>
+        <input id="as-instr" value={instructor} onChange={(e) => setInstructor(e.target.value)} />
+      </div>
+
+      {timesBackwards && (
+        <div className="banner crit">The end time is at or before the start time.</div>
+      )}
+      {outOfRange && !timesBackwards && (
+        <div className="banner warn">
+          This date is outside the course ({formatDate(course.startDate)} –{' '}
+          {formatDate(course.endDate)}). It can still be added, but it will be flagged.
+        </div>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!valid}
+          onClick={() => {
+            addSession(course.id, {
+              date,
+              title: title.trim(),
+              kind,
+              hours: hoursNum,
+              startTime: startTime || undefined,
+              endTime: endTime || undefined,
+              instructor: instructor.trim() || undefined,
+            })
+            onClose()
+          }}
+        >
+          Add session
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function SessionsTab({ course }: { course: AemtCourse }) {
   const sessions = useSessions(course.id)
   const { manageAcademy } = useCan()
+  const [adding, setAdding] = useState(false)
   const totals = courseHourTotals(sessions)
   const recon = reconcileHours(sessions, course.targets)
+  const problems = sessionProblems(sessions, course)
 
   return (
     <div>
@@ -206,6 +373,16 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
         </div>
       )}
 
+      {problems.length > 0 && (
+        <div className="banner warn" style={{ marginTop: 12 }}>
+          <strong>
+            {problems.length} schedule problem{problems.length === 1 ? '' : 's'}.
+          </strong>{' '}
+          Each is flagged on the session it belongs to. None of this blocks editing — a half-built
+          schedule is normal — but these are the things a KBEMS reviewer checks.
+        </div>
+      )}
+
       {sessions.length > 0 && sessions.some((s) => !s.startTime) && (
         <div className="banner warn" style={{ marginTop: 12 }}>
           {sessions.filter((s) => !s.startTime).length} session
@@ -232,11 +409,9 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
             ⚡ Build AMR KC 16-week plan
           </button>
         )}
+        {manageAcademy && <SavedIndicator />}
         {manageAcademy && (
-          <button
-            className="btn primary"
-            onClick={() => addSession(course.id, { date: course.startDate })}
-          >
+          <button className="btn primary" onClick={() => setAdding(true)}>
             + Session
           </button>
         )}
@@ -254,10 +429,17 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           style={manageAcademy ? { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 } : { marginTop: 12 }}
         >
           {sessions.map((s) => (
-            <SessionRow key={s.id} session={s} canEdit={manageAcademy} />
+            <SessionRow
+              key={s.id}
+              session={s}
+              canEdit={manageAcademy}
+              problems={problems.filter((p) => p.sessionId === s.id).map((p) => p.text)}
+            />
           ))}
         </div>
       )}
+
+      {adding && <AddSessionModal course={course} onClose={() => setAdding(false)} />}
     </div>
   )
 }
