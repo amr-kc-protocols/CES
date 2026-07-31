@@ -34,6 +34,7 @@ function emptyDB(): DBShape {
     aemtSessions: [],
     aemtAttendance: [],
     aemtEncounters: [],
+    aemtShifts: [],
     aemtDeadlines: [],
     aemtSkillChecks: [],
     aemtFormResponses: [],

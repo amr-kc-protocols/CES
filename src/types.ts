@@ -614,6 +614,45 @@ export interface AemtAttendanceRecord {
 export type AemtSiteKind = 'hospital' | 'field' | 'lab'
 
 /**
+ * A clinical or field internship shift. Encounters hang off a shift rather
+ * than standing alone, so every logged rep inherits a date, a site, and an
+ * identified preceptor who attested to it — the difference between a count
+ * someone typed and a record that can be defended.
+ */
+export interface AemtClinicalShift {
+  id: string
+  courseId: string
+  studentId: string
+  /** ISO date of the shift. */
+  date: string
+  setting: AemtSiteKind
+  /** Site name, e.g. 'AdventHealth KC — ED'. */
+  site: string
+  /** Hours worked — feeds clinical and field hour reconciliation. */
+  hours: number
+  preceptorName: string
+  preceptorCredential: PreceptorCredentialId
+  /** Licence or certificate number, so the supervisor is identifiable. */
+  preceptorCertNumber?: string
+  /**
+   * ISO timestamp the preceptor attested the shift record is accurate.
+   * Encounters on an unattested shift are logged but not yet defensible.
+   */
+  attestedAt?: string
+  notes?: string
+}
+
+/** Mirrors PreceptorCredential in data/aemt.ts. */
+export type PreceptorCredentialId =
+  | 'aemt'
+  | 'paramedic'
+  | 'rn'
+  | 'lpn'
+  | 'aprn'
+  | 'pa'
+  | 'physician'
+
+/**
  * One line of the student patient encounter log. NEVER carries PHI — the
  * regulation-facing record is date, site, skill, count and preceptor only.
  */
@@ -632,6 +671,13 @@ export interface AemtEncounter {
   count: number
   /** Venipuncture only — whether the stick initiated an IV infusion. */
   initiatedInfusion?: boolean
+  /** The shift this happened on. Encounters without one predate shift linking. */
+  shiftId?: string
+  /**
+   * Non-PHI reference back to the source record — an ImageTrend incident
+   * number or run number. Never a patient identifier.
+   */
+  sourceRef?: string
   preceptor?: string
   notes?: string
 }
@@ -656,6 +702,7 @@ export interface DBShape {
   aemtSessions: AemtSession[]
   aemtAttendance: AemtAttendanceRecord[]
   aemtEncounters: AemtEncounter[]
+  aemtShifts: AemtClinicalShift[]
   aemtDeadlines: AemtDeadlineRecord[]
   aemtSkillChecks: AemtSkillCheck[]
   aemtFormResponses: AemtFormResponse[]

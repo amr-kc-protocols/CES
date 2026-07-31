@@ -1,23 +1,21 @@
 import { useState } from 'react'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
-import { formatDate, todayISO } from '../../lib/date'
+import { formatDate } from '../../lib/date'
 import {
   useStudents,
   useEncounters,
+  useShifts,
   useClinicalStanding,
+  supervisorEligible,
   addEncounter,
   deleteEncounter,
   progressFor,
 } from './aemtStore'
-import { KAR_109_11_8 } from '../../data/aemt'
+import { KAR_109_11_8, PRECEPTOR_LABELS } from '../../data/aemt'
+import type { PreceptorCredential } from '../../data/aemt'
+import ShiftPanel, { shiftLabel } from './ShiftPanel'
 import { useCan } from '../../lib/role'
-import type { AemtCourse, AemtSiteKind } from '../../types'
-
-const SITE_KINDS: { value: AemtSiteKind; label: string }[] = [
-  { value: 'field', label: 'Field internship (AMR)' },
-  { value: 'hospital', label: 'Hospital clinical' },
-  { value: 'lab', label: 'Skills lab / sim' },
-]
+import type { AemtClinicalShift, AemtCourse, AemtSiteKind } from '../../types'
 
 const SITE_LABEL: Record<AemtSiteKind, string> = {
   field: 'Field',
@@ -28,28 +26,45 @@ const SITE_LABEL: Record<AemtSiteKind, string> = {
 function LogForm({
   course,
   studentId,
+  shifts,
   onClose,
 }: {
   course: AemtCourse
   studentId: string
+  shifts: AemtClinicalShift[]
   onClose: () => void
 }) {
-  const [date, setDate] = useState(todayISO())
+  const [shiftId, setShiftId] = useState(shifts[0]?.id ?? '')
   const [requirementId, setReq] = useState(KAR_109_11_8[0].id)
-  const [siteKind, setSiteKind] = useState<AemtSiteKind>('field')
-  const [site, setSite] = useState('')
   const [count, setCount] = useState(1)
   const [initiatedInfusion, setInfusion] = useState(false)
-  const [preceptor, setPreceptor] = useState('')
+  const [sourceRef, setSourceRef] = useState('')
 
   const req = KAR_109_11_8.find((r) => r.id === requirementId)!
-  const fieldOnly = (req.fieldMinimum ?? 0) > 0
+  const shift = shifts.find((s) => s.id === shiftId)
+  const siteKind = shift?.setting
+  const settingOk = !!siteKind && req.allowedSettings.includes(siteKind)
+  const supOk = supervisorEligible(req, shift)
 
   return (
     <Modal title="Log encounter" onClose={onClose}>
       <div className="banner warn" style={{ marginBottom: 12 }}>
         <strong>No patient information.</strong> This log records the skill, site, and preceptor
         only — never names, dates of birth, or any other PHI.
+      </div>
+      <div className="field">
+        <label htmlFor="ae-shift">Shift</label>
+        <select id="ae-shift" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+          {shifts.map((s) => (
+            <option key={s.id} value={s.id}>
+              {shiftLabel(s)} — {s.preceptorName}
+              {s.attestedAt ? '' : ' (not attested)'}
+            </option>
+          ))}
+        </select>
+        <div className="help-text">
+          Date, site and preceptor come from the shift, so every rep is tied to a real one.
+        </div>
       </div>
       <div className="field">
         <label htmlFor="ae-req">Requirement</label>
@@ -61,57 +76,58 @@ function LogForm({
           ))}
         </select>
       </div>
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="ae-date">Date</label>
-          <input id="ae-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="ae-count">Reps</label>
-          <input
-            id="ae-count"
-            type="number"
-            min={1}
-            value={count}
-            onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))}
-          />
-        </div>
-      </div>
       <div className="field">
-        <label htmlFor="ae-kind">Setting</label>
-        <select
-          id="ae-kind"
-          value={siteKind}
-          onChange={(e) => setSiteKind(e.target.value as AemtSiteKind)}
-        >
-          {SITE_KINDS.map((k) => (
-            <option key={k.value} value={k.value}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-        {!req.allowedSettings.includes(siteKind) && (
-          <div className="help-text" style={{ color: 'var(--crit)' }}>
-            {req.label} does not count in this setting — it will be logged but excluded from the
-            total. Allowed: {req.allowedSettings.join(', ')}.
-          </div>
-        )}
-        {req.allowedSettings.includes(siteKind) && fieldOnly && siteKind !== 'field' && (
-          <div className="help-text" style={{ color: 'var(--crit)' }}>
-            {req.label} needs {req.fieldMinimum} in the field — this entry will not count toward
-            that part of the minimum.
-          </div>
-        )}
-      </div>
-      <div className="field">
-        <label htmlFor="ae-site">Site (optional)</label>
+        <label htmlFor="ae-count">Reps</label>
         <input
-          id="ae-site"
-          value={site}
-          onChange={(e) => setSite(e.target.value)}
-          placeholder="AdventHealth KC — ED"
+          id="ae-count"
+          type="number"
+          min={1}
+          value={count}
+          onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))}
         />
       </div>
+
+      {shift && (
+        <div className="banner info" style={{ marginTop: 4 }}>
+          {SITE_LABEL[shift.setting]} · {shift.site} · {shift.preceptorName} (
+          {PRECEPTOR_LABELS[shift.preceptorCredential as PreceptorCredential]})
+        </div>
+      )}
+      {shift && !settingOk && (
+        <div className="banner crit">
+          {req.label} does not count on a {SITE_LABEL[shift.setting].toLowerCase()} shift. It will
+          be logged but excluded. Allowed: {req.allowedSettings.join(', ')}.
+        </div>
+      )}
+      {shift && settingOk && !supOk && (
+        <div className="banner crit">
+          A {PRECEPTOR_LABELS[shift.preceptorCredential as PreceptorCredential]} may not supervise{' '}
+          {req.label.toLowerCase()} — K.A.R. names{' '}
+          {(req.eligibleSupervisors ?? []).map((c) => PRECEPTOR_LABELS[c]).join(', ')}. This entry
+          will be logged but will not count.
+        </div>
+      )}
+      {shift && settingOk && supOk && !shift.attestedAt && (
+        <div className="banner warn">
+          This shift has not been attested by the preceptor yet, so the entry will not count until
+          it is.
+        </div>
+      )}
+
+      <div className="field">
+        <label htmlFor="ae-ref">Run / incident reference</label>
+        <input
+          id="ae-ref"
+          value={sourceRef}
+          onChange={(e) => setSourceRef(e.target.value)}
+          placeholder="ImageTrend incident number"
+        />
+        <div className="help-text">
+          Ties the entry back to a source record. An incident number only — never a patient
+          identifier.
+        </div>
+      </div>
+
       {req.subRequirement && (
         <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
@@ -126,22 +142,22 @@ function LogForm({
           </span>
         </label>
       )}
-      <div className="field">
-        <label htmlFor="ae-prec">Preceptor</label>
-        <input id="ae-prec" value={preceptor} onChange={(e) => setPreceptor(e.target.value)} />
-      </div>
       <div className="btn-row" style={{ marginTop: 12 }}>
         <button
           className="btn primary"
+          disabled={!shift}
           onClick={() => {
+            if (!shift) return
             addEncounter(course.id, studentId, {
-              date,
+              date: shift.date,
               requirementId,
-              siteKind,
-              site: site.trim() || undefined,
+              siteKind: shift.setting,
+              site: shift.site,
               count,
               initiatedInfusion: req.subRequirement ? initiatedInfusion : undefined,
-              preceptor: preceptor.trim() || undefined,
+              shiftId: shift.id,
+              sourceRef: sourceRef.trim() || undefined,
+              preceptor: shift.preceptorName,
             })
             onClose()
           }}
@@ -159,6 +175,7 @@ function LogForm({
 export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
   const encounters = useEncounters(course.id)
+  const allShifts = useShifts(course.id)
   const standing = useClinicalStanding(course.id)
   const { editRideWork: canEdit } = useCan()
   const [selectedId, setSelected] = useState<string | null>(null)
@@ -174,17 +191,18 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
 
   const studentId = selectedId ?? students[0].id
   const student = students.find((s) => s.id === studentId) ?? students[0]
-  const progress = progressFor(encounters, student.id)
+  const shifts = allShifts.filter((s) => s.studentId === student.id)
+  const progress = progressFor(encounters, student.id, shifts)
   const mine = encounters.filter((e) => e.studentId === student.id)
   const metCount = progress.filter((p) => p.met).length
 
   return (
     <div>
       <div className="banner info">
-        Progress toward the <strong>K.A.R. 109-11-8</strong> clinical minimums. Each requirement
-        counts only the settings it allows — simulation counts for IO, but not for ECG, which the
-        regulation requires on real patients. Entries in a setting that does not count are kept and
-        shown, never folded into the total.
+        Progress toward the <strong>K.A.R. 109-11-8</strong> clinical minimums. A rep counts only
+        when the setting is allowed for that requirement, the preceptor holds a credential the
+        regulation accepts for it, and the shift has been attested. Anything short of that is kept
+        and shown, never folded into the total.
       </div>
 
       {/* Class overview — who is short, at a glance. */}
@@ -224,10 +242,17 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
         {student.name} · {metCount} of {progress.length} met
       </div>
 
+      <ShiftPanel course={course} studentId={student.id} shifts={shifts} canEdit={canEdit} />
+
       {canEdit && (
         <div className="toolbar">
           <div className="spacer" />
-          <button className="btn primary" onClick={() => setLogging(true)}>
+          <button
+            className="btn primary"
+            disabled={shifts.length === 0}
+            title={shifts.length === 0 ? 'Add a shift first' : 'Log an encounter on a shift'}
+            onClick={() => setLogging(true)}
+          >
             + Log encounter
           </button>
         </div>
@@ -259,7 +284,8 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                   ) : null}
                   {p.ineligible > 0 ? (
                     <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
-                      {p.ineligible} logged in a setting that does not count toward this
+                      {p.ineligible} logged but not counting
+                      {p.unverified > 0 && ` (${p.unverified} on an unattested shift)`}
                     </div>
                   ) : null}
                   {p.requirement.subRequirement ? (
@@ -322,7 +348,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       )}
 
       {logging && (
-        <LogForm course={course} studentId={student.id} onClose={() => setLogging(false)} />
+        <LogForm course={course} studentId={student.id} shifts={shifts} onClose={() => setLogging(false)} />
       )}
     </div>
   )

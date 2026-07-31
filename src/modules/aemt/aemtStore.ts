@@ -10,11 +10,13 @@ import {
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from '../../data/aemt'
+import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
 import { sheetsForCourse } from '../../data/aemtSkills'
 import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   AemtAttendanceRecord,
+  AemtClinicalShift,
   AemtAuditEvent,
   AemtCompletion,
   AemtEncounter,
@@ -723,6 +725,88 @@ export function useCourseTotals(courseId: string | undefined): {
   )
 }
 
+// ----- clinical & field shifts ----------------------------------------------
+
+export function useShifts(courseId: string | undefined): AemtClinicalShift[] {
+  return useSelector((db) =>
+    db.aemtShifts
+      .filter((s) => s.courseId === courseId)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+  )
+}
+
+export function addShift(
+  courseId: string,
+  studentId: string,
+  input: Omit<AemtClinicalShift, 'id' | 'courseId' | 'studentId'>,
+): AemtClinicalShift {
+  const shift: AemtClinicalShift = { id: uid('ashift'), courseId, studentId, ...input }
+  setState((db) => ({ ...db, aemtShifts: [...db.aemtShifts, shift] }))
+  return shift
+}
+
+export function updateShift(id: string, patch: Partial<AemtClinicalShift>): void {
+  setState((db) => ({
+    ...db,
+    aemtShifts: db.aemtShifts.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+  }))
+}
+
+/** Preceptor attestation that the shift record is accurate. */
+export function attestShift(id: string, attested: boolean): void {
+  updateShift(id, { attestedAt: attested ? new Date().toISOString() : undefined })
+}
+
+export function deleteShift(id: string): void {
+  setState((db) => {
+    const shift = db.aemtShifts.find((s) => s.id === id)
+    const encounters = db.aemtEncounters.filter((e) => e.shiftId === id)
+    if (shift) {
+      pushUndo(`Deleted shift`, () =>
+        setState((cur) => ({
+          ...cur,
+          aemtShifts: [...cur.aemtShifts, shift],
+          aemtEncounters: [...cur.aemtEncounters, ...encounters],
+        })),
+      )
+    }
+    // Encounters go with the shift — an encounter whose shift is gone has no
+    // date, site or preceptor behind it.
+    return {
+      ...db,
+      aemtShifts: db.aemtShifts.filter((s) => s.id !== id),
+      aemtEncounters: db.aemtEncounters.filter((e) => e.shiftId !== id),
+    }
+  })
+}
+
+/** Clinical and field hours actually worked, from attested shifts. */
+export function shiftHourTotals(shifts: AemtClinicalShift[]): {
+  hospital: number
+  field: number
+  unattested: number
+} {
+  const done = shifts.filter((s) => s.attestedAt)
+  return {
+    hospital: done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0),
+    field: done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0),
+    unattested: shifts.filter((s) => !s.attestedAt).reduce((n, s) => n + s.hours, 0),
+  }
+}
+
+/**
+ * Whether a shift's preceptor may supervise a given requirement. Falls back to
+ * the setting's own preceptor rule when the regulation does not name one.
+ */
+export function supervisorEligible(
+  requirement: KarMinimum,
+  shift: AemtClinicalShift | undefined,
+): boolean {
+  if (!shift) return false
+  const allowed = requirement.eligibleSupervisors ?? SETTING_PRECEPTORS[shift.setting]
+  return allowed.includes(shift.preceptorCredential)
+}
+
 // ----- patient encounter log (K.A.R. 109-11-8) -------------------------------
 
 export function useEncounters(courseId: string | undefined): AemtEncounter[] {
@@ -759,9 +843,11 @@ export interface RequirementProgress {
   requirement: KarMinimum
   /** Reps logged in a setting that counts toward this requirement. */
   total: number
-  /** Reps logged in a setting that does NOT count — surfaced, never silently
-   *  folded into the total. */
+  /** Reps that do not count — wrong setting, ineligible supervisor, or an
+   *  unattested shift. Surfaced, never silently folded into the total. */
   ineligible: number
+  /** Reps sitting on a shift the preceptor has not yet attested. */
+  unverified: number
   /** Reps logged at a field internship site. */
   field: number
   /** Reps satisfying the sub-requirement (venipunctures initiating an infusion). */
@@ -777,23 +863,36 @@ export interface RequirementProgress {
 }
 
 /** One student's standing against all eight K.A.R. 109-11-8 minimums. */
-export function progressFor(encounters: AemtEncounter[], studentId: string): RequirementProgress[] {
+export function progressFor(
+  encounters: AemtEncounter[],
+  studentId: string,
+  shifts: AemtClinicalShift[] = [],
+): RequirementProgress[] {
   const mine = encounters.filter((e) => e.studentId === studentId)
+  const byId = new Map(shifts.map((s) => [s.id, s]))
   return KAR_109_11_8.map((requirement) => {
     const rows = mine.filter((e) => e.requirementId === requirement.id)
-    // Only settings the requirement allows count. A simulated ECG cannot
-    // satisfy a minimum the regulation requires on real patients.
-    const eligible = rows.filter((e) => requirement.allowedSettings.includes(e.siteKind))
+    // Three conditions, each of which the review found could be bypassed:
+    // the setting must count for this requirement, the shift's preceptor must
+    // be eligible to supervise it, and the preceptor must have attested.
+    const eligible = rows.filter((e) => {
+      if (!requirement.allowedSettings.includes(e.siteKind)) return false
+      if (!e.shiftId) return true // pre-dates shift linking; counted, flagged below
+      const shift = byId.get(e.shiftId)
+      return !!shift?.attestedAt && supervisorEligible(requirement, shift)
+    })
     const total = eligible.reduce((s, e) => s + e.count, 0)
-    const ineligible = rows
-      .filter((e) => !requirement.allowedSettings.includes(e.siteKind))
+    const eligibleIds = new Set(eligible)
+    const ineligible = rows.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
+    const unverified = rows
+      .filter((e) => e.shiftId && !byId.get(e.shiftId)?.attestedAt)
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
     const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
     const totalMet = total >= requirement.minimum
     const fieldMet = field >= (requirement.fieldMinimum ?? 0)
     const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
-    return { requirement, total, ineligible, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
+    return { requirement, total, ineligible, unverified, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
   })
 }
 
@@ -808,14 +907,15 @@ export interface StudentClinicalStanding {
 export function useClinicalStanding(courseId: string | undefined): StudentClinicalStanding[] {
   const students = useStudents(courseId)
   const encounters = useEncounters(courseId)
+  const shifts = useShifts(courseId)
   return useMemo(
     () =>
       students.map((student) => {
-        const progress = progressFor(encounters, student.id)
+        const progress = progressFor(encounters, student.id, shifts)
         const metCount = progress.filter((p) => p.met).length
         return { student, progress, metCount, complete: metCount === progress.length }
       }),
-    [students, encounters],
+    [students, encounters, shifts],
   )
 }
 

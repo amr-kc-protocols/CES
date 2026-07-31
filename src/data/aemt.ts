@@ -18,6 +18,42 @@
  */
 export type EncounterSetting = 'hospital' | 'field' | 'lab'
 
+/**
+ * Credentials a preceptor may hold. Which are acceptable depends on the
+ * setting and the requirement: K.A.R. 109-1-1 defines a clinical preceptor as
+ * a physician, PA, APRN, LPN or RN, a field internship preceptor as AEMT or
+ * Paramedic, and K.A.R. 109-11-8 names who may directly supervise the ten
+ * ambulance calls.
+ */
+export type PreceptorCredential =
+  | 'aemt'
+  | 'paramedic'
+  | 'rn'
+  | 'lpn'
+  | 'aprn'
+  | 'pa'
+  | 'physician'
+
+export const PRECEPTOR_LABELS: Record<PreceptorCredential, string> = {
+  aemt: 'AEMT',
+  paramedic: 'Paramedic',
+  rn: 'RN',
+  lpn: 'LPN',
+  aprn: 'APRN',
+  pa: 'Physician Assistant',
+  physician: 'Physician',
+}
+
+/** Who may precept in each setting. */
+export const SETTING_PRECEPTORS: Record<EncounterSetting, PreceptorCredential[]> = {
+  // K.A.R. 109-1-1 clinical preceptor.
+  hospital: ['physician', 'pa', 'aprn', 'lpn', 'rn'],
+  // K.A.R. 109-1-1 field internship preceptor.
+  field: ['aemt', 'paramedic'],
+  // Skills lab is instructor-led, not precepted; any of the above may sign.
+  lab: ['aemt', 'paramedic', 'physician', 'pa', 'aprn', 'lpn', 'rn'],
+}
+
 export interface KarMinimum {
   id: string
   label: string
@@ -40,6 +76,11 @@ export interface KarMinimum {
    * venipuncture rule, where 10 of the 20 must initiate an IV infusion.
    */
   subRequirement?: { id: 'infusion'; label: string; minimum: number }
+  /**
+   * Credentials that may supervise this requirement, where the regulation
+   * names them specifically. Absent = the setting's own preceptor rule applies.
+   */
+  eligibleSupervisors?: PreceptorCredential[]
   /** Where the proposal plans to source these. */
   site: string
   note?: string
@@ -100,8 +141,11 @@ export const KAR_109_11_8: KarMinimum[] = [
     minimum: 10,
     allowedSettings: ['field'],
     fieldMinimum: 10,
+    // Named explicitly by K.A.R. 109-11-8 — note LPN and PA are NOT on this
+    // list even though an LPN may precept a hospital clinical shift.
+    eligibleSupervisors: ['aemt', 'paramedic', 'physician', 'aprn', 'rn'],
     site: 'AMR Independence 911 (primary), AMR KC interfacility (supplement)',
-    note: 'Must be directly supervised by AEMT, Paramedic, physician, APRN or RN.',
+    note: 'Must be directly supervised by an AEMT, Paramedic, physician, APRN or RN.',
   },
   {
     id: 'pcr',
