@@ -5,6 +5,7 @@ import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import {
+  blockPlanTotals,
   CLINICAL_REQUIREMENTS,
   KBEMS_DEADLINES,
   KC_BLOCK_PLAN,
@@ -294,6 +295,9 @@ export function sessionProblems(
         text: `${label} falls outside the course dates (${course.startDate} – ${course.endDate})`,
       })
     }
+    if (!s.title.trim()) {
+      out.push({ sessionId: s.id, text: 'This session has no subject — K.A.R. 109-11-1a(b3) requires one' })
+    }
     if (s.hours <= 0) {
       out.push({ sessionId: s.id, text: `${label} is worth no hours` })
     }
@@ -384,7 +388,66 @@ function onOrAfterWeekday(iso: string, weekday: number): string {
  *
  * Returns the number of sessions created.
  */
-export function seedKcSchedule(courseId: string, startISO: string): number {
+export interface SeedOutcome {
+  sessions: number
+  didactic: number
+  lab: number
+}
+
+/**
+ * What seeding the bundled plan would leave unscheduled against a course's own
+ * filed targets.
+ *
+ * This is not a rounding gap. The AMR KC proposal's §3 content schedule sums
+ * to 90 didactic hours while its §2 summary claims ~110, so building from the
+ * bundled plan alone lands 20 hours short of the number the course filed. The
+ * numbers are transcribed as filed rather than adjusted, which means the
+ * shortfall is real and has to be stated before anyone builds on it.
+ */
+export function seedShortfall(targets: AemtHourTargets | undefined): {
+  didactic: number
+  lab: number
+  total: number
+} {
+  const plan = blockPlanTotals()
+  if (!targets) return { didactic: 0, lab: 0, total: 0 }
+  const didactic = Math.max(0, targets.didactic - plan.didactic)
+  const lab = Math.max(0, targets.lab - plan.lab)
+  return { didactic, lab, total: didactic + lab }
+}
+
+/**
+ * Sessions carrying hours that are allocated but not yet placed. Created
+ * deliberately, never as a side effect of seeding: they have hours and no
+ * subject, so the schedule reconciles to the filed target while every one of
+ * them stays flagged until a coordinator gives it a date and a topic.
+ */
+export function addPlaceholderSessions(
+  courseId: string,
+  kind: AemtSessionKind,
+  hours: number,
+  startISO: string,
+  chunk = 4,
+): number {
+  const created: AemtSession[] = []
+  let left = hours
+  while (left > 0.001) {
+    const h = Math.min(chunk, left)
+    created.push({
+      id: uid('asess'),
+      courseId,
+      date: startISO,
+      title: '',
+      kind,
+      hours: Math.round(h * 100) / 100,
+    })
+    left -= h
+  }
+  setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
+  return created.length
+}
+
+export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
   const firstTue = onOrAfterWeekday(startISO, 2)
   const created: AemtSession[] = []
   let weekIndex = 0
@@ -427,7 +490,11 @@ export function seedKcSchedule(courseId: string, startISO: string): number {
   }
 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
-  return created.length
+  return {
+    sessions: created.length,
+    didactic: created.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0),
+    lab: created.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0),
+  }
 }
 
 export interface HourReconciliation {

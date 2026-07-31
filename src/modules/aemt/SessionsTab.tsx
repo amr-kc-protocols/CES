@@ -12,6 +12,8 @@ import {
   courseHourTotals,
   reconcileHours,
   seedKcSchedule,
+  seedShortfall,
+  addPlaceholderSessions,
   sessionProblems,
 } from './aemtStore'
 import { blockPlanTotals } from '../../data/aemt'
@@ -307,13 +309,114 @@ function AddSessionModal({ course, onClose }: { course: AemtCourse; onClose: () 
   )
 }
 
+/**
+ * Seeding states the arithmetic before it writes anything.
+ *
+ * The bundled plan is the proposal's §3 content schedule, which sums to 90
+ * didactic hours. §2 of the same proposal claims ~110. Building from the plan
+ * therefore lands short of the course's own filed target by construction, and
+ * the previous button did it silently — leaving the gap to be discovered from
+ * a reconciliation table, or not at all.
+ */
+function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+  const plan = blockPlanTotals()
+  const short = seedShortfall(course.targets)
+  const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
+
+  return (
+    <Modal title="Build the AMR KC 16-week plan" onClose={onClose}>
+      <p style={{ marginTop: 0, lineHeight: 1.55 }}>
+        Creates Tue/Thu sessions across 16 weeks from the proposal's content sequence —{' '}
+        <strong>
+          {plan.didactic} didactic + {plan.lab} lab
+        </strong>
+        , {plan.classroom} classroom hours in total.
+      </p>
+
+      {course.targets ? (
+        short.total > 0 ? (
+          <div className="banner crit">
+            <strong>This plan cannot reach your filed target on its own.</strong> The course files{' '}
+            {course.targets.didactic} didactic and {course.targets.lab} lab hours; the plan lays out{' '}
+            {plan.didactic} and {plan.lab}. That leaves{' '}
+            <strong>
+              {short.didactic > 0 && `${short.didactic} h didactic`}
+              {short.didactic > 0 && short.lab > 0 && ' and '}
+              {short.lab > 0 && `${short.lab} h lab`}
+            </strong>{' '}
+            unaccounted for. The proposal's own §2 and §3 tables disagree by this amount — it is a
+            defect in the source document, not a rounding error, and it has to be closed before a
+            KBEMS submission.
+          </div>
+        ) : (
+          <div className="banner ok">
+            ✓ The plan meets this course's filed classroom targets exactly.
+          </div>
+        )
+      ) : (
+        <div className="banner warn">
+          This course has filed no hour targets, so there is nothing to check the plan against.
+        </div>
+      )}
+
+      {short.total > 0 && (
+        <label
+          className="subtle"
+          style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12 }}
+        >
+          <input
+            type="checkbox"
+            checked={alsoPlace}
+            onChange={(e) => setAlsoPlace(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            Also add the missing {short.total} h as unplaced sessions. They carry the hours so the
+            schedule reconciles, but have no date or subject, so each stays flagged until a
+            coordinator places it. Leave unchecked to seed exactly what the proposal filed.
+          </span>
+        </label>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 14 }}>
+        <button
+          className="btn primary"
+          onClick={() => {
+            const out = seedKcSchedule(course.id, course.startDate)
+            let extra = 0
+            if (alsoPlace && short.didactic > 0) {
+              extra += addPlaceholderSessions(course.id, 'didactic', short.didactic, course.startDate)
+            }
+            if (alsoPlace && short.lab > 0) {
+              extra += addPlaceholderSessions(course.id, 'lab', short.lab, course.startDate)
+            }
+            notifyUser(
+              `Created ${out.sessions} sessions (${out.didactic} h didactic, ${out.lab} h lab)` +
+                (extra > 0 ? ` plus ${extra} unplaced session${extra === 1 ? '' : 's'} to fill in.` : '.'),
+              extra > 0 || short.total > 0 ? 'warn' : 'info',
+            )
+            onClose()
+          }}
+        >
+          Build schedule
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function SessionsTab({ course }: { course: AemtCourse }) {
   const sessions = useSessions(course.id)
   const { manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const totals = courseHourTotals(sessions)
   const recon = reconcileHours(sessions, course.targets)
   const problems = sessionProblems(sessions, course)
+  const shortRows = recon.filter((r) => r.delta < 0)
 
   return (
     <div>
@@ -363,13 +466,43 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           </div>
           <div className="help-text">
             Targets are this course's filed hour commitments, set on the course record.
-            {course.targets && course.targets.didactic !== blockPlanTotals().didactic && (
-              <>
-                {' '}The bundled 16-week plan lays out {blockPlanTotals().didactic} didactic hours,
-                so building from it alone will not reach {course.targets.didactic}.
-              </>
-            )}
           </div>
+
+          {/* The gap the bundled plan cannot close. Stated as an amount owed
+              with a way to act on it, not as a footnote under a table. */}
+          {shortRows.length > 0 && (
+            <div className="banner crit" style={{ marginTop: 10 }}>
+              <strong>
+                {shortRows.reduce((n, r) => n + -r.delta, 0)} hours short of the filed target.
+              </strong>{' '}
+              {shortRows.map((r) => `${-r.delta} h ${r.label.toLowerCase()}`).join(', ')} still has
+              to be scheduled.
+              {manageAcademy && (
+                <div className="btn-row" style={{ marginTop: 10 }}>
+                  {shortRows.map((r) => (
+                    <button
+                      key={r.id}
+                      className="btn sm"
+                      onClick={() => {
+                        const n = addPlaceholderSessions(
+                          course.id,
+                          r.id === 'lab' ? 'lab' : 'didactic',
+                          -r.delta,
+                          course.startDate,
+                        )
+                        notifyUser(
+                          `Added ${n} unplaced ${r.label.toLowerCase()} session${n === 1 ? '' : 's'} — each needs a date and a subject.`,
+                          'warn',
+                        )
+                      }}
+                    >
+                      Add {-r.delta} h of {r.label.toLowerCase()} to place
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -401,10 +534,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           <button
             className="btn"
             title="Create Tue/Thu sessions for 16 weeks from the AMR KC proposal's content plan. Adjust for another program."
-            onClick={() => {
-              const n = seedKcSchedule(course.id, course.startDate)
-              notifyUser(`Created ${n} sessions from the 16-week plan — adjust dates and hours as needed.`)
-            }}
+            onClick={() => setSeeding(true)}
           >
             ⚡ Build AMR KC 16-week plan
           </button>
@@ -440,6 +570,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
       )}
 
       {adding && <AddSessionModal course={course} onClose={() => setAdding(false)} />}
+      {seeding && <SeedModal course={course} onClose={() => setSeeding(false)} />}
     </div>
   )
 }
