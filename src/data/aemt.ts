@@ -12,11 +12,23 @@
 
 // ----- K.A.R. 109-11-8 clinical experience minimums --------------------------
 
+/**
+ * Where a rep may be performed. A requirement lists the settings that count
+ * toward it; anything else is logged but excluded from the total.
+ */
+export type EncounterSetting = 'hospital' | 'field' | 'lab'
+
 export interface KarMinimum {
   id: string
   label: string
   /** Total documented encounters required. */
   minimum: number
+  /**
+   * Settings that count toward `minimum`. Simulation counts for IO, where it
+   * is the accepted method; it does not count for ECG, which the regulation
+   * requires be documented on real patients during clinical or field training.
+   */
+  allowedSettings: EncounterSetting[]
   /**
    * How many of the total must come from the FIELD internship specifically.
    * Field components are non-negotiable — they cannot be met with simulation
@@ -38,6 +50,7 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'venipuncture',
     label: 'Venipunctures',
     minimum: 20,
+    allowedSettings: ['hospital', 'field'],
     subRequirement: { id: 'infusion', label: 'initiating an IV infusion', minimum: 10 },
     site: 'AdventHealth KC (ED / hospital units)',
     note: 'Most procedure-intensive requirement — the clinical affiliation agreement must explicitly permit it.',
@@ -46,6 +59,7 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'io',
     label: 'IO infusions',
     minimum: 5,
+    allowedSettings: ['hospital', 'field', 'lab'],
     site: 'Sim lab (bone injection models) or live',
     note: 'Simulation reps and live patient reps count equally toward the 5.',
   },
@@ -53,18 +67,21 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'injection',
     label: 'IM / SubQ injections',
     minimum: 10,
+    allowedSettings: ['hospital', 'field'],
     site: 'AdventHealth KC (ED / med-surg / infusion)',
   },
   {
     id: 'nebulizer',
     label: 'Nebulized breathing treatments',
     minimum: 1,
+    allowedSettings: ['hospital', 'field'],
     site: 'AdventHealth KC (ED or respiratory therapy)',
   },
   {
     id: 'ecg',
     label: 'ECG application & interpretation',
     minimum: 8,
+    allowedSettings: ['hospital', 'field'],
     site: 'AdventHealth clinical + field internship',
     note: 'In-class ECG lab does NOT count — must be documented encounters with real patients.',
   },
@@ -72,6 +89,7 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'assessment',
     label: 'Complete patient assessments',
     minimum: 15,
+    allowedSettings: ['hospital', 'field'],
     fieldMinimum: 10,
     site: 'AMR KC interfacility / AMR Independence 911 (10+), AdventHealth (up to 5)',
     note: 'The 10-in-field component cannot be substituted with simulation or hospital encounters.',
@@ -80,6 +98,7 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'calls',
     label: 'Supervised ambulance calls',
     minimum: 10,
+    allowedSettings: ['field'],
     fieldMinimum: 10,
     site: 'AMR Independence 911 (primary), AMR KC interfacility (supplement)',
     note: 'Must be directly supervised by AEMT, Paramedic, physician, APRN or RN.',
@@ -88,6 +107,7 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'pcr',
     label: 'Patient care reports / charts',
     minimum: 10,
+    allowedSettings: ['field'],
     fieldMinimum: 10,
     site: 'Field internship — both AMR sites (ImageTrend)',
   },
@@ -203,11 +223,11 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     note: 'Within 20 days of the first class session, through the KBEMS Licensing Portal.',
   },
   {
-    id: 'psychomotor-host',
-    label: 'Begin NREMT psychomotor exam host approval',
+    id: 'nremt-verification',
+    label: 'Confirm NREMT Program Director verification pathway',
     offsetDays: 35,
     anchor: 'first-session',
-    note: 'No later than Week 6 — the approval process needs 8 to 12 weeks lead time.',
+    note: 'NREMT retired the ALS psychomotor examination on 30 June 2024 — there is no exam host to arrange. Since 1 July 2024 the Program Director verifies each candidate met the state minimum competency requirements, through the NREMT site, before the candidate sits the cognitive exam. Confirm who holds that role and that they have NREMT Program Director access.',
   },
   {
     id: 'roster',

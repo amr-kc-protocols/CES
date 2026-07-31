@@ -90,7 +90,13 @@ function LogForm({
             </option>
           ))}
         </select>
-        {fieldOnly && siteKind !== 'field' && (
+        {!req.allowedSettings.includes(siteKind) && (
+          <div className="help-text" style={{ color: 'var(--crit)' }}>
+            {req.label} does not count in this setting — it will be logged but excluded from the
+            total. Allowed: {req.allowedSettings.join(', ')}.
+          </div>
+        )}
+        {req.allowedSettings.includes(siteKind) && fieldOnly && siteKind !== 'field' && (
           <div className="help-text" style={{ color: 'var(--crit)' }}>
             {req.label} needs {req.fieldMinimum} in the field — this entry will not count toward
             that part of the minimum.
@@ -175,9 +181,10 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   return (
     <div>
       <div className="banner info">
-        Progress toward the eight <strong>K.A.R. 109-11-8</strong> clinical minimums. Sim and live
-        reps count the same; what does matter is the <strong>field</strong> share, which cannot be
-        met in the hospital or the lab.
+        Progress toward the <strong>K.A.R. 109-11-8</strong> clinical minimums. Each requirement
+        counts only the settings it allows — simulation counts for IO, but not for ECG, which the
+        regulation requires on real patients. Entries in a setting that does not count are kept and
+        shown, never folded into the total.
       </div>
 
       {/* Class overview — who is short, at a glance. */}
@@ -248,6 +255,11 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                     >
                       field {p.field}/{p.requirement.fieldMinimum}
                       {!p.fieldMet && ' — field share not met'}
+                    </div>
+                  ) : null}
+                  {p.ineligible > 0 ? (
+                    <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
+                      {p.ineligible} logged in a setting that does not count toward this
                     </div>
                   ) : null}
                   {p.requirement.subRequirement ? (

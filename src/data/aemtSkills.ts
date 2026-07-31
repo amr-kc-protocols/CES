@@ -286,7 +286,7 @@ export const AEMT_SKILL_SHEETS: AemtSkillSheet[] = [
         criteria: [
           { id: 'pcr-documentation-10-0', label: 'Complete ePCR properly and without errors while demonstrating an appropriate narrative consistent with the DCHARTE format.' },
           { id: 'pcr-documentation-11-1', label: 'Ensure a minimum of two sets of vital signs for each patient contact.' },
-          { id: 'pcr-documentation-12-2', label: 'Comply with HIPPA standards' },
+          { id: 'pcr-documentation-12-2', label: 'Comply with HIPAA standards' },
           { id: 'pcr-documentation-13-3', label: 'Complete pt refusal and no transport documentation properly and without errors' },
           { id: 'pcr-documentation-14-4', label: 'Capture appropriate billing information' },
           { id: 'pcr-documentation-15-5', label: 'Capture all necessary signatures on all forms' },

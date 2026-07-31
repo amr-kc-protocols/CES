@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { setState, useSelector } from '../../lib/store'
+import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
@@ -127,16 +127,31 @@ export function updateStudent(id: string, patch: Partial<AemtStudent>): void {
   }))
 }
 
+/**
+ * Hard-delete a student and EVERY record referencing them.
+ *
+ * Prefer setting status to 'withdrawn': a course record is normally retained,
+ * and withdrawal is the outcome KBEMS asks for on the roster. This exists for
+ * genuine mistakes — someone added to the wrong course. It must take all
+ * related records with it, or attendance, encounters, skill checks and
+ * evaluations are left pointing at a student who no longer exists.
+ */
 export function deleteStudent(id: string): void {
   setState((db) => {
     const student = db.aemtStudents.find((s) => s.id === id)
     const attendance = db.aemtAttendance.filter((a) => a.studentId === id)
+    const encounters = db.aemtEncounters.filter((e) => e.studentId === id)
+    const skillChecks = db.aemtSkillChecks.filter((c) => c.studentId === id)
+    const forms = db.aemtFormResponses.filter((f) => f.studentId === id)
     if (student) {
       pushUndo(`Removed ${student.name}`, () =>
         setState((cur) => ({
           ...cur,
           aemtStudents: [...cur.aemtStudents, student],
           aemtAttendance: [...cur.aemtAttendance, ...attendance],
+          aemtEncounters: [...cur.aemtEncounters, ...encounters],
+          aemtSkillChecks: [...cur.aemtSkillChecks, ...skillChecks],
+          aemtFormResponses: [...cur.aemtFormResponses, ...forms],
         })),
       )
     }
@@ -144,8 +159,22 @@ export function deleteStudent(id: string): void {
       ...db,
       aemtStudents: db.aemtStudents.filter((s) => s.id !== id),
       aemtAttendance: db.aemtAttendance.filter((a) => a.studentId !== id),
+      aemtEncounters: db.aemtEncounters.filter((e) => e.studentId !== id),
+      aemtSkillChecks: db.aemtSkillChecks.filter((c) => c.studentId !== id),
+      aemtFormResponses: db.aemtFormResponses.filter((f) => f.studentId !== id),
     }
   })
+}
+
+/** How many records a hard delete would take with it, for the confirmation. */
+export function studentRecordCount(studentId: string): number {
+  const db = getState()
+  return (
+    db.aemtAttendance.filter((a) => a.studentId === studentId).length +
+    db.aemtEncounters.filter((e) => e.studentId === studentId).length +
+    db.aemtSkillChecks.filter((c) => c.studentId === studentId).length +
+    db.aemtFormResponses.filter((f) => f.studentId === studentId).length
+  )
 }
 
 // ----- sessions --------------------------------------------------------------
@@ -719,8 +748,11 @@ export function deleteEncounter(id: string): void {
 
 export interface RequirementProgress {
   requirement: KarMinimum
-  /** Reps logged, all sites. */
+  /** Reps logged in a setting that counts toward this requirement. */
   total: number
+  /** Reps logged in a setting that does NOT count — surfaced, never silently
+   *  folded into the total. */
+  ineligible: number
   /** Reps logged at a field internship site. */
   field: number
   /** Reps satisfying the sub-requirement (venipunctures initiating an infusion). */
@@ -740,13 +772,19 @@ export function progressFor(encounters: AemtEncounter[], studentId: string): Req
   const mine = encounters.filter((e) => e.studentId === studentId)
   return KAR_109_11_8.map((requirement) => {
     const rows = mine.filter((e) => e.requirementId === requirement.id)
-    const total = rows.reduce((s, e) => s + e.count, 0)
-    const field = rows.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
-    const sub = rows.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
+    // Only settings the requirement allows count. A simulated ECG cannot
+    // satisfy a minimum the regulation requires on real patients.
+    const eligible = rows.filter((e) => requirement.allowedSettings.includes(e.siteKind))
+    const total = eligible.reduce((s, e) => s + e.count, 0)
+    const ineligible = rows
+      .filter((e) => !requirement.allowedSettings.includes(e.siteKind))
+      .reduce((s, e) => s + e.count, 0)
+    const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
+    const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
     const totalMet = total >= requirement.minimum
     const fieldMet = field >= (requirement.fieldMinimum ?? 0)
     const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
-    return { requirement, total, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
+    return { requirement, total, ineligible, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
   })
 }
 

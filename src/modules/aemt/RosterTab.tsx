@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Empty, Modal } from '../../components/ui'
-import { useStudents, addStudent, updateStudent, deleteStudent } from './aemtStore'
+import { useStudents, addStudent, updateStudent, deleteStudent, studentRecordCount } from './aemtStore'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtStudent, AemtStudentStatus } from '../../types'
 
@@ -97,7 +97,13 @@ function StudentForm({
             className="btn danger"
             style={{ marginLeft: 'auto' }}
             onClick={() => {
-              if (confirm(`Remove ${existing.name} from this course? Their attendance goes too.`)) {
+              const n = studentRecordCount(existing.id)
+              const msg =
+                `Permanently remove ${existing.name} and ${n} linked record${n === 1 ? '' : 's'} ` +
+                `(attendance, clinical encounters, skill check-offs, evaluations)?\n\n` +
+                `Course records are normally kept — set status to Withdrawn instead unless this ` +
+                `student was added by mistake.`
+              if (confirm(msg)) {
                 deleteStudent(existing.id)
                 onClose()
               }
