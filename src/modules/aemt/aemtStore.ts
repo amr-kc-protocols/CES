@@ -3,11 +3,20 @@ import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
-import { KAR_109_11_8, KBEMS_DEADLINES, KC_BLOCK_PLAN, MAX_ABSENT_HOURS } from '../../data/aemt'
+import {
+  KAR_109_11_8,
+  KBEMS_DEADLINES,
+  KC_BLOCK_PLAN,
+  MAX_ABSENT_HOURS,
+  MIN_PASSING_PERCENT,
+} from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
+import { sheetsForCourse } from '../../data/aemtSkills'
 import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   AemtAttendanceRecord,
+  AemtAuditEvent,
+  AemtCompletion,
   AemtEncounter,
   AemtCourse,
   AemtDeadlineRecord,
@@ -827,4 +836,203 @@ export function courseHourTotals(sessions: AemtSession[]): {
     total += s.hours
   }
   return { total, byKind }
+}
+
+// ----- completion readiness --------------------------------------------------
+//
+// Completion gates a student's eligibility to sit the NREMT cognitive exam, so
+// it is a computed state with an explicit verification step — not a status
+// anyone can pick from a dropdown. Each check either passes on evidence the app
+// holds, or says plainly that it cannot be evidenced here.
+
+export type ReadinessStatus = 'met' | 'unmet' | 'attest'
+
+export interface ReadinessCheck {
+  id: string
+  label: string
+  status: ReadinessStatus
+  detail: string
+}
+
+export interface StudentReadiness {
+  student: AemtStudent
+  checks: ReadinessCheck[]
+  /** Every computable check passes. */
+  computedMet: boolean
+  /** Ids of checks that do not pass — what an override would have to name. */
+  unmet: string[]
+  completion?: AemtCompletion
+}
+
+export function useCompletions(courseId: string | undefined): AemtCompletion[] {
+  return useSelector((db) => db.aemtCompletions.filter((c) => c.courseId === courseId))
+}
+
+export function useAuditEvents(courseId: string | undefined): AemtAuditEvent[] {
+  return useSelector((db) =>
+    db.aemtAudit.filter((e) => e.courseId === courseId).sort((a, b) => b.at.localeCompare(a.at)),
+  )
+}
+
+function audit(courseId: string, studentId: string | undefined, actor: string, action: string, detail: string): void {
+  setState((db) => ({
+    ...db,
+    aemtAudit: [
+      ...db.aemtAudit,
+      { id: uid('aud'), courseId, studentId, at: new Date().toISOString(), actor, action, detail },
+    ],
+  }))
+}
+
+/** Close out a flagged remediation or behaviour conference. */
+export function resolveFormResponse(id: string, by: string, note: string): void {
+  setState((db) => ({
+    ...db,
+    aemtFormResponses: db.aemtFormResponses.map((r) =>
+      r.id === id ? { ...r, resolvedDate: todayISO(), resolvedBy: by, resolutionNote: note } : r,
+    ),
+  }))
+}
+
+/** Flagged responses that have NOT been closed out. */
+export function openConcerns(responses: AemtFormResponse[]): AemtFormResponse[] {
+  return flaggedResponses(responses).filter((r) => !r.resolvedDate)
+}
+
+/**
+ * Readiness for every student. Checks that the app cannot evidence — the final
+ * course grade lives in the Navigate LMS — are reported as 'attest' so they are
+ * captured at verification rather than silently assumed.
+ */
+export function useStudentReadiness(
+  courseId: string | undefined,
+  monitorSheetId: string | undefined,
+): StudentReadiness[] {
+  const students = useStudents(courseId)
+  const hours = useStudentHours(courseId)
+  const clinical = useClinicalStanding(courseId)
+  const checks = useSkillChecks(courseId)
+  const responses = useFormResponses(courseId)
+  const completions = useCompletions(courseId)
+
+  return useMemo(() => {
+    const sheets = sheetsForCourse(monitorSheetId)
+    return students.map((student) => {
+      const h = hours.find((x) => x.student.id === student.id)
+      const c = clinical.find((x) => x.student.id === student.id)
+      const skills = standingFor(checks, student.id, sheets)
+      const signed = skills.filter((s) => s.signedOff).length
+      const mine = responses.filter((r) => r.studentId === student.id)
+      const open = openConcerns(mine)
+      const courseForms = ['instructor-eval', 'course-eval']
+      const submitted = courseForms.filter((f) => mine.some((r) => r.formId === f))
+
+      const list: ReadinessCheck[] = [
+        {
+          id: 'attendance',
+          label: 'Attendance within policy',
+          status: h && h.classAbsentHours > MAX_ABSENT_HOURS ? 'unmet' : 'met',
+          detail: h
+            ? `${h.classAbsentHours} h of class missed (limit ${MAX_ABSENT_HOURS})`
+            : 'No attendance recorded',
+        },
+        {
+          id: 'clinical',
+          label: 'Clinical minimums met',
+          status: c?.complete ? 'met' : 'unmet',
+          detail: c ? `${c.metCount} of ${c.progress.length} K.A.R. 109-11-8 minimums` : '—',
+        },
+        {
+          id: 'skills',
+          label: 'Psychomotor skills signed off',
+          status: signed === sheets.length && sheets.length > 0 ? 'met' : 'unmet',
+          detail: `${signed} of ${sheets.length} sheets signed off`,
+        },
+        {
+          id: 'concerns',
+          label: 'Remediation and conferences closed',
+          status: open.length === 0 ? 'met' : 'unmet',
+          detail: open.length === 0 ? 'Nothing open' : `${open.length} still open`,
+        },
+        {
+          id: 'evaluations',
+          label: 'End-of-course evaluations submitted',
+          status: submitted.length === courseForms.length ? 'met' : 'unmet',
+          detail: `${submitted.length} of ${courseForms.length} submitted`,
+        },
+        {
+          id: 'grade',
+          label: `Final course grade at or above ${MIN_PASSING_PERCENT}%`,
+          status: 'attest',
+          detail: 'Held in the Navigate LMS — recorded and attested at verification',
+        },
+      ]
+
+      return {
+        student,
+        checks: list,
+        computedMet: list.every((x) => x.status !== 'unmet'),
+        unmet: list.filter((x) => x.status === 'unmet').map((x) => x.id),
+        completion: completions.find((x) => x.studentId === student.id),
+      }
+    })
+  }, [students, hours, clinical, checks, responses, completions, monitorSheetId])
+}
+
+/**
+ * Record a completion. Refuses to fabricate readiness: if checks are unmet the
+ * caller must supply an override, which is stored with the completion and
+ * written to the audit log naming exactly which checks were bypassed.
+ */
+export function recordCompletion(
+  courseId: string,
+  studentId: string,
+  input: {
+    verifiedBy: string
+    finalGradePercent: number
+    override?: { reason: string; approver: string; unmetChecks: string[] }
+  },
+): void {
+  const completion: AemtCompletion = {
+    courseId,
+    studentId,
+    completedDate: todayISO(),
+    verifiedBy: input.verifiedBy,
+    finalGradePercent: input.finalGradePercent,
+    override: input.override,
+  }
+  setState((db) => ({
+    ...db,
+    aemtCompletions: [
+      ...db.aemtCompletions.filter((c) => !(c.courseId === courseId && c.studentId === studentId)),
+      completion,
+    ],
+    aemtStudents: db.aemtStudents.map((s) =>
+      s.id === studentId ? { ...s, status: 'completed' as const } : s,
+    ),
+  }))
+  const name = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  audit(
+    courseId,
+    studentId,
+    input.verifiedBy,
+    input.override ? 'completion recorded WITH OVERRIDE' : 'completion recorded',
+    input.override
+      ? `${name} · grade ${input.finalGradePercent}% · bypassed: ${input.override.unmetChecks.join(', ')} · approved by ${input.override.approver} · reason: ${input.override.reason}`
+      : `${name} · grade ${input.finalGradePercent}% · all readiness checks met`,
+  )
+}
+
+export function revokeCompletion(courseId: string, studentId: string, actor: string, reason: string): void {
+  const name = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  setState((db) => ({
+    ...db,
+    aemtCompletions: db.aemtCompletions.filter(
+      (c) => !(c.courseId === courseId && c.studentId === studentId),
+    ),
+    aemtStudents: db.aemtStudents.map((s) =>
+      s.id === studentId ? { ...s, status: 'active' as const } : s,
+    ),
+  }))
+  audit(courseId, studentId, actor, 'completion revoked', `${name} · reason: ${reason}`)
 }

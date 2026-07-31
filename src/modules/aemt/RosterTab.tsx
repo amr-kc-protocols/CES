@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { Empty, Modal } from '../../components/ui'
-import { useStudents, addStudent, updateStudent, deleteStudent, studentRecordCount } from './aemtStore'
+import {
+  useStudents,
+  useStudentReadiness,
+  addStudent,
+  updateStudent,
+  deleteStudent,
+  studentRecordCount,
+} from './aemtStore'
+import CompletionPanel from './CompletionPanel'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtStudent, AemtStudentStatus } from '../../types'
 
@@ -80,9 +88,13 @@ function StudentForm({
             onChange={(e) => setStatus(e.target.value as AemtStudentStatus)}
           >
             <option value="active">Active</option>
-            <option value="completed">Completed</option>
             <option value="withdrawn">Withdrawn</option>
+            {existing.status === 'completed' && <option value="completed">Completed</option>}
           </select>
+          <div className="help-text">
+            Completed is set by verifying readiness below, not chosen here — it is what makes a
+            student eligible to sit the NREMT cognitive exam.
+          </div>
         </div>
       )}
       <div className="btn-row" style={{ marginTop: 12 }}>
@@ -122,6 +134,7 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const { manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
+  const readiness = useStudentReadiness(course.id, course.monitorSheetId)
 
   return (
     <div>
@@ -166,6 +179,10 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
             </div>
           ))}
         </div>
+      )}
+
+      {students.length > 0 && (
+        <CompletionPanel course={course} readiness={readiness} canEdit={manageAcademy} />
       )}
 
       {adding && <StudentForm courseId={course.id} onClose={() => setAdding(false)} />}

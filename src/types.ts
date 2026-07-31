@@ -512,6 +512,52 @@ export interface AemtFormResponse {
   date: string
   values: Record<string, string | number | boolean>
   submittedAt: string
+  /** Set when a flagged concern (remediation / conference) has been closed out. */
+  resolvedDate?: string
+  resolvedBy?: string
+  resolutionNote?: string
+}
+
+/**
+ * A recorded course completion. Completion is a verified state, not a status
+ * anyone can pick from a dropdown: it gates a student's eligibility to sit the
+ * NREMT cognitive exam, so it carries who verified it and against what.
+ */
+export interface AemtCompletion {
+  courseId: string
+  studentId: string
+  /** ISO date completion was recorded. */
+  completedDate: string
+  /** Primary instructor or program manager attesting to it. */
+  verifiedBy: string
+  /**
+   * Final course grade. Attested rather than computed — grades live in the
+   * Navigate LMS, not in this app, so recording the figure is the honest
+   * option and inventing a gradebook would be worse.
+   */
+  finalGradePercent: number
+  /** Present only when recorded despite a readiness check that had not passed. */
+  override?: {
+    reason: string
+    approver: string
+    /** Ids of the checks that were unmet at the time. */
+    unmetChecks: string[]
+  }
+}
+
+/**
+ * Append-only record of consequential actions. Written for completions,
+ * overrides and revocations — the events an audit would ask about.
+ */
+export interface AemtAuditEvent {
+  id: string
+  courseId: string
+  studentId?: string
+  /** ISO timestamp. */
+  at: string
+  actor: string
+  action: string
+  detail: string
 }
 
 /** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
@@ -613,5 +659,7 @@ export interface DBShape {
   aemtDeadlines: AemtDeadlineRecord[]
   aemtSkillChecks: AemtSkillCheck[]
   aemtFormResponses: AemtFormResponse[]
+  aemtCompletions: AemtCompletion[]
+  aemtAudit: AemtAuditEvent[]
   settings: Settings
 }

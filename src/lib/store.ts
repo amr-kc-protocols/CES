@@ -37,6 +37,8 @@ function emptyDB(): DBShape {
     aemtDeadlines: [],
     aemtSkillChecks: [],
     aemtFormResponses: [],
+    aemtCompletions: [],
+    aemtAudit: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }
