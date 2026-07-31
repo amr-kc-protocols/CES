@@ -467,6 +467,12 @@ export interface AemtCourse {
   medicalDirector?: string
   /** Filed hour commitments. Absent = not yet declared, so no reconciliation. */
   targets?: AemtHourTargets
+  /**
+   * Cardiac monitor this operation runs, by skill-sheet id. Students are
+   * checked off on their own monitor only — AMR KC uses the LIFEPAK 15,
+   * Wichita the Zoll X-Series.
+   */
+  monitorSheetId?: string
   notes?: string
   createdAt: string
   updatedAt: string

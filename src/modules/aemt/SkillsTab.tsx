@@ -10,11 +10,10 @@ import {
   toggleCriticalFailure,
   setSkillSignoff,
 } from './aemtStore'
-import { sheetsForAemt, sheetsByScope, skillSheet } from '../../data/aemtSkills'
+import { sheetsForCourse, sheetsByScope, skillSheet } from '../../data/aemtSkills'
 import { useCan } from '../../lib/role'
 import type { AemtCourse } from '../../types'
 
-const SHEETS = sheetsForAemt()
 const BLS_SHEETS = sheetsByScope('bls')
 const MEDIC_SHEETS = sheetsByScope('paramedic')
 
@@ -54,6 +53,14 @@ function SheetDetail({
           </div>
         </div>
       </div>
+
+      {sheet.draft && (
+        <div className="banner warn" style={{ marginTop: 10 }}>
+          <strong>Draft sheet.</strong> No sheet for this skill existed in the AMR workbook, so its
+          criteria were written here. Have the Program Manager and Medical Director review it before
+          it is used as a competency record.
+        </div>
+      )}
 
       {standing.criticalFailed && (
         <div className="banner crit" style={{ marginTop: 10 }}>
@@ -217,6 +224,7 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
   const [selectedId, setSelected] = useState<string | null>(null)
   const [openSheet, setOpenSheet] = useState<string | null>(null)
   const [showExcluded, setShowExcluded] = useState(false)
+  const SHEETS = sheetsForCourse(course.monitorSheetId)
 
   if (students.length === 0) {
     return (
@@ -302,7 +310,14 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
             onClick={() => setOpenSheet(s.sheet.id)}
           >
             <div className="grow">
-              <div className="title">{s.sheet.title}</div>
+              <div className="title">
+                {s.sheet.title}
+                {s.sheet.draft && (
+                  <span className="pill warn" style={{ marginLeft: 8 }}>
+                    draft
+                  </span>
+                )}
+              </div>
               <div className="meta">
                 {s.passed}/{s.total} criteria
                 {s.failed > 0 && ` · ${s.failed} needing practice`}

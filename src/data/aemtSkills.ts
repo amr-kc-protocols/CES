@@ -35,7 +35,11 @@ export const SKILL_SCOPE: Record<string, SkillScope> = {
   'ekg-acquisition': 'advanced',     // K.A.R. 109-11-8: 8 ECG applications
   'supraglottic-airways-igel': 'advanced', // advanced airway, AEMT scope
   'cpap-bipap-mask-flow-safe-ii': 'advanced',
-  'glucometer': 'advanced',          // glucometry, listed under AEMT monitoring (PA5)
+  'glucometer': 'advanced',
+  'im-subq-injection': 'advanced',    // K.A.R. 109-11-8: 10 IM/SubQ injections
+  'nebulized-treatment': 'advanced',  // K.A.R. 109-11-8: 1 nebulized treatment
+  'lifepak-15': 'advanced',           // monitor — AMR KC
+          // glucometry, listed under AEMT monitoring (PA5)
 
   // ----- EMT-level; the student arrives already proficient ------------------
   'pcr-documentation': 'bls',
@@ -49,8 +53,7 @@ export const SKILL_SCOPE: Record<string, SkillScope> = {
   'pelvic-binder': 'bls',
   'autopulse-check-off': 'bls',
   'lucas': 'bls',
-  'zoll-x-series': 'bls',            // AED/monitor use; the AEMT-level 12-lead
-                                     // acquisition is covered by ekg-acquisition
+  'zoll-x-series': 'advanced',       // monitor — Wichita / EagleMed
 
   // ----- above AEMT scope ---------------------------------------------------
   'ventilator-equipment': 'paramedic',
@@ -81,9 +84,197 @@ export interface AemtSkillSheet {
   sections: SkillSection[]
   /** Any one of these fails the whole skill regardless of criteria scores. */
   criticalFailures: string[]
+  /**
+   * Equipment-specific sheets where a course uses exactly one of the set —
+   * the cardiac monitor differs by operation. Selected per course.
+   */
+  equipmentGroup?: 'monitor'
+  /**
+   * Authored here rather than transcribed from the AMR workbook, because no
+   * sheet existed. Needs Program Manager / Medical Director review before it
+   * is used as a competency record.
+   */
+  draft?: boolean
 }
 
 export const AEMT_SKILL_SHEETS: AemtSkillSheet[] = [
+  // ----- authored here; no sheet existed in the AMR workbook -----------
+  {
+    id: 'im-subq-injection',
+    title: 'IM / SubQ Injection',
+    levelLabel: 'AEMT & Paramedic',
+    levels: ['aemt', 'paramedic'],
+    draft: true,
+    sections: [
+      {
+        title: 'Assembles Equipment',
+        criteria: [
+          { id: 'im-subq-injection-0-0', label: 'Takes or verbalizes appropriate PPE precautions' },
+          { id: 'im-subq-injection-0-1', label: 'Selects syringe of appropriate volume' },
+          { id: 'im-subq-injection-0-2', label: 'Selects needle of appropriate gauge and length for the route and site' },
+          { id: 'im-subq-injection-0-3', label: 'Obtains antiseptic swabs, gauze, and adhesive bandage' },
+          { id: 'im-subq-injection-0-4', label: 'Positions a sharps container within immediate reach' },
+        ],
+      },
+      {
+        title: 'Preparation of Medication',
+        criteria: [
+          { id: 'im-subq-injection-1-0', label: 'Confirms the indication and rules out contraindications and known allergies' },
+          { id: 'im-subq-injection-1-1', label: 'Verifies the right patient, medication, dose, route, and time' },
+          { id: 'im-subq-injection-1-2', label: 'Checks the medication expiration date' },
+          { id: 'im-subq-injection-1-3', label: 'Inspects the medication for clarity and particulate matter' },
+          { id: 'im-subq-injection-1-4', label: 'Cleanses the vial stopper or snaps the ampule using appropriate technique' },
+          { id: 'im-subq-injection-1-5', label: 'Draws up the correct volume while maintaining sterility' },
+          { id: 'im-subq-injection-1-6', label: 'Expels air from the syringe and reconfirms the dose' },
+        ],
+      },
+      {
+        title: 'Administration',
+        criteria: [
+          { id: 'im-subq-injection-2-0', label: 'Identifies an appropriate site for the route (IM: deltoid, vastus lateralis, ventrogluteal; SubQ: upper arm, abdomen, anterior thigh)' },
+          { id: 'im-subq-injection-2-1', label: 'Exposes and inspects the site, avoiding areas of injury, scarring, or poor perfusion' },
+          { id: 'im-subq-injection-2-2', label: 'Cleanses the site from the center outward in a circular motion' },
+          { id: 'im-subq-injection-2-3', label: 'Warns the patient to expect the needle stick' },
+          { id: 'im-subq-injection-2-4', label: 'Inserts the needle at the correct angle for the route (IM 90 degrees, SubQ 45 degrees)' },
+          { id: 'im-subq-injection-2-5', label: 'Injects the medication at an appropriate rate' },
+          { id: 'im-subq-injection-2-6', label: 'Withdraws the needle and applies pressure to the site' },
+          { id: 'im-subq-injection-2-7', label: 'Disposes of the needle immediately in the sharps container at the point of use' },
+          { id: 'im-subq-injection-2-8', label: 'Applies a bandage to the site' },
+        ],
+      },
+      {
+        title: 'Reassessment and Documentation',
+        criteria: [
+          { id: 'im-subq-injection-3-0', label: 'Reassesses the patient for therapeutic response' },
+          { id: 'im-subq-injection-3-1', label: 'Monitors for adverse reaction, including signs of anaphylaxis' },
+          { id: 'im-subq-injection-3-2', label: 'Documents medication, dose, route, site, time, and patient response' },
+        ],
+      },
+    ],
+    criticalFailures: [
+      'Failure to take or verbalize appropriate PPE precautions',
+      'Failure to dispose of blood-contaminated sharps immediately at the point of use',
+      'Administers an incorrect medication, dose, or route',
+      'Failure to verify allergies before administration',
+      'Contaminates equipment or site without appropriately correcting the situation',
+      'Failure to reassess the patient for adverse reaction after administration',
+      'Uses or orders a dangerous or inappropriate intervention',
+    ],
+  },
+  {
+    id: 'nebulized-treatment',
+    title: 'Nebulized Breathing Treatment',
+    levelLabel: 'AEMT & Paramedic',
+    levels: ['aemt', 'paramedic'],
+    draft: true,
+    sections: [
+      {
+        title: 'Assembles Equipment',
+        criteria: [
+          { id: 'nebulized-treatment-0-0', label: 'Takes or verbalizes appropriate PPE precautions' },
+          { id: 'nebulized-treatment-0-1', label: 'Obtains nebulizer chamber, mouthpiece or mask, and tubing' },
+          { id: 'nebulized-treatment-0-2', label: 'Obtains an oxygen source and confirms adequate cylinder pressure' },
+        ],
+      },
+      {
+        title: 'Preparation of Medication',
+        criteria: [
+          { id: 'nebulized-treatment-1-0', label: 'Confirms the indication and rules out contraindications and known allergies' },
+          { id: 'nebulized-treatment-1-1', label: 'Verifies the right patient, medication, dose, route, and time' },
+          { id: 'nebulized-treatment-1-2', label: 'Checks the medication expiration date and inspects for clarity' },
+          { id: 'nebulized-treatment-1-3', label: 'Instills the correct medication and volume into the nebulizer chamber' },
+          { id: 'nebulized-treatment-1-4', label: 'Assembles the chamber and connects tubing to the oxygen source' },
+        ],
+      },
+      {
+        title: 'Baseline Assessment',
+        criteria: [
+          { id: 'nebulized-treatment-2-0', label: 'Obtains baseline vital signs including SpO2' },
+          { id: 'nebulized-treatment-2-1', label: 'Auscultates and documents baseline lung sounds in all fields' },
+          { id: 'nebulized-treatment-2-2', label: 'Assesses work of breathing and ability to speak in full sentences' },
+        ],
+      },
+      {
+        title: 'Administration',
+        criteria: [
+          { id: 'nebulized-treatment-3-0', label: 'Sets oxygen flow to produce a steady visible mist (typically 6 to 8 L/min)' },
+          { id: 'nebulized-treatment-3-1', label: 'Coaches the patient to breathe slowly and deeply through the mouthpiece or mask' },
+          { id: 'nebulized-treatment-3-2', label: 'Positions the patient upright as tolerated' },
+          { id: 'nebulized-treatment-3-3', label: 'Remains with the patient throughout administration' },
+          { id: 'nebulized-treatment-3-4', label: 'Monitors continuously for deterioration or adverse reaction' },
+        ],
+      },
+      {
+        title: 'Reassessment and Documentation',
+        criteria: [
+          { id: 'nebulized-treatment-4-0', label: 'Reassesses lung sounds, vital signs, and SpO2 after the treatment' },
+          { id: 'nebulized-treatment-4-1', label: 'Determines whether a repeat treatment is indicated' },
+          { id: 'nebulized-treatment-4-2', label: 'Documents medication, dose, route, time, and patient response' },
+        ],
+      },
+    ],
+    criticalFailures: [
+      'Failure to take or verbalize appropriate PPE precautions',
+      'Administers an incorrect medication or dose',
+      'Failure to obtain a baseline respiratory assessment before administration',
+      'Failure to reassess the patient after the treatment',
+      'Failure to recognize deterioration requiring a higher level of care',
+    ],
+  },
+  {
+    id: 'lifepak-15',
+    title: 'LIFEPAK 15 Monitor',
+    levelLabel: 'All Levels',
+    levels: ['emt', 'aemt', 'paramedic'],
+    equipmentGroup: 'monitor',
+    draft: true,
+    sections: [
+      {
+        title: 'Overview and Power-up',
+        criteria: [
+          { id: 'lifepak-15-0-0', label: 'Demonstrates how to power on the LIFEPAK 15' },
+          { id: 'lifepak-15-0-1', label: 'Locates the quick access keys and states their purpose' },
+          { id: 'lifepak-15-0-2', label: 'Locates the speed dial and demonstrates navigation' },
+          { id: 'lifepak-15-0-3', label: 'Locates the patient mode (adult/pediatric) and demonstrates how to change it' },
+          { id: 'lifepak-15-0-4', label: 'Demonstrates how to install and remove a battery, and how to use the AC/DC power adapter' },
+          { id: 'lifepak-15-0-5', label: 'Demonstrates how to adjust screen brightness for daylight and low-light use' },
+        ],
+      },
+      {
+        title: 'General Patient Monitoring',
+        criteria: [
+          { id: 'lifepak-15-1-0', label: 'Locates the lead currently displayed and demonstrates how to change leads' },
+          { id: 'lifepak-15-1-1', label: 'Demonstrates how to display multiple waveform channels' },
+          { id: 'lifepak-15-1-2', label: 'Locates the heart rate alarms and demonstrates how to change them' },
+          { id: 'lifepak-15-1-3', label: 'Demonstrates NIBP acquisition in manual mode' },
+          { id: 'lifepak-15-1-4', label: 'Demonstrates how to set an automatic NIBP interval' },
+          { id: 'lifepak-15-1-5', label: 'Locates the NIBP alarms and demonstrates how to change them' },
+          { id: 'lifepak-15-1-6', label: 'Locates the SpO2 value and demonstrates how to change its alarms and settings' },
+          { id: 'lifepak-15-1-7', label: 'Locates the ETCO2 value and waveform and demonstrates how to change its alarms and settings' },
+          { id: 'lifepak-15-1-8', label: 'Locates the respiration settings and demonstrates how to change them' },
+          { id: 'lifepak-15-1-9', label: 'Demonstrates the alarm silence and suspend functions' },
+          { id: 'lifepak-15-1-10', label: 'Demonstrates how to enter patient data' },
+          { id: 'lifepak-15-1-11', label: 'Demonstrates how to print a rhythm strip' },
+          { id: 'lifepak-15-1-12', label: 'Demonstrates how to navigate to trends and return to the home screen' },
+        ],
+      },
+      {
+        title: '12-Lead Acquisition',
+        criteria: [
+          { id: 'lifepak-15-2-0', label: 'Prepares the patient skin appropriately for electrode placement' },
+          { id: 'lifepak-15-2-1', label: 'Applies all ten electrodes in the correct anatomical positions' },
+          { id: 'lifepak-15-2-2', label: 'Demonstrates how to acquire a 12-lead' },
+          { id: 'lifepak-15-2-3', label: 'Demonstrates how to enter patient name and identifiers' },
+          { id: 'lifepak-15-2-4', label: 'Demonstrates how to transmit a 12-lead' },
+          { id: 'lifepak-15-2-5', label: 'Demonstrates how to review a previously acquired 12-lead' },
+          { id: 'lifepak-15-2-6', label: 'Demonstrates how to print a 12-lead' },
+          { id: 'lifepak-15-2-7', label: 'Recognizes and corrects artifact or lead misplacement before transmission' },
+        ],
+      },
+    ],
+    criticalFailures: [],
+  },
+  // ----- transcribed from the AMR workbook ------------------------------
   {
     id: 'pcr-documentation',
     title: 'PCR Documentation',
@@ -1221,6 +1412,7 @@ export const AEMT_SKILL_SHEETS: AemtSkillSheet[] = [
     title: 'X-Series (Zoll)',
     levelLabel: 'ALL',
     levels: ['emt', 'aemt', 'paramedic'],
+    equipmentGroup: 'monitor',
     sections: [
       {
         title: 'Overview and Power-up',
@@ -1312,6 +1504,20 @@ export function sheetsForAemt(): AemtSkillSheet[] {
 
 export function sheetsByScope(scope: SkillScope): AemtSkillSheet[] {
   return AEMT_SKILL_SHEETS.filter((s) => SKILL_SCOPE[s.id] === scope)
+}
+
+/** Every monitor sheet, for the course setup picker. */
+export const MONITOR_SHEETS = AEMT_SKILL_SHEETS.filter((s) => s.equipmentGroup === 'monitor')
+
+/**
+ * The advanced sheets for one course: the common set, plus only the monitor
+ * that operation actually runs. A course with no monitor selected shows none,
+ * rather than checking a student off on hardware they will never touch.
+ */
+export function sheetsForCourse(monitorSheetId: string | undefined): AemtSkillSheet[] {
+  return sheetsForAemt().filter(
+    (s) => s.equipmentGroup !== 'monitor' || s.id === monitorSheetId,
+  )
 }
 
 /** Total gradeable criteria on a sheet. */

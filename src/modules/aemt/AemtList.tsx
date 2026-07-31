@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Empty, Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
 import { useCourses, useCourseTotals, createCourse, byStartDesc, KC_DEFAULT_TARGETS } from './aemtStore'
+import { MONITOR_SHEETS } from '../../data/aemtSkills'
 import DeadlinePanel from './DeadlinePanel'
 import { useCan } from '../../lib/role'
 import type { AemtCourse } from '../../types'
@@ -45,6 +46,7 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
   const [courseNumber, setNumber] = useState('')
   const [coordinator, setCoordinator] = useState('')
   const [organization, setOrg] = useState('')
+  const [monitor, setMonitor] = useState('')
   const [didactic, setDidactic] = useState('')
   const [lab, setLab] = useState('')
   const [clinical, setClinical] = useState('')
@@ -90,6 +92,20 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setOrg(e.target.value)}
           placeholder="AMR Kansas City"
         />
+      </div>
+      <div className="field">
+        <label htmlFor="ac-monitor">Cardiac monitor</label>
+        <select id="ac-monitor" value={monitor} onChange={(e) => setMonitor(e.target.value)}>
+          <option value="">— select the monitor this operation runs —</option>
+          {MONITOR_SHEETS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.title}
+            </option>
+          ))}
+        </select>
+        <div className="help-text">
+          Students are checked off on this monitor only.
+        </div>
       </div>
       <div className="field">
         <label htmlFor="ac-coord">Course coordinator (optional)</label>
@@ -156,6 +172,7 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
               organization: organization.trim() || undefined,
               courseNumber: courseNumber.trim() || undefined,
               coordinator: coordinator.trim() || undefined,
+              monitorSheetId: monitor || undefined,
               targets: hasTargets
                 ? { didactic: nums[0], lab: nums[1], clinical: nums[2], field: nums[3] }
                 : undefined,
