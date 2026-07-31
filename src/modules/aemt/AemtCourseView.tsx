@@ -6,14 +6,16 @@ import { useCourse, useSessions, useStudents, courseHourTotals } from './aemtSto
 import RosterTab from './RosterTab'
 import SessionsTab from './SessionsTab'
 import HoursTab from './HoursTab'
+import ClinicalTab from './ClinicalTab'
 
-const TABS = ['roster', 'sessions', 'hours'] as const
+const TABS = ['roster', 'sessions', 'hours', 'clinical'] as const
 type Tab = (typeof TABS)[number]
 
 const TAB_LABEL: Record<Tab, string> = {
   roster: 'Roster',
   sessions: 'Sessions',
   hours: 'Hours',
+  clinical: 'Clinical',
 }
 
 export default function AemtCourseView() {
@@ -88,6 +90,7 @@ export default function AemtCourseView() {
         {tab === 'roster' && <RosterTab course={course} />}
         {tab === 'sessions' && <SessionsTab course={course} />}
         {tab === 'hours' && <HoursTab course={course} />}
+        {tab === 'clinical' && <ClinicalTab course={course} />}
       </div>
     </div>
   )

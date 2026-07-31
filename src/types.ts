@@ -493,6 +493,35 @@ export interface AemtAttendanceRecord {
   hours?: number
 }
 
+/**
+ * Where an encounter happened. Only 'field' counts toward the field-specific
+ * minimums in K.A.R. 109-11-8 (assessments, supervised calls, PCRs).
+ */
+export type AemtSiteKind = 'hospital' | 'field' | 'lab'
+
+/**
+ * One line of the student patient encounter log. NEVER carries PHI — the
+ * regulation-facing record is date, site, skill, count and preceptor only.
+ */
+export interface AemtEncounter {
+  id: string
+  courseId: string
+  studentId: string
+  /** ISO date of the shift. */
+  date: string
+  siteKind: AemtSiteKind
+  /** Free-text site, e.g. 'AdventHealth KC — ED'. */
+  site?: string
+  /** Which K.A.R. 109-11-8 requirement this counts toward (see data/aemt.ts). */
+  requirementId: string
+  /** Reps this line represents; usually 1. */
+  count: number
+  /** Venipuncture only — whether the stick initiated an IV infusion. */
+  initiatedInfusion?: boolean
+  preceptor?: string
+  notes?: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -512,5 +541,6 @@ export interface DBShape {
   aemtStudents: AemtStudent[]
   aemtSessions: AemtSession[]
   aemtAttendance: AemtAttendanceRecord[]
+  aemtEncounters: AemtEncounter[]
   settings: Settings
 }

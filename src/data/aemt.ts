@@ -23,6 +23,11 @@ export interface KarMinimum {
    * or hospital clinical encounters.
    */
   fieldMinimum?: number
+  /**
+   * An extra condition on a subset of the total — currently only the
+   * venipuncture rule, where 10 of the 20 must initiate an IV infusion.
+   */
+  subRequirement?: { id: 'infusion'; label: string; minimum: number }
   /** Where the proposal plans to source these. */
   site: string
   note?: string
@@ -33,15 +38,16 @@ export const KAR_109_11_8: KarMinimum[] = [
     id: 'venipuncture',
     label: 'Venipunctures',
     minimum: 20,
+    subRequirement: { id: 'infusion', label: 'initiating an IV infusion', minimum: 10 },
     site: 'AdventHealth KC (ED / hospital units)',
-    note: '10 of the 20 must initiate an IV infusion. Most procedure-intensive requirement — the clinical affiliation agreement must explicitly permit it.',
+    note: 'Most procedure-intensive requirement — the clinical affiliation agreement must explicitly permit it.',
   },
   {
     id: 'io',
     label: 'IO infusions',
     minimum: 5,
-    site: 'Sim lab (bone injection models)',
-    note: 'Simulation is the standard approach; completable in one dedicated skills session.',
+    site: 'Sim lab (bone injection models) or live',
+    note: 'Simulation reps and live patient reps count equally toward the 5.',
   },
   {
     id: 'injection',

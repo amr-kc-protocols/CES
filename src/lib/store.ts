@@ -33,6 +33,7 @@ function emptyDB(): DBShape {
     aemtStudents: [],
     aemtSessions: [],
     aemtAttendance: [],
+    aemtEncounters: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }

@@ -3,9 +3,11 @@ import { setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
-import { KC_BLOCK_PLAN, KC_HOUR_TARGETS, MAX_ABSENT_HOURS } from '../../data/aemt'
+import { KAR_109_11_8, KC_BLOCK_PLAN, KC_HOUR_TARGETS, MAX_ABSENT_HOURS } from '../../data/aemt'
+import type { KarMinimum } from '../../data/aemt'
 import type {
   AemtAttendanceRecord,
+  AemtEncounter,
   AemtCourse,
   AemtSession,
   AemtSessionKind,
@@ -425,6 +427,93 @@ export function useCourseTotals(courseId: string | undefined): {
       scheduledHours: sessions.reduce((sum, s) => sum + s.hours, 0),
     }),
     [students, sessions],
+  )
+}
+
+// ----- patient encounter log (K.A.R. 109-11-8) -------------------------------
+
+export function useEncounters(courseId: string | undefined): AemtEncounter[] {
+  return useSelector((db) =>
+    db.aemtEncounters
+      .filter((e) => e.courseId === courseId)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+  )
+}
+
+export function addEncounter(
+  courseId: string,
+  studentId: string,
+  input: Omit<AemtEncounter, 'id' | 'courseId' | 'studentId'>,
+): AemtEncounter {
+  const enc: AemtEncounter = { id: uid('aenc'), courseId, studentId, ...input }
+  setState((db) => ({ ...db, aemtEncounters: [...db.aemtEncounters, enc] }))
+  return enc
+}
+
+export function deleteEncounter(id: string): void {
+  setState((db) => {
+    const enc = db.aemtEncounters.find((e) => e.id === id)
+    if (enc) {
+      pushUndo('Deleted log entry', () =>
+        setState((cur) => ({ ...cur, aemtEncounters: [...cur.aemtEncounters, enc] })),
+      )
+    }
+    return { ...db, aemtEncounters: db.aemtEncounters.filter((e) => e.id !== id) }
+  })
+}
+
+export interface RequirementProgress {
+  requirement: KarMinimum
+  /** Reps logged, all sites. */
+  total: number
+  /** Reps logged at a field internship site. */
+  field: number
+  /** Reps satisfying the sub-requirement (venipunctures initiating an infusion). */
+  sub: number
+  /** Total minimum reached. */
+  totalMet: boolean
+  /** Field-specific minimum reached (true when the requirement has none). */
+  fieldMet: boolean
+  /** Sub-requirement reached (true when the requirement has none). */
+  subMet: boolean
+  /** Every condition on this requirement satisfied. */
+  met: boolean
+}
+
+/** One student's standing against all eight K.A.R. 109-11-8 minimums. */
+export function progressFor(encounters: AemtEncounter[], studentId: string): RequirementProgress[] {
+  const mine = encounters.filter((e) => e.studentId === studentId)
+  return KAR_109_11_8.map((requirement) => {
+    const rows = mine.filter((e) => e.requirementId === requirement.id)
+    const total = rows.reduce((s, e) => s + e.count, 0)
+    const field = rows.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
+    const sub = rows.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
+    const totalMet = total >= requirement.minimum
+    const fieldMet = field >= (requirement.fieldMinimum ?? 0)
+    const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
+    return { requirement, total, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
+  })
+}
+
+export interface StudentClinicalStanding {
+  student: AemtStudent
+  progress: RequirementProgress[]
+  /** How many of the eight requirements are fully satisfied. */
+  metCount: number
+  complete: boolean
+}
+
+export function useClinicalStanding(courseId: string | undefined): StudentClinicalStanding[] {
+  const students = useStudents(courseId)
+  const encounters = useEncounters(courseId)
+  return useMemo(
+    () =>
+      students.map((student) => {
+        const progress = progressFor(encounters, student.id)
+        const metCount = progress.filter((p) => p.met).length
+        return { student, progress, metCount, complete: metCount === progress.length }
+      }),
+    [students, encounters],
   )
 }
 
