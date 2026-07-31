@@ -472,6 +472,24 @@ export interface AemtCourse {
   updatedAt: string
 }
 
+/**
+ * One student's check-off on one psychomotor skill sheet. Criteria are graded
+ * individually; a critical-failure item fails the sheet outright, which is why
+ * it is tracked separately rather than as just another failed criterion.
+ */
+export interface AemtSkillCheck {
+  courseId: string
+  studentId: string
+  sheetId: string
+  /** criterionId -> result. Absent = not yet assessed. */
+  results: Record<string, 'pass' | 'fail'>
+  /** Critical-failure items triggered, by their text. */
+  criticalFailed?: string[]
+  evaluator?: string
+  /** ISO date the sheet was signed off as passed. */
+  passedDate?: string
+}
+
 /** A KBEMS submission marked done for a course (see KBEMS_DEADLINES). */
 export interface AemtDeadlineRecord {
   courseId: string
@@ -569,5 +587,6 @@ export interface DBShape {
   aemtAttendance: AemtAttendanceRecord[]
   aemtEncounters: AemtEncounter[]
   aemtDeadlines: AemtDeadlineRecord[]
+  aemtSkillChecks: AemtSkillCheck[]
   settings: Settings
 }

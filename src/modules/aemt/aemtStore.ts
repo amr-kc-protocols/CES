@@ -5,6 +5,7 @@ import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { KAR_109_11_8, KBEMS_DEADLINES, KC_BLOCK_PLAN, MAX_ABSENT_HOURS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
+import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   AemtAttendanceRecord,
   AemtEncounter,
@@ -13,6 +14,7 @@ import type {
   AemtHourTargets,
   AemtSession,
   AemtSessionKind,
+  AemtSkillCheck,
   AemtStudent,
   AttendanceStatus,
 } from '../../types'
@@ -302,6 +304,126 @@ export const KC_DEFAULT_TARGETS: AemtHourTargets = {
   lab: 50,
   clinical: 72,
   field: 144,
+}
+
+// ----- psychomotor skill check-offs ------------------------------------------
+
+export function useSkillChecks(courseId: string | undefined): AemtSkillCheck[] {
+  return useSelector((db) => db.aemtSkillChecks.filter((c) => c.courseId === courseId))
+}
+
+function upsertCheck(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  fn: (c: AemtSkillCheck) => AemtSkillCheck,
+): void {
+  setState((db) => {
+    const idx = db.aemtSkillChecks.findIndex(
+      (c) => c.courseId === courseId && c.studentId === studentId && c.sheetId === sheetId,
+    )
+    const base: AemtSkillCheck =
+      idx >= 0 ? db.aemtSkillChecks[idx] : { courseId, studentId, sheetId, results: {} }
+    const next = fn(base)
+    const list = [...db.aemtSkillChecks]
+    if (idx >= 0) list[idx] = next
+    else list.push(next)
+    return { ...db, aemtSkillChecks: list }
+  })
+}
+
+export function setSkillResult(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  criterionId: string,
+  result: 'pass' | 'fail' | null,
+): void {
+  upsertCheck(courseId, studentId, sheetId, (c) => {
+    const results = { ...c.results }
+    if (result) results[criterionId] = result
+    else delete results[criterionId]
+    return { ...c, results }
+  })
+}
+
+/** Mark every criterion on a sheet as passed — the common "clean run" case. */
+export function passAllCriteria(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  criterionIds: string[],
+): void {
+  upsertCheck(courseId, studentId, sheetId, (c) => ({
+    ...c,
+    results: Object.fromEntries(criterionIds.map((id) => [id, 'pass' as const])),
+  }))
+}
+
+export function toggleCriticalFailure(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  text: string,
+): void {
+  upsertCheck(courseId, studentId, sheetId, (c) => {
+    const cur = c.criticalFailed ?? []
+    return {
+      ...c,
+      criticalFailed: cur.includes(text) ? cur.filter((t) => t !== text) : [...cur, text],
+    }
+  })
+}
+
+export function setSkillSignoff(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  patch: { evaluator?: string; passedDate?: string | null },
+): void {
+  upsertCheck(courseId, studentId, sheetId, (c) => ({
+    ...c,
+    evaluator: patch.evaluator ?? c.evaluator,
+    passedDate: patch.passedDate === null ? undefined : (patch.passedDate ?? c.passedDate),
+  }))
+}
+
+export interface SkillStanding {
+  sheet: AemtSkillSheet
+  check?: AemtSkillCheck
+  passed: number
+  failed: number
+  total: number
+  /** A critical-failure item was triggered — the sheet fails outright. */
+  criticalFailed: boolean
+  /** Every criterion passed and no critical failure. */
+  allPassed: boolean
+  signedOff: boolean
+}
+
+export function standingFor(
+  checks: AemtSkillCheck[],
+  studentId: string,
+  sheets: AemtSkillSheet[],
+): SkillStanding[] {
+  return sheets.map((sheet) => {
+    const check = checks.find((c) => c.studentId === studentId && c.sheetId === sheet.id)
+    const ids = sheet.sections.flatMap((s) => s.criteria.map((c) => c.id))
+    const results = check?.results ?? {}
+    const passed = ids.filter((id) => results[id] === 'pass').length
+    const failed = ids.filter((id) => results[id] === 'fail').length
+    const criticalFailed = (check?.criticalFailed?.length ?? 0) > 0
+    return {
+      sheet,
+      check,
+      passed,
+      failed,
+      total: ids.length,
+      criticalFailed,
+      allPassed: passed === ids.length && failed === 0 && !criticalFailed,
+      signedOff: !!check?.passedDate,
+    }
+  })
 }
 
 // ----- KBEMS submission deadlines --------------------------------------------
