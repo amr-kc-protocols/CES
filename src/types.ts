@@ -805,6 +805,48 @@ export type PreceptorCredentialId =
  * One line of the student patient encounter log. NEVER carries PHI — the
  * regulation-facing record is date, site, skill, count and preceptor only.
  */
+/**
+ * A candidate for a cohort seat.
+ *
+ * Employment-selection data, not a program record: it is retained under the
+ * employer's HR schedule and is NOT covered by the three-year K.A.R. 109-17-3
+ * clock. Kept in the same store so scoring is consistent and the records
+ * survive, but reported separately wherever retention is displayed.
+ */
+export interface AemtCandidate {
+  id: string
+  courseId: string
+  name: string
+  employeeNumber?: string
+  /** Gate id -> met. Absent = not yet assessed. */
+  gates: Record<string, boolean>
+  /** Additional-duty bonus tier. */
+  bonusTier?: 'fto' | 'additional' | 'none'
+  /** Raw marks by test section id. */
+  testMarks?: Record<string, number>
+  /** One entry per interviewer. Scored independently before conferring. */
+  interviews?: AemtInterviewScore[]
+  /** Trailing-12-month QA chart review percentage. */
+  qaPercent?: number
+  /** Trailing-12-month attendance percentage. */
+  attendancePercent?: number
+  decision?: 'advance' | 'hold' | 'declined'
+  decidedBy?: string
+  decidedAt?: string
+  notes?: string
+  createdAt: string
+}
+
+export interface AemtInterviewScore {
+  /** Who scored. Two interviewers score independently, then confer. */
+  scorer: string
+  at: string
+  /** Question id -> 1..5. */
+  scores: Record<string, number>
+  /** Question id -> what the candidate actually said, not an impression. */
+  notes?: Record<string, string>
+}
+
 export interface AemtEncounter {
   id: string
   courseId: string
@@ -879,5 +921,6 @@ export interface DBShape {
   aemtCompletions: AemtCompletion[]
   aemtRecordDocs: AemtRecordDoc[]
   aemtAudit: AemtAuditEvent[]
+  aemtCandidates: AemtCandidate[]
   settings: Settings
 }
