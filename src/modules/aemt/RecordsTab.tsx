@@ -23,6 +23,9 @@ import {
 } from '../../data/aemtRecords'
 import type { RecordStatus, RequiredRecord } from '../../data/aemtRecords'
 import { auditPackageHTML } from './auditPackage'
+import { buildEvidenceBundle, bundleHash, formatHash, downloadJSON } from './evidence'
+import { recordAuditEvent } from './aemtStore'
+import { notifyUser } from '../../lib/dialog'
 import { printDoc, downloadDoc, safeFilename } from '../academy/docGen'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtRecordDoc } from '../../types'
@@ -141,21 +144,45 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
   const [editing, setEditing] = useState<RequiredRecord | null>(null)
   const safety = useRecordSafety()
 
-  const buildPackage = () =>
-    auditPackageHTML({
-      course,
-      students,
-      sessions,
-      attendance,
-      shifts,
-      encounters,
-      skillChecks,
-      forms,
-      completions,
-      deadlines,
-      recordDocs: docs,
-      audit,
-    })
+  const input = {
+    course,
+    students,
+    sessions,
+    attendance,
+    shifts,
+    encounters,
+    skillChecks,
+    forms,
+    completions,
+    deadlines,
+    recordDocs: docs,
+    audit,
+  }
+
+  /**
+   * Build the packet with its fingerprint, and record the fingerprint in the
+   * audit trail as the export happens. That entry is what a later packet gets
+   * checked against — without it the hash printed on the page proves only that
+   * the page is self-consistent.
+   */
+  async function buildSigned(): Promise<{ html: string; bundle: ReturnType<typeof buildEvidenceBundle>; hash: string | null }> {
+    const bundle = buildEvidenceBundle(input, safety.actor)
+    const hash = await bundleHash(bundle)
+    recordAuditEvent(
+      course.id,
+      undefined,
+      safety.actor,
+      'audit package exported',
+      `fingerprint ${hash ? hash.slice(0, 16) : 'unavailable'} · ${bundle.manifest
+        .map((m) => `${m.record}:${m.count}`)
+        .join(' ')}`,
+    )
+    return {
+      html: auditPackageHTML(input, { hash, actor: safety.actor, manifest: bundle.manifest }),
+      bundle,
+      hash,
+    }
+  }
 
   const external = REQUIRED_RECORDS.filter((r) => r.source === 'external')
   const held = REQUIRED_RECORDS.filter((r) => r.source === 'ces')
@@ -184,20 +211,29 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
             : `${outstanding.length} external record${outstanding.length === 1 ? '' : 's'} outstanding`}
         </span>
         <div className="spacer" />
-        <button className="btn" onClick={() => printDoc(`${course.label} — audit package`, buildPackage())}>
+        <button
+          className="btn"
+          onClick={async () => {
+            const { html } = await buildSigned()
+            printDoc(`${course.label} — audit package`, html)
+          }}
+        >
           🖨 Print
         </button>
         <button
           className="btn primary"
-          onClick={() =>
-            downloadDoc(
-              safeFilename(`${course.label}_Audit_Package`),
-              `${course.label} — audit package`,
-              buildPackage(),
+          onClick={async () => {
+            const { html, bundle, hash } = await buildSigned()
+            const base = safeFilename(`${course.label}_Audit_Package`)
+            downloadDoc(base, `${course.label} — audit package`, html)
+            // The machine-readable half: what the fingerprint is computed over.
+            downloadJSON(`${base}_evidence`, bundle)
+            notifyUser(
+              `Audit package exported. Fingerprint ${formatHash(hash).slice(0, 17)}… recorded in the audit trail.`,
             )
-          }
+          }}
         >
-          ⬇ Audit package
+          ⬇ Audit package + evidence
         </button>
       </div>
 

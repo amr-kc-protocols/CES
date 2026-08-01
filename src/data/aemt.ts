@@ -10,6 +10,73 @@
 // one reviewable place.
 // ---------------------------------------------------------------------------
 
+// ----- rule set provenance ---------------------------------------------------
+
+/**
+ * Which version of which rule the app is applying. A completion record is only
+ * defensible if it says what the rules were when it was computed — regulations
+ * are amended, and a packet exported today may be read in three years under a
+ * different text.
+ */
+export interface RuleSet {
+  id: string
+  citation: string
+  /** ISO date the version in force took effect. */
+  effectiveDate: string
+  /** What this app implements from it, in one line. */
+  scope: string
+  /** How the text was checked, so the claim is auditable. */
+  verifiedAgainst: string
+}
+
+export const RULE_SETS: RuleSet[] = [
+  {
+    id: 'kar-109-11-8',
+    citation: 'K.A.R. 109-11-8(a)(4)',
+    effectiveDate: '2026-03-06',
+    scope: 'Seven AEMT clinical minimum categories (A)-(G), with the nested IV-infusion and field-assessment sub-minimums.',
+    verifiedAgainst:
+      'Kansas Secretary of State regulation text, current version effective 6 March 2026, compared against the 24 November 2023 and 31 December 2021 predecessors.',
+  },
+  {
+    id: 'kar-109-11-8-a2',
+    citation: 'K.A.R. 109-11-8(a)(2)',
+    effectiveDate: '2026-03-06',
+    scope: 'Practical skills completed to the satisfaction of the primary instructor.',
+    verifiedAgainst: 'Same text.',
+  },
+  {
+    id: 'kar-109-11-8-verify',
+    citation: 'K.A.R. 109-11-8',
+    effectiveDate: '2026-03-06',
+    scope:
+      'Written verification by the primary instructor within 15 days of the final class session and before the certification examination.',
+    verifiedAgainst: 'Same text.',
+  },
+  {
+    id: 'kar-109-11-4a',
+    citation: 'K.A.R. 109-11-4a',
+    effectiveDate: '2024-11-01',
+    scope: 'Course approval application contents, and the schedule fields every session must show.',
+    verifiedAgainst: 'As amended 1 November 2024.',
+  },
+  {
+    id: 'kar-109-17-3',
+    citation: 'K.A.R. 109-17-3',
+    effectiveDate: '2024-11-01',
+    scope: 'Program records and their three-year retention.',
+    verifiedAgainst: 'As amended 1 November 2024.',
+  },
+  {
+    id: 'nremt-pathway',
+    citation: 'NREMT AEMT certification pathway',
+    effectiveDate: '2024-07-01',
+    scope:
+      'Program Director verification replaced the ALS psychomotor examination, retired 30 June 2024. CES tracks the Kansas requirements only; the NREMT/CoAEMSP Student Minimum Competency matrix is NOT yet implemented.',
+    verifiedAgainst: 'NREMT examination transition notice.',
+  },
+]
+
 // ----- K.A.R. 109-11-8 clinical experience minimums --------------------------
 
 /**
