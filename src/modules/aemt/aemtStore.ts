@@ -17,6 +17,7 @@ import type { KarMinimum } from '../../data/aemt'
 import { sheetsForCourse } from '../../data/aemtSkills'
 import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
+  Attestation,
   AemtAttendanceRecord,
   AemtClinicalShift,
   AemtAuditEvent,
@@ -609,17 +610,72 @@ export function toggleCriticalFailure(
   })
 }
 
-export function setSkillSignoff(
+export const SKILL_STATEMENT =
+  'I evaluated this student on every criterion of this sheet and attest that they ' +
+  'performed it to the standard, without critical failure.'
+
+/** Record the evaluator's name as it is typed. Does not sign anything. */
+export function setSkillEvaluator(
   courseId: string,
   studentId: string,
   sheetId: string,
-  patch: { evaluator?: string; passedDate?: string | null },
+  evaluator: string,
+): void {
+  upsertCheck(courseId, studentId, sheetId, (c) => ({ ...c, evaluator }))
+}
+
+/**
+ * Sign a skill sheet as passed.
+ *
+ * Previously a bare date with an optional free-text evaluator, so a sheet
+ * could be signed off with nobody named — and it still counted toward
+ * completion. Same bar as a shift: identified signer, credential, licence
+ * number, statement, authenticated actor.
+ */
+export function signSkillSheet(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  attestation: Omit<Attestation, 'at' | 'statement'>,
+): void {
+  const at = new Date().toISOString()
+  const full: Attestation = { ...attestation, at, statement: SKILL_STATEMENT }
+  upsertCheck(courseId, studentId, sheetId, (c) => ({
+    ...c,
+    evaluator: full.by,
+    passedDate: at.slice(0, 10),
+    attestation: full,
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  audit(
+    courseId,
+    studentId,
+    attestation.actor,
+    'skill sheet signed off',
+    `${who} · ${sheetId} · signed by ${full.by} (${full.credential}` +
+      `${full.certNumber ? ` #${full.certNumber}` : ''})`,
+  )
+}
+
+export function revokeSkillSignoff(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  actor: string,
 ): void {
   upsertCheck(courseId, studentId, sheetId, (c) => ({
     ...c,
-    evaluator: patch.evaluator ?? c.evaluator,
-    passedDate: patch.passedDate === null ? undefined : (patch.passedDate ?? c.passedDate),
+    passedDate: undefined,
+    attestation: undefined,
   }))
+  const who = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  audit(courseId, studentId, actor, 'skill sign-off revoked', `${who} · ${sheetId}`)
+}
+
+/** A sign-off only counts when an identified evaluator stands behind it. */
+export function skillSignoffIsEvidence(c: AemtSkillCheck | undefined): boolean {
+  const a = c?.attestation
+  return !!c?.passedDate && !!a && !!a.by.trim() && !!a.certNumber.trim() && !!a.actor.trim()
 }
 
 export interface SkillStanding {
@@ -655,7 +711,7 @@ export function standingFor(
       total: ids.length,
       criticalFailed,
       allPassed: passed === ids.length && failed === 0 && !criticalFailed,
-      signedOff: !!check?.passedDate,
+      signedOff: skillSignoffIsEvidence(check),
     }
   })
 }
@@ -1124,11 +1180,94 @@ export function addShift(
   return shift
 }
 
-export function updateShift(id: string, patch: Partial<AemtClinicalShift>): void {
+/**
+ * Fields whose value is what a preceptor actually signed for. Changing any of
+ * them after attestation means the signature no longer describes the record.
+ * Notes are excluded — annotating a shift is not a material correction.
+ */
+const MATERIAL_SHIFT_FIELDS: (keyof AemtClinicalShift)[] = [
+  'date',
+  'hours',
+  'setting',
+  'site',
+  'preceptorName',
+  'preceptorCredential',
+  'preceptorCertNumber',
+]
+
+export function materialShiftChanges(
+  before: AemtClinicalShift,
+  patch: Partial<AemtClinicalShift>,
+): { field: string; from: string; to: string }[] {
+  const out: { field: string; from: string; to: string }[] = []
+  for (const f of MATERIAL_SHIFT_FIELDS) {
+    if (!(f in patch)) continue
+    const from = before[f] ?? ''
+    const to = patch[f] ?? ''
+    if (String(from) !== String(to)) out.push({ field: f, from: String(from), to: String(to) })
+  }
+  return out
+}
+
+/**
+ * Edit a shift.
+ *
+ * A material change to an attested shift invalidates the attestation: the
+ * preceptor signed for 12 hours, and a record silently reading 24 hours over
+ * that signature is not evidence, it is a forgery the app helped produce. The
+ * prior values and the invalidated signature are kept as a revision, the
+ * change is audited, and the shift returns to unattested so it has to be
+ * signed again.
+ *
+ * `reason` is required when correcting an attested record.
+ */
+export function updateShift(
+  id: string,
+  patch: Partial<AemtClinicalShift>,
+  opts: { actor?: string; reason?: string } = {},
+): { invalidated: boolean } {
+  const before = getState().aemtShifts.find((s) => s.id === id)
+  if (!before) return { invalidated: false }
+
+  const changed = materialShiftChanges(before, patch)
+  const wasAttested = !!before.attestedAt
+  const invalidate = wasAttested && changed.length > 0
+  const actor = opts.actor ?? 'local'
+
   setState((db) => ({
     ...db,
-    aemtShifts: db.aemtShifts.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    aemtShifts: db.aemtShifts.map((s) => {
+      if (s.id !== id) return s
+      const next: AemtClinicalShift = { ...s, ...patch }
+      if (!invalidate) return next
+      const revision = {
+        at: new Date().toISOString(),
+        actor,
+        reason: opts.reason?.trim() || 'not stated',
+        changed,
+        invalidated: s.attestation,
+      }
+      return {
+        ...next,
+        attestedAt: undefined,
+        attestation: undefined,
+        revisions: [...(s.revisions ?? []), revision],
+      }
+    }),
   }))
+
+  const who = getState().aemtStudents.find((x) => x.id === before.studentId)?.name ?? before.studentId
+  if (changed.length > 0) {
+    audit(
+      before.courseId,
+      before.studentId,
+      actor,
+      invalidate ? 'shift edited — ATTESTATION INVALIDATED' : 'shift edited',
+      `${who} · ${before.date} · ${changed.map((c) => `${c.field} ${c.from} → ${c.to}`).join('; ')}` +
+        (invalidate ? ` · reason: ${opts.reason?.trim() || 'not stated'}` : ''),
+    )
+  }
+  return { invalidated: invalidate }
 }
 
 /**
@@ -1136,19 +1275,91 @@ export function updateShift(id: string, patch: Partial<AemtClinicalShift>): void
  * is what makes the shift's encounters count toward a regulated minimum, and
  * un-attesting silently removes them again.
  */
-export function attestShift(id: string, attested: boolean, actor = 'local'): void {
+/** The statement a preceptor is agreeing to. Stored with every signature. */
+export const ATTESTATION_STATEMENT =
+  'I supervised this student for the shift recorded above, and I attest that the date, ' +
+  'site, hours and the encounters logged against it are accurate and were performed ' +
+  'under my supervision.'
+
+/**
+ * Sign a shift as a named, credentialed preceptor.
+ *
+ * Attestation is what makes an encounter count toward a regulated minimum, so
+ * it is held to the same bar as a completion: an authenticated actor, an
+ * identified signer with a credential and licence number, and the statement
+ * they agreed to, all stored on the record. Without those it stays a draft.
+ */
+export function attestShift(
+  id: string,
+  attestation: Omit<Attestation, 'at' | 'statement'>,
+): void {
   const shift = getState().aemtShifts.find((s) => s.id === id)
-  updateShift(id, { attestedAt: attested ? new Date().toISOString() : undefined })
-  if (shift) {
-    const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
-    audit(
-      shift.courseId,
-      shift.studentId,
-      actor,
-      attested ? 'shift attested' : 'shift attestation withdrawn',
-      `${who} · ${shift.date} · ${shift.site} · ${shift.preceptorName}`,
-    )
+  if (!shift) return
+  const full: Attestation = {
+    ...attestation,
+    at: new Date().toISOString(),
+    statement: ATTESTATION_STATEMENT,
   }
+  setState((db) => ({
+    ...db,
+    aemtShifts: db.aemtShifts.map((s) =>
+      s.id === id ? { ...s, attestedAt: full.at, attestation: full } : s,
+    ),
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
+  audit(
+    shift.courseId,
+    shift.studentId,
+    attestation.actor,
+    'shift attested',
+    `${who} · ${shift.date} · ${shift.site} · signed by ${full.by} ` +
+      `(${full.credential}${full.certNumber ? ` #${full.certNumber}` : ''})`,
+  )
+}
+
+export function withdrawAttestation(id: string, actor: string, reason: string): void {
+  const shift = getState().aemtShifts.find((s) => s.id === id)
+  if (!shift) return
+  setState((db) => ({
+    ...db,
+    aemtShifts: db.aemtShifts.map((s) =>
+      s.id === id
+        ? {
+            ...s,
+            attestedAt: undefined,
+            attestation: undefined,
+            revisions: [
+              ...(s.revisions ?? []),
+              {
+                at: new Date().toISOString(),
+                actor,
+                reason: reason.trim() || 'not stated',
+                changed: [],
+                invalidated: s.attestation,
+              },
+            ],
+          }
+        : s,
+    ),
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
+  audit(
+    shift.courseId,
+    shift.studentId,
+    actor,
+    'shift attestation withdrawn',
+    `${who} · ${shift.date} · ${shift.site} · reason: ${reason.trim() || 'not stated'}`,
+  )
+}
+
+/**
+ * An attestation only counts as evidence when it carries an identified signer.
+ * Legacy records hold a bare `attestedAt` with nobody behind it; those stay
+ * visible but must not be treated as signed.
+ */
+export function attestationIsEvidence(s: AemtClinicalShift): boolean {
+  const a = s.attestation
+  return !!a && !!a.by.trim() && !!a.certNumber.trim() && !!a.actor.trim()
 }
 
 export function deleteShift(id: string): void {
@@ -1180,12 +1391,34 @@ export function shiftHourTotals(shifts: AemtClinicalShift[]): {
   field: number
   unattested: number
 } {
-  const done = shifts.filter((s) => s.attestedAt)
+  const done = shifts.filter(attestationIsEvidence)
   return {
     hospital: done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0),
     field: done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0),
-    unattested: shifts.filter((s) => !s.attestedAt).reduce((n, s) => n + s.hours, 0),
+    unattested: shifts.filter((s) => !attestationIsEvidence(s)).reduce((n, s) => n + s.hours, 0),
   }
+}
+
+/**
+ * Does this encounter count toward this requirement?
+ *
+ * ONE implementation, used by the on-screen progress, the readiness gate and
+ * the audit package alike. It was written three times, and three copies of a
+ * regulatory rule drift — the export can say a student is complete while the
+ * screen says they are not, and only one of those goes to KBEMS.
+ */
+export function encounterCounts(
+  e: AemtEncounter,
+  requirement: KarMinimum,
+  shift: AemtClinicalShift | undefined,
+): boolean {
+  if (!requirement.allowedSettings.includes(e.siteKind)) return false
+  // An encounter with no shift behind it has no date, site or supervisor that
+  // anyone signed for. It is kept and shown, but it is not evidence.
+  if (!e.shiftId) return false
+  if (!shift) return false
+  if (!attestationIsEvidence(shift)) return false
+  return supervisorEligible(requirement, shift)
 }
 
 /**
@@ -1273,17 +1506,12 @@ export function progressFor(
     // Three conditions, each of which the review found could be bypassed:
     // the setting must count for this requirement, the shift's preceptor must
     // be eligible to supervise it, and the preceptor must have attested.
-    const eligible = rows.filter((e) => {
-      if (!requirement.allowedSettings.includes(e.siteKind)) return false
-      if (!e.shiftId) return true // pre-dates shift linking; counted, flagged below
-      const shift = byId.get(e.shiftId)
-      return !!shift?.attestedAt && supervisorEligible(requirement, shift)
-    })
+    const eligible = rows.filter((e) => encounterCounts(e, requirement, byId.get(e.shiftId ?? '')))
     const total = eligible.reduce((s, e) => s + e.count, 0)
     const eligibleIds = new Set(eligible)
     const ineligible = rows.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
     const unverified = rows
-      .filter((e) => e.shiftId && !byId.get(e.shiftId)?.attestedAt)
+      .filter((e) => !e.shiftId || !attestationIsEvidence(byId.get(e.shiftId) ?? ({} as AemtClinicalShift)))
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
     const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)

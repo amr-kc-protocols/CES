@@ -6,9 +6,13 @@ import {
   addShift,
   updateShift,
   attestShift,
+  withdrawAttestation,
+  attestationIsEvidence,
+  materialShiftChanges,
   deleteShift,
   shiftHourTotals,
   useRecordSafety,
+  ATTESTATION_STATEMENT,
 } from './aemtStore'
 import { PRECEPTOR_LABELS, SETTING_PRECEPTORS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
@@ -60,11 +64,31 @@ function ShiftForm({
     existing?.preceptorCredential ?? 'paramedic',
   )
   const [certNumber, setCertNumber] = useState(existing?.preceptorCertNumber ?? '')
+  const [reason, setReason] = useState('')
+  const { actor } = useRecordSafety()
 
   const allowed = SETTING_PRECEPTORS[setting]
   const credOk = allowed.includes(cred as PreceptorCredential)
   const hoursNum = Number(hours)
-  const valid = site.trim() !== '' && name.trim() !== '' && hoursNum > 0 && credOk
+  // Would saving change something the preceptor signed for?
+  const willInvalidate =
+    !!existing &&
+    attestationIsEvidence(existing) &&
+    materialShiftChanges(existing, {
+      date,
+      setting,
+      site: site.trim(),
+      hours: hoursNum,
+      preceptorName: name.trim(),
+      preceptorCredential: cred,
+      preceptorCertNumber: certNumber.trim() || undefined,
+    }).length > 0
+  const valid =
+    site.trim() !== '' &&
+    name.trim() !== '' &&
+    hoursNum > 0 &&
+    credOk &&
+    (!willInvalidate || reason.trim().length >= 4)
 
   return (
     <Modal title={existing ? 'Edit shift' : 'Add shift'} onClose={onClose}>
@@ -151,6 +175,26 @@ function ShiftForm({
         </div>
       )}
 
+      {willInvalidate && (
+        <>
+          <div className="banner crit">
+            <strong>This invalidates the signature on this shift.</strong>{' '}
+            {existing?.attestation?.by} signed for the values as they stand. Saving keeps the
+            original as a revision, clears the attestation, and the shift has to be signed again
+            before its encounters count.
+          </div>
+          <div className="field">
+            <label htmlFor="sh-reason">Reason for the correction (required)</label>
+            <input
+              id="sh-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Hours corrected from the crew schedule"
+            />
+          </div>
+        </>
+      )}
+
       <div className="btn-row" style={{ marginTop: 12 }}>
         <button
           className="btn primary"
@@ -165,7 +209,7 @@ function ShiftForm({
               preceptorCredential: cred,
               preceptorCertNumber: certNumber.trim() || undefined,
             }
-            if (existing) updateShift(existing.id, patch)
+            if (existing) updateShift(existing.id, patch, { actor, reason })
             else addShift(course.id, studentId, patch)
             onClose()
           }}
@@ -199,6 +243,97 @@ function ShiftForm({
   )
 }
 
+/**
+ * Signing a shift. Previously a toggle: one tap set a timestamp with nobody
+ * behind it, and that timestamp was enough to make every encounter on the
+ * shift count toward a regulated minimum. A signature has to identify who
+ * signed, under what credential and licence number, and what they agreed to.
+ */
+function AttestModal({
+  shift,
+  actor,
+  onClose,
+}: {
+  shift: AemtClinicalShift
+  actor: string
+  onClose: () => void
+}) {
+  const [by, setBy] = useState(shift.preceptorName)
+  const [cred, setCred] = useState<PreceptorCredentialId>(shift.preceptorCredential)
+  const [certNumber, setCert] = useState(shift.preceptorCertNumber ?? '')
+  const [agreed, setAgreed] = useState(false)
+
+  const valid = by.trim() !== '' && certNumber.trim() !== '' && agreed
+
+  return (
+    <Modal title="Attest this shift" onClose={onClose}>
+      <div className="banner info" style={{ marginTop: 0 }}>
+        {shiftLabel(shift)} · {shift.hours} h
+      </div>
+      <div className="field">
+        <label htmlFor="at-by">Preceptor signing</label>
+        <input id="at-by" value={by} onChange={(e) => setBy(e.target.value)} />
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="at-cred">Credential</label>
+          <select
+            id="at-cred"
+            value={cred}
+            onChange={(e) => setCred(e.target.value as PreceptorCredentialId)}
+          >
+            {(Object.keys(PRECEPTOR_LABELS) as PreceptorCredential[]).map((c) => (
+              <option key={c} value={c}>
+                {PRECEPTOR_LABELS[c]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="at-cert">Licence / cert # (required)</label>
+          <input id="at-cert" value={certNumber} onChange={(e) => setCert(e.target.value)} />
+        </div>
+      </div>
+      <label
+        className="subtle"
+        style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 10 }}
+      >
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.target.checked)}
+          style={{ marginTop: 3 }}
+        />
+        <span>{ATTESTATION_STATEMENT}</span>
+      </label>
+      <div className="help-text">
+        Signed as <strong>{actor}</strong>, recorded with the shift and written to the audit trail.
+        Editing the date, hours, site or preceptor afterwards invalidates this signature.
+      </div>
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!valid}
+          onClick={() => {
+            attestShift(shift.id, {
+              by: by.trim(),
+              credential: cred,
+              certNumber: certNumber.trim(),
+              actor,
+            })
+            onClose()
+          }}
+        >
+          Sign attestation
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function ShiftPanel({
   course,
   studentId,
@@ -212,6 +347,7 @@ export default function ShiftPanel({
 }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtClinicalShift | null>(null)
+  const [attesting, setAttesting] = useState<AemtClinicalShift | null>(null)
   const safety = useRecordSafety()
   const totals = shiftHourTotals(shifts)
 
@@ -261,26 +397,63 @@ export default function ShiftPanel({
                   {s.preceptorCertNumber ? ` #${s.preceptorCertNumber}` : ''})
                 </div>
                 <div className="meta">
-                  {s.attestedAt ? (
-                    <>✓ Attested {formatDate(s.attestedAt.slice(0, 10))}</>
+                  {attestationIsEvidence(s) ? (
+                    <>
+                      ✓ Signed {formatDate(s.attestation!.at.slice(0, 10))} by{' '}
+                      {s.attestation!.by} (
+                      {PRECEPTOR_LABELS[s.attestation!.credential as PreceptorCredential]}
+                      {s.attestation!.certNumber ? ` #${s.attestation!.certNumber}` : ''})
+                    </>
+                  ) : s.attestedAt ? (
+                    <span style={{ color: 'var(--crit)' }}>
+                      Attested with no signer recorded — does not count. Sign it again.
+                    </span>
                   ) : (
                     <span style={{ color: 'var(--warn)' }}>
                       Not attested — encounters on this shift do not count yet
                     </span>
                   )}
                 </div>
+                {(s.revisions?.length ?? 0) > 0 && (
+                  <div className="meta" style={{ color: 'var(--warn)' }}>
+                    {s.revisions!.length} correction{s.revisions!.length === 1 ? '' : 's'} after
+                    signature — latest: {s.revisions![s.revisions!.length - 1].reason}
+                  </div>
+                )}
               </div>
               {canEdit && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <button className="btn sm" onClick={() => setEditing(s)}>
                     Edit
                   </button>
-                  <button
-                    className={`btn sm ${s.attestedAt ? '' : 'primary'}`}
-                    onClick={() => attestShift(s.id, !s.attestedAt, safety.actor)}
-                  >
-                    {s.attestedAt ? 'Un-attest' : 'Attest'}
-                  </button>
+                  {attestationIsEvidence(s) ? (
+                    <button
+                      className="btn sm"
+                      onClick={async () => {
+                        const ok = await confirmAction({
+                          title: 'Withdraw this attestation?',
+                          body: `${s.attestation!.by} signed this shift. Withdrawing it stops every encounter on the shift from counting, and is recorded in the audit trail.`,
+                          confirmLabel: 'Withdraw signature',
+                        })
+                        if (ok) withdrawAttestation(s.id, safety.actor, 'withdrawn by coordinator')
+                      }}
+                    >
+                      Withdraw
+                    </button>
+                  ) : (
+                    <button
+                      className="btn sm primary"
+                      disabled={!safety.canRecordOfficial}
+                      title={
+                        safety.canRecordOfficial
+                          ? 'Sign this shift as the supervising preceptor'
+                          : safety.reason
+                      }
+                      onClick={() => setAttesting(s)}
+                    >
+                      Attest
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -288,6 +461,16 @@ export default function ShiftPanel({
         </div>
       )}
 
+      {!safety.canRecordOfficial && (
+        <div className="banner warn">
+          <strong>Signatures unavailable.</strong> {safety.reason} Shifts can be logged, but they
+          cannot be attested, so nothing on them counts yet.
+        </div>
+      )}
+
+      {attesting && (
+        <AttestModal shift={attesting} actor={safety.actor} onClose={() => setAttesting(null)} />
+      )}
       {adding && <ShiftForm course={course} studentId={studentId} onClose={() => setAdding(false)} />}
       {editing && (
         <ShiftForm

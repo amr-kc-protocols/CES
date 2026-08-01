@@ -8,6 +8,7 @@ import {
 import type { PreceptorCredential } from '../../data/aemt'
 import { REQUIRED_RECORDS, retentionUntil, RETENTION_YEARS } from '../../data/aemtRecords'
 import { sheetsForCourse } from '../../data/aemtSkills'
+import { attestationIsEvidence, encounterCounts } from './aemtStore'
 import type {
   AemtAuditEvent,
   AemtClinicalShift,
@@ -116,7 +117,7 @@ export function auditPackageHTML(d: AuditPackageInput): string {
         if (rec?.status === 'present') earned += rec.hours ?? s.hours
         if (rec?.status === 'absent' && s.kind !== 'clinical') absent += s.hours
       }
-      const mine = d.shifts.filter((s) => s.studentId === st.id && s.attestedAt)
+      const mine = d.shifts.filter((s) => s.studentId === st.id && attestationIsEvidence(s))
       const clin = mine.filter((s) => s.setting === 'hospital').reduce((a, s) => a + s.hours, 0)
       const field = mine.filter((s) => s.setting === 'field').reduce((a, s) => a + s.hours, 0)
       const over = absent > MAX_ABSENT_HOURS
@@ -139,14 +140,10 @@ export function auditPackageHTML(d: AuditPackageInput): string {
         const mine = d.encounters.filter(
           (e) => e.studentId === st.id && e.requirementId === req.id,
         )
-        const counted = mine.filter((e) => {
-          if (!req.allowedSettings.includes(e.siteKind)) return false
-          if (!e.shiftId) return true
-          const sh = d.shifts.find((x) => x.id === e.shiftId)
-          if (!sh?.attestedAt) return false
-          const allowed = req.eligibleSupervisors
-          return !allowed || allowed.includes(sh.preceptorCredential as PreceptorCredential)
-        })
+        // Same rule as the screen — imported, not restated.
+        const counted = mine.filter((e) =>
+          encounterCounts(e, req, d.shifts.find((x) => x.id === e.shiftId)),
+        )
         const n = counted.reduce((a, e) => a + e.count, 0)
         const met = n >= req.minimum
         return `<td style="text-align:right" class="${met ? 'ok' : 'crit'}">${n}/${req.minimum}</td>`
@@ -162,7 +159,13 @@ export function auditPackageHTML(d: AuditPackageInput): string {
       (s) => `<tr><td>${esc(formatDate(s.date))}</td><td>${esc(nameOf(s.studentId))}</td>
       <td>${esc(s.setting)}</td><td>${esc(s.site)}</td><td style="text-align:right">${s.hours}</td>
       <td>${esc(s.preceptorName)} (${esc(cred(s.preceptorCredential))}${s.preceptorCertNumber ? ` #${esc(s.preceptorCertNumber)}` : ''})</td>
-      <td class="${s.attestedAt ? 'ok' : 'warn'}">${s.attestedAt ? 'attested' : 'NOT attested'}</td></tr>`,
+      <td class="${attestationIsEvidence(s) ? 'ok' : 'warn'}">${
+        attestationIsEvidence(s)
+          ? `signed ${esc(s.attestation!.by)} (${esc(cred(s.attestation!.credential))}${s.attestation!.certNumber ? ` #${esc(s.attestation!.certNumber)}` : ''}) ${esc(s.attestation!.at.slice(0, 10))}`
+          : s.attestedAt
+            ? 'UNATTRIBUTED — no signer recorded'
+            : 'NOT attested'
+      }</td></tr>`,
     )
     .join('')
 

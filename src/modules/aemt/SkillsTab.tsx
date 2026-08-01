@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Empty, ProgressBar } from '../../components/ui'
-import { formatDate, todayISO } from '../../lib/date'
+import { Empty, Modal, ProgressBar } from '../../components/ui'
+import { confirmAction } from '../../lib/dialog'
+import { formatDate } from '../../lib/date'
 import {
   useStudents,
   useSkillChecks,
@@ -8,11 +9,97 @@ import {
   setSkillResult,
   passAllCriteria,
   toggleCriticalFailure,
-  setSkillSignoff,
+  setSkillEvaluator,
+  signSkillSheet,
+  revokeSkillSignoff,
+  useRecordSafety,
+  SKILL_STATEMENT,
 } from './aemtStore'
 import { sheetsForCourse, sheetsByScope, skillSheet } from '../../data/aemtSkills'
+import { PRECEPTOR_LABELS } from '../../data/aemt'
+import type { PreceptorCredential } from '../../data/aemt'
 import { useCan } from '../../lib/role'
-import type { AemtCourse } from '../../types'
+import type { AemtCourse, PreceptorCredentialId } from '../../types'
+
+/** Evaluator signature for a skill sheet — same bar as a shift attestation. */
+function SignModal({
+  sheetTitle,
+  defaultName,
+  actor,
+  onSign,
+  onClose,
+}: {
+  sheetTitle: string
+  defaultName: string
+  actor: string
+  onSign: (a: { by: string; credential: PreceptorCredentialId; certNumber: string }) => void
+  onClose: () => void
+}) {
+  const [by, setBy] = useState(defaultName)
+  const [cred, setCred] = useState<PreceptorCredentialId>('paramedic')
+  const [certNumber, setCert] = useState('')
+  const [agreed, setAgreed] = useState(false)
+  const valid = by.trim() !== '' && certNumber.trim() !== '' && agreed
+
+  return (
+    <Modal title={`Sign off — ${sheetTitle}`} onClose={onClose}>
+      <div className="field">
+        <label htmlFor="sg-by">Evaluator</label>
+        <input id="sg-by" value={by} onChange={(e) => setBy(e.target.value)} />
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="sg-cred">Credential</label>
+          <select
+            id="sg-cred"
+            value={cred}
+            onChange={(e) => setCred(e.target.value as PreceptorCredentialId)}
+          >
+            {(Object.keys(PRECEPTOR_LABELS) as PreceptorCredential[]).map((c) => (
+              <option key={c} value={c}>
+                {PRECEPTOR_LABELS[c]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="sg-cert">Licence / cert # (required)</label>
+          <input id="sg-cert" value={certNumber} onChange={(e) => setCert(e.target.value)} />
+        </div>
+      </div>
+      <label
+        className="subtle"
+        style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 10 }}
+      >
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.target.checked)}
+          style={{ marginTop: 3 }}
+        />
+        <span>{SKILL_STATEMENT}</span>
+      </label>
+      <div className="help-text">
+        Signed as <strong>{actor}</strong> and written to the audit trail.
+      </div>
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!valid}
+          onClick={() => {
+            onSign({ by: by.trim(), credential: cred, certNumber: certNumber.trim() })
+            onClose()
+          }}
+        >
+          Sign off
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
 
 const BLS_SHEETS = sheetsByScope('bls')
 const MEDIC_SHEETS = sheetsByScope('paramedic')
@@ -30,6 +117,8 @@ function SheetDetail({
 }) {
   const checks = useSkillChecks(course.id)
   const { editRideWork: canEdit } = useCan()
+  const safety = useRecordSafety()
+  const [signing, setSigning] = useState(false)
   const sheet = skillSheet(sheetId)
   if (!sheet) return null
 
@@ -172,35 +261,51 @@ function SheetDetail({
               id="sk-eval"
               value={standing.check?.evaluator ?? ''}
               onChange={(e) =>
-                setSkillSignoff(course.id, studentId, sheet.id, { evaluator: e.target.value })
+                setSkillEvaluator(course.id, studentId, sheet.id, e.target.value)
               }
             />
           </div>
           {standing.signedOff ? (
             <div className="banner ok">
-              ✓ Signed off {formatDate(standing.check?.passedDate)}
+              ✓ Signed {formatDate(standing.check?.passedDate)} by{' '}
+              {standing.check?.attestation?.by} (
+              {PRECEPTOR_LABELS[standing.check!.attestation!.credential as PreceptorCredential]}
+              {standing.check?.attestation?.certNumber
+                ? ` #${standing.check.attestation.certNumber}`
+                : ''}
+              )
               <button
                 className="link-btn"
                 style={{ marginLeft: 10 }}
-                onClick={() =>
-                  setSkillSignoff(course.id, studentId, sheet.id, { passedDate: null })
-                }
+                onClick={async () => {
+                  const ok = await confirmAction({
+                    title: 'Revoke this sign-off?',
+                    body: 'The sheet returns to unsigned and stops counting toward completion. Recorded in the audit trail.',
+                    confirmLabel: 'Revoke sign-off',
+                  })
+                  if (ok) revokeSkillSignoff(course.id, studentId, sheet.id, safety.actor)
+                }}
               >
-                Undo
+                Revoke
               </button>
+            </div>
+          ) : standing.check?.passedDate ? (
+            <div className="banner crit">
+              Signed off with no evaluator recorded — this does not count toward completion. Sign
+              it again with a name and licence number.
             </div>
           ) : (
             <button
               className="btn primary"
-              disabled={!standing.allPassed}
+              disabled={!standing.allPassed || !safety.canRecordOfficial}
               title={
-                standing.allPassed
-                  ? 'Record this skill as passed'
-                  : 'Every criterion must pass, with no critical failure, before sign-off'
+                !safety.canRecordOfficial
+                  ? safety.reason
+                  : standing.allPassed
+                    ? 'Record this skill as passed'
+                    : 'Every criterion must pass, with no critical failure, before sign-off'
               }
-              onClick={() =>
-                setSkillSignoff(course.id, studentId, sheet.id, { passedDate: todayISO() })
-              }
+              onClick={() => setSigning(true)}
             >
               Sign off as passed
             </button>
@@ -212,7 +317,22 @@ function SheetDetail({
                 : `${standing.total - standing.passed} criteria still to pass.`}
             </div>
           )}
+          {!safety.canRecordOfficial && (
+            <div className="help-text" style={{ color: 'var(--warn)' }}>
+              {safety.reason} Sign-off is unavailable until then.
+            </div>
+          )}
         </div>
+      )}
+
+      {signing && (
+        <SignModal
+          sheetTitle={sheet.title}
+          defaultName={standing.check?.evaluator ?? ''}
+          actor={safety.actor}
+          onSign={(a) => signSkillSheet(course.id, studentId, sheet.id, { ...a, actor: safety.actor })}
+          onClose={() => setSigning(false)}
+        />
       )}
     </div>
   )

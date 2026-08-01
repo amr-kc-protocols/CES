@@ -525,6 +525,8 @@ export interface AemtSkillCheck {
   evaluator?: string
   /** ISO date the sheet was signed off as passed. */
   passedDate?: string
+  /** Attributable signature behind passedDate. Absent = not evidence-grade. */
+  attestation?: Attestation
 }
 
 /**
@@ -705,9 +707,54 @@ export interface AemtClinicalShift {
   /**
    * ISO timestamp the preceptor attested the shift record is accurate.
    * Encounters on an unattested shift are logged but not yet defensible.
+   * Kept alongside `attestation` for records written before attribution was
+   * required; a bare timestamp is treated as unattributed, not as evidence.
    */
   attestedAt?: string
+  /** Who attested, with what standing. Absent = not evidence-grade. */
+  attestation?: Attestation
+  /**
+   * Prior versions, newest last, captured whenever a material field changed
+   * after attestation. The regulation expects a correction to be traceable,
+   * not to overwrite what was signed.
+   */
+  revisions?: ShiftRevision[]
   notes?: string
+}
+
+/**
+ * An attributable electronic signature. A name in a text box is not one: a
+ * regulated record has to say who signed, under what credential, that they
+ * were authenticated at the time, and what statement they agreed to.
+ */
+export interface Attestation {
+  /** Display name of the signer. */
+  by: string
+  credential: PreceptorCredentialId
+  /** Licence or certificate number — what makes the signer identifiable. */
+  certNumber: string
+  /** ISO timestamp of signature. */
+  at: string
+  /** The exact statement agreed to, stored with the record it attests. */
+  statement: string
+  /**
+   * Authenticated account identity at the time of signing. Absent means the
+   * device was not signed in, which keeps the record a draft.
+   */
+  actor: string
+}
+
+export interface ShiftRevision {
+  /** ISO timestamp of the edit. */
+  at: string
+  /** Authenticated identity that made the change. */
+  actor: string
+  /** Why the record was corrected — required for a post-attestation edit. */
+  reason: string
+  /** Fields that changed, with their prior values. */
+  changed: { field: string; from: string; to: string }[]
+  /** The attestation that was invalidated by this edit, if any. */
+  invalidated?: Attestation
 }
 
 /** Mirrors PreceptorCredential in data/aemt.ts. */
