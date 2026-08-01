@@ -794,8 +794,22 @@ export interface AemtEncounter {
   site?: string
   /** Which K.A.R. 109-11-8 requirement this counts toward (see data/aemt.ts). */
   requirementId: string
-  /** Reps this line represents; usually 1. */
+  /**
+   * Reps this line represents. New records are always 1 — one row per
+   * performance, because a row claiming "12" is one assertion standing in for
+   * twelve procedures with one outcome and one reference between them.
+   * Larger values exist only on records written before that rule and are
+   * reported as unitemized.
+   */
   count: number
+  /**
+   * Whether the student successfully performed it. K.A.R. 109-11-8 counts
+   * successful performances; an unsuccessful attempt is still worth recording
+   * — it is what remediation is built from — but it does not count toward a
+   * minimum. Absent on records written before the distinction existed, which
+   * is why those are reported separately rather than assumed successful.
+   */
+  outcome?: 'success' | 'attempt'
   /** Venipuncture only — whether the stick initiated an IV infusion. */
   initiatedInfusion?: boolean
   /** The shift this happened on. Encounters without one predate shift linking. */
@@ -807,6 +821,13 @@ export interface AemtEncounter {
   sourceRef?: string
   preceptor?: string
   notes?: string
+  /**
+   * Voided rather than deleted. A regulated count that changes has to show
+   * what changed and why; a row that vanishes shows neither.
+   */
+  voidedAt?: string
+  voidedBy?: string
+  voidReason?: string
 }
 
 export interface DBShape {

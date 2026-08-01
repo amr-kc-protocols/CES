@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
+import { confirmAction } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import {
   useStudents,
   useEncounters,
   useShifts,
   useClinicalStanding,
+  useRecordSafety,
   supervisorEligible,
+  duplicateEncounter,
+  voidEncounter,
   addEncounter,
-  deleteEncounter,
   progressFor,
 } from './aemtStore'
 import {
@@ -20,7 +23,7 @@ import {
 import type { PreceptorCredential } from '../../data/aemt'
 import ShiftPanel, { shiftLabel } from './ShiftPanel'
 import { useCan } from '../../lib/role'
-import type { AemtClinicalShift, AemtCourse, AemtSiteKind } from '../../types'
+import type { AemtClinicalShift, AemtCourse, AemtEncounter, AemtSiteKind } from '../../types'
 
 const SITE_LABEL: Record<AemtSiteKind, string> = {
   field: 'Field',
@@ -32,16 +35,19 @@ function LogForm({
   course,
   studentId,
   shifts,
+  existing,
   onClose,
 }: {
   course: AemtCourse
   studentId: string
   shifts: AemtClinicalShift[]
+  /** Already-logged encounters for this student, for duplicate detection. */
+  existing: AemtEncounter[]
   onClose: () => void
 }) {
   const [shiftId, setShiftId] = useState(shifts[0]?.id ?? '')
   const [requirementId, setReq] = useState(KAR_109_11_8[0].id)
-  const [count, setCount] = useState(1)
+  const [outcome, setOutcome] = useState<'success' | 'attempt'>('success')
   const [initiatedInfusion, setInfusion] = useState(false)
   const [sourceRef, setSourceRef] = useState('')
 
@@ -50,6 +56,15 @@ function LogForm({
   const siteKind = shift?.setting
   const settingOk = !!siteKind && req.allowedSettings.includes(siteKind)
   const supOk = supervisorEligible(req, shift)
+  // A lab exercise has no run number to give; anything on a patient does.
+  const refRequired = siteKind !== 'lab'
+  const dupe = duplicateEncounter(existing, {
+    studentId,
+    shiftId,
+    requirementId,
+    sourceRef,
+  })
+  const canLog = !!shift && (!refRequired || sourceRef.trim() !== '') && !dupe
 
   return (
     <Modal title="Log encounter" onClose={onClose}>
@@ -90,15 +105,23 @@ function LogForm({
           </optgroup>
         </select>
       </div>
+      {/* One record per performance. A row claiming "12" is one assertion
+          standing in for twelve procedures, sharing a single outcome and a
+          single reference — which is not evidence of twelve of anything. */}
       <div className="field">
-        <label htmlFor="ae-count">Reps</label>
-        <input
-          id="ae-count"
-          type="number"
-          min={1}
-          value={count}
-          onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))}
-        />
+        <label htmlFor="ae-outcome">Outcome</label>
+        <select
+          id="ae-outcome"
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value as 'success' | 'attempt')}
+        >
+          <option value="success">Successfully performed</option>
+          <option value="attempt">Attempted — not successful</option>
+        </select>
+        <div className="help-text">
+          K.A.R. 109-11-8 counts successful performances. An attempt is recorded and shown, and is
+          what a remediation plan is built from, but it does not count toward the minimum.
+        </div>
       </div>
 
       {shift && (
@@ -129,18 +152,28 @@ function LogForm({
       )}
 
       <div className="field">
-        <label htmlFor="ae-ref">Run / incident reference</label>
+        <label htmlFor="ae-ref">
+          Run / incident reference{refRequired ? ' (required)' : ' (optional for lab/sim)'}
+        </label>
         <input
           id="ae-ref"
           value={sourceRef}
           onChange={(e) => setSourceRef(e.target.value)}
-          placeholder="ImageTrend incident number"
+          placeholder={refRequired ? 'ImageTrend incident number' : 'Lab exercise reference'}
         />
         <div className="help-text">
-          Ties the entry back to a source record. An incident number only — never a patient
-          identifier.
+          Ties the entry to a source record, and is what makes a duplicate detectable. An incident
+          number only — never a patient identifier.
         </div>
       </div>
+      {dupe && (
+        <div className="banner crit">
+          <strong>Already logged.</strong> {req.label} on this shift with reference{' '}
+          {dupe.sourceRef} is on file
+          {dupe.date ? ` from ${dupe.date}` : ''}. Logging it again would count the same
+          performance twice.
+        </div>
+      )}
 
       {req.subRequirement && (
         <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -159,7 +192,7 @@ function LogForm({
       <div className="btn-row" style={{ marginTop: 12 }}>
         <button
           className="btn primary"
-          disabled={!shift}
+          disabled={!canLog}
           onClick={() => {
             if (!shift) return
             addEncounter(course.id, studentId, {
@@ -167,7 +200,8 @@ function LogForm({
               requirementId,
               siteKind: shift.setting,
               site: shift.site,
-              count,
+              count: 1,
+              outcome,
               initiatedInfusion: req.subRequirement ? initiatedInfusion : undefined,
               shiftId: shift.id,
               sourceRef: sourceRef.trim() || undefined,
@@ -194,6 +228,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const { editRideWork: canEdit } = useCan()
   const [selectedId, setSelected] = useState<string | null>(null)
   const [logging, setLogging] = useState(false)
+  const safety = useRecordSafety()
 
   if (students.length === 0) {
     return (
@@ -328,6 +363,28 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                       {!p.fieldMet && ' — field share not met'}
                     </div>
                   ) : null}
+                  {p.attempts > 0 ? (
+                    <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
+                      {p.attempts} unsuccessful attempt{p.attempts === 1 ? '' : 's'} — recorded,
+                      not counted
+                    </div>
+                  ) : null}
+                  {p.unitemized > 0 ? (
+                    <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
+                      {p.unitemized} of these come from batch rows standing in for several
+                      performances
+                    </div>
+                  ) : null}
+                  {p.unstated > 0 ? (
+                    <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
+                      {p.unstated} logged before success was recorded — counted as successful
+                    </div>
+                  ) : null}
+                  {p.voided > 0 ? (
+                    <div className="subtle" style={{ fontSize: 12 }}>
+                      {p.voided} voided
+                    </div>
+                  ) : null}
                   {p.ineligible > 0 ? (
                     <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
                       {p.ineligible} logged but not counting
@@ -365,14 +422,37 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
           {mine.map((e) => {
             const req = CLINICAL_REQUIREMENTS.find((r) => r.id === e.requirementId)
             return (
-              <div key={e.id} className="row">
+              <div
+                key={e.id}
+                className={`row left-accent ${e.voidedAt ? 'acc-crit' : e.outcome === 'attempt' ? 'acc-warn' : ''}`}
+                style={e.voidedAt ? { opacity: 0.65 } : undefined}
+              >
                 <div className="grow">
                   <div className="title">
                     {req?.label ?? e.requirementId}
-                    {e.count > 1 && <span className="subtle"> ×{e.count}</span>}
+                    {e.count > 1 && (
+                      <span className="pill warn" style={{ marginLeft: 8 }}>
+                        ×{e.count} unitemized
+                      </span>
+                    )}
+                    {e.outcome === 'attempt' && (
+                      <span className="pill warn" style={{ marginLeft: 8 }}>
+                        attempt — not counted
+                      </span>
+                    )}
+                    {e.outcome === undefined && !e.voidedAt && (
+                      <span className="pill warn" style={{ marginLeft: 8 }}>
+                        outcome not stated
+                      </span>
+                    )}
                     {e.initiatedInfusion && (
                       <span className="pill info" style={{ marginLeft: 8 }}>
                         infusion
+                      </span>
+                    )}
+                    {e.voidedAt && (
+                      <span className="pill crit" style={{ marginLeft: 8 }}>
+                        voided
                       </span>
                     )}
                   </div>
@@ -380,11 +460,28 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                     {formatDate(e.date)} · {SITE_LABEL[e.siteKind]}
                     {e.site && ` · ${e.site}`}
                     {e.preceptor && ` · ${e.preceptor}`}
+                    {e.sourceRef ? ` · ref ${e.sourceRef}` : ' · no reference'}
                   </div>
+                  {e.voidedAt && (
+                    <div className="meta" style={{ color: 'var(--crit)' }}>
+                      Voided by {e.voidedBy} — {e.voidReason}
+                    </div>
+                  )}
                 </div>
-                {canEdit && (
-                  <button className="btn sm danger" onClick={() => deleteEncounter(e.id)}>
-                    ✕
+                {canEdit && !e.voidedAt && (
+                  <button
+                    className="btn sm danger"
+                    aria-label={`Void this ${req?.label ?? e.requirementId} entry`}
+                    onClick={async () => {
+                      const ok = await confirmAction({
+                        title: 'Void this entry?',
+                        body: 'It stops counting but stays on the record with the reason, so the correction is traceable. Deleting a regulated count outright is not an option.',
+                        confirmLabel: 'Void entry',
+                      })
+                      if (ok) voidEncounter(e.id, safety.actor, 'voided by coordinator')
+                    }}
+                  >
+                    Void
                   </button>
                 )}
               </div>
@@ -394,7 +491,13 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       )}
 
       {logging && (
-        <LogForm course={course} studentId={student.id} shifts={shifts} onClose={() => setLogging(false)} />
+        <LogForm
+          course={course}
+          studentId={student.id}
+          shifts={shifts}
+          existing={mine}
+          onClose={() => setLogging(false)}
+        />
       )}
     </div>
   )

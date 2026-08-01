@@ -1415,6 +1415,15 @@ export function encounterCounts(
   requirement: KarMinimum,
   shift: AemtClinicalShift | undefined,
 ): boolean {
+  // Voided rows stay visible and stop counting. A correction has to be
+  // traceable, so nothing is deleted to make a number move.
+  if (e.voidedAt) return false
+  // K.A.R. 109-11-8 counts successful performances. An attempt is worth
+  // recording — remediation is built from them — but it is not a rep.
+  // `undefined` predates the distinction and is treated as a success, which is
+  // how it was already being counted; those rows are reported separately so
+  // the assumption is visible rather than silent.
+  if (e.outcome === 'attempt') return false
   if (!requirement.allowedSettings.includes(e.siteKind)) return false
   // An encounter with no shift behind it has no date, site or supervisor that
   // anyone signed for. It is kept and shown, but it is not evidence.
@@ -1457,6 +1466,49 @@ export function addEncounter(
   return enc
 }
 
+/**
+ * Has this performance already been logged? Same shift, same requirement and
+ * the same run reference is the same event twice — which is how a count grows
+ * without anyone doing anything wrong on purpose.
+ */
+export function duplicateEncounter(
+  encounters: AemtEncounter[],
+  candidate: { studentId: string; shiftId?: string; requirementId: string; sourceRef?: string },
+): AemtEncounter | undefined {
+  const ref = candidate.sourceRef?.trim().toLowerCase()
+  if (!ref) return undefined
+  return encounters.find(
+    (e) =>
+      !e.voidedAt &&
+      e.studentId === candidate.studentId &&
+      e.requirementId === candidate.requirementId &&
+      e.shiftId === candidate.shiftId &&
+      (e.sourceRef ?? '').trim().toLowerCase() === ref,
+  )
+}
+
+/** Void a logged rep, keeping it and its reason on the record. */
+export function voidEncounter(id: string, actor: string, reason: string): void {
+  const e = getState().aemtEncounters.find((x) => x.id === id)
+  if (!e) return
+  setState((db) => ({
+    ...db,
+    aemtEncounters: db.aemtEncounters.map((x) =>
+      x.id === id
+        ? { ...x, voidedAt: new Date().toISOString(), voidedBy: actor, voidReason: reason.trim() || 'not stated' }
+        : x,
+    ),
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === e.studentId)?.name ?? e.studentId
+  audit(
+    e.courseId,
+    e.studentId,
+    actor,
+    'encounter voided',
+    `${who} · ${e.requirementId} · ${e.count} rep${e.count === 1 ? '' : 's'} · reason: ${reason.trim() || 'not stated'}`,
+  )
+}
+
 export function deleteEncounter(id: string): void {
   setState((db) => {
     const enc = db.aemtEncounters.find((e) => e.id === id)
@@ -1488,6 +1540,14 @@ export interface RequirementProgress {
   fieldMet: boolean
   /** Sub-requirement reached (true when the requirement has none). */
   subMet: boolean
+  /** Recorded but unsuccessful — not a rep, but evidence for remediation. */
+  attempts: number
+  /** Voided reps, kept for the correction history. */
+  voided: number
+  /** Counting reps that came from a row representing more than one. */
+  unitemized: number
+  /** Counting reps whose success was never stated. */
+  unstated: number
   /** Every condition on this requirement satisfied. */
   met: boolean
 }
@@ -1518,10 +1578,20 @@ export function progressFor(
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
     const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
+    const attempts = rows.filter((e) => e.outcome === 'attempt' && !e.voidedAt).reduce((s, e) => s + e.count, 0)
+    const voided = rows.filter((e) => e.voidedAt).reduce((s, e) => s + e.count, 0)
+    // Rows standing in for more than one performance, with a single outcome
+    // and a single reference across all of them.
+    const unitemized = eligible.filter((e) => e.count > 1).reduce((s, e) => s + e.count, 0)
+    const unstated = eligible.filter((e) => e.outcome === undefined).reduce((s, e) => s + e.count, 0)
     const totalMet = total >= requirement.minimum
     const fieldMet = field >= (requirement.fieldMinimum ?? 0)
     const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
-    return { requirement, total, ineligible, unverified, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
+    return {
+      requirement, total, ineligible, unverified, field, sub,
+      attempts, voided, unitemized, unstated,
+      totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet,
+    }
   })
 }
 
