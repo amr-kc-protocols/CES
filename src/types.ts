@@ -561,8 +561,20 @@ export interface AemtCompletion {
   studentId: string
   /** ISO date completion was recorded. */
   completedDate: string
-  /** Primary instructor or program manager attesting to it. */
+  /**
+   * The primary instructor verifying completion. K.A.R. 109-11-8 names that
+   * role specifically — this is not "whoever recorded it".
+   */
   verifiedBy: string
+  /** True when verifiedBy is not the course's named primary instructor. */
+  verifierMismatch?: boolean
+  /**
+   * Kansas verification is not NREMT verification. Since 1 July 2024 the NREMT
+   * Program Director separately verifies each candidate met the state minimum
+   * competencies before they sit the cognitive exam.
+   */
+  nremtVerifiedBy?: string
+  nremtVerifiedDate?: string
   /**
    * Final course grade. Attested rather than computed — grades live in the
    * Navigate LMS, not in this app, so recording the figure is the honest

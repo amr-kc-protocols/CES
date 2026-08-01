@@ -7,6 +7,7 @@ import { addDays, fromISODate, todayISO } from '../../lib/date'
 import {
   blockPlanTotals,
   CLINICAL_REQUIREMENTS,
+  INSTRUCTOR_VERIFICATION_DAYS,
   KBEMS_DEADLINES,
   KC_BLOCK_PLAN,
   MAX_ABSENT_HOURS,
@@ -1117,6 +1118,7 @@ function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): Readines
   if (gaps.length === 0) {
     return {
       id: 'hours',
+      basis: 'statutory',
       label: 'Program hours complete',
       status: 'attest',
       detail: cover.any
@@ -1130,6 +1132,7 @@ function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): Readines
     : ` · ${cover.missing.map((m) => m.label.toLowerCase()).join(', ')} not filed`
   return {
     id: 'hours',
+    basis: 'statutory',
     label: 'Program hours complete',
     status: short.length === 0 ? 'met' : 'unmet',
     detail:
@@ -1586,6 +1589,19 @@ export interface ReadinessCheck {
   label: string
   status: ReadinessStatus
   detail: string
+  /**
+   * Where the requirement comes from, and therefore whether it may be
+   * bypassed.
+   *
+   * 'statutory' — imposed by K.A.R. 109-11-8. NOT overrideable. A completion
+   *   recorded despite one of these would assert to KBEMS and NREMT that a
+   *   student met a requirement they did not, which is the one thing this
+   *   screen must never be able to produce.
+   * 'program'   — this program's own policy (the attendance cap, the 80%
+   *   pass mark, end-of-course evaluations). Overrideable with a documented
+   *   reason and named approver.
+   */
+  basis: 'statutory' | 'program'
 }
 
 export interface StudentReadiness {
@@ -1595,6 +1611,13 @@ export interface StudentReadiness {
   computedMet: boolean
   /** Ids of checks that do not pass — what an override would have to name. */
   unmet: string[]
+  /**
+   * Unmet checks imposed by regulation. While this is non-empty the student
+   * cannot be completed at all — no override, no approver, no exception.
+   */
+  blocking: string[]
+  /** Unmet program-policy checks, which an override may document past. */
+  overrideable: string[]
   completion?: AemtCompletion
 }
 
@@ -1665,6 +1688,7 @@ export function useStudentReadiness(
       const list: ReadinessCheck[] = [
         {
           id: 'attendance',
+          basis: 'program' as const,
           label: 'Attendance within policy',
           status: h && h.classAbsentHours > MAX_ABSENT_HOURS ? 'unmet' : 'met',
           detail: h
@@ -1679,6 +1703,7 @@ export function useStudentReadiness(
           : [
               {
                 id: 'hours',
+                basis: 'statutory' as const,
                 label: 'Program hours complete',
                 status: 'attest' as const,
                 detail: targets
@@ -1688,30 +1713,37 @@ export function useStudentReadiness(
             ]),
         {
           id: 'clinical',
+          basis: 'statutory' as const,
           label: 'Clinical minimums met',
           status: c?.complete ? 'met' : 'unmet',
           detail: c ? `${c.metCount} of ${c.statutory.length} K.A.R. 109-11-8(a)(4) minimums` : '—',
         },
         {
+          // K.A.R. 109-11-8(a)(2) — practical skills completed to the primary
+          // instructor's satisfaction.
           id: 'skills',
+          basis: 'statutory' as const,
           label: 'Psychomotor skills signed off',
           status: signed === sheets.length && sheets.length > 0 ? 'met' : 'unmet',
           detail: `${signed} of ${sheets.length} sheets signed off`,
         },
         {
           id: 'concerns',
+          basis: 'program' as const,
           label: 'Remediation and conferences closed',
           status: open.length === 0 ? 'met' : 'unmet',
           detail: open.length === 0 ? 'Nothing open' : `${open.length} still open`,
         },
         {
           id: 'evaluations',
+          basis: 'program' as const,
           label: 'End-of-course evaluations submitted',
           status: submitted.length === courseForms.length ? 'met' : 'unmet',
           detail: `${submitted.length} of ${courseForms.length} submitted`,
         },
         {
           id: 'grade',
+          basis: 'program' as const,
           label: `Final course grade at or above ${MIN_PASSING_PERCENT}%`,
           status: 'attest',
           detail: 'Held in the Navigate LMS — recorded and attested at verification',
@@ -1723,6 +1755,8 @@ export function useStudentReadiness(
         checks: list,
         computedMet: list.every((x) => x.status !== 'unmet'),
         unmet: list.filter((x) => x.status === 'unmet').map((x) => x.id),
+        blocking: list.filter((x) => x.status === 'unmet' && x.basis === 'statutory').map((x) => x.id),
+        overrideable: list.filter((x) => x.status === 'unmet' && x.basis === 'program').map((x) => x.id),
         completion: completions.find((x) => x.studentId === student.id),
       }
     })
@@ -1734,20 +1768,63 @@ export function useStudentReadiness(
  * caller must supply an override, which is stored with the completion and
  * written to the audit log naming exactly which checks were bypassed.
  */
+/**
+ * When the primary instructor's written verification is due, and whether it
+ * still is. K.A.R. 109-11-8 gives 15 days from the final class session, and
+ * requires it before the student sits the certification examination.
+ */
+export function verificationDeadline(sessions: AemtSession[]): {
+  finalSession?: string
+  dueBy?: string
+  daysLeft?: number
+  overdue: boolean
+} {
+  const dated = sessions.filter((s) => s.date).map((s) => s.date).sort()
+  const finalSession = dated[dated.length - 1]
+  if (!finalSession) return { overdue: false }
+  const dueBy = addDays(finalSession, INSTRUCTOR_VERIFICATION_DAYS)
+  const daysLeft = Math.round(
+    (fromISODate(dueBy).getTime() - fromISODate(todayISO()).getTime()) / 86_400_000,
+  )
+  return { finalSession, dueBy, daysLeft, overdue: daysLeft < 0 }
+}
+
+/**
+ * Record a completion.
+ *
+ * Refuses outright when a statutory check is unmet. An override can document
+ * a departure from this program's own policy; it cannot assert to KBEMS that
+ * a student met K.A.R. 109-11-8 when they did not. Callers must pass the
+ * blocking list so the refusal is decided here, not in whichever screen
+ * happens to call it.
+ */
 export function recordCompletion(
   courseId: string,
   studentId: string,
   input: {
     verifiedBy: string
+    /** The course's named primary instructor, for the role check. */
+    primaryInstructor?: string
     finalGradePercent: number
+    blocking?: string[]
     override?: { reason: string; approver: string; unmetChecks: string[] }
   },
-): void {
+): { ok: boolean; refused?: string } {
+  if (input.blocking && input.blocking.length > 0) {
+    return {
+      ok: false,
+      refused: `Statutory requirements are unmet: ${input.blocking.join(', ')}. These cannot be overridden.`,
+    }
+  }
+  const named = input.primaryInstructor?.trim().toLowerCase()
+  const verifier = input.verifiedBy.trim().toLowerCase()
+  const verifierMismatch = !!named && named !== verifier
   const completion: AemtCompletion = {
     courseId,
     studentId,
     completedDate: todayISO(),
     verifiedBy: input.verifiedBy,
+    verifierMismatch,
     finalGradePercent: input.finalGradePercent,
     override: input.override,
   }
@@ -1762,6 +1839,15 @@ export function recordCompletion(
     ),
   }))
   const name = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  if (verifierMismatch) {
+    audit(
+      courseId,
+      studentId,
+      input.verifiedBy,
+      'completion verified by someone other than the primary instructor',
+      `${name} · verified by ${input.verifiedBy} · primary instructor of record is ${input.primaryInstructor}`,
+    )
+  }
   audit(
     courseId,
     studentId,
@@ -1771,6 +1857,7 @@ export function recordCompletion(
       ? `${name} · grade ${input.finalGradePercent}% · bypassed: ${input.override.unmetChecks.join(', ')} · approved by ${input.override.approver} · reason: ${input.override.reason}`
       : `${name} · grade ${input.finalGradePercent}% · all readiness checks met`,
   )
+  return { ok: true }
 }
 
 export function revokeCompletion(courseId: string, studentId: string, actor: string, reason: string): void {

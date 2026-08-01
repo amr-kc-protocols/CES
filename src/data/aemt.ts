@@ -241,6 +241,14 @@ export const MAX_ABSENT_HOURS = 8
 
 export const MIN_PASSING_PERCENT = 80
 
+/**
+ * K.A.R. 109-11-8 requires the PRIMARY INSTRUCTOR to verify in writing that
+ * the student completed the course, within 15 days of the final class session
+ * and before the student sits the certification examination. A program manager
+ * signing in their place does not satisfy it.
+ */
+export const INSTRUCTOR_VERIFICATION_DAYS = 15
+
 export const GRADING = [
   { label: 'Exams (online)', weight: '60%' },
   { label: 'Quizzes / homework (online)', weight: '40%' },

@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import { Modal } from '../../components/ui'
+import { notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
-import { recordCompletion, revokeCompletion, useRecordSafety } from './aemtStore'
+import {
+  recordCompletion,
+  revokeCompletion,
+  useRecordSafety,
+  useSessions,
+  verificationDeadline,
+} from './aemtStore'
 import type { StudentReadiness } from './aemtStore'
-import { MIN_PASSING_PERCENT } from '../../data/aemt'
+import { MIN_PASSING_PERCENT, INSTRUCTOR_VERIFICATION_DAYS } from '../../data/aemt'
 import type { AemtCourse } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -32,12 +39,21 @@ function VerifyModal({
   const [reason, setReason] = useState('')
   const [approver, setApprover] = useState('')
 
+  const sessions = useSessions(course.id)
+  const due = verificationDeadline(sessions)
   const gradeNum = Number(grade)
   const gradeValid = grade !== '' && Number.isFinite(gradeNum) && gradeNum >= 0 && gradeNum <= 100
   const gradePasses = gradeValid && gradeNum >= MIN_PASSING_PERCENT
-  const needsOverride = !readiness.computedMet || (gradeValid && !gradePasses)
+  // Statutory failures are not overrideable at any price. Program-policy
+  // failures are, with a documented reason and a named approver.
+  const blocked = readiness.blocking.length > 0
+  const needsOverride =
+    !blocked && (readiness.overrideable.length > 0 || (gradeValid && !gradePasses))
   const overrideReady = reason.trim() !== '' && approver.trim() !== ''
-  const canRecord = verifiedBy.trim() !== '' && gradeValid && (!needsOverride || overrideReady)
+  const named = course.primaryInstructor?.trim()
+  const verifierMismatch = !!named && named.toLowerCase() !== verifiedBy.trim().toLowerCase()
+  const canRecord =
+    !blocked && verifiedBy.trim() !== '' && gradeValid && (!needsOverride || overrideReady)
 
   return (
     <Modal title={`Verify completion — ${readiness.student.name}`} onClose={onClose}>
@@ -47,8 +63,20 @@ function VerifyModal({
             <div className="grow">
               <div className="title" style={{ fontSize: 14 }}>
                 {ICON[c.status]} {c.label}
+                {c.basis === 'statutory' && (
+                  <span className="pill" style={{ marginLeft: 8, fontSize: 10 }}>
+                    K.A.R.
+                  </span>
+                )}
               </div>
               <div className="meta">{c.detail}</div>
+              {c.status === 'unmet' && (
+                <div className="meta" style={{ color: c.basis === 'statutory' ? 'var(--crit)' : 'var(--warn)' }}>
+                  {c.basis === 'statutory'
+                    ? 'Required by regulation — cannot be overridden'
+                    : 'Program policy — may be overridden with a documented reason'}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -73,21 +101,68 @@ function VerifyModal({
       </div>
 
       <div className="field">
-        <label htmlFor="cp-by">Verified by</label>
+        <label htmlFor="cp-by">Verified by the primary instructor</label>
         <input
           id="cp-by"
           value={verifiedBy}
           onChange={(e) => setVerifiedBy(e.target.value)}
-          placeholder="Primary instructor or program manager"
+          placeholder={named || 'Name of the primary instructor'}
         />
+        <div className="help-text">
+          K.A.R. 109-11-8 requires the <strong>primary instructor</strong> to verify completion in
+          writing, within {INSTRUCTOR_VERIFICATION_DAYS} days of the final class session and before
+          the student sits the certification examination. This is a different act from the NREMT
+          Program Director's verification, which happens separately.
+        </div>
+        {verifierMismatch && (
+          <div className="help-text" style={{ color: 'var(--warn)' }}>
+            The primary instructor of record for this course is <strong>{named}</strong>. Recording
+            a different name is allowed but is written to the audit trail as a role mismatch.
+          </div>
+        )}
+        {!named && (
+          <div className="help-text" style={{ color: 'var(--warn)' }}>
+            This course names no primary instructor, so the role cannot be checked. Set one in
+            Course setup.
+          </div>
+        )}
       </div>
+
+      {due.dueBy && (
+        <div className={`banner ${due.overdue ? 'crit' : due.daysLeft! <= 5 ? 'warn' : 'info'}`}>
+          {due.overdue ? (
+            <>
+              <strong>Verification is overdue.</strong> The final class session was{' '}
+              {formatDate(due.finalSession!)}, so written verification was due{' '}
+              {formatDate(due.dueBy)} — {Math.abs(due.daysLeft!)} days ago.
+            </>
+          ) : (
+            <>
+              Written verification is due <strong>{formatDate(due.dueBy)}</strong> —{' '}
+              {due.daysLeft} day{due.daysLeft === 1 ? '' : 's'} from today, counting{' '}
+              {INSTRUCTOR_VERIFICATION_DAYS} days from the final session on{' '}
+              {formatDate(due.finalSession!)}.
+            </>
+          )}
+        </div>
+      )}
+
+      {blocked && (
+        <div className="banner crit">
+          <strong>Cannot be completed.</strong> {readiness.blocking.join(', ')}{' '}
+          {readiness.blocking.length === 1 ? 'is' : 'are'} required by K.A.R. 109-11-8. There is no
+          override for a statutory requirement — recording completion would assert to KBEMS and
+          NREMT that this student met something they have not.
+        </div>
+      )}
 
       {needsOverride && (
         <>
           <div className="banner crit">
             <strong>Override required.</strong> Recording completion now will be logged as
-            bypassing: {readiness.unmet.join(', ')}
-            {gradeValid && !gradePasses ? `${readiness.unmet.length ? ', ' : ''}grade` : ''}.
+            bypassing this program's own policy on: {readiness.overrideable.join(', ')}
+            {gradeValid && !gradePasses ? `${readiness.overrideable.length ? ', ' : ''}grade` : ''}.
+            Statutory requirements are unaffected — they are all met.
           </div>
           <div className="field">
             <label htmlFor="cp-reason">Reason for the override</label>
@@ -110,19 +185,29 @@ function VerifyModal({
           className={`btn ${needsOverride ? 'danger' : 'primary'}`}
           disabled={!canRecord}
           onClick={() => {
-            const unmet = [...readiness.unmet]
+            const unmet = [...readiness.overrideable]
             if (gradeValid && !gradePasses) unmet.push('grade')
-            recordCompletion(course.id, readiness.student.id, {
+            const res = recordCompletion(course.id, readiness.student.id, {
               verifiedBy: verifiedBy.trim(),
+              primaryInstructor: course.primaryInstructor,
               finalGradePercent: gradeNum,
+              blocking: readiness.blocking,
               override: needsOverride
                 ? { reason: reason.trim(), approver: approver.trim(), unmetChecks: unmet }
                 : undefined,
             })
+            if (!res.ok) {
+              notifyUser(res.refused ?? 'Completion refused.', 'crit')
+              return
+            }
             onClose()
           }}
         >
-          {needsOverride ? 'Record with override' : 'Record completion'}
+          {blocked
+            ? 'Blocked by regulation'
+            : needsOverride
+              ? 'Record with override'
+              : 'Record completion'}
         </button>
         <button className="btn" onClick={onClose}>
           Cancel
