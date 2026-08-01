@@ -4,6 +4,7 @@ import { Modal } from '../../components/ui'
 import { updateCourse, deleteCourse, useCourseFootprint } from './aemtStore'
 import { PRECEPTOR_LABELS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
+import { agreementStatus } from '../../data/aemtRecords'
 import type { AemtCourse, AemtSite, PreceptorCredentialId } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -20,12 +21,6 @@ const SITE_KINDS: { value: AemtSite['kind']; label: string }[] = [
   { value: 'field', label: 'Field internship' },
 ]
 
-const AGREEMENTS: { value: AemtSite['agreement']; label: string; pill: string }[] = [
-  { value: 'none', label: 'Not started', pill: 'crit' },
-  { value: 'draft', label: 'In negotiation', pill: 'warn' },
-  { value: 'executed', label: 'Executed', pill: 'ok' },
-]
-
 /** What the approval application still needs. */
 export function applicationGaps(course: AemtCourse): string[] {
   const gaps: string[] = []
@@ -35,7 +30,10 @@ export function applicationGaps(course: AemtCourse): string[] {
   const sites = course.sites ?? []
   if (!sites.some((s) => s.kind === 'clinical')) gaps.push('clinical site')
   if (!sites.some((s) => s.kind === 'field')) gaps.push('field internship site')
-  if (sites.some((s) => s.agreement !== 'executed')) gaps.push('executed site agreements')
+  // Derived from the evidence on each site, not from a stored label.
+  if (sites.some((s) => agreementStatus(s, course).value !== 'executed')) {
+    gaps.push('executed site agreements')
+  }
   return gaps
 }
 
@@ -225,8 +223,19 @@ function SiteModal({
 }) {
   const [name, setName] = useState(existing?.name ?? '')
   const [kind, setKind] = useState<AemtSite['kind']>(existing?.kind ?? 'clinical')
-  const [agreement, setAgreement] = useState<AemtSite['agreement']>(existing?.agreement ?? 'none')
   const [contact, setContact] = useState(existing?.contact ?? '')
+  const [agreementRef, setRef] = useState(existing?.agreementRef ?? '')
+  const [signedDate, setSignedDate] = useState(existing?.signedDate ?? '')
+  const [signedBySite, setSite] = useState(existing?.signedBySite ?? '')
+  const [signedByProgram, setProgram] = useState(existing?.signedByProgram ?? '')
+  const [effectiveFrom, setFrom] = useState(existing?.effectiveFrom ?? '')
+  const [effectiveTo, setTo] = useState(existing?.effectiveTo ?? '')
+  const [permits, setPermits] = useState(existing?.permits ?? '')
+
+  const live = agreementStatus(
+    { agreementRef, signedDate, signedBySite, signedByProgram, effectiveFrom, effectiveTo, permits },
+    course,
+  )
 
   const save = () => {
     const sites = [...(course.sites ?? [])]
@@ -234,8 +243,16 @@ function SiteModal({
       id: existing?.id ?? `site-${Date.now()}`,
       name: name.trim(),
       kind,
-      agreement,
+      // Stored for older readers; every display path recomputes it.
+      agreement: live.value,
       contact: contact.trim() || undefined,
+      agreementRef: agreementRef.trim() || undefined,
+      signedDate: signedDate || undefined,
+      signedBySite: signedBySite.trim() || undefined,
+      signedByProgram: signedByProgram.trim() || undefined,
+      effectiveFrom: effectiveFrom || undefined,
+      effectiveTo: effectiveTo || undefined,
+      permits: permits.trim() || undefined,
     }
     const i = sites.findIndex((s) => s.id === next.id)
     if (i >= 0) sites[i] = next
@@ -266,21 +283,72 @@ function SiteModal({
         </select>
       </div>
       <div className="field">
-        <label htmlFor="st-agree">Agreement</label>
-        <select
-          id="st-agree"
-          value={agreement}
-          onChange={(e) => setAgreement(e.target.value as AemtSite['agreement'])}
-        >
-          {AGREEMENTS.map((a) => (
-            <option key={a.value} value={a.value}>
-              {a.label}
-            </option>
-          ))}
-        </select>
+        <label htmlFor="st-ref">Executed agreement — where it lives</label>
+        <input
+          id="st-ref"
+          value={agreementRef}
+          onChange={(e) => setRef(e.target.value)}
+          placeholder="SharePoint path or file name of the signed agreement"
+        />
         <div className="help-text">
-          The agreement must be executed before the approval application is submitted.
+          CES does not store the document. Record where an auditor would find it — the status below
+          is computed from what is recorded here, not chosen from a menu.
         </div>
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="st-signed">Date signed</label>
+          <input
+            id="st-signed"
+            type="date"
+            value={signedDate}
+            onChange={(e) => setSignedDate(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="st-sig-site">Signed for the site</label>
+          <input id="st-sig-site" value={signedBySite} onChange={(e) => setSite(e.target.value)} />
+        </div>
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="st-sig-prog">Signed for the program</label>
+          <input
+            id="st-sig-prog"
+            value={signedByProgram}
+            onChange={(e) => setProgram(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="st-from">Effective from</label>
+          <input id="st-from" type="date" value={effectiveFrom} onChange={(e) => setFrom(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="st-to">Effective to</label>
+          <input id="st-to" type="date" value={effectiveTo} onChange={(e) => setTo(e.target.value)} />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="st-permits">What the agreement permits students to do</label>
+        <textarea
+          id="st-permits"
+          value={permits}
+          onChange={(e) => setPermits(e.target.value)}
+          placeholder="Venipuncture, IV initiation, IM/SubQ injection, medication administration under RN supervision…"
+        />
+        <div className="help-text">
+          K.A.R. 109-11-8 requires venipuncture and injections. An agreement that does not cover
+          them cannot support the minimums this course filed.
+        </div>
+      </div>
+
+      <div className={`banner ${live.pill === 'ok' ? 'ok' : live.pill === 'crit' ? 'crit' : 'warn'}`}>
+        <strong>{live.label}.</strong>{' '}
+        {live.outOfPeriod
+          ? 'The agreement is signed but its effective period does not span this course.'
+          : live.missing.length > 0
+            ? `Not executed until recorded: ${live.missing.join(', ')}.`
+            : 'Everything an auditor would ask for is recorded.'}
       </div>
       <div className="field">
         <label htmlFor="st-contact">Contact</label>
@@ -506,15 +574,29 @@ export default function CourseSetupPanel({
       ) : (
         <div className="list">
           {sites.map((s) => {
-            const a = AGREEMENTS.find((x) => x.value === s.agreement)!
+            const a = agreementStatus(s, course)
             return (
-              <div key={s.id} className="row">
+              <div key={s.id} className={`row left-accent ${a.pill === 'ok' ? 'acc-ok' : a.pill === 'crit' ? 'acc-crit' : 'acc-warn'}`}>
                 <div className="grow">
                   <div className="title">{s.name}</div>
                   <div className="meta">
                     {SITE_KINDS.find((k) => k.value === s.kind)?.label}
                     {s.contact && ` · ${s.contact}`}
+                    {s.agreementRef && ` · ${s.agreementRef}`}
                   </div>
+                  {a.missing.length > 0 && (
+                    <div className="meta" style={{ color: 'var(--warn)' }}>
+                      Not executed until recorded: {a.missing.join(', ')}
+                    </div>
+                  )}
+                  {a.outOfPeriod && (
+                    <div className="meta" style={{ color: 'var(--crit)' }}>
+                      Signed, but the covered period ({s.effectiveFrom}
+                      {s.effectiveTo ? ` – ${s.effectiveTo}` : ' onward'}) does not span this
+                      course.
+                    </div>
+                  )}
+                  {s.permits && <div className="help-text">Permits: {s.permits}</div>}
                 </div>
                 <span className={`pill ${a.pill}`}>{a.label}</span>
                 {canEdit && (

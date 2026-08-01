@@ -467,10 +467,32 @@ export interface AemtSite {
   id: string
   name: string
   kind: 'clinical' | 'field'
-  /** Agreement state — 'executed' is the bar for submitting the application. */
+  /**
+   * DERIVED, never chosen. Retained so existing records keep loading, but the
+   * status shown and the approval gate both come from agreementStatus(), which
+   * reads the evidence below. A dropdown someone sets to "Executed" is a claim
+   * about a document, not the document.
+   */
   agreement: 'none' | 'draft' | 'executed'
   contact?: string
   notes?: string
+  /** Where the executed agreement actually lives — path, drive, file name. */
+  agreementRef?: string
+  /** ISO date both parties signed. */
+  signedDate?: string
+  /** Who signed for the site. */
+  signedBySite?: string
+  /** Who signed for the sponsoring organization. */
+  signedByProgram?: string
+  /** Period the agreement covers. */
+  effectiveFrom?: string
+  effectiveTo?: string
+  /**
+   * What the agreement actually permits students to do. K.A.R. 109-11-8
+   * requires venipuncture and medication administration; an agreement that
+   * does not cover them cannot support the minimums the course filed.
+   */
+  permits?: string
 }
 
 export interface AemtCourse {

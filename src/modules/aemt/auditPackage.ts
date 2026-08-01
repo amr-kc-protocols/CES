@@ -7,7 +7,13 @@ import {
   RULE_SETS,
 } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
-import { REQUIRED_RECORDS, retentionUntil, RETENTION_YEARS } from '../../data/aemtRecords'
+import {
+  REQUIRED_RECORDS,
+  retentionUntil,
+  RETENTION_YEARS,
+  agreementStatus,
+  docStatus,
+} from '../../data/aemtRecords'
 import { sheetsForCourse } from '../../data/aemtSkills'
 import { attestationIsEvidence, encounterCounts } from './aemtStore'
 import type {
@@ -248,14 +254,36 @@ export function auditPackageHTML(
     .join('')
 
   // ----- record inventory -----
+  // "Held in CES" now has to be true. For a record CES owns, the claim is
+  // checked against the records actually stored; for one kept elsewhere, the
+  // status is derived from the fields rather than read off a stored label.
+  const evidenceCount: Record<string, number> = {
+    attendance: d.attendance.length,
+    skillChecks: d.skillChecks.length,
+    encounters: d.encounters.length,
+    formResponses: d.forms.length,
+    students: d.students.length,
+    sessions: d.sessions.length,
+    completions: d.completions.length,
+  }
   const records = REQUIRED_RECORDS.map((r) => {
     const doc = d.recordDocs.find((x) => x.typeId === r.id)
-    const held = r.source === 'ces'
-    const status = held ? 'held in CES' : (doc?.status ?? 'missing')
-    const cls = held || status === 'approved' ? 'ok' : status === 'missing' ? 'crit' : 'warn'
-    return `<tr><td>${esc(r.label)}</td><td class="${cls}">${esc(status)}</td>
-      <td>${esc(held ? `CES — ${r.tab} tab` : (doc?.location ?? '—'))}</td>
-      <td>${esc(doc?.owner ?? '—')}</td></tr>`
+    if (r.source === 'ces') {
+      const n = r.evidence ? evidenceCount[r.evidence] : undefined
+      const empty = n === 0
+      return `<tr><td>${esc(r.label)}</td>
+        <td class="${empty ? 'warn' : 'ok'}">${
+          n === undefined ? 'held in CES' : empty ? 'EMPTY — nothing recorded' : `held in CES (${n} records)`
+        }</td>
+        <td>${esc(`CES — ${r.tab} tab`)}</td><td>—</td></tr>`
+    }
+    const st = docStatus(doc)
+    return `<tr><td>${esc(r.label)}</td>
+      <td class="${st.pill === 'ok' ? 'ok' : st.pill === 'crit' ? 'crit' : 'warn'}">${esc(st.label)}${
+        st.missing.length ? `<div class="warn">missing: ${esc(st.missing.join(', '))}</div>` : ''
+      }</td>
+      <td>${esc(doc?.location ?? '—')}</td>
+      <td>${esc(doc?.owner ?? '—')}${doc?.version ? ` v${esc(doc.version)}` : ''}</td></tr>`
   }).join('')
 
   // ----- audit trail -----
@@ -315,20 +343,35 @@ ${RULE_SETS.map(
 ).join('')}
 </table>
 
-<h2>1 · Sites</h2>
-<table><tr><th>Site</th><th>Type</th><th>Agreement</th><th>Contact</th></tr>
+<h2>1 · Sites and affiliation agreements</h2>
+<table><tr><th>Site</th><th>Type</th><th>Agreement</th><th>Signed</th><th>Effective</th>
+<th>Permitted scope</th><th>Document</th></tr>
 ${
   (course.sites ?? []).length
     ? rows(
-        (course.sites ?? []).map(
-          (s) =>
-            `<tr><td>${esc(s.name)}</td><td>${esc(s.kind)}</td><td class="${
-              s.agreement === 'executed' ? 'ok' : 'crit'
-            }">${esc(s.agreement)}</td><td>${esc(s.contact ?? '—')}</td></tr>`,
-        ),
+        (course.sites ?? []).map((s) => {
+          const a = agreementStatus(s, course)
+          return `<tr><td>${esc(s.name)}</td><td>${esc(s.kind)}</td>
+            <td class="${a.pill === 'ok' ? 'ok' : a.pill === 'warn' ? 'warn' : 'crit'}">${esc(a.label)}${
+              a.missing.length ? `<div class="warn">missing: ${esc(a.missing.join(', '))}</div>` : ''
+            }</td>
+            <td>${s.signedDate ? esc(s.signedDate) : '<span class="crit">not signed</span>'}${
+              s.signedBySite || s.signedByProgram
+                ? `<div class="muted">${esc(s.signedBySite ?? '—')} / ${esc(s.signedByProgram ?? '—')}</div>`
+                : ''
+            }</td>
+            <td>${s.effectiveFrom ? esc(s.effectiveFrom) : '<span class="crit">—</span>'}${
+              s.effectiveTo ? ` – ${esc(s.effectiveTo)}` : ''
+            }${a.outOfPeriod ? '<div class="crit">does not span the course</div>' : ''}</td>
+            <td>${s.permits ? esc(s.permits) : '<span class="crit">not recorded</span>'}</td>
+            <td>${s.agreementRef ? esc(s.agreementRef) : '<span class="crit">no document</span>'}</td></tr>`
+        }),
       )
-    : '<tr><td colspan="4" class="crit">No sites recorded</td></tr>'
+    : '<tr><td colspan="7" class="crit">No sites recorded</td></tr>'
 }</table>
+<div class="note">Agreement status is derived from the evidence recorded against each site — a
+document location, both signatures, an effective period covering the course, and the scope it
+permits. It is not a label anyone selected.</div>
 
 <h2>2 · Schedule (${d.sessions.length} sessions)</h2>
 <table><tr><th>Date</th><th>Time</th><th>Subject</th><th>Type</th><th>Hrs</th><th>Instructor</th></tr>
