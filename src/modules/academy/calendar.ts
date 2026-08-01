@@ -171,7 +171,7 @@ export function scheduleICS(cohort: AcademyCohort, days: AcademyDay[]): string {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//AMR KC Academy//Academy Schedule//EN',
+    'PRODID:-//KC Academy//NEOP Schedule//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escICS(cohort.label)}`,

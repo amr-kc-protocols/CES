@@ -93,7 +93,7 @@ export default function DailyEvalView() {
   if (!cohort || !trainee) {
     return (
       <Empty icon="🤔" title="Trainee not found">
-        <Link to="/academy" className="link-btn">Back to Academy</Link>
+        <Link to="/academy" className="link-btn">Back to NEOP</Link>
       </Empty>
     )
   }

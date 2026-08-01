@@ -16,10 +16,22 @@ import {
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
 import { sheetsForCourse } from '../../data/aemtSkills'
+import {
+  SELECTION_WEIGHTS,
+  BONUS_TIERS,
+  THRESHOLDS,
+  TEST_SECTIONS,
+  TEST_TOTAL_MARKS,
+  INTERVIEW_QUESTIONS,
+  INTERVIEW_MAX,
+  ELIGIBILITY_GATES,
+} from '../../data/aemtSelection'
 import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   Attestation,
   AemtAttendanceRecord,
+  AemtCandidate,
+  AemtInterviewScore,
   AemtClinicalShift,
   AemtAuditEvent,
   AemtCompletion,
@@ -1997,4 +2009,176 @@ export function recordAuditEvent(
   detail: string,
 ): void {
   audit(courseId, studentId, actor, action, detail)
+}
+
+// ----- cohort selection -------------------------------------------------------
+//
+// Employment-selection data, kept in the same store so scoring is consistent
+// and the records survive, but NOT program records: retention is the employer's
+// HR schedule, not the three-year K.A.R. 109-17-3 clock.
+
+export function useCandidates(courseId: string | undefined): AemtCandidate[] {
+  return useSelector((db) =>
+    db.aemtCandidates
+      .filter((c) => c.courseId === courseId)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  )
+}
+
+export function addCandidate(courseId: string, name: string, employeeNumber?: string): AemtCandidate {
+  const candidate: AemtCandidate = {
+    id: uid('acand'),
+    courseId,
+    name,
+    employeeNumber,
+    gates: {},
+    createdAt: new Date().toISOString(),
+  }
+  setState((db) => ({ ...db, aemtCandidates: [...db.aemtCandidates, candidate] }))
+  return candidate
+}
+
+export function updateCandidate(id: string, patch: Partial<AemtCandidate>): void {
+  setState((db) => ({
+    ...db,
+    aemtCandidates: db.aemtCandidates.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+  }))
+}
+
+export function deleteCandidate(id: string): void {
+  setState((db) => {
+    const c = db.aemtCandidates.find((x) => x.id === id)
+    if (c) pushUndo(`Removed ${c.name}`, () => setState((cur) => ({ ...cur, aemtCandidates: [...cur.aemtCandidates, c] })))
+    return { ...db, aemtCandidates: db.aemtCandidates.filter((x) => x.id !== id) }
+  })
+}
+
+/**
+ * Record one interviewer's scores. Replaces that scorer's previous entry and
+ * leaves everyone else's alone — two interviewers score independently, and one
+ * overwriting the other would defeat the point.
+ */
+export function recordInterview(
+  candidateId: string,
+  scorer: string,
+  scores: Record<string, number>,
+  notes?: Record<string, string>,
+): void {
+  const entry: AemtInterviewScore = { scorer, at: new Date().toISOString(), scores, notes }
+  setState((db) => ({
+    ...db,
+    aemtCandidates: db.aemtCandidates.map((c) =>
+      c.id === candidateId
+        ? { ...c, interviews: [...(c.interviews ?? []).filter((i) => i.scorer !== scorer), entry] }
+        : c,
+    ),
+  }))
+}
+
+export interface CandidateScore {
+  /** Percentage per weighted component; undefined = not yet scored. */
+  test?: number
+  interview?: number
+  qa?: number
+  attendance?: number
+  /** Weighted base out of 100, counting only components that have a score. */
+  base: number
+  bonus: number
+  composite: number
+  /** True only when every weighted component has been scored. */
+  complete: boolean
+  /** Raw interview total out of 30, averaged across interviewers. */
+  interviewRaw?: number
+  /** Per-section test percentages. */
+  sections: { id: string; label: string; pct?: number; floor?: number; met: boolean }[]
+  /** Everything blocking advancement, in the order it should be read. */
+  blockers: string[]
+  gatesMet: boolean
+}
+
+/**
+ * Score a candidate against the model in data/aemtSelection.
+ *
+ * Partial scores are reported rather than assumed: a candidate with no
+ * interview yet has an incomplete composite, not a low one, and the
+ * distinction matters when four seats are being filled from a small field.
+ */
+export function scoreCandidate(c: AemtCandidate): CandidateScore {
+  const sections = TEST_SECTIONS.map((s) => {
+    const raw = c.testMarks?.[s.id]
+    const pct = typeof raw === 'number' ? (raw / s.marks) * 100 : undefined
+    return {
+      id: s.id,
+      label: s.label,
+      pct,
+      floor: s.floor,
+      met: s.floor === undefined || (pct !== undefined && pct >= s.floor),
+    }
+  })
+
+  const anyMarks = TEST_SECTIONS.some((s) => typeof c.testMarks?.[s.id] === 'number')
+  const testTotal = TEST_SECTIONS.reduce((n, s) => n + (c.testMarks?.[s.id] ?? 0), 0)
+  const test = anyMarks ? (testTotal / TEST_TOTAL_MARKS) * 100 : undefined
+
+  const iv = c.interviews ?? []
+  const totals = iv.map((i) => Object.values(i.scores).reduce((n, v) => n + v, 0))
+  const interviewRaw = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : undefined
+  const interview = interviewRaw === undefined ? undefined : (interviewRaw / INTERVIEW_MAX) * 100
+
+  const parts: Record<string, number | undefined> = {
+    test,
+    interview,
+    qa: c.qaPercent,
+    attendance: c.attendancePercent,
+  }
+  const base = SELECTION_WEIGHTS.reduce(
+    (n, w) => n + ((parts[w.id] ?? 0) * w.weight) / 100,
+    0,
+  )
+  const bonus = BONUS_TIERS.find((b) => b.id === (c.bonusTier ?? 'none'))?.points ?? 0
+  const complete = SELECTION_WEIGHTS.every((w) => typeof parts[w.id] === 'number')
+
+  const gateIds = ELIGIBILITY_GATES.map((g) => g.id)
+  const gatesMet = gateIds.every((g) => c.gates[g] === true)
+
+  const blockers: string[] = []
+  if (!gatesMet) {
+    const failed = ELIGIBILITY_GATES.filter((g) => c.gates[g.id] !== true).map((g) => g.label)
+    blockers.push(`Eligibility not met: ${failed.join(', ')}`)
+  }
+  for (const s of sections) {
+    if (!s.met) {
+      blockers.push(
+        s.pct === undefined
+          ? `${s.label} not scored — floor of ${s.floor}% cannot be checked`
+          : `${s.label} at ${s.pct.toFixed(0)}%, below its ${s.floor}% floor`,
+      )
+    }
+  }
+  if (test !== undefined && test < THRESHOLDS.test) {
+    blockers.push(`Selection test at ${test.toFixed(0)}%, below ${THRESHOLDS.test}%`)
+  }
+  if (interviewRaw !== undefined && interviewRaw < THRESHOLDS.interview) {
+    blockers.push(
+      `Interview at ${interviewRaw.toFixed(1)}/${INTERVIEW_MAX}, below ${THRESHOLDS.interview}`,
+    )
+  }
+  const composite = base + bonus
+  if (complete && composite < THRESHOLDS.composite) {
+    blockers.push(`Composite at ${composite.toFixed(1)}, below ${THRESHOLDS.composite}`)
+  }
+  if (!complete) blockers.push('Not all components scored yet')
+
+  return { test, interview, qa: c.qaPercent, attendance: c.attendancePercent, base, bonus, composite, complete, interviewRaw, sections, blockers, gatesMet }
+}
+
+/** Two interviewers differing by 2+ on a question must discuss, not average. */
+export function interviewDisagreements(c: AemtCandidate): { questionId: string; spread: number }[] {
+  const iv = c.interviews ?? []
+  if (iv.length < 2) return []
+  return INTERVIEW_QUESTIONS.map((q) => {
+    const vals = iv.map((i) => i.scores[q.id]).filter((v): v is number => typeof v === 'number')
+    const spread = vals.length < 2 ? 0 : Math.max(...vals) - Math.min(...vals)
+    return { questionId: q.id, spread }
+  }).filter((d) => d.spread >= 2)
 }

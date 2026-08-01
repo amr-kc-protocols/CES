@@ -10,10 +10,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'AMR KC Academy — New Hire & FTO Portal',
-        short_name: 'Academy',
+        name: 'KC Academy — Clinical Education Suite',
+        short_name: 'KC Academy',
         description:
-          'New hire academy schedules, field training checklists, FTO shifts, and CE tracking for AMR Kansas City',
+          'New employee orientation, the AEMT program, field training checklists, FTO shifts, and CE tracking for AMR Kansas City',
         theme_color: '#0b2e4f',
         background_color: '#0b2e4f',
         display: 'standalone',

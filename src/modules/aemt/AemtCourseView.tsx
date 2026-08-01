@@ -5,6 +5,7 @@ import { Tabs, tabPanelProps } from '../../components/Tabs'
 import { formatDate } from '../../lib/date'
 import { useCourse, useSessions, useStudents, courseHourTotals } from './aemtStore'
 import RosterTab from './RosterTab'
+import SelectionTab from './SelectionTab'
 import SessionsTab from './SessionsTab'
 import HoursTab from './HoursTab'
 import ClinicalTab from './ClinicalTab'
@@ -12,11 +13,12 @@ import SkillsTab from './SkillsTab'
 import FormsTab from './FormsTab'
 import RecordsTab from './RecordsTab'
 
-const TABS = ['roster', 'sessions', 'hours', 'skills', 'clinical', 'forms', 'records'] as const
+const TABS = ['roster', 'selection', 'sessions', 'hours', 'skills', 'clinical', 'forms', 'records'] as const
 type Tab = (typeof TABS)[number]
 
 const TAB_LABEL: Record<Tab, string> = {
   roster: 'Roster',
+  selection: 'Selection',
   sessions: 'Sessions',
   hours: 'Hours',
   skills: 'Skills',
@@ -95,6 +97,7 @@ export default function AemtCourseView() {
 
       <div style={{ marginTop: 14 }} {...tabPanelProps('aemt', tab)}>
         {tab === 'roster' && <RosterTab course={course} />}
+        {tab === 'selection' && <SelectionTab course={course} />}
         {tab === 'sessions' && <SessionsTab course={course} />}
         {tab === 'hours' && <HoursTab course={course} />}
         {tab === 'skills' && <SkillsTab course={course} />}

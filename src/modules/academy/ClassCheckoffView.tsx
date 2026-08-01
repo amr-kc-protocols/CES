@@ -18,7 +18,7 @@ export default function ClassCheckoffView() {
   if (!cohort || !(sheetParam in SHEETS)) {
     return (
       <Empty icon="🤔" title="Check-off not found">
-        <Link to="/academy" className="link-btn">Back to Academy</Link>
+        <Link to="/academy" className="link-btn">Back to NEOP</Link>
       </Empty>
     )
   }

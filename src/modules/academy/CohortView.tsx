@@ -315,7 +315,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
           </label>
 
           <div className="section-title" style={{ margin: '0 0 8px' }}>
-            Academy checklist
+            NEOP checklist
           </div>
           {[{ label: 'General AMR block', items: general }, ...(kcMedic.length ? [{ label: 'Critical-care specialization (not waivable)', items: kcMedic }] : [])].map(
             (group) => (
