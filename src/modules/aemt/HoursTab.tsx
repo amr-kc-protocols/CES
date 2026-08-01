@@ -39,7 +39,9 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
   const records = useAemtAttendance(course.id)
   const map = useMemo(() => attendanceMap(records), [records])
   const hours = useStudentHours(course.id)
-  const { editRideWork: canEdit } = useCan()
+  // manageAemt, not editRideWork: the latter is true for FTOs, who must not
+  // write to certification records.
+  const { manageAemt: canEdit } = useCan()
   const cover = targetCoverage(course.targets)
   // Every student shares the course's target set, so one row defines the
   // columns. Falls back to an empty student so the header renders on a course

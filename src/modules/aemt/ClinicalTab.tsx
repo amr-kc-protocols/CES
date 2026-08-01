@@ -225,7 +225,9 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const encounters = useEncounters(course.id)
   const allShifts = useShifts(course.id)
   const standing = useClinicalStanding(course.id)
-  const { editRideWork: canEdit } = useCan()
+  // manageAemt, not editRideWork: the latter is true for FTOs, who must not
+  // write to certification records.
+  const { manageAemt: canEdit } = useCan()
   const [selectedId, setSelected] = useState<string | null>(null)
   const [logging, setLogging] = useState(false)
   const safety = useRecordSafety()

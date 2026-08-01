@@ -410,7 +410,7 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
 
 export default function SessionsTab({ course }: { course: AemtCourse }) {
   const sessions = useSessions(course.id)
-  const { manageAcademy } = useCan()
+  const { manageAemt: manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [seeding, setSeeding] = useState(false)
   const totals = courseHourTotals(sessions)

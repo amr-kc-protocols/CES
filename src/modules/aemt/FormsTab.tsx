@@ -208,7 +208,9 @@ function FillForm({
 export default function FormsTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
   const responses = useFormResponses(course.id)
-  const { editRideWork: canEdit } = useCan()
+  // manageAemt, not editRideWork: the latter is true for FTOs, who must not
+  // write to certification records.
+  const { manageAemt: canEdit } = useCan()
   const [filling, setFilling] = useState<string | null>(null)
 
   if (students.length === 0) {

@@ -259,7 +259,7 @@ function InterviewModal({
 
 export default function SelectionTab({ course }: { course: AemtCourse }) {
   const candidates = useCandidates(course.id)
-  const { manageAcademy: canEdit } = useCan()
+  const { manageAemt: canEdit } = useCan()
   const safety = useRecordSafety()
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')

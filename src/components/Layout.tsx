@@ -6,6 +6,7 @@ import { ConfirmHost, NoticeToast } from './DialogHost'
 import SyncChip from './SyncChip'
 import { useCESummary } from '../modules/ce/ceStore'
 import { useSyncStatus } from '../lib/sync'
+import { useCan } from '../lib/role'
 import { QA_ENABLED, CE_ENABLED } from '../config/features'
 
 // QA background sync is mounted only when QA is enabled; lazy so its deps
@@ -13,19 +14,23 @@ import { QA_ENABLED, CE_ENABLED } from '../config/features'
 const BotSyncMount = lazy(() => import('../modules/qa/BotSyncMount'))
 
 const TABS = [
-  { to: '/', label: 'Home', icon: '🏠', end: true, qa: false, ce: false, admin: false },
-  { to: '/qa', label: 'QA', icon: '🩺', end: false, qa: true, ce: false, admin: false },
-  { to: '/bot', label: 'QA Bot', icon: '🤖', end: false, qa: true, ce: false, admin: false },
-  { to: '/ce', label: 'CE', icon: '📅', end: false, qa: false, ce: true, admin: false },
+  { to: '/', label: 'Home', icon: '🏠', end: true, qa: false, ce: false, admin: false, aemt: false },
+  { to: '/qa', label: 'QA', icon: '🩺', end: false, qa: true, ce: false, admin: false, aemt: false },
+  { to: '/bot', label: 'QA Bot', icon: '🤖', end: false, qa: true, ce: false, admin: false, aemt: false },
+  { to: '/ce', label: 'CE', icon: '📅', end: false, qa: false, ce: true, admin: false, aemt: false },
   // Two distinct programs. NEOP onboards new hires; AEMT is a Kansas-approved
   // certification course with its own regulator, records and retention clock.
   // The routes keep their original paths so existing links and bookmarks work.
-  { to: '/academy', label: 'NEOP', icon: '🎓', end: false, qa: false, ce: false, admin: false },
-  { to: '/aemt', label: 'AEMT', icon: '💉', end: false, qa: false, ce: false, admin: false },
-  { to: '/courses', label: 'Courses', icon: '📚', end: false, qa: false, ce: false, admin: false },
+  { to: '/academy', label: 'NEOP', icon: '🎓', end: false, qa: false, ce: false, admin: false, aemt: false },
+  // AEMT holds certification records and cohort-selection data about staff who
+  // are peers of the FTOs using this app daily. Gated on its own capability
+  // rather than the plain admin flag: History's rule would also hide it on a
+  // local-only install, where there are no roles to enforce in the first place.
+  { to: '/aemt', label: 'AEMT', icon: '💉', end: false, qa: false, ce: false, admin: false, aemt: true },
+  { to: '/courses', label: 'Courses', icon: '📚', end: false, qa: false, ce: false, admin: false, aemt: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
-  { to: '/history', label: 'History', icon: '📊', end: false, qa: false, ce: false, admin: true },
-  { to: '/settings', label: 'Settings', icon: '⚙️', end: false, qa: false, ce: false, admin: false },
+  { to: '/history', label: 'History', icon: '📊', end: false, qa: false, ce: false, admin: true, aemt: false },
+  { to: '/settings', label: 'Settings', icon: '⚙️', end: false, qa: false, ce: false, admin: false, aemt: false },
 ].filter((t) => (QA_ENABLED || !t.qa) && (CE_ENABLED || !t.ce))
 
 export default function Layout() {
@@ -34,7 +39,10 @@ export default function Layout() {
   // Signed-in admin only — the local signed-out "acts as admin" convenience
   // deliberately does NOT apply here, so an FTO who signs out gains nothing.
   const { signedIn, role } = useSyncStatus()
-  const tabs = TABS.filter((t) => !t.admin || (signedIn && role === 'admin'))
+  const { manageAemt } = useCan()
+  const tabs = TABS.filter(
+    (t) => (!t.admin || (signedIn && role === 'admin')) && (!t.aemt || manageAemt),
+  )
   const { pathname } = useLocation()
 
   return (

@@ -139,7 +139,7 @@ function SubmissionModal({ due, onClose }: { due: DueDeadline; onClose: () => vo
 
 export default function DeadlinePanel() {
   const all = useDeadlines()
-  const { manageAcademy } = useCan()
+  const { manageAemt: manageAcademy } = useCan()
   const [showDone, setShowDone] = useState(false)
   const [editing, setEditing] = useState<DueDeadline | null>(null)
   const safety = useRecordSafety()
