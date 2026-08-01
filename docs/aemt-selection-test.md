@@ -7,8 +7,9 @@ Draft 1 · requires Program Manager and Medical Director approval before use
 
 ## What this instrument is for
 
-It contributes **35%** of a candidate's composite selection score. It is one input
-among five, and it is not a rank-ordering device on its own.
+It contributes **40%** of a candidate's composite selection score. It is one input
+among four, plus an additional-duty bonus, and it is not a rank-ordering device
+on its own. The composite model lives in `aemt-selection-interview.md`.
 
 It measures four things the course will demand on day one:
 
