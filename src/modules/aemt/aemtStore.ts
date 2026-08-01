@@ -7,6 +7,7 @@ import { addDays, fromISODate, todayISO } from '../../lib/date'
 import {
   blockPlanTotals,
   CLINICAL_REQUIREMENTS,
+  INSTRUCTOR_VERIFICATION_DAYS,
   KBEMS_DEADLINES,
   KC_BLOCK_PLAN,
   MAX_ABSENT_HOURS,
@@ -17,6 +18,7 @@ import type { KarMinimum } from '../../data/aemt'
 import { sheetsForCourse } from '../../data/aemtSkills'
 import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
+  Attestation,
   AemtAttendanceRecord,
   AemtClinicalShift,
   AemtAuditEvent,
@@ -609,17 +611,72 @@ export function toggleCriticalFailure(
   })
 }
 
-export function setSkillSignoff(
+export const SKILL_STATEMENT =
+  'I evaluated this student on every criterion of this sheet and attest that they ' +
+  'performed it to the standard, without critical failure.'
+
+/** Record the evaluator's name as it is typed. Does not sign anything. */
+export function setSkillEvaluator(
   courseId: string,
   studentId: string,
   sheetId: string,
-  patch: { evaluator?: string; passedDate?: string | null },
+  evaluator: string,
+): void {
+  upsertCheck(courseId, studentId, sheetId, (c) => ({ ...c, evaluator }))
+}
+
+/**
+ * Sign a skill sheet as passed.
+ *
+ * Previously a bare date with an optional free-text evaluator, so a sheet
+ * could be signed off with nobody named — and it still counted toward
+ * completion. Same bar as a shift: identified signer, credential, licence
+ * number, statement, authenticated actor.
+ */
+export function signSkillSheet(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  attestation: Omit<Attestation, 'at' | 'statement'>,
+): void {
+  const at = new Date().toISOString()
+  const full: Attestation = { ...attestation, at, statement: SKILL_STATEMENT }
+  upsertCheck(courseId, studentId, sheetId, (c) => ({
+    ...c,
+    evaluator: full.by,
+    passedDate: at.slice(0, 10),
+    attestation: full,
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  audit(
+    courseId,
+    studentId,
+    attestation.actor,
+    'skill sheet signed off',
+    `${who} · ${sheetId} · signed by ${full.by} (${full.credential}` +
+      `${full.certNumber ? ` #${full.certNumber}` : ''})`,
+  )
+}
+
+export function revokeSkillSignoff(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  actor: string,
 ): void {
   upsertCheck(courseId, studentId, sheetId, (c) => ({
     ...c,
-    evaluator: patch.evaluator ?? c.evaluator,
-    passedDate: patch.passedDate === null ? undefined : (patch.passedDate ?? c.passedDate),
+    passedDate: undefined,
+    attestation: undefined,
   }))
+  const who = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  audit(courseId, studentId, actor, 'skill sign-off revoked', `${who} · ${sheetId}`)
+}
+
+/** A sign-off only counts when an identified evaluator stands behind it. */
+export function skillSignoffIsEvidence(c: AemtSkillCheck | undefined): boolean {
+  const a = c?.attestation
+  return !!c?.passedDate && !!a && !!a.by.trim() && !!a.certNumber.trim() && !!a.actor.trim()
 }
 
 export interface SkillStanding {
@@ -655,7 +712,7 @@ export function standingFor(
       total: ids.length,
       criticalFailed,
       allPassed: passed === ids.length && failed === 0 && !criticalFailed,
-      signedOff: !!check?.passedDate,
+      signedOff: skillSignoffIsEvidence(check),
     }
   })
 }
@@ -1061,6 +1118,7 @@ function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): Readines
   if (gaps.length === 0) {
     return {
       id: 'hours',
+      basis: 'statutory',
       label: 'Program hours complete',
       status: 'attest',
       detail: cover.any
@@ -1074,6 +1132,7 @@ function hourReadinessCheck(h: StudentHours, targets: AemtHourTargets): Readines
     : ` · ${cover.missing.map((m) => m.label.toLowerCase()).join(', ')} not filed`
   return {
     id: 'hours',
+    basis: 'statutory',
     label: 'Program hours complete',
     status: short.length === 0 ? 'met' : 'unmet',
     detail:
@@ -1124,11 +1183,94 @@ export function addShift(
   return shift
 }
 
-export function updateShift(id: string, patch: Partial<AemtClinicalShift>): void {
+/**
+ * Fields whose value is what a preceptor actually signed for. Changing any of
+ * them after attestation means the signature no longer describes the record.
+ * Notes are excluded — annotating a shift is not a material correction.
+ */
+const MATERIAL_SHIFT_FIELDS: (keyof AemtClinicalShift)[] = [
+  'date',
+  'hours',
+  'setting',
+  'site',
+  'preceptorName',
+  'preceptorCredential',
+  'preceptorCertNumber',
+]
+
+export function materialShiftChanges(
+  before: AemtClinicalShift,
+  patch: Partial<AemtClinicalShift>,
+): { field: string; from: string; to: string }[] {
+  const out: { field: string; from: string; to: string }[] = []
+  for (const f of MATERIAL_SHIFT_FIELDS) {
+    if (!(f in patch)) continue
+    const from = before[f] ?? ''
+    const to = patch[f] ?? ''
+    if (String(from) !== String(to)) out.push({ field: f, from: String(from), to: String(to) })
+  }
+  return out
+}
+
+/**
+ * Edit a shift.
+ *
+ * A material change to an attested shift invalidates the attestation: the
+ * preceptor signed for 12 hours, and a record silently reading 24 hours over
+ * that signature is not evidence, it is a forgery the app helped produce. The
+ * prior values and the invalidated signature are kept as a revision, the
+ * change is audited, and the shift returns to unattested so it has to be
+ * signed again.
+ *
+ * `reason` is required when correcting an attested record.
+ */
+export function updateShift(
+  id: string,
+  patch: Partial<AemtClinicalShift>,
+  opts: { actor?: string; reason?: string } = {},
+): { invalidated: boolean } {
+  const before = getState().aemtShifts.find((s) => s.id === id)
+  if (!before) return { invalidated: false }
+
+  const changed = materialShiftChanges(before, patch)
+  const wasAttested = !!before.attestedAt
+  const invalidate = wasAttested && changed.length > 0
+  const actor = opts.actor ?? 'local'
+
   setState((db) => ({
     ...db,
-    aemtShifts: db.aemtShifts.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    aemtShifts: db.aemtShifts.map((s) => {
+      if (s.id !== id) return s
+      const next: AemtClinicalShift = { ...s, ...patch }
+      if (!invalidate) return next
+      const revision = {
+        at: new Date().toISOString(),
+        actor,
+        reason: opts.reason?.trim() || 'not stated',
+        changed,
+        invalidated: s.attestation,
+      }
+      return {
+        ...next,
+        attestedAt: undefined,
+        attestation: undefined,
+        revisions: [...(s.revisions ?? []), revision],
+      }
+    }),
   }))
+
+  const who = getState().aemtStudents.find((x) => x.id === before.studentId)?.name ?? before.studentId
+  if (changed.length > 0) {
+    audit(
+      before.courseId,
+      before.studentId,
+      actor,
+      invalidate ? 'shift edited — ATTESTATION INVALIDATED' : 'shift edited',
+      `${who} · ${before.date} · ${changed.map((c) => `${c.field} ${c.from} → ${c.to}`).join('; ')}` +
+        (invalidate ? ` · reason: ${opts.reason?.trim() || 'not stated'}` : ''),
+    )
+  }
+  return { invalidated: invalidate }
 }
 
 /**
@@ -1136,19 +1278,91 @@ export function updateShift(id: string, patch: Partial<AemtClinicalShift>): void
  * is what makes the shift's encounters count toward a regulated minimum, and
  * un-attesting silently removes them again.
  */
-export function attestShift(id: string, attested: boolean, actor = 'local'): void {
+/** The statement a preceptor is agreeing to. Stored with every signature. */
+export const ATTESTATION_STATEMENT =
+  'I supervised this student for the shift recorded above, and I attest that the date, ' +
+  'site, hours and the encounters logged against it are accurate and were performed ' +
+  'under my supervision.'
+
+/**
+ * Sign a shift as a named, credentialed preceptor.
+ *
+ * Attestation is what makes an encounter count toward a regulated minimum, so
+ * it is held to the same bar as a completion: an authenticated actor, an
+ * identified signer with a credential and licence number, and the statement
+ * they agreed to, all stored on the record. Without those it stays a draft.
+ */
+export function attestShift(
+  id: string,
+  attestation: Omit<Attestation, 'at' | 'statement'>,
+): void {
   const shift = getState().aemtShifts.find((s) => s.id === id)
-  updateShift(id, { attestedAt: attested ? new Date().toISOString() : undefined })
-  if (shift) {
-    const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
-    audit(
-      shift.courseId,
-      shift.studentId,
-      actor,
-      attested ? 'shift attested' : 'shift attestation withdrawn',
-      `${who} · ${shift.date} · ${shift.site} · ${shift.preceptorName}`,
-    )
+  if (!shift) return
+  const full: Attestation = {
+    ...attestation,
+    at: new Date().toISOString(),
+    statement: ATTESTATION_STATEMENT,
   }
+  setState((db) => ({
+    ...db,
+    aemtShifts: db.aemtShifts.map((s) =>
+      s.id === id ? { ...s, attestedAt: full.at, attestation: full } : s,
+    ),
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
+  audit(
+    shift.courseId,
+    shift.studentId,
+    attestation.actor,
+    'shift attested',
+    `${who} · ${shift.date} · ${shift.site} · signed by ${full.by} ` +
+      `(${full.credential}${full.certNumber ? ` #${full.certNumber}` : ''})`,
+  )
+}
+
+export function withdrawAttestation(id: string, actor: string, reason: string): void {
+  const shift = getState().aemtShifts.find((s) => s.id === id)
+  if (!shift) return
+  setState((db) => ({
+    ...db,
+    aemtShifts: db.aemtShifts.map((s) =>
+      s.id === id
+        ? {
+            ...s,
+            attestedAt: undefined,
+            attestation: undefined,
+            revisions: [
+              ...(s.revisions ?? []),
+              {
+                at: new Date().toISOString(),
+                actor,
+                reason: reason.trim() || 'not stated',
+                changed: [],
+                invalidated: s.attestation,
+              },
+            ],
+          }
+        : s,
+    ),
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
+  audit(
+    shift.courseId,
+    shift.studentId,
+    actor,
+    'shift attestation withdrawn',
+    `${who} · ${shift.date} · ${shift.site} · reason: ${reason.trim() || 'not stated'}`,
+  )
+}
+
+/**
+ * An attestation only counts as evidence when it carries an identified signer.
+ * Legacy records hold a bare `attestedAt` with nobody behind it; those stay
+ * visible but must not be treated as signed.
+ */
+export function attestationIsEvidence(s: AemtClinicalShift): boolean {
+  const a = s.attestation
+  return !!a && !!a.by.trim() && !!a.certNumber.trim() && !!a.actor.trim()
 }
 
 export function deleteShift(id: string): void {
@@ -1180,12 +1394,43 @@ export function shiftHourTotals(shifts: AemtClinicalShift[]): {
   field: number
   unattested: number
 } {
-  const done = shifts.filter((s) => s.attestedAt)
+  const done = shifts.filter(attestationIsEvidence)
   return {
     hospital: done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0),
     field: done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0),
-    unattested: shifts.filter((s) => !s.attestedAt).reduce((n, s) => n + s.hours, 0),
+    unattested: shifts.filter((s) => !attestationIsEvidence(s)).reduce((n, s) => n + s.hours, 0),
   }
+}
+
+/**
+ * Does this encounter count toward this requirement?
+ *
+ * ONE implementation, used by the on-screen progress, the readiness gate and
+ * the audit package alike. It was written three times, and three copies of a
+ * regulatory rule drift — the export can say a student is complete while the
+ * screen says they are not, and only one of those goes to KBEMS.
+ */
+export function encounterCounts(
+  e: AemtEncounter,
+  requirement: KarMinimum,
+  shift: AemtClinicalShift | undefined,
+): boolean {
+  // Voided rows stay visible and stop counting. A correction has to be
+  // traceable, so nothing is deleted to make a number move.
+  if (e.voidedAt) return false
+  // K.A.R. 109-11-8 counts successful performances. An attempt is worth
+  // recording — remediation is built from them — but it is not a rep.
+  // `undefined` predates the distinction and is treated as a success, which is
+  // how it was already being counted; those rows are reported separately so
+  // the assumption is visible rather than silent.
+  if (e.outcome === 'attempt') return false
+  if (!requirement.allowedSettings.includes(e.siteKind)) return false
+  // An encounter with no shift behind it has no date, site or supervisor that
+  // anyone signed for. It is kept and shown, but it is not evidence.
+  if (!e.shiftId) return false
+  if (!shift) return false
+  if (!attestationIsEvidence(shift)) return false
+  return supervisorEligible(requirement, shift)
 }
 
 /**
@@ -1221,6 +1466,49 @@ export function addEncounter(
   return enc
 }
 
+/**
+ * Has this performance already been logged? Same shift, same requirement and
+ * the same run reference is the same event twice — which is how a count grows
+ * without anyone doing anything wrong on purpose.
+ */
+export function duplicateEncounter(
+  encounters: AemtEncounter[],
+  candidate: { studentId: string; shiftId?: string; requirementId: string; sourceRef?: string },
+): AemtEncounter | undefined {
+  const ref = candidate.sourceRef?.trim().toLowerCase()
+  if (!ref) return undefined
+  return encounters.find(
+    (e) =>
+      !e.voidedAt &&
+      e.studentId === candidate.studentId &&
+      e.requirementId === candidate.requirementId &&
+      e.shiftId === candidate.shiftId &&
+      (e.sourceRef ?? '').trim().toLowerCase() === ref,
+  )
+}
+
+/** Void a logged rep, keeping it and its reason on the record. */
+export function voidEncounter(id: string, actor: string, reason: string): void {
+  const e = getState().aemtEncounters.find((x) => x.id === id)
+  if (!e) return
+  setState((db) => ({
+    ...db,
+    aemtEncounters: db.aemtEncounters.map((x) =>
+      x.id === id
+        ? { ...x, voidedAt: new Date().toISOString(), voidedBy: actor, voidReason: reason.trim() || 'not stated' }
+        : x,
+    ),
+  }))
+  const who = getState().aemtStudents.find((s) => s.id === e.studentId)?.name ?? e.studentId
+  audit(
+    e.courseId,
+    e.studentId,
+    actor,
+    'encounter voided',
+    `${who} · ${e.requirementId} · ${e.count} rep${e.count === 1 ? '' : 's'} · reason: ${reason.trim() || 'not stated'}`,
+  )
+}
+
 export function deleteEncounter(id: string): void {
   setState((db) => {
     const enc = db.aemtEncounters.find((e) => e.id === id)
@@ -1252,6 +1540,14 @@ export interface RequirementProgress {
   fieldMet: boolean
   /** Sub-requirement reached (true when the requirement has none). */
   subMet: boolean
+  /** Recorded but unsuccessful — not a rep, but evidence for remediation. */
+  attempts: number
+  /** Voided reps, kept for the correction history. */
+  voided: number
+  /** Counting reps that came from a row representing more than one. */
+  unitemized: number
+  /** Counting reps whose success was never stated. */
+  unstated: number
   /** Every condition on this requirement satisfied. */
   met: boolean
 }
@@ -1273,24 +1569,29 @@ export function progressFor(
     // Three conditions, each of which the review found could be bypassed:
     // the setting must count for this requirement, the shift's preceptor must
     // be eligible to supervise it, and the preceptor must have attested.
-    const eligible = rows.filter((e) => {
-      if (!requirement.allowedSettings.includes(e.siteKind)) return false
-      if (!e.shiftId) return true // pre-dates shift linking; counted, flagged below
-      const shift = byId.get(e.shiftId)
-      return !!shift?.attestedAt && supervisorEligible(requirement, shift)
-    })
+    const eligible = rows.filter((e) => encounterCounts(e, requirement, byId.get(e.shiftId ?? '')))
     const total = eligible.reduce((s, e) => s + e.count, 0)
     const eligibleIds = new Set(eligible)
     const ineligible = rows.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
     const unverified = rows
-      .filter((e) => e.shiftId && !byId.get(e.shiftId)?.attestedAt)
+      .filter((e) => !e.shiftId || !attestationIsEvidence(byId.get(e.shiftId) ?? ({} as AemtClinicalShift)))
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
     const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
+    const attempts = rows.filter((e) => e.outcome === 'attempt' && !e.voidedAt).reduce((s, e) => s + e.count, 0)
+    const voided = rows.filter((e) => e.voidedAt).reduce((s, e) => s + e.count, 0)
+    // Rows standing in for more than one performance, with a single outcome
+    // and a single reference across all of them.
+    const unitemized = eligible.filter((e) => e.count > 1).reduce((s, e) => s + e.count, 0)
+    const unstated = eligible.filter((e) => e.outcome === undefined).reduce((s, e) => s + e.count, 0)
     const totalMet = total >= requirement.minimum
     const fieldMet = field >= (requirement.fieldMinimum ?? 0)
     const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
-    return { requirement, total, ineligible, unverified, field, sub, totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet }
+    return {
+      requirement, total, ineligible, unverified, field, sub,
+      attempts, voided, unitemized, unstated,
+      totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet,
+    }
   })
 }
 
@@ -1358,6 +1659,19 @@ export interface ReadinessCheck {
   label: string
   status: ReadinessStatus
   detail: string
+  /**
+   * Where the requirement comes from, and therefore whether it may be
+   * bypassed.
+   *
+   * 'statutory' — imposed by K.A.R. 109-11-8. NOT overrideable. A completion
+   *   recorded despite one of these would assert to KBEMS and NREMT that a
+   *   student met a requirement they did not, which is the one thing this
+   *   screen must never be able to produce.
+   * 'program'   — this program's own policy (the attendance cap, the 80%
+   *   pass mark, end-of-course evaluations). Overrideable with a documented
+   *   reason and named approver.
+   */
+  basis: 'statutory' | 'program'
 }
 
 export interface StudentReadiness {
@@ -1367,6 +1681,13 @@ export interface StudentReadiness {
   computedMet: boolean
   /** Ids of checks that do not pass — what an override would have to name. */
   unmet: string[]
+  /**
+   * Unmet checks imposed by regulation. While this is non-empty the student
+   * cannot be completed at all — no override, no approver, no exception.
+   */
+  blocking: string[]
+  /** Unmet program-policy checks, which an override may document past. */
+  overrideable: string[]
   completion?: AemtCompletion
 }
 
@@ -1437,6 +1758,7 @@ export function useStudentReadiness(
       const list: ReadinessCheck[] = [
         {
           id: 'attendance',
+          basis: 'program' as const,
           label: 'Attendance within policy',
           status: h && h.classAbsentHours > MAX_ABSENT_HOURS ? 'unmet' : 'met',
           detail: h
@@ -1451,6 +1773,7 @@ export function useStudentReadiness(
           : [
               {
                 id: 'hours',
+                basis: 'statutory' as const,
                 label: 'Program hours complete',
                 status: 'attest' as const,
                 detail: targets
@@ -1460,30 +1783,37 @@ export function useStudentReadiness(
             ]),
         {
           id: 'clinical',
+          basis: 'statutory' as const,
           label: 'Clinical minimums met',
           status: c?.complete ? 'met' : 'unmet',
           detail: c ? `${c.metCount} of ${c.statutory.length} K.A.R. 109-11-8(a)(4) minimums` : '—',
         },
         {
+          // K.A.R. 109-11-8(a)(2) — practical skills completed to the primary
+          // instructor's satisfaction.
           id: 'skills',
+          basis: 'statutory' as const,
           label: 'Psychomotor skills signed off',
           status: signed === sheets.length && sheets.length > 0 ? 'met' : 'unmet',
           detail: `${signed} of ${sheets.length} sheets signed off`,
         },
         {
           id: 'concerns',
+          basis: 'program' as const,
           label: 'Remediation and conferences closed',
           status: open.length === 0 ? 'met' : 'unmet',
           detail: open.length === 0 ? 'Nothing open' : `${open.length} still open`,
         },
         {
           id: 'evaluations',
+          basis: 'program' as const,
           label: 'End-of-course evaluations submitted',
           status: submitted.length === courseForms.length ? 'met' : 'unmet',
           detail: `${submitted.length} of ${courseForms.length} submitted`,
         },
         {
           id: 'grade',
+          basis: 'program' as const,
           label: `Final course grade at or above ${MIN_PASSING_PERCENT}%`,
           status: 'attest',
           detail: 'Held in the Navigate LMS — recorded and attested at verification',
@@ -1495,6 +1825,8 @@ export function useStudentReadiness(
         checks: list,
         computedMet: list.every((x) => x.status !== 'unmet'),
         unmet: list.filter((x) => x.status === 'unmet').map((x) => x.id),
+        blocking: list.filter((x) => x.status === 'unmet' && x.basis === 'statutory').map((x) => x.id),
+        overrideable: list.filter((x) => x.status === 'unmet' && x.basis === 'program').map((x) => x.id),
         completion: completions.find((x) => x.studentId === student.id),
       }
     })
@@ -1506,20 +1838,63 @@ export function useStudentReadiness(
  * caller must supply an override, which is stored with the completion and
  * written to the audit log naming exactly which checks were bypassed.
  */
+/**
+ * When the primary instructor's written verification is due, and whether it
+ * still is. K.A.R. 109-11-8 gives 15 days from the final class session, and
+ * requires it before the student sits the certification examination.
+ */
+export function verificationDeadline(sessions: AemtSession[]): {
+  finalSession?: string
+  dueBy?: string
+  daysLeft?: number
+  overdue: boolean
+} {
+  const dated = sessions.filter((s) => s.date).map((s) => s.date).sort()
+  const finalSession = dated[dated.length - 1]
+  if (!finalSession) return { overdue: false }
+  const dueBy = addDays(finalSession, INSTRUCTOR_VERIFICATION_DAYS)
+  const daysLeft = Math.round(
+    (fromISODate(dueBy).getTime() - fromISODate(todayISO()).getTime()) / 86_400_000,
+  )
+  return { finalSession, dueBy, daysLeft, overdue: daysLeft < 0 }
+}
+
+/**
+ * Record a completion.
+ *
+ * Refuses outright when a statutory check is unmet. An override can document
+ * a departure from this program's own policy; it cannot assert to KBEMS that
+ * a student met K.A.R. 109-11-8 when they did not. Callers must pass the
+ * blocking list so the refusal is decided here, not in whichever screen
+ * happens to call it.
+ */
 export function recordCompletion(
   courseId: string,
   studentId: string,
   input: {
     verifiedBy: string
+    /** The course's named primary instructor, for the role check. */
+    primaryInstructor?: string
     finalGradePercent: number
+    blocking?: string[]
     override?: { reason: string; approver: string; unmetChecks: string[] }
   },
-): void {
+): { ok: boolean; refused?: string } {
+  if (input.blocking && input.blocking.length > 0) {
+    return {
+      ok: false,
+      refused: `Statutory requirements are unmet: ${input.blocking.join(', ')}. These cannot be overridden.`,
+    }
+  }
+  const named = input.primaryInstructor?.trim().toLowerCase()
+  const verifier = input.verifiedBy.trim().toLowerCase()
+  const verifierMismatch = !!named && named !== verifier
   const completion: AemtCompletion = {
     courseId,
     studentId,
     completedDate: todayISO(),
     verifiedBy: input.verifiedBy,
+    verifierMismatch,
     finalGradePercent: input.finalGradePercent,
     override: input.override,
   }
@@ -1534,6 +1909,15 @@ export function recordCompletion(
     ),
   }))
   const name = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  if (verifierMismatch) {
+    audit(
+      courseId,
+      studentId,
+      input.verifiedBy,
+      'completion verified by someone other than the primary instructor',
+      `${name} · verified by ${input.verifiedBy} · primary instructor of record is ${input.primaryInstructor}`,
+    )
+  }
   audit(
     courseId,
     studentId,
@@ -1543,6 +1927,7 @@ export function recordCompletion(
       ? `${name} · grade ${input.finalGradePercent}% · bypassed: ${input.override.unmetChecks.join(', ')} · approved by ${input.override.approver} · reason: ${input.override.reason}`
       : `${name} · grade ${input.finalGradePercent}% · all readiness checks met`,
   )
+  return { ok: true }
 }
 
 export function revokeCompletion(courseId: string, studentId: string, actor: string, reason: string): void {

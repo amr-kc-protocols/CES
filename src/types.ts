@@ -467,10 +467,32 @@ export interface AemtSite {
   id: string
   name: string
   kind: 'clinical' | 'field'
-  /** Agreement state — 'executed' is the bar for submitting the application. */
+  /**
+   * DERIVED, never chosen. Retained so existing records keep loading, but the
+   * status shown and the approval gate both come from agreementStatus(), which
+   * reads the evidence below. A dropdown someone sets to "Executed" is a claim
+   * about a document, not the document.
+   */
   agreement: 'none' | 'draft' | 'executed'
   contact?: string
   notes?: string
+  /** Where the executed agreement actually lives — path, drive, file name. */
+  agreementRef?: string
+  /** ISO date both parties signed. */
+  signedDate?: string
+  /** Who signed for the site. */
+  signedBySite?: string
+  /** Who signed for the sponsoring organization. */
+  signedByProgram?: string
+  /** Period the agreement covers. */
+  effectiveFrom?: string
+  effectiveTo?: string
+  /**
+   * What the agreement actually permits students to do. K.A.R. 109-11-8
+   * requires venipuncture and medication administration; an agreement that
+   * does not cover them cannot support the minimums the course filed.
+   */
+  permits?: string
 }
 
 export interface AemtCourse {
@@ -525,6 +547,8 @@ export interface AemtSkillCheck {
   evaluator?: string
   /** ISO date the sheet was signed off as passed. */
   passedDate?: string
+  /** Attributable signature behind passedDate. Absent = not evidence-grade. */
+  attestation?: Attestation
 }
 
 /**
@@ -559,8 +583,20 @@ export interface AemtCompletion {
   studentId: string
   /** ISO date completion was recorded. */
   completedDate: string
-  /** Primary instructor or program manager attesting to it. */
+  /**
+   * The primary instructor verifying completion. K.A.R. 109-11-8 names that
+   * role specifically — this is not "whoever recorded it".
+   */
   verifiedBy: string
+  /** True when verifiedBy is not the course's named primary instructor. */
+  verifierMismatch?: boolean
+  /**
+   * Kansas verification is not NREMT verification. Since 1 July 2024 the NREMT
+   * Program Director separately verifies each candidate met the state minimum
+   * competencies before they sit the cognitive exam.
+   */
+  nremtVerifiedBy?: string
+  nremtVerifiedDate?: string
   /**
    * Final course grade. Attested rather than computed — grades live in the
    * Navigate LMS, not in this app, so recording the figure is the honest
@@ -705,9 +741,54 @@ export interface AemtClinicalShift {
   /**
    * ISO timestamp the preceptor attested the shift record is accurate.
    * Encounters on an unattested shift are logged but not yet defensible.
+   * Kept alongside `attestation` for records written before attribution was
+   * required; a bare timestamp is treated as unattributed, not as evidence.
    */
   attestedAt?: string
+  /** Who attested, with what standing. Absent = not evidence-grade. */
+  attestation?: Attestation
+  /**
+   * Prior versions, newest last, captured whenever a material field changed
+   * after attestation. The regulation expects a correction to be traceable,
+   * not to overwrite what was signed.
+   */
+  revisions?: ShiftRevision[]
   notes?: string
+}
+
+/**
+ * An attributable electronic signature. A name in a text box is not one: a
+ * regulated record has to say who signed, under what credential, that they
+ * were authenticated at the time, and what statement they agreed to.
+ */
+export interface Attestation {
+  /** Display name of the signer. */
+  by: string
+  credential: PreceptorCredentialId
+  /** Licence or certificate number — what makes the signer identifiable. */
+  certNumber: string
+  /** ISO timestamp of signature. */
+  at: string
+  /** The exact statement agreed to, stored with the record it attests. */
+  statement: string
+  /**
+   * Authenticated account identity at the time of signing. Absent means the
+   * device was not signed in, which keeps the record a draft.
+   */
+  actor: string
+}
+
+export interface ShiftRevision {
+  /** ISO timestamp of the edit. */
+  at: string
+  /** Authenticated identity that made the change. */
+  actor: string
+  /** Why the record was corrected — required for a post-attestation edit. */
+  reason: string
+  /** Fields that changed, with their prior values. */
+  changed: { field: string; from: string; to: string }[]
+  /** The attestation that was invalidated by this edit, if any. */
+  invalidated?: Attestation
 }
 
 /** Mirrors PreceptorCredential in data/aemt.ts. */
@@ -735,8 +816,22 @@ export interface AemtEncounter {
   site?: string
   /** Which K.A.R. 109-11-8 requirement this counts toward (see data/aemt.ts). */
   requirementId: string
-  /** Reps this line represents; usually 1. */
+  /**
+   * Reps this line represents. New records are always 1 — one row per
+   * performance, because a row claiming "12" is one assertion standing in for
+   * twelve procedures with one outcome and one reference between them.
+   * Larger values exist only on records written before that rule and are
+   * reported as unitemized.
+   */
   count: number
+  /**
+   * Whether the student successfully performed it. K.A.R. 109-11-8 counts
+   * successful performances; an unsuccessful attempt is still worth recording
+   * — it is what remediation is built from — but it does not count toward a
+   * minimum. Absent on records written before the distinction existed, which
+   * is why those are reported separately rather than assumed successful.
+   */
+  outcome?: 'success' | 'attempt'
   /** Venipuncture only — whether the stick initiated an IV infusion. */
   initiatedInfusion?: boolean
   /** The shift this happened on. Encounters without one predate shift linking. */
@@ -748,6 +843,13 @@ export interface AemtEncounter {
   sourceRef?: string
   preceptor?: string
   notes?: string
+  /**
+   * Voided rather than deleted. A regulated count that changes has to show
+   * what changed and why; a row that vanishes shows neither.
+   */
+  voidedAt?: string
+  voidedBy?: string
+  voidReason?: string
 }
 
 export interface DBShape {
