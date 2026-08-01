@@ -593,7 +593,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
       <div className="banner info">
         <strong>{t.name}</strong> — one schedule across both weeks. Set each session's date, start
         time, and facilitators for this class; edit any session's blocks, or add/skip sessions to fit
-        how this class actually runs. Academy completion is an internal record — not CE.
+        how this class actually runs. NEOP completion is an internal record — not CE, and not the AEMT course.
       </div>
 
       <div className="toolbar" style={{ marginTop: 12 }}>
@@ -611,13 +611,13 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
             ⚡ Fill dates
           </button>
         )}
-        <button className="btn" onClick={() => printDoc(`${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements, active))}>
+        <button className="btn" onClick={() => printDoc(`${cohort.label} — NEOP Schedule`, phase2ScheduleHTML(cohort, arrangements, active))}>
           🖨 Print
         </button>
         <button
           className="btn"
           onClick={() =>
-            downloadDoc(safeFilename(`${cohort.label}_Academy_Schedule`), `${cohort.label} — Academy Schedule`, phase2ScheduleHTML(cohort, arrangements, active))
+            downloadDoc(safeFilename(`${cohort.label}_NEOP_Schedule`), `${cohort.label} — NEOP Schedule`, phase2ScheduleHTML(cohort, arrangements, active))
           }
         >
           ⬇ Word

@@ -63,7 +63,7 @@ export default function CourseViewer() {
           so give a non-blank page that points to where printing works. */}
       <div className="cv-print-only">
         <h2>{r.label}</h2>
-        <p>This course is displayed inside the AMR KC Academy app and can't be printed from here.</p>
+        <p>This course is displayed inside the KC Academy app and can't be printed from here.</p>
         <p>To print it or save a certificate, open the course directly and print from that page:</p>
         <p><strong>{url}</strong></p>
       </div>

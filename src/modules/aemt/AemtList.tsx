@@ -211,8 +211,11 @@ export default function AemtList() {
     <div>
       <div className="page-head">
         <div>
-          <h1>AEMT Course</h1>
-          <div className="subtle">Kansas Advanced EMT certification classes</div>
+          <h1>AEMT Program</h1>
+          <div className="subtle">
+            Kansas-approved Advanced EMT certification — KBEMS course records, clinical minimums
+            and completion verification
+          </div>
         </div>
         {manageAcademy && (
           <button className="btn primary" onClick={() => setAdding(true)}>
@@ -221,10 +224,17 @@ export default function AemtList() {
         )}
       </div>
 
+      <div className="banner info">
+        This is the <strong>AEMT certification program</strong>, regulated by KBEMS under K.A.R.
+        109-11-8 with its own records and a three-year retention obligation. New-hire onboarding
+        lives under <strong>NEOP</strong> and is an internal record — the two are kept apart on
+        purpose.
+      </div>
+
       <DeadlinePanel />
 
       {sorted.length === 0 ? (
-        <Empty icon="🎓" title="No AEMT courses yet">
+        <Empty icon="💉" title="No AEMT courses yet">
           {manageAcademy
             ? 'Create a course, add your students, then lay out the class sessions and their hours.'
             : 'The Clinical Educator sets up AEMT courses.'}

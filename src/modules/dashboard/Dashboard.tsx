@@ -177,7 +177,7 @@ export default function Dashboard() {
           🎓 {readyForRelease.length} trainee{readyForRelease.length > 1 ? 's are' : ' is'} ready to
           be evaluated for release —{' '}
           <Link to="/academy" className="link-btn">
-            review in Academy →
+            review in NEOP →
           </Link>
         </div>
       )}
@@ -187,7 +187,7 @@ export default function Dashboard() {
           <Stat label="CE overdue" value={ce.overdue} alert={ce.overdue > 0} />
           <Stat label="CE due ≤7d" value={ce.dueThisWeek} alert={ce.dueThisWeek > 0} />
           <Stat label="CE outstanding" value={ce.outstanding} />
-          <Stat label="Academy cohorts" value={cohorts.length} />
+          <Stat label="NEOP cohorts" value={cohorts.length} />
         </div>
       )}
 
@@ -307,7 +307,7 @@ export default function Dashboard() {
         ))}
         <div className="help-text" style={{ padding: '8px 0' }}>
           🚑 {PTS_PER_RIDE} pts per ride-along hosted · ⭐ {PTS_PER_EVAL} pts per daily evaluation
-          signed with your name · 🎓 {PTS_PER_ACADEMY_DAY} pts per academy day facilitated (read
+          signed with your name · 🎓 {PTS_PER_ACADEMY_DAY} pts per NEOP day facilitated (read
           from the facilitator names on the class schedule).
         </div>
       </div>

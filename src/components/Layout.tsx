@@ -17,7 +17,10 @@ const TABS = [
   { to: '/qa', label: 'QA', icon: '🩺', end: false, qa: true, ce: false, admin: false },
   { to: '/bot', label: 'QA Bot', icon: '🤖', end: false, qa: true, ce: false, admin: false },
   { to: '/ce', label: 'CE', icon: '📅', end: false, qa: false, ce: true, admin: false },
-  { to: '/academy', label: 'Academy', icon: '🎓', end: false, qa: false, ce: false, admin: false },
+  // Two distinct programs. NEOP onboards new hires; AEMT is a Kansas-approved
+  // certification course with its own regulator, records and retention clock.
+  // The routes keep their original paths so existing links and bookmarks work.
+  { to: '/academy', label: 'NEOP', icon: '🎓', end: false, qa: false, ce: false, admin: false },
   { to: '/aemt', label: 'AEMT', icon: '💉', end: false, qa: false, ce: false, admin: false },
   { to: '/courses', label: 'Courses', icon: '📚', end: false, qa: false, ce: false, admin: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
@@ -45,8 +48,8 @@ export default function Layout() {
         <div className="brand">
           <img src="/pwa-192x192.png" alt="" />
           <div className="brand-text">
-            AMR KC Academy
-            <small>New Hire &amp; FTO Portal</small>
+            KC Academy
+            <small>Clinical Education Suite</small>
           </div>
         </div>
         <div className="sync-slot">

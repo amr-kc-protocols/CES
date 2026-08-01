@@ -67,10 +67,12 @@ export default function AcademyList() {
 
   return (
     <div>
+      {/* Two programs, two sets of obligations. Saying so once on each landing
+          page is cheaper than untangling a record filed under the wrong one. */}
       <div className="page-head">
         <div>
-          <h1>Academy</h1>
-          <div className="subtle">New hire cohorts, checklists & FTO release</div>
+          <h1>NEOP</h1>
+          <div className="subtle">New Employee Orientation Program — cohorts, checklists &amp; FTO release</div>
         </div>
         <div className="btn-row">
           <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
@@ -82,6 +84,12 @@ export default function AcademyList() {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="banner info">
+        <strong>NEOP</strong> is internal onboarding — cohorts, checklists, FTO rides and release.
+        It is not a certification course and its records are not KBEMS records. Kansas AEMT
+        certification lives under <strong>AEMT</strong>.
       </div>
 
       <div className="stat-grid" style={{ marginTop: 12 }}>
