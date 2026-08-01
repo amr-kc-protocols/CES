@@ -47,8 +47,47 @@ The project URL + publishable key are baked into the app
 - New person/device: open the app → **Settings → Cloud sync** → enter email →
   tap the magic link. Done.
 - Then set their `role` in **Table Editor → profiles** (one time per person).
-- Roles: `admin` writes everything · `fto` writes trainees (checklist marks,
-  contacts), attendance, and ride assignments · `newhire` is read-only in v1.
+### Roles
+
+Row-level security scopes **both reads and writes**. Reads matter as much as
+writes here: the sync engine pulls everything a user is allowed to read down
+onto their device, so a role that can read a collection has a full local copy
+of it regardless of what the app's UI shows.
+
+| Role | Reads | Writes |
+|---|---|---|
+| `admin` | Everything | Everything |
+| `fto` | Cohorts, trainees, schedule, attendance, rides, evals, skill sign-offs | Trainees, attendance, rides, evals, skills, surveys |
+| `newhire` | The schedule, and their own exit survey | Their own exit survey |
+
+Deliberately **not** readable by `fto`:
+
+- **`surveys`** — new-hire exit surveys carry unredacted feedback about FTOs.
+  The History screen is admin-only in the app for that reason, and the database
+  now agrees with it.
+- **The AEMT program** — Kansas certification records, student certificate
+  numbers, and cohort-selection data about staff who are the FTOs' own peers.
+  Admin-only in both directions.
+
+New-hire survey reads are scoped by `updated_by = auth.uid()`, which the
+`records_stamp` trigger sets server-side and a client cannot spoof.
+
+## Applying migrations
+
+`schema.sql` is the full current schema for a fresh project. For an existing
+one, run the files in [`migrations/`](./migrations) in date order through the
+SQL Editor. They are written to be safe to re-run, and each carries its own
+revert at the bottom.
+
+The `2026-08-01` migration changes what non-admins can read. Run it when FTOs
+are not mid-shift: their devices keep whatever they have already pulled, but
+will stop receiving collections they no longer read. It is reversible in one
+statement.
+
+That migration also brings the AEMT program into sync for the first time. On
+the admin's next push, the AEMT records currently sitting in one browser's
+local storage upload to the project — which is the point, since those carry a
+three-year retention obligation under K.A.R. 109-17-3 and had no backup at all.
 
 ## How sync behaves
 
