@@ -25,6 +25,10 @@
 -- ----- 1. scoped reads -------------------------------------------------------
 
 drop policy if exists "records readable by signed-in users" on public.records;
+-- Also dropped so this file is genuinely re-runnable: without it a second run
+-- fails with 42710 on the create below, which is exactly the error a partial
+-- or repeated apply produces and the hardest one to interpret.
+drop policy if exists "records readable by role" on public.records;
 
 create policy "records readable by role"
   on public.records for select
@@ -129,6 +133,11 @@ create policy "aemt is admin only for update"
 -- whether it belongs here at all.
 
 -- ----- down ------------------------------------------------------------------
+-- DO NOT RUN THIS SECTION unless you are undoing the migration. It is commented
+-- out for that reason. Running the revert against a database that never had the
+-- migration applied fails with 42710 ("already exists"), because the policy it
+-- recreates was never dropped.
+--
 -- To revert:
 --
 --   drop policy if exists "records readable by role" on public.records;
