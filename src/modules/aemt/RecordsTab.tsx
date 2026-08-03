@@ -151,7 +151,7 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
   const docs = useRecordDocs(course.id)
   const attendance = useSelector((db) => db.aemtAttendance.filter((a) => a.courseId === course.id))
   const deadlines = useSelector((db) => db.aemtDeadlines.filter((d) => d.courseId === course.id))
-  const { manageAcademy } = useCan()
+  const { manageAemt: manageAcademy } = useCan()
   const [editing, setEditing] = useState<RequiredRecord | null>(null)
   const safety = useRecordSafety()
 

@@ -1,5 +1,8 @@
 import { lazy } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Routes, Route, Link } from 'react-router-dom'
+import { Empty } from './components/ui'
+import { useCan } from './lib/role'
 import Layout from './components/Layout'
 import Dashboard from './modules/dashboard/Dashboard'
 import { QA_ENABLED, CE_ENABLED, FIELD_OBJECTIVES_ENABLED } from './config/features'
@@ -26,6 +29,30 @@ const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
 const ChartReviewScreen = lazy(() => import('./modules/qa/ChartReviewScreen'))
 const BotTab = lazy(() => import('./modules/qa/BotTab'))
 
+/**
+ * Route-level gate for the AEMT program.
+ *
+ * Hiding the nav tab is not access control — an FTO with a bookmark, a shared
+ * link, or a browser that remembers the last URL lands straight on the records
+ * otherwise. The screens inside also gate their own actions; this stops the
+ * data being rendered at all.
+ */
+function AemtOnly({ children }: { children: ReactNode }) {
+  const { manageAemt } = useCan()
+  if (manageAemt) return <>{children}</>
+  return (
+    <div>
+      <Empty icon="🔒" title="Not available on this account">
+        The AEMT program holds Kansas certification records and cohort selection data. Ask the
+        Clinical Educator if you need access.
+      </Empty>
+      <Link to="/" className="link-btn">
+        ← Back to Home
+      </Link>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -51,8 +78,22 @@ export default function App() {
         <Route path="academy/:cohortId/skills/:traineeId/:sheet" element={<SkillSheetView />} />
         <Route path="academy/:cohortId/checkoff/:sheet" element={<ClassCheckoffView />} />
         <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
-        <Route path="aemt" element={<AemtList />} />
-        <Route path="aemt/:courseId" element={<AemtCourseView />} />
+        <Route
+          path="aemt"
+          element={
+            <AemtOnly>
+              <AemtList />
+            </AemtOnly>
+          }
+        />
+        <Route
+          path="aemt/:courseId"
+          element={
+            <AemtOnly>
+              <AemtCourseView />
+            </AemtOnly>
+          }
+        />
         <Route path="courses" element={<LearningView />} />
         <Route path="courses/view" element={<CourseViewer />} />
         <Route path="history" element={<HistoryView />} />

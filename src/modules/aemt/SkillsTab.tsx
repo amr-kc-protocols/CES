@@ -116,7 +116,9 @@ function SheetDetail({
   onBack: () => void
 }) {
   const checks = useSkillChecks(course.id)
-  const { editRideWork: canEdit } = useCan()
+  // manageAemt, not editRideWork: the latter is true for FTOs, who must not
+  // write to certification records.
+  const { manageAemt: canEdit } = useCan()
   const safety = useRecordSafety()
   const [signing, setSigning] = useState(false)
   const sheet = skillSheet(sheetId)

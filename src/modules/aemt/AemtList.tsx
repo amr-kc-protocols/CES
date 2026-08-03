@@ -204,7 +204,7 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
 export default function AemtList() {
   const courses = useCourses()
   const [adding, setAdding] = useState(false)
-  const { manageAcademy } = useCan()
+  const { manageAemt: manageAcademy } = useCan()
   const sorted = useMemo(() => [...courses].sort(byStartDesc), [courses])
 
   return (

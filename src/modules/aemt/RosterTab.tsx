@@ -136,7 +136,7 @@ function StudentForm({
 
 export default function RosterTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
-  const { manageAcademy } = useCan()
+  const { manageAemt: manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
   const readiness = useStudentReadiness(course.id, course.monitorSheetId)

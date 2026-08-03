@@ -48,6 +48,51 @@ const SLICES: SliceDef[] = [
   { collection: 'ceClasses', slice: 'ceClasses', idOf: id as SliceDef['idOf'] },
   { collection: 'qaPeriods', slice: 'qaPeriods', idOf: id as SliceDef['idOf'] },
   { collection: 'charts', slice: 'charts', idOf: id as SliceDef['idOf'] },
+
+  // ----- AEMT program -------------------------------------------------------
+  // Kansas certification records carry a three-year retention obligation under
+  // K.A.R. 109-17-3. Until now they lived only in the browser that entered
+  // them, which meant a lost phone or a cleared cache took the course record
+  // with it. Server-side these are admin-only in both directions; see
+  // supabase/migrations/2026-08-01-scoped-reads-and-aemt.sql.
+  { collection: 'aemtCourses', slice: 'aemtCourses', idOf: id as SliceDef['idOf'] },
+  { collection: 'aemtStudents', slice: 'aemtStudents', idOf: id as SliceDef['idOf'] },
+  { collection: 'aemtSessions', slice: 'aemtSessions', idOf: id as SliceDef['idOf'] },
+  {
+    collection: 'aemtAttendance',
+    slice: 'aemtAttendance',
+    idOf: ((a: { courseId: string; studentId: string; sessionId: string }) =>
+      `${a.courseId}:${a.studentId}:${a.sessionId}`) as SliceDef['idOf'],
+  },
+  { collection: 'aemtEncounters', slice: 'aemtEncounters', idOf: id as SliceDef['idOf'] },
+  { collection: 'aemtShifts', slice: 'aemtShifts', idOf: id as SliceDef['idOf'] },
+  {
+    collection: 'aemtDeadlines',
+    slice: 'aemtDeadlines',
+    idOf: ((d: { courseId: string; deadlineId: string }) =>
+      `${d.courseId}:${d.deadlineId}`) as SliceDef['idOf'],
+  },
+  {
+    collection: 'aemtSkillChecks',
+    slice: 'aemtSkillChecks',
+    idOf: ((c: { courseId: string; studentId: string; sheetId: string }) =>
+      `${c.courseId}:${c.studentId}:${c.sheetId}`) as SliceDef['idOf'],
+  },
+  { collection: 'aemtFormResponses', slice: 'aemtFormResponses', idOf: id as SliceDef['idOf'] },
+  {
+    collection: 'aemtCompletions',
+    slice: 'aemtCompletions',
+    idOf: ((c: { courseId: string; studentId: string }) =>
+      `${c.courseId}:${c.studentId}`) as SliceDef['idOf'],
+  },
+  {
+    collection: 'aemtRecordDocs',
+    slice: 'aemtRecordDocs',
+    idOf: ((d: { courseId: string; typeId: string }) =>
+      `${d.courseId}:${d.typeId}`) as SliceDef['idOf'],
+  },
+  { collection: 'aemtAudit', slice: 'aemtAudit', idOf: id as SliceDef['idOf'] },
+  { collection: 'aemtCandidates', slice: 'aemtCandidates', idOf: id as SliceDef['idOf'] },
 ]
 
 const SETTINGS_COLLECTION = 'settings'
