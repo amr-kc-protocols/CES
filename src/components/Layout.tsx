@@ -27,7 +27,7 @@ const TABS = [
   // rather than the plain admin flag: History's rule would also hide it on a
   // local-only install, where there are no roles to enforce in the first place.
   { to: '/aemt', label: 'AEMT', icon: '💉', end: false, qa: false, ce: false, admin: false, aemt: true },
-  { to: '/courses', label: 'Courses', icon: '📚', end: false, qa: false, ce: false, admin: false, aemt: false },
+  { to: '/courses', label: 'Resources', icon: '📚', end: false, qa: false, ce: false, admin: false, aemt: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
   { to: '/history', label: 'History', icon: '📊', end: false, qa: false, ce: false, admin: true, aemt: false },
   { to: '/settings', label: 'Settings', icon: '⚙️', end: false, qa: false, ce: false, admin: false, aemt: false },
