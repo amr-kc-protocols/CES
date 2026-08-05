@@ -160,8 +160,14 @@ create table if not exists public.intake_submissions (
   created_at timestamptz not null default now(),
   form text not null default 'aemt',   -- which intake form (future-proofing)
   data jsonb not null,                  -- all answers, keyed by field id
-  archived boolean not null default false
+  archived boolean not null default false,
+  -- Admin-set selection status: New / Shortlisted / Contacted / Accepted / Declined.
+  status text not null default 'New'
 );
+
+-- For projects created before the status column existed.
+alter table public.intake_submissions
+  add column if not exists status text not null default 'New';
 
 create index if not exists intake_submissions_created_idx
   on public.intake_submissions (created_at desc);

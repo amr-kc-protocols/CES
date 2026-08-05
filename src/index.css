@@ -1145,3 +1145,14 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .intake-answers { margin: 0; display: grid; gap: 8px; }
 .intake-answer dt { font-size: 12px; font-weight: 700; color: var(--text-muted); }
 .intake-answer dd { margin: 0; font-size: 14px; word-break: break-word; }
+
+/* Intake row: status + commit pills stack neatly on the right, wrapping on
+   narrow screens instead of squeezing the name. */
+.intake-row-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: none;
+  max-width: 55%;
+}

@@ -143,6 +143,28 @@ export interface IntakeSubmission {
   form: string
   data: Record<string, unknown>
   archived: boolean
+  /** Selection pipeline status (added by the status migration; defaults 'New'). */
+  status?: string
+}
+
+// Selection pipeline. Data-driven so adding/renaming a stage is a one-line
+// edit; the pill class gives each stage an at-a-glance colour.
+export const INTAKE_STATUSES = ['New', 'Shortlisted', 'Contacted', 'Accepted', 'Declined'] as const
+export type IntakeStatus = (typeof INTAKE_STATUSES)[number]
+export const DEFAULT_STATUS: IntakeStatus = 'New'
+
+export const STATUS_PILL: Record<string, string> = {
+  New: 'muted',
+  Shortlisted: 'info',
+  Contacted: 'warn',
+  Accepted: 'ok',
+  Declined: 'crit',
+}
+
+/** A row's status, falling back to 'New' for rows saved before the migration. */
+export function statusOf(row: IntakeSubmission): IntakeStatus {
+  const s = row.status
+  return s && (INTAKE_STATUSES as readonly string[]).includes(s) ? (s as IntakeStatus) : DEFAULT_STATUS
 }
 
 const FORM_ID = 'aemt'
@@ -171,6 +193,13 @@ export async function setIntakeArchived(id: string, archived: boolean): Promise<
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
   const { error } = await c.from('intake_submissions').update({ archived }).eq('id', id)
+  return error ? { error: error.message } : {}
+}
+
+export async function setIntakeStatus(id: string, status: IntakeStatus): Promise<{ error?: string }> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { error } = await c.from('intake_submissions').update({ status }).eq('id', id)
   return error ? { error: error.message } : {}
 }
 
