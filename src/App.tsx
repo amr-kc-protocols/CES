@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import { Empty } from './components/ui'
@@ -24,6 +24,10 @@ const AemtCourseView = lazy(() => import('./modules/aemt/AemtCourseView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
 const LearningView = lazy(() => import('./modules/learning/LearningView'))
 const CourseViewer = lazy(() => import('./modules/learning/CourseViewer'))
+const IntakeForm = lazy(() => import('./modules/intake/IntakeForm'))
+const IntakeResults = lazy(() => import('./modules/intake/IntakeResults'))
+const ExamPage = lazy(() => import('./modules/exam/ExamPage'))
+const ExamResults = lazy(() => import('./modules/exam/ExamResults'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
@@ -79,6 +83,24 @@ function ReviewOnly({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <Routes>
+      {/* Public, no-login candidate intake — rendered outside the app shell
+          (its own Suspense; no tab bar). */}
+      <Route
+        path="/intake"
+        element={
+          <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+            <IntakeForm />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/exam"
+        element={
+          <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+            <ExamPage />
+          </Suspense>
+        }
+      />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         {CE_ENABLED && <Route path="ce" element={<CETracker />} />}
@@ -106,6 +128,22 @@ export default function App() {
           element={
             <AemtOnly>
               <AemtList />
+            </AemtOnly>
+          }
+        />
+        <Route
+          path="aemt/intake"
+          element={
+            <AemtOnly>
+              <IntakeResults />
+            </AemtOnly>
+          }
+        />
+        <Route
+          path="aemt/exam-results"
+          element={
+            <AemtOnly>
+              <ExamResults />
             </AemtOnly>
           }
         />

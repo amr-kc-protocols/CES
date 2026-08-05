@@ -457,6 +457,15 @@ export async function signOut(): Promise<void> {
   setStatus({ signedIn: false, email: undefined })
 }
 
+/**
+ * Shared Supabase client for features outside the record-sync path (e.g. the
+ * public intake form and its admin results view). Returns null only when no
+ * cloud project is configured at all — the built-in project makes that rare.
+ */
+export async function getSupabaseClient(): Promise<SupabaseClient | null> {
+  return getClient()
+}
+
 /** Apply new config: reset the client so the next call uses it, and connect. */
 export async function reconnectWithConfig(config: CloudConfig): Promise<void> {
   setCloudConfig(config)

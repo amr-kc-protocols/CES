@@ -262,6 +262,57 @@ create policy "admin manages exam attempts"
 
 
 -- ============================================================================
+-- 4c. intake_submissions — same story as the exam
+-- ============================================================================
+--
+-- The public AEMT candidate intake form writes here, and like the exam it is
+-- its own table rather than a `records` collection, so section 3 does not
+-- reach it. `data` holds a candidate's name, contact details and employment
+-- answers behind nothing but `current_role() = 'admin'`.
+--
+-- Same anonymous-submitter caveat as 4b: "anyone can submit intake" is granted
+-- to `anon`, so a submission has no current_market() to read and takes the
+-- column default. Correct while every applicant is a Kansas City one; the
+-- public /intake link needs to carry a market before Wichita advertises it.
+
+alter table public.intake_submissions add column if not exists market text;
+update public.intake_submissions set market = 'kc' where market is null;
+alter table public.intake_submissions alter column market set default 'kc';
+alter table public.intake_submissions alter column market set not null;
+
+alter table public.intake_submissions drop constraint if exists intake_submissions_market_check;
+alter table public.intake_submissions add constraint intake_submissions_market_check
+  check (market in ('kc', 'wichita'));
+
+drop policy if exists "admin reads intake" on public.intake_submissions;
+create policy "admin reads intake"
+  on public.intake_submissions for select
+  to authenticated
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
+
+drop policy if exists "admin updates intake" on public.intake_submissions;
+create policy "admin updates intake"
+  on public.intake_submissions for update
+  to authenticated
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
+
+drop policy if exists "admin deletes intake" on public.intake_submissions;
+create policy "admin deletes intake"
+  on public.intake_submissions for delete
+  to authenticated
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
+
+
+-- ============================================================================
 -- 5. assigning people — the decisions, left for you to make
 -- ============================================================================
 --

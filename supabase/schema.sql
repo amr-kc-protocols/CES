@@ -149,3 +149,195 @@ create policy "newhire updates surveys"
     public.current_role() = 'newhire'
     and collection = 'surveys'
   );
+
+-- ----- AEMT candidate intake -------------------------------------------------
+-- Separate from `records`: the AEMT interest form is filled out by candidates
+-- with no account, so it needs an anonymous-insert path, and its answers are
+-- selection data only the admin may read. Kept out of the synced workspace.
+
+create table if not exists public.intake_submissions (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  form text not null default 'aemt',   -- which intake form (future-proofing)
+  data jsonb not null,                  -- all answers, keyed by field id
+  archived boolean not null default false,
+  -- Admin-set selection status: New / Shortlisted / Contacted / Accepted / Declined.
+  status text not null default 'New'
+);
+
+-- For projects created before the status column existed.
+alter table public.intake_submissions
+  add column if not exists status text not null default 'New';
+
+create index if not exists intake_submissions_created_idx
+  on public.intake_submissions (created_at desc);
+
+alter table public.intake_submissions enable row level security;
+
+-- Anyone — including an anonymous candidate — may submit the form.
+create policy "anyone can submit intake"
+  on public.intake_submissions for insert
+  to anon, authenticated
+  with check (true);
+
+-- Only admins can read the submissions.
+create policy "admin reads intake"
+  on public.intake_submissions for select
+  to authenticated
+  using (public.current_role() = 'admin');
+
+-- Only admins can archive (update) or delete them.
+create policy "admin updates intake"
+  on public.intake_submissions for update
+  to authenticated
+  using (public.current_role() = 'admin');
+
+create policy "admin deletes intake"
+  on public.intake_submissions for delete
+  to authenticated
+  using (public.current_role() = 'admin');
+
+-- ----- AEMT selection exam ---------------------------------------------------
+-- Cheat-resistant by construction: the question bank (with answers) is never
+-- readable by candidates and never sent to the browser. Candidates reach the
+-- exam only through two SECURITY DEFINER functions — exam_start (returns a
+-- random draw WITHOUT answers) and exam_submit (grades server-side). The anon
+-- key can execute those functions but cannot touch the tables directly.
+
+create table if not exists public.exam_questions (
+  id bigint generated always as identity primary key,
+  domain text not null,
+  stem text not null,
+  options text[] not null check (array_length(options, 1) = 4),
+  answer int not null check (answer between 0 and 3),   -- index into options
+  active boolean not null default true
+);
+
+alter table public.exam_questions enable row level security;
+create policy "admin reads exam bank" on public.exam_questions
+  for select to authenticated using (public.current_role() = 'admin');
+create policy "admin writes exam bank" on public.exam_questions
+  for all to authenticated
+  using (public.current_role() = 'admin') with check (public.current_role() = 'admin');
+
+create table if not exists public.exam_attempts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  started_at timestamptz not null default now(),
+  submitted_at timestamptz,
+  question_ids bigint[] not null,   -- the served set, in served order
+  responses jsonb,                  -- { "<question id>": <chosen option 0-3> }
+  score int,
+  total int not null,
+  percent numeric(5,2)
+);
+
+create index if not exists exam_attempts_email_idx on public.exam_attempts (email);
+
+alter table public.exam_attempts enable row level security;
+create policy "admin reads exam attempts" on public.exam_attempts
+  for select to authenticated using (public.current_role() = 'admin');
+create policy "admin manages exam attempts" on public.exam_attempts
+  for all to authenticated
+  using (public.current_role() = 'admin') with check (public.current_role() = 'admin');
+
+-- Start (or resume) an attempt. Returns the drawn questions WITHOUT answers.
+create or replace function public.exam_start(p_name text, p_email text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_email  text := lower(trim(p_email));
+  v_name   text := trim(p_name);
+  v_cutoff constant timestamptz := '2026-08-17 17:00:00-05';  -- Aug 17, 5 PM Central
+  v_limit  constant int := 40 * 60;                            -- 40 minutes
+  v_draw   constant int := 50;
+  v_attempt public.exam_attempts;
+  v_qids bigint[];
+  v_questions jsonb;
+begin
+  if v_name = '' or v_email = '' then
+    return jsonb_build_object('error', 'Name and email are required.');
+  end if;
+  if now() > v_cutoff then
+    return jsonb_build_object('error', 'closed');
+  end if;
+  -- One attempt per email: block if they already submitted.
+  if exists (select 1 from public.exam_attempts a
+             where a.email = v_email and a.submitted_at is not null) then
+    return jsonb_build_object('error', 'already_taken');
+  end if;
+  -- Resume an unfinished attempt still inside its time window (e.g. a refresh).
+  select * into v_attempt from public.exam_attempts a
+    where a.email = v_email and a.submitted_at is null
+      and a.started_at > now() - make_interval(secs => v_limit)
+    order by a.started_at desc limit 1;
+  if not found then
+    select array_agg(id) into v_qids
+      from (select id from public.exam_questions where active order by random() limit v_draw) s;
+    insert into public.exam_attempts (name, email, question_ids, total)
+      values (v_name, v_email, v_qids, coalesce(array_length(v_qids, 1), 0))
+      returning * into v_attempt;
+  else
+    v_qids := v_attempt.question_ids;
+  end if;
+  select jsonb_agg(
+           jsonb_build_object('id', q.id, 'domain', q.domain, 'stem', q.stem, 'options', q.options)
+           order by array_position(v_qids, q.id))
+    into v_questions
+    from public.exam_questions q
+    where q.id = any(v_qids);
+  return jsonb_build_object(
+    'attemptId', v_attempt.id,
+    'startedAt', v_attempt.started_at,
+    'limitSeconds', v_limit,
+    'questions', coalesce(v_questions, '[]'::jsonb));
+end;
+$$;
+
+revoke all on function public.exam_start(text, text) from public;
+grant execute on function public.exam_start(text, text) to anon, authenticated;
+
+-- Grade an attempt server-side against the bank. Never returns the answers.
+create or replace function public.exam_submit(p_attempt uuid, p_responses jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_attempt public.exam_attempts;
+  v_score int := 0;
+  v_qid bigint;
+  v_ans int;
+  v_chosen int;
+begin
+  select * into v_attempt from public.exam_attempts where id = p_attempt;
+  if not found then
+    return jsonb_build_object('error', 'Attempt not found.');
+  end if;
+  if v_attempt.submitted_at is not null then
+    return jsonb_build_object('error', 'already_submitted');
+  end if;
+  foreach v_qid in array v_attempt.question_ids loop
+    select answer into v_ans from public.exam_questions where id = v_qid;
+    v_chosen := nullif(p_responses ->> v_qid::text, '')::int;
+    if v_chosen is not null and v_chosen = v_ans then
+      v_score := v_score + 1;
+    end if;
+  end loop;
+  update public.exam_attempts
+     set submitted_at = now(),
+         responses = p_responses,
+         score = v_score,
+         percent = round(100.0 * v_score / nullif(v_attempt.total, 0), 1)
+   where id = p_attempt;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+revoke all on function public.exam_submit(uuid, jsonb) from public;
+grant execute on function public.exam_submit(uuid, jsonb) to anon, authenticated;
