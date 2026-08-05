@@ -85,7 +85,8 @@ export default function SyncChip() {
       onClick={() => void syncNow()}
       title={`Everything on this device is in the cloud${at ? ` · last sync ${at}` : ''} — tap to sync again`}
     >
-      ✓ Backed up{at && <span className="chip-extra"> · {at}</span>}
+      ✓<span className="chip-word"> Backed up</span>
+      {at && <span className="chip-extra"> · {at}</span>}
     </button>
   )
 }

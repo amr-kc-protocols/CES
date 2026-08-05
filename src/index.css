@@ -192,6 +192,7 @@ input[type='date']::-webkit-date-and-time-value {
   display: flex;
   align-items: center;
   gap: 12px;
+  overflow: hidden;
   box-shadow: none;
   /* The red band. On ems.gov this strip carries the site search; here it is
      a solid rule, and it is the single strongest borrowed cue — a deep navy
@@ -256,6 +257,16 @@ input[type='date']::-webkit-date-and-time-value {
   /* Sync chip keeps its state word but sheds the trailing instruction, which
      the title tag and the tap itself already carry. */
   .chip-extra { display: none; }
+}
+
+/* An `all` account carries a dropdown instead of a label, which is 115px
+   against 50px — enough to push the app name into an ellipsis on a small
+   phone. Where that happens, the sync chip gives up its word and keeps its
+   tick and its colour, which is what anyone actually reads it for. The
+   market has to win this contest: it changes what the data means.
+   Sibling selector, so only the dropdown case is affected. */
+@media (max-width: 430px) {
+  .market-chip.switch ~ * .chip-word { display: none; }
 }
 
 .content {
@@ -1252,8 +1263,9 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .market-chip {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  padding: 0 9px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
   border-radius: 13px;
   background: rgba(255, 255, 255, 0.16);
   color: var(--text-invert);
@@ -1262,7 +1274,21 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   white-space: nowrap;
 }
 
-.market-chip.switch { padding: 0 4px 0 9px; }
+.market-chip.switch { padding: 0 4px 0 10px; }
+
+/* The city emblem, inline in the chip. Sized to the cap height of the label
+   beside it so the pair reads as one mark rather than as an icon plus text. */
+.market-chip svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: #fff;
+  opacity: 0.95;
+}
+
+@media (max-width: 470px) {
+  .market-chip svg { width: 15px; height: 15px; }
+}
 
 .market-chip select {
   appearance: none;
@@ -1472,4 +1498,76 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .attestation-check input { margin-top: 1px; width: 22px; height: 22px; flex: none; }
 @media (prefers-color-scheme: dark) {
   .attestation { background: rgba(225, 29, 46, 0.08); }
+}
+
+/* ---------- Which city you are in ----------
+ *
+ * The market chip alone was easy to miss, and the two sides of this app are
+ * otherwise identical — same screens, same tabs, same empty states. Someone
+ * looking at an empty cohort list needs to know instantly whether that means
+ * "nothing scheduled" or "wrong operation".
+ *
+ * So the masthead carries the city, using each one's own civic emblem:
+ * Kansas City the fountain (it calls itself the City of Fountains), Wichita
+ * an aircraft (Air Capital of the World — Cessna, Beechcraft, Learjet and
+ * Spirit all build there). They are chosen as much for being unmistakably
+ * different from each other as for being accurate: the whole job is to be
+ * readable in the half-second before you start typing.
+ *
+ * Set by data-market on .app, which Layout only writes once the market is a
+ * real fact about the signed-in account.
+ */
+.topbar::after {
+  content: '';
+  position: absolute;
+  /* Bleeds off the right edge and fills the bar's height, so it reads as a
+     watermark rather than as a small picture someone forgot to align. The
+     chips sit on top of it; partial occlusion is the point. */
+  top: 0;
+  bottom: 0;
+  right: -22px;
+  width: 190px;
+  background-repeat: no-repeat;
+  background-position: center right;
+  background-size: auto 132%;
+  opacity: 0.16;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Masthead content sits above the watermark. */
+.topbar > * { position: relative; z-index: 1; }
+
+.app[data-market='kc'] .topbar::after { background-image: url("data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20140%20100%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%223.2%22%20stroke-linecap=%22round%22>%20<path%20d=%22M70%2016v30%22/><path%20d=%22M70%2018c-15%205-25%2016-27%2032%22/><path%20d=%22M70%2018c15%205%2025%2016%2027%2032%22/>%20<path%20d=%22M70%2022c-8%204-13%2011-14%2022%22/><path%20d=%22M70%2022c8%204%2013%2011%2014%2022%22/>%20<ellipse%20cx=%2270%22%20cy=%2252%22%20rx=%2222%22%20ry=%225.5%22%20fill=%22%23fff%22%20stroke=%22none%22/>%20<path%20d=%22M66%2057v14h8V57%22%20fill=%22%23fff%22%20stroke=%22none%22/>%20<path%20d=%22M34%2074h72l-7%2013H41z%22%20fill=%22%23fff%22%20stroke=%22none%22/></svg>"); }
+.app[data-market='wichita'] .topbar::after { background-image: url("data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20140%20100%22%20fill=%22%23fff%22>%20<path%20d=%22M70%2010c4.5%200%208%206%208.7%2016.5l.3%209.5%2038%2022v10l-38-10-1%2019%2013%2010v8l-21-5.5L49%2095v-8l13-10-1-19-38%2010V58l38-22%20.3-9.5C62%2016%2065.5%2010%2070%2010z%22/></svg>"); }
+
+/* No market, no watermark — a local-only device would otherwise show a city
+   it has no basis to claim. */
+.app:not([data-market]) .topbar::after { display: none; }
+
+/* On a phone the chip sits over the emblem, so the emblem gives way: smaller,
+   further right, fainter. The chip has to stay the thing you read. */
+/* On a wide screen the chips occupy the right corner and the middle of the
+   masthead is empty, so the emblem moves into that gap instead of hiding
+   behind them. The box is anchored right and over-wide, with the image at its
+   left edge — which places the emblem a fixed distance clear of the chips
+   without having to know how wide they are. */
+@media (min-width: 760px) {
+  .topbar::after {
+    right: 0;
+    width: 430px;
+    background-position: left center;
+    background-size: auto 150%;
+    opacity: 0.15;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Less room, and the chip must stay the thing you read first. */
+  .topbar::after {
+    width: 120px;
+    right: -16px;
+    background-size: auto 118%;
+    opacity: 0.13;
+  }
 }
