@@ -167,6 +167,18 @@ export function statusOf(row: IntakeSubmission): IntakeStatus {
   return s && (INTAKE_STATUSES as readonly string[]).includes(s) ? (s as IntakeStatus) : DEFAULT_STATUS
 }
 
+// Submission cutoff. The instant is anchored to Central time (CDT, −05:00) so
+// it closes at the right moment regardless of a candidate's device timezone;
+// the display string is fixed text so everyone reads the same "Central" time.
+export const AEMT_INTAKE_DEADLINE = {
+  iso: '2026-08-10T17:00:00-05:00',
+  display: 'Monday, August 10 at 5:00 PM (Central)',
+}
+
+export function intakeClosed(now: number = Date.now()): boolean {
+  return now > new Date(AEMT_INTAKE_DEADLINE.iso).getTime()
+}
+
 const FORM_ID = 'aemt'
 
 /** Public submit — works signed out via the built-in anon key + RLS. */
