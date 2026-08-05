@@ -10,12 +10,17 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'KC Academy — Clinical Education Suite',
-        short_name: 'KC Academy',
+        name: 'AMR Kansas Academy — Clinical Education Suite',
+        // Home-screen label. iOS truncates around a dozen characters, so the
+        // full name goes in `name` and this stays short.
+        short_name: 'AMR Academy',
         description:
-          'New employee orientation, the AEMT program, field training checklists, FTO shifts, and CE tracking for AMR Kansas City',
-        theme_color: '#0b2e4f',
-        background_color: '#0b2e4f',
+          'New employee orientation, the AEMT program, field training checklists, FTO shifts, and CE tracking for AMR Kansas City and AMR Wichita',
+        // Matches the masthead navy (--navy in src/index.css). This is what
+        // iOS tints the status bar with, so a stale value shows as a seam
+        // above the header on an installed device.
+        theme_color: '#20395a',
+        background_color: '#20395a',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

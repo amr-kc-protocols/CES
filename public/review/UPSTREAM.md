@@ -29,7 +29,7 @@ that includes the Supabase client.
 
 ## Changes from the upstream drop
 
-Four. Re-apply them when new files arrive — number 4 especially, since it is a
+Five. Re-apply them when new files arrive — number 4 especially, since it is a
 real bug rather than an integration concession.
 
 1. **`index.html`** — removed `<link rel="manifest">` and the two icon links.
@@ -64,6 +64,11 @@ real bug rather than an integration concession.
    Reproduced against the app served standalone at `/review/index.html` with no
    host chrome, so it is upstream and not an artefact of embedding. Worth fixing
    in the source tree the drops come from.
+
+5. **`css/styles.css`** — `--navy` changed from `#1f3864` to `#20395a`, the
+   host app's masthead navy. The tool renders directly under that masthead, and
+   two navies a few degrees apart stacked on top of each other read as a
+   rendering fault rather than as two applications. Cosmetic only.
 
 Everything else — `js/parser.js`, `js/criteria.js`, `js/store.js`,
 `js/exporter.js`, `lib/*` — is byte-identical to upstream.

@@ -44,7 +44,7 @@ export default function Layout() {
   const ceBadge = ce.overdue + ce.dueThisWeek
   // Signed-in admin only — the local signed-out "acts as admin" convenience
   // deliberately does NOT apply here, so an FTO who signs out gains nothing.
-  const { signedIn, role } = useSyncStatus()
+  const { signedIn, role, configured, market } = useSyncStatus()
   const { manageAemt, reviewCharts } = useCan()
   const tabs = TABS.filter(
     (t) =>
@@ -57,8 +57,13 @@ export default function Layout() {
   // squeeze into uselessness. It supplies its own padding and chrome.
   const fullBleed = pathname.startsWith('/review')
 
+  // Drives the city watermark in the masthead. Only set once the market is a
+  // real fact about this account — on a local-only device it would be
+  // decoration claiming to be information.
+  const showMarket = configured && signedIn
+
   return (
-    <div className="app">
+    <div className="app" data-market={showMarket ? market : undefined}>
       {QA_ENABLED && (
         <Suspense fallback={null}>
           <BotSyncMount />
@@ -68,7 +73,7 @@ export default function Layout() {
         <div className="brand">
           <img src="/pwa-192x192.png" alt="" />
           <div className="brand-text">
-            KC Academy
+            AMR Kansas Academy
             <small>Clinical Education Suite</small>
           </div>
         </div>

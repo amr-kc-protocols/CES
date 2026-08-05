@@ -57,7 +57,7 @@ export default function ReviewView() {
 
   function onLoad() {
     // Same-origin, so this read is allowed. If the fallback served the CES
-    // shell instead, the title is KC Academy's rather than the tool's.
+    // shell instead, the title is the host app's rather than the tool's.
     const title = frame.current?.contentDocument?.title ?? ''
     setState(title.includes(tool.title) ? 'ready' : 'failed')
   }
