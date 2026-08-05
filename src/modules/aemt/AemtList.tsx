@@ -221,6 +221,9 @@ export default function AemtList() {
           <Link to="/aemt/intake" className="btn">
             📥 Candidate intake
           </Link>
+          <Link to="/aemt/exam-results" className="btn">
+            📝 Exam results
+          </Link>
           {manageAcademy && (
             <button className="btn primary" onClick={() => setAdding(true)}>
               + New course
