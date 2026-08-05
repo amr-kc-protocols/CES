@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react'
-import { AEMT_INTAKE, submitIntake, type IntakeField } from '../../lib/intake'
+import {
+  AEMT_INTAKE,
+  AEMT_INTAKE_DEADLINE,
+  intakeClosed,
+  submitIntake,
+  type IntakeField,
+} from '../../lib/intake'
 
 // Public, no-login AEMT intake form. Rendered outside the app shell (its own
 // route, no tab bar) so a candidate just opens a link and fills it out.
@@ -163,7 +169,10 @@ export default function IntakeForm() {
     return out
   }, [values])
 
+  const closed = intakeClosed()
+
   const onSubmit = async () => {
+    if (closed) return
     setShowErrors(true)
     setError(null)
     if (missing.size > 0 || !consent) {
@@ -211,8 +220,22 @@ export default function IntakeForm() {
               the next AEMT cohort, someone will reach out. You can close this page.
             </p>
           </div>
+        ) : closed ? (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
+            <h2 style={{ marginBottom: 8 }}>Applications are closed</h2>
+            <p className="subtle" style={{ margin: 0 }}>
+              The window to submit closed on <strong>{AEMT_INTAKE_DEADLINE.display}</strong>. If you
+              missed the deadline, reach out to the AMR KC education team.
+            </p>
+          </div>
         ) : (
           <>
+            <div className="intake-deadline">
+              ⏰ Applications close <strong>{AEMT_INTAKE_DEADLINE.display}</strong>. Please submit
+              before then.
+            </div>
+
             <div className="banner info">
               This short form helps us plan the next AEMT class. It's about your{' '}
               <strong>availability and time</strong> — there are no wrong answers. Takes about
