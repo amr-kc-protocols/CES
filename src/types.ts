@@ -2,12 +2,12 @@
 // Shared domain types for the AMR Clinical Education Suite.
 // ---------------------------------------------------------------------------
 
-export type OperationId = 'kc' | 'cass' | 'linn'
+export type OperationId = 'kc' | 'cass' | 'linn' | 'wichita'
 
 // ----- Module B: Kansas CE Submission Deadline Tracker ---------------------
 
 /** KBEMS submission locations Hunter is responsible for. */
-export type CELocation = 'kc' | 'linn' | 'topeka'
+export type CELocation = 'kc' | 'linn' | 'topeka' | 'wichita'
 
 export type CEStatus = 'not_started' | 'in_progress' | 'submitted'
 

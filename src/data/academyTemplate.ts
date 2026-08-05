@@ -6,6 +6,8 @@
 // flex from there to accommodate instructors and availability.
 // ---------------------------------------------------------------------------
 
+import { activeMarket, type Market } from '../lib/market'
+
 export interface TemplateBlock {
   time: string
   title: string
@@ -22,7 +24,7 @@ export interface TemplateDay {
 }
 
 /** The 5-day classroom week from the May 2026 plan. */
-export const CLASSROOM_TEMPLATE: TemplateDay[] = [
+const KC_CLASSROOM_TEMPLATE: TemplateDay[] = [
   {
     title: 'HR & Systems Onboarding',
     facilitators: 'Jordan (CES) · Gabby (HR 1–3 PM) · Captains Dir & Curless (3–4 PM)',
@@ -96,8 +98,8 @@ export const WELCOME_KIT_ITEMS: KitItem[] = [
   { item: 'Printed schedule (1-page color, landscape)', source: 'Academy schedule — print from CES' },
   // Field Training Objectives Page dropped — objectives are tracked digitally.
   { item: 'New Hire Onboarding Roadmap', source: 'Print from CES (Documents tab)' },
-  { item: 'KC Facility Cheat Sheet', source: 'Print 1 page from CES' },
-  { item: 'Local protocol pocket reference (if available)', source: 'Existing AMR KC protocol pocket guide' },
+  { item: 'Local facility cheat sheet', source: 'Print 1 page from CES' },
+  { item: 'Local protocol pocket reference (if available)', source: 'Your operation’s protocol pocket guide' },
   { item: 'Name tag', source: 'Front desk / printable badge' },
   { item: 'Pen', source: 'Office supply' },
   { item: 'Notepad / steno book', source: 'Office supply' },
@@ -121,7 +123,7 @@ export interface Facility {
   notes: string
 }
 
-export const KC_FACILITIES: Facility[] = [
+const KC_FACILITY_LIST: Facility[] = [
   { name: 'KU Medical Center', address: '4000 Cambridge St, Kansas City, KS 66160', notes: 'Stroke center · Trauma · Thrombectomy capability' },
   { name: "Saint Luke's Mid America Heart Institute", address: '4401 Wornall Rd, Kansas City, MO 64111', notes: 'STEMI / cath lab · Cardiology' },
   { name: 'Research Medical Center', address: '2316 E Meyer Blvd, Kansas City, MO 64132', notes: 'Trauma · ED' },
@@ -134,10 +136,37 @@ export const KC_FACILITIES: Facility[] = [
   { name: 'AdventHealth Shawnee Mission', address: '9100 W 74th St, Shawnee Mission, KS 66204', notes: 'ED · Cardiac · Stroke' },
 ]
 
-export const FACILITY_KEY_POINTS = [
+const KC_FACILITY_KEY_POINTS = [
   "STEMI transfers → Saint Luke's Mid America or KU Med (cath capability).",
   'Stroke / thrombectomy → KU Med or Saint Luke’s stroke center. Time-critical.',
   'Pediatric anything → Children’s Mercy is the answer for IFT in KC.',
   'Trauma centers in network → KU Med, Research, Truman, Overland Park.',
   'When in doubt, ask dispatch — facility capabilities change and your manual is the source of truth.',
 ]
+
+
+/* ---------------------------------------------------------------------------
+ * Per-market selection.
+ *
+ * The classroom template names Kansas City's facilitators and runs against
+ * Kansas City's week; the facility list is Kansas City's receiving hospitals
+ * and the key points are its transfer rules. All three would be actively
+ * misleading in Wichita — a new hire told to take a STEMI to Saint Luke's
+ * Mid America is being told something wrong, not something incomplete.
+ *
+ * Wichita starts empty and builds its own. The welcome-kit and room-setup
+ * lists stay shared: those are generic onboarding logistics, and the two
+ * lines that named Kansas City now read neutrally.
+ *
+ * Read once at module load — switching markets reloads the page.
+ * ------------------------------------------------------------------------ */
+
+const TEMPLATE_BY_MARKET: Record<Market, TemplateDay[]> = { kc: KC_CLASSROOM_TEMPLATE, wichita: [] }
+const FACILITIES_BY_MARKET: Record<Market, Facility[]> = { kc: KC_FACILITY_LIST, wichita: [] }
+const KEY_POINTS_BY_MARKET: Record<Market, string[]> = { kc: KC_FACILITY_KEY_POINTS, wichita: [] }
+
+export const CLASSROOM_TEMPLATE: TemplateDay[] = TEMPLATE_BY_MARKET[activeMarket()]
+/** Receiving facilities for the active market. Named without a market prefix
+ *  because it is no longer always Kansas City's. */
+export const FACILITIES: Facility[] = FACILITIES_BY_MARKET[activeMarket()]
+export const FACILITY_KEY_POINTS: string[] = KEY_POINTS_BY_MARKET[activeMarket()]

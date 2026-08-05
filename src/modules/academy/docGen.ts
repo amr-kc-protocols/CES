@@ -3,7 +3,7 @@ import { FT_SECTIONS, FT_SLOTS, EXPOSURE_GROUPS, EXPOSURE_SLOTS } from '../../da
 import {
   WELCOME_KIT_ITEMS,
   ROOM_SETUP_ITEMS,
-  KC_FACILITIES,
+  FACILITIES,
   FACILITY_KEY_POINTS,
 } from '../../data/academyTemplate'
 import { CREDENTIAL_LABELS } from '../../data/academy'
@@ -335,7 +335,7 @@ export function facilitySheetHTML(): string {
     <p class="sub">Quick reference for new hires</p>
     <h2>Major hospitals</h2>
     <table><tr><th>Facility</th><th>Address</th><th>Specialty / notes</th></tr>
-      ${KC_FACILITIES.map((f) => `<tr><td>${esc(f.name)}</td><td>${esc(f.address)}</td><td>${esc(f.notes)}</td></tr>`).join('')}
+      ${FACILITIES.map((f) => `<tr><td>${esc(f.name)}</td><td>${esc(f.address)}</td><td>${esc(f.notes)}</td></tr>`).join('')}
     </table>
     <h2>Key things to know</h2>
     <ul>${FACILITY_KEY_POINTS.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
