@@ -34,13 +34,37 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // The chart review tool (public/review) is vendored static files, and
+        // lib/ alone is 2.2 MB of pdf.js + SheetJS. Precaching pushes that to
+        // every device on first load; only admins can open the tab. Excluded
+        // here and runtime-cached below instead, so admins keep the offline
+        // behaviour and nobody else pays for it.
+        globIgnores: ['**/node_modules/**/*', 'review/**/*'],
+        runtimeCaching: [
+          {
+            urlPattern: /\/review\/.*$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ems-review-shell',
+              // Application shell only — HTML, CSS, JS, the vendored libs. The
+              // tool keeps chart data and reviews in IndexedDB, which the
+              // Cache API never sees, so no PHI enters the HTTP cache.
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         // Don't SPA-fallback navigations to real files (slide decks etc.) —
         // without this the service worker serves index.html for /decks/*.pptx
         // and the router's catch-all lands on the dashboard. Mirrors the
         // dotted-path exclusion in vercel.json.
-        navigateFallbackDenylist: [/^\/decks\//, /\.[a-z0-9]+$/i],
+        // The /review/ entry is redundant against the dotted-path rule, but the
+        // failure it prevents is bad enough to state twice: an iframe load is a
+        // navigation, so a fallback there renders the whole CES shell inside
+        // the Review tab.
+        navigateFallbackDenylist: [/^\/decks\//, /^\/review\//, /\.[a-z0-9]+$/i],
       },
       devOptions: {
         enabled: false,

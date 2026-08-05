@@ -27,13 +27,29 @@ export interface Capabilities {
    * applies.
    */
   manageAemt: boolean
+  /**
+   * The chart review tool — emergent-transport justification review.
+   *
+   * Gated the same way as the AEMT program, and for a sharper reason: the
+   * charts dropped into it are patient care reports. They stay on the device
+   * and never reach the server, so row-level security cannot be the control
+   * here — this gate is the control. Crews must not be able to open a tool
+   * that reviews their own transport decisions, and PHI must not land on a
+   * shared FTO device because someone found the tab.
+   *
+   * As with manageAemt, the signed-out local-admin convenience applies only
+   * where sync is NOT configured, i.e. where there are no roles at all.
+   */
+  reviewCharts: boolean
 }
 
 export function useCan(): Capabilities {
   const { role, configured, signedIn } = useSyncStatus()
+  const adminOnly = configured ? signedIn && role === 'admin' : true
   return {
     manageAcademy: role === 'admin',
     editRideWork: role === 'admin' || role === 'fto',
-    manageAemt: configured ? signedIn && role === 'admin' : true,
+    manageAemt: adminOnly,
+    reviewCharts: adminOnly,
   }
 }

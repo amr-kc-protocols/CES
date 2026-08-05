@@ -18,6 +18,7 @@ const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
 const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
 const SkillSheetView = lazy(() => import('./modules/academy/SkillSheetView'))
 const ClassCheckoffView = lazy(() => import('./modules/academy/ClassCheckoffView'))
+const ReviewView = lazy(() => import('./modules/review/ReviewView'))
 const AemtList = lazy(() => import('./modules/aemt/AemtList'))
 const AemtCourseView = lazy(() => import('./modules/aemt/AemtCourseView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
@@ -30,26 +31,48 @@ const ChartReviewScreen = lazy(() => import('./modules/qa/ChartReviewScreen'))
 const BotTab = lazy(() => import('./modules/qa/BotTab'))
 
 /**
- * Route-level gate for the AEMT program.
+ * Route-level gate.
  *
  * Hiding the nav tab is not access control — an FTO with a bookmark, a shared
  * link, or a browser that remembers the last URL lands straight on the records
  * otherwise. The screens inside also gate their own actions; this stops the
  * data being rendered at all.
  */
-function AemtOnly({ children }: { children: ReactNode }) {
-  const { manageAemt } = useCan()
-  if (manageAemt) return <>{children}</>
+function Gated({ allowed, why, children }: { allowed: boolean; why: string; children: ReactNode }) {
+  if (allowed) return <>{children}</>
   return (
     <div>
       <Empty icon="🔒" title="Not available on this account">
-        The AEMT program holds Kansas certification records and cohort selection data. Ask the
-        Clinical Educator if you need access.
+        {why}
       </Empty>
       <Link to="/" className="link-btn">
         ← Back to Home
       </Link>
     </div>
+  )
+}
+
+function AemtOnly({ children }: { children: ReactNode }) {
+  const { manageAemt } = useCan()
+  return (
+    <Gated
+      allowed={manageAemt}
+      why="The AEMT program holds Kansas certification records and cohort selection data. Ask the Clinical Educator if you need access."
+    >
+      {children}
+    </Gated>
+  )
+}
+
+function ReviewOnly({ children }: { children: ReactNode }) {
+  const { reviewCharts } = useCan()
+  return (
+    <Gated
+      allowed={reviewCharts}
+      why="Chart review handles patient care reports and is limited to clinical leadership. Ask the Clinical Educator if you need access."
+    >
+      {children}
+    </Gated>
   )
 }
 
@@ -92,6 +115,14 @@ export default function App() {
             <AemtOnly>
               <AemtCourseView />
             </AemtOnly>
+          }
+        />
+        <Route
+          path="review"
+          element={
+            <ReviewOnly>
+              <ReviewView />
+            </ReviewOnly>
           }
         />
         <Route path="courses" element={<LearningView />} />

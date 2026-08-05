@@ -1065,3 +1065,37 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   .cv-print-only h2 { margin: 0 0 10px; }
   .cv-print-only p { margin: 0 0 8px; }
 }
+
+/* ---------- Chart review host (public/review in an iframe) ---------- */
+
+/* The review tool renders its own full-width layout, so the reading column and
+   its padding come off. The bottom padding stays: the fixed tab bar would
+   otherwise sit on top of the tool's own toolbar. */
+.content.full-bleed {
+  max-width: none;
+  padding: 0 0 calc(56px + env(safe-area-inset-bottom));
+}
+
+.review-host {
+  display: flex;
+  flex-direction: column;
+  /* Fill what is left below the header, minus the tab bar the shell reserves. */
+  min-height: calc(100vh - var(--nav-h) - 56px - env(safe-area-inset-top));
+}
+
+.review-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  display: block;
+}
+
+.review-fallback {
+  padding: 24px 16px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.review-fallback h2 {
+  margin-top: 0;
+}
