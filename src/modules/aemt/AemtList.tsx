@@ -217,11 +217,16 @@ export default function AemtList() {
             and completion verification
           </div>
         </div>
-        {manageAcademy && (
-          <button className="btn primary" onClick={() => setAdding(true)}>
-            + New course
-          </button>
-        )}
+        <div className="btn-row">
+          <Link to="/aemt/intake" className="btn">
+            📥 Candidate intake
+          </Link>
+          {manageAcademy && (
+            <button className="btn primary" onClick={() => setAdding(true)}>
+              + New course
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="banner info">

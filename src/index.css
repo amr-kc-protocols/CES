@@ -1099,3 +1099,49 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .review-fallback h2 {
   margin-top: 0;
 }
+
+/* ---------- AEMT intake (public form + admin answers) ---------- */
+.intake-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(1100px 320px at 50% -120px, var(--navy-tint), transparent 70%),
+    var(--bg);
+}
+.intake-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 16px) 16px 16px;
+  background: linear-gradient(180deg, var(--navy-700), var(--navy));
+  color: var(--text-invert);
+  border-bottom: 3px solid var(--red);
+}
+.intake-head img { width: 40px; height: 40px; border-radius: 9px; flex: none; }
+.intake-title { font-weight: 800; letter-spacing: 0.3px; }
+.intake-sub { font-size: 13px; opacity: 0.85; }
+.intake-body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 16px calc(40px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.intake-section h2 { font-size: 17px; margin-bottom: 4px; }
+.intake-intro { margin-top: 0; margin-bottom: 6px; font-size: 13px; }
+.intake-consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 4px 2px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.intake-consent input { margin-top: 2px; width: 20px; height: 20px; flex: none; }
+.intake-foot { text-align: center; font-size: 12px; margin-top: 4px; }
+
+/* Admin answer list */
+.intake-answers { margin: 0; display: grid; gap: 8px; }
+.intake-answer dt { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.intake-answer dd { margin: 0; font-size: 14px; word-break: break-word; }

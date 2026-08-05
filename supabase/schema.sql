@@ -149,3 +149,44 @@ create policy "newhire updates surveys"
     public.current_role() = 'newhire'
     and collection = 'surveys'
   );
+
+-- ----- AEMT candidate intake -------------------------------------------------
+-- Separate from `records`: the AEMT interest form is filled out by candidates
+-- with no account, so it needs an anonymous-insert path, and its answers are
+-- selection data only the admin may read. Kept out of the synced workspace.
+
+create table if not exists public.intake_submissions (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  form text not null default 'aemt',   -- which intake form (future-proofing)
+  data jsonb not null,                  -- all answers, keyed by field id
+  archived boolean not null default false
+);
+
+create index if not exists intake_submissions_created_idx
+  on public.intake_submissions (created_at desc);
+
+alter table public.intake_submissions enable row level security;
+
+-- Anyone — including an anonymous candidate — may submit the form.
+create policy "anyone can submit intake"
+  on public.intake_submissions for insert
+  to anon, authenticated
+  with check (true);
+
+-- Only admins can read the submissions.
+create policy "admin reads intake"
+  on public.intake_submissions for select
+  to authenticated
+  using (public.current_role() = 'admin');
+
+-- Only admins can archive (update) or delete them.
+create policy "admin updates intake"
+  on public.intake_submissions for update
+  to authenticated
+  using (public.current_role() = 'admin');
+
+create policy "admin deletes intake"
+  on public.intake_submissions for delete
+  to authenticated
+  using (public.current_role() = 'admin');
