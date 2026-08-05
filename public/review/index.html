@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3864">
+<meta name="description" content="Offline EMS emergent-transport chart review. All processing stays on this device.">
+<title>EMS Transport Review</title>
+<!-- No <link rel="manifest"> and no icon links: this document is embedded in an
+     iframe inside the KC Academy PWA, which supplies the manifest, the icons
+     and the service worker for the whole origin. A second manifest here would
+     compete with it. See UPSTREAM.md for the full list of local changes. -->
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6v6c0 5 3.8 9.2 9 10 5.2-.8 9-5 9-10V6l-9-4Z"/><path d="M12 8v8M8 12h8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    <div>
+      <h1>EMS Transport Review</h1>
+      <p class="sub">Emergent transport justification · offline</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span class="offline-badge" id="netBadge" title="This app makes no network requests. All PHI stays on this device.">
+      <span class="dot"></span> Local only
+    </span>
+    <button class="btn" id="btnSettings" type="button">Thresholds</button>
+    <button class="btn" id="btnPrint" type="button" disabled>Print sheets</button>
+    <button class="btn primary" id="btnExport" type="button" disabled>Export XLSX</button>
+  </div>
+</header>
+
+<main>
+  <!-- ---------------------------------------------------------------- Intake -->
+  <section class="panel" id="intake">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button"
+         aria-label="Add charts. Drag and drop ePCR PDFs or CSV or JSON files, or press Enter to browse.">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <p class="dz-main">Drop ePCR PDFs, CSV, or JSON here</p>
+      <p class="dz-sub">or click to browse · files are read in this browser and never uploaded</p>
+      <input type="file" id="fileInput" multiple accept=".pdf,.csv,.tsv,.json" hidden>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <div class="bar"><div class="fill" id="progressFill"></div></div>
+      <p id="progressText">Working…</p>
+    </div>
+    <p class="intake-note" id="intakeNote" hidden></p>
+  </section>
+
+  <!-- ------------------------------------------------------------- Dashboard -->
+  <section class="stats" id="stats" hidden>
+    <div class="stat"><span class="v" id="statTotal">0</span><span class="k">charts</span></div>
+    <div class="stat"><span class="v" id="statEmergent">0</span><span class="k">coded Emergent</span></div>
+    <div class="stat warn"><span class="v" id="statMismatch">0</span><span class="k">mode/acuity mismatch</span></div>
+    <div class="stat"><span class="v" id="statNoCriteria">0</span><span class="k">no criteria crossed</span></div>
+    <div class="stat"><span class="v" id="statScored">0</span><span class="k">scored</span></div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- Toolbar -->
+  <section class="toolbar" id="toolbar" hidden>
+    <div class="field grow">
+      <label for="search">Search</label>
+      <input type="search" id="search" placeholder="Incident, impression, narrative, destination…">
+    </div>
+    <div class="field">
+      <label for="sortBy">Sort by</label>
+      <select id="sortBy">
+        <option value="priority">Review priority (high → low)</option>
+        <option value="criticalCount">Critical findings</option>
+        <option value="incident">Incident #</option>
+        <option value="dateOfService">Date of service</option>
+        <option value="acuity">Crew acuity</option>
+        <option value="score">Justification score</option>
+        <option value="integrity">Data-integrity findings</option>
+        <option value="completeness">Parse completeness</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="sortDir">Order</label>
+      <select id="sortDir"><option value="desc">Descending</option><option value="asc">Ascending</option></select>
+    </div>
+    <div class="field">
+      <label for="fAcuity">Acuity</label>
+      <select id="fAcuity">
+        <option value="">All</option><option>Critical (Red)</option><option>Emergent (Yellow)</option>
+        <option>Lower Acuity (Green)</option><option>Non-Acute</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fScore">Score</label>
+      <select id="fScore">
+        <option value="">All</option><option value="unscored">Not yet scored</option>
+        <option value="5">5 — Clearly justified</option><option value="4">4 — Probably justified</option>
+        <option value="3">3 — Equivocal</option><option value="2">2 — Probably not</option>
+        <option value="1">1 — Clearly not</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fFlag">Flag</label>
+      <select id="fFlag"><option value="">All charts</option></select>
+    </div>
+    <button class="btn ghost" id="btnClearFilters" type="button">Reset</button>
+    <button class="btn danger ghost" id="btnWipe" type="button">Clear all data</button>
+  </section>
+
+  <p class="result-line" id="resultLine" hidden></p>
+
+  <!-- ----------------------------------------------------------------- Table -->
+  <section class="tablewrap" id="tablewrap" hidden>
+    <table id="grid">
+      <thead>
+        <tr>
+          <th data-sort="priority" class="num">Pri</th>
+          <th data-sort="incident">Incident</th>
+          <th data-sort="dateOfService">Date</th>
+          <th>Age/Sex</th>
+          <th data-sort="acuity">Crew acuity</th>
+          <th>Mode</th>
+          <th>L&amp;S</th>
+          <th>Impression</th>
+          <th>Criteria met</th>
+          <th data-sort="integrity" class="num">Flags</th>
+          <th data-sort="score" class="num">Score</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="gridBody"></tbody>
+    </table>
+  </section>
+
+  <section class="empty" id="emptyState">
+    <h2>No charts loaded</h2>
+    <p>Add ePCR exports above to begin. The app extracts fields, applies your physiologic thresholds, and ranks charts by how much they need a human reviewer.</p>
+    <p class="fine">It does not assign a justification score. That judgement is yours — the app's job is to show you the evidence and where it came from.</p>
+  </section>
+</main>
+
+<!-- ------------------------------------------------------------------ Drawer -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Chart detail">
+  <div class="drawer-head">
+    <div>
+      <h2 id="dTitle">Incident</h2>
+      <p class="sub" id="dSub"></p>
+    </div>
+    <button class="iconbtn" id="dClose" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="drawer-body" id="dBody"></div>
+</aside>
+
+<!-- ---------------------------------------------------------------- Settings -->
+<dialog id="settingsDlg">
+  <form method="dialog">
+    <h2>Physiologic thresholds</h2>
+    <p class="fine">These belong to your medical director, not to this software. Changing them re-evaluates every loaded chart immediately. Pediatric charts are flagged rather than silently held to adult values.</p>
+    <div class="grid2" id="thresholdFields"></div>
+    <menu>
+      <button class="btn ghost" value="reset" type="submit" id="btnResetThresholds">Restore defaults</button>
+      <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn primary" value="save" type="submit" id="btnSaveThresholds">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<footer class="foot">
+  <p><strong>All processing is local.</strong> This application has no network code path: no fetch, no XHR, no analytics, no sync. Charts and reviews are stored in this browser's IndexedDB on this device only. Use “Clear all data” when finished on a shared machine.</p>
+  <p class="fine">Automatic flags are deterministic threshold checks with citations, intended to direct attention. They are not a clinical determination and do not replace medical-director review.</p>
+</footer>
+
+<script src="lib/xlsx.full.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
