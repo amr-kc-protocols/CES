@@ -257,6 +257,13 @@ input[type='date']::-webkit-date-and-time-value {
      longer name plus the market chip beside it now do that between them. */
   .topbar .brand small { display: none; }
   .topbar .brand { font-size: 15px; }
+}
+
+/* Below ~390px the wider "Wichita" chip takes enough room that the name
+   breaks a third time ("AMR / Kansas / Academy"), which reads as broken
+   rather than wrapped. One step down in size keeps it to two lines. */
+@media (max-width: 400px) {
+  .topbar .brand { font-size: 13.5px; }
   /* Three classes deep, to match the base rule it is overriding — a media
      query adds no specificity of its own. */
   .topbar .brand .brand-text {
