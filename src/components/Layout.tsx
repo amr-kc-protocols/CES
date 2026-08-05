@@ -4,6 +4,7 @@ import { UndoToast } from './ui'
 import ErrorBoundary from './ErrorBoundary'
 import { ConfirmHost, NoticeToast } from './DialogHost'
 import SyncChip from './SyncChip'
+import MarketSwitcher from './MarketSwitcher'
 import { useCESummary } from '../modules/ce/ceStore'
 import { useSyncStatus } from '../lib/sync'
 import { useCan } from '../lib/role'
@@ -72,6 +73,7 @@ export default function Layout() {
           </div>
         </div>
         <div className="sync-slot">
+          <MarketSwitcher />
           <SyncChip />
         </div>
       </header>

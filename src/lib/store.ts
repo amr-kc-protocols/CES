@@ -1,5 +1,6 @@
 import { useRef, useSyncExternalStore } from 'react'
 import type { DBShape } from '../types'
+import { marketKey } from './market'
 
 // ---------------------------------------------------------------------------
 // Local-first store.
@@ -10,7 +11,11 @@ import type { DBShape } from '../types'
 // only load()/persist() — the UI and domain actions are untouched.
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'ces.db.v1'
+// Namespaced per market, so a Kansas City mirror and a Wichita one never
+// occupy the same slot. Read once at module load: a market switch reloads the
+// page (see setActiveMarket), so this never needs to change under a running
+// store.
+const STORAGE_KEY = marketKey('ces.db.v1')
 const CURRENT_VERSION = 1
 
 function emptyDB(): DBShape {
