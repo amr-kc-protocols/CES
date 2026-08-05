@@ -3,6 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getState, setState, onStateChange } from './store'
 import { diffRecords, toRecords, applyRemote, recordKey, type SyncRecord } from './records'
 import { DEFAULT_CLOUD } from '../config/cloud'
+import {
+  activeMarket,
+  marketKey,
+  reconcileMarket,
+  type Market,
+  type MarketAssignment,
+} from './market'
 import type { DBShape } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -19,8 +26,12 @@ import type { DBShape } from '../types'
 // ---------------------------------------------------------------------------
 
 const CONFIG_KEY = 'ces.cloud.config'
-const OUTBOX_KEY = 'ces.cloud.outbox'
-const CURSOR_KEY = 'ces.cloud.cursor'
+// Per market. The outbox holds unpushed edits and the cursor tracks how far
+// this device has pulled — both are meaningless against the other market's
+// data, and sharing them would push Wichita edits into Kansas City. CONFIG_KEY
+// stays device-wide: which Supabase project to talk to is not a market fact.
+const OUTBOX_KEY = marketKey('ces.cloud.outbox')
+const CURSOR_KEY = marketKey('ces.cloud.cursor')
 const PULL_INTERVAL_MS = 120_000
 const FLUSH_DEBOUNCE_MS = 1_500
 
@@ -40,6 +51,13 @@ export interface SyncStatus {
    * (pure local use) the device is its own admin.
    */
   role: CloudRole
+  /** The market this device is working in. */
+  market: Market
+  /**
+   * What the profile allows — a single market, or `all` for someone who
+   * spans both and gets the switcher. Undefined until the profile loads.
+   */
+  marketAccess?: MarketAssignment
   /** Records queued locally, waiting to push. */
   pending: number
   syncing: boolean
@@ -104,6 +122,7 @@ let status: SyncStatus = {
   configured: !!getCloudConfig(),
   signedIn: false,
   role: 'admin',
+  market: activeMarket(),
   pending: outbox.length,
   syncing: false,
 }
@@ -219,13 +238,20 @@ async function connect(): Promise<void> {
   if (data.session) void syncNow()
 }
 
-/** Read the signed-in user's role from their cloud profile. */
+/** Read the signed-in user's role and market from their cloud profile. */
 async function loadRole(userId: string): Promise<void> {
   const c = await getClient()
   if (!c) return
-  const { data } = await c.from('profiles').select('role').eq('user_id', userId).limit(1)
-  const role = (data?.[0] as { role?: CloudRole } | undefined)?.role
+  const { data } = await c.from('profiles').select('role, market').eq('user_id', userId).limit(1)
+  const row = data?.[0] as { role?: CloudRole; market?: MarketAssignment } | undefined
+  const role = row?.role
   if (role === 'admin' || role === 'fto' || role === 'newhire') setStatus({ role })
+
+  // Force a single-market account into its market whatever this device last
+  // chose. Returns true when it reloaded — stop here rather than setting state
+  // on a page that is going away.
+  if (reconcileMarket(row?.market)) return
+  setStatus({ marketAccess: row?.market, market: activeMarket() })
 }
 
 function scheduleFlush(): void {
@@ -262,13 +288,15 @@ async function flushInner(): Promise<void> {
   if (!c || !status.signedIn || outbox.length === 0) return
   const batch = outbox.slice()
   setStatus({ syncing: true, error: undefined })
+  const market = activeMarket()
   const rows = batch.map((r) => ({
+    market,
     collection: r.collection,
     id: r.id,
     data: r.data,
     deleted: !!r.deleted,
   }))
-  const { error } = await c.from('records').upsert(rows, { onConflict: 'collection,id' })
+  const { error } = await c.from('records').upsert(rows, { onConflict: 'market,collection,id' })
   if (error && isPermissionError(error)) {
     // The batch holds something this role may not write. Retry one by one:
     // push what's allowed, permanently drop what the server refuses, and
@@ -276,8 +304,8 @@ async function flushInner(): Promise<void> {
     // this, one refused edit wedges every later push behind it.
     let dropped = 0
     for (const r of batch) {
-      const row = { collection: r.collection, id: r.id, data: r.data, deleted: !!r.deleted }
-      const { error: one } = await c.from('records').upsert(row, { onConflict: 'collection,id' })
+      const row = { market, collection: r.collection, id: r.id, data: r.data, deleted: !!r.deleted }
+      const { error: one } = await c.from('records').upsert(row, { onConflict: 'market,collection,id' })
       if (one && !isPermissionError(one)) {
         setStatus({ syncing: false, error: `Push failed: ${one.message}` })
         return
@@ -341,7 +369,16 @@ async function pullInner(): Promise<void> {
   // arrive in full instead of waiting a cycle per thousand records.
   for (;;) {
     const cursor = localStorage.getItem(CURSOR_KEY)
-    let query = c.from('records').select('*').order('updated_at', { ascending: true }).limit(PULL_PAGE_SIZE)
+    // RLS already refuses the other market. Filtering here as well keeps the
+    // payload to what this device can actually use, and means a policy
+    // regression shows up as missing rows rather than as silent cross-market
+    // contamination of the local mirror.
+    let query = c
+      .from('records')
+      .select('*')
+      .eq('market', activeMarket())
+      .order('updated_at', { ascending: true })
+      .limit(PULL_PAGE_SIZE)
     if (cursor) query = query.gte('updated_at', cursor)
     const { data, error } = await query
     if (error) {
