@@ -1083,6 +1083,37 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   min-height: calc(100vh - var(--nav-h) - 56px - env(safe-area-inset-top));
 }
 
+/* Tool switcher above the frame — two chart tools, one tab. */
+.tool-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin: 10px auto 0;
+  background: var(--surface-2, #e8edf4);
+  border-radius: 9px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+}
+
+.tool-switch a {
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tool-switch a.active {
+  background: var(--surface);
+  color: var(--navy);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.14);
+}
+
+@media (max-width: 420px) {
+  .tool-switch a { padding: 7px 10px; font-size: 12px; }
+}
+
 .review-frame {
   flex: 1;
   width: 100%;

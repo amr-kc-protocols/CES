@@ -155,8 +155,18 @@ export default function App() {
             </AemtOnly>
           }
         />
+        {/* Both chart tools share one route branch and one gate — same data
+            sensitivity, same audience. ReviewView picks the tool from the path. */}
         <Route
           path="review"
+          element={
+            <ReviewOnly>
+              <ReviewView />
+            </ReviewOnly>
+          }
+        />
+        <Route
+          path="review/necessity"
           element={
             <ReviewOnly>
               <ReviewView />
