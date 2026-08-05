@@ -3,8 +3,13 @@ import {
   AEMT_FIELDS,
   answerText,
   deleteIntake,
+  INTAKE_STATUSES,
   listIntake,
   setIntakeArchived,
+  setIntakeStatus,
+  STATUS_PILL,
+  statusOf,
+  type IntakeStatus,
   type IntakeSubmission,
 } from '../../lib/intake'
 
@@ -26,11 +31,11 @@ function fmtDate(iso: string): string {
 }
 
 function toCsv(rows: IntakeSubmission[]): string {
-  const headers = ['Submitted', ...AEMT_FIELDS.map((f) => f.label)]
+  const headers = ['Submitted', 'Status', ...AEMT_FIELDS.map((f) => f.label)]
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
   const lines = [headers.map(esc).join(',')]
   for (const r of rows) {
-    const cells = [fmtDate(r.created_at), ...AEMT_FIELDS.map((f) => answerText(r.data[f.key]))]
+    const cells = [fmtDate(r.created_at), statusOf(r), ...AEMT_FIELDS.map((f) => answerText(r.data[f.key]))]
     lines.push(cells.map((c) => esc(String(c))).join(','))
   }
   // BOM so Excel opens UTF-8 cleanly, matching the app's other exports.
@@ -43,6 +48,7 @@ function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void })
   const name = answerText(row.data.name)
   const op = answerText(row.data.operation)
   const commit = answerText(row.data.canCommit)
+  const status = statusOf(row)
 
   const commitPill =
     commit === 'Yes' ? 'ok' : commit === 'No' ? 'crit' : commit === 'Not sure yet' ? 'warn' : 'muted'
@@ -51,6 +57,19 @@ function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void })
     setBusy(true)
     await setIntakeArchived(row.id, archived)
     setBusy(false)
+    onChange()
+  }
+  const changeStatus = async (next: IntakeStatus) => {
+    if (next === status) return
+    setBusy(true)
+    const { error } = await setIntakeStatus(row.id, next)
+    setBusy(false)
+    if (error) {
+      alert(
+        `Couldn't update status: ${error}. If this mentions a missing "status" column, run the status migration in Supabase.`,
+      )
+      return
+    }
     onChange()
   }
   const remove = async () => {
@@ -84,7 +103,10 @@ function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void })
             {op} · {fmtDate(row.created_at)}
           </span>
         </span>
-        <span className={`pill ${commitPill}`}>Commit: {commit}</span>
+        <span className="intake-row-pills">
+          <span className={`pill ${STATUS_PILL[status] ?? 'muted'}`}>{status}</span>
+          <span className={`pill ${commitPill}`}>Commit: {commit}</span>
+        </span>
         <span className="subtle" aria-hidden style={{ fontSize: 18 }}>
           {open ? '−' : '+'}
         </span>
@@ -92,6 +114,23 @@ function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void })
 
       {open && (
         <div style={{ padding: '0 14px 14px' }}>
+          <div className="field" style={{ marginBottom: 12 }}>
+            <label>Status</label>
+            <div className="choice-row" role="radiogroup" aria-label="Candidate status">
+              {INTAKE_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={busy}
+                  className={`choice${status === s ? ' active' : ''}`}
+                  aria-pressed={status === s}
+                  onClick={() => changeStatus(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
           <dl className="intake-answers">
             {AEMT_FIELDS.map((f) => (
               <div key={f.key} className="intake-answer">
@@ -130,6 +169,7 @@ export default function IntakeResults() {
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [commitFilter, setCommitFilter] = useState<CommitFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | IntakeStatus>('all')
   const [copied, setCopied] = useState(false)
 
   const shareUrl = `${window.location.origin}/intake`
@@ -158,9 +198,20 @@ export default function IntakeResults() {
     }
     return c
   }, [base])
+  const statusCounts = useMemo(() => {
+    const c = {} as Record<IntakeStatus, number>
+    for (const s of INTAKE_STATUSES) c[s] = 0
+    for (const r of base) c[statusOf(r)] += 1
+    return c
+  }, [base])
   const visible = useMemo(
-    () => base.filter((r) => commitFilter === 'all' || answerText(r.data.canCommit) === commitFilter),
-    [base, commitFilter],
+    () =>
+      base.filter(
+        (r) =>
+          (commitFilter === 'all' || answerText(r.data.canCommit) === commitFilter) &&
+          (statusFilter === 'all' || statusOf(r) === statusFilter),
+      ),
+    [base, commitFilter, statusFilter],
   )
   const activeCount = rows.filter((r) => !r.archived).length
 
@@ -219,6 +270,25 @@ export default function IntakeResults() {
             {f.label} ({counts[f.key]})
           </button>
         ))}
+      </div>
+
+      <div className="field-row" style={{ alignItems: 'center', marginBottom: 10, gap: 10 }}>
+        <label htmlFor="status-filter" style={{ fontWeight: 700, fontSize: 13 }}>
+          Status
+        </label>
+        <select
+          id="status-filter"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as 'all' | IntakeStatus)}
+          style={{ flex: 1 }}
+        >
+          <option value="all">All statuses ({base.length})</option>
+          {INTAKE_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s} ({statusCounts[s]})
+            </option>
+          ))}
+        </select>
       </div>
 
       <label className="intake-consent" style={{ marginBottom: 10 }}>
