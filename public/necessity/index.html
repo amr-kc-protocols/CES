@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3864">
+<meta name="description" content="Offline IFT medical-necessity documentation coaching. All processing stays on this device.">
+<title>Medical Necessity Review</title>
+<!-- No manifest or icon links: embedded in the KC Academy PWA, which supplies
+     the manifest, icons and service worker for the whole origin. -->
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6v6c0 5 3.8 9.2 9 10 5.2-.8 9-5 9-10V6l-9-4Z"/><path d="M9 12.5l2 2 4-4.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div>
+      <h1>Medical Necessity Review</h1>
+      <p class="sub">IFT documentation coaching · offline</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span class="offline-badge" id="netBadge" title="This app makes no network requests. All PHI stays on this device.">
+      <span class="dot"></span> Local only
+    </span>
+    <button class="btn" id="btnPrint" type="button" disabled>Print sheets</button>
+    <button class="btn primary" id="btnExport" type="button" disabled>Export XLSX</button>
+  </div>
+</header>
+
+<main>
+  <!-- ---------------------------------------------------------------- Intake -->
+  <section class="panel" id="intake">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button"
+         aria-label="Add charts. Drag and drop ePCR PDFs or CSV or JSON files, or press Enter to browse.">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <p class="dz-main">Drop IFT ePCR exports here</p>
+      <p class="dz-sub">PDF, CSV or JSON · read in this browser and never uploaded</p>
+      <input type="file" id="fileInput" multiple accept=".pdf,.csv,.tsv,.json" hidden>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <div class="bar"><div class="fill" id="progressFill"></div></div>
+      <p id="progressText">Working…</p>
+    </div>
+    <p class="intake-note" id="intakeNote" hidden></p>
+  </section>
+
+  <!-- ------------------------------------------------------------------ Views -->
+  <nav class="viewswitch" id="viewswitch" hidden>
+    <button class="vbtn active" data-view="charts" type="button">Charts</button>
+    <button class="vbtn" data-view="coaching" type="button">Coaching</button>
+  </nav>
+
+  <!-- =============================================================== CHARTS -->
+  <div id="viewCharts">
+    <section class="stats" id="stats" hidden>
+      <div class="stat"><span class="v" id="statTotal">0</span><span class="k">charts</span></div>
+      <div class="stat"><span class="v" id="statScoped">0</span><span class="k">non-emergency IFT</span></div>
+      <div class="stat"><span class="v" id="statMean">—</span><span class="k">mean documentation score</span></div>
+      <div class="stat warn"><span class="v" id="statRisk">0</span><span class="k">at risk or not established</span></div>
+      <div class="stat"><span class="v" id="statFlags">0</span><span class="k">record flags</span></div>
+    </section>
+
+    <section class="toolbar" id="toolbar" hidden>
+      <div class="field grow">
+        <label for="search">Search</label>
+        <input type="search" id="search" placeholder="Incident, impression, narrative, facility, crew…">
+      </div>
+      <div class="field">
+        <label for="sortBy">Sort by</label>
+        <select id="sortBy">
+          <option value="score">Documentation score (low → high)</option>
+          <option value="missing">Elements missing</option>
+          <option value="flags">Record flags</option>
+          <option value="incident">Incident #</option>
+          <option value="dateOfService">Date of service</option>
+          <option value="completeness">Parse completeness</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sortDir">Order</label>
+        <select id="sortDir"><option value="asc">Ascending</option><option value="desc">Descending</option></select>
+      </div>
+      <div class="field">
+        <label for="fBand">Band</label>
+        <select id="fBand"><option value="">All</option></select>
+      </div>
+      <div class="field">
+        <label for="fElement">Missing element</label>
+        <select id="fElement"><option value="">Any</option></select>
+      </div>
+      <div class="field">
+        <label for="fScope">Scope</label>
+        <select id="fScope">
+          <option value="in">Non-emergency IFT</option>
+          <option value="">All charts</option>
+          <option value="out">Out of scope only</option>
+        </select>
+      </div>
+      <button class="btn ghost" id="btnClearFilters" type="button">Reset</button>
+      <button class="btn danger ghost" id="btnWipe" type="button">Clear all data</button>
+    </section>
+
+    <p class="result-line" id="resultLine" hidden></p>
+
+    <section class="tablewrap" id="tablewrap" hidden>
+      <table id="grid">
+        <thead>
+          <tr>
+            <th data-sort="score" class="num">Score</th>
+            <th data-sort="incident">Incident</th>
+            <th data-sort="dateOfService">Date</th>
+            <th>Origin → destination</th>
+            <th>Level</th>
+            <th>Missing</th>
+            <th data-sort="flags" class="num">Flags</th>
+            <th>Crew</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="gridBody"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- ============================================================= COACHING -->
+  <div id="viewCoaching" hidden>
+    <section class="panel">
+      <h2 class="ch">What this sample misses most</h2>
+      <p class="fine">Across every in-scope chart loaded. The element at the top of this list is the
+        one worth a shift briefing — it is the question a reviewer is most often left asking.</p>
+      <div id="gapList"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="ch">By crew member</h2>
+      <p class="fine">Ordered by how many charts each person appears in, not by score. This is a list
+        of who to teach and what to teach them — it is not a ranking, and a low mean on three charts
+        means very little. Crew names come from the chart and may be incomplete.</p>
+      <div id="crewList"></div>
+    </section>
+  </div>
+
+  <section class="empty" id="emptyState">
+    <h2>No charts loaded</h2>
+    <p>Add IFT ePCR exports above to begin. The tool reads each chart against the seven
+      medical-necessity elements from the IFT Field Handbook and reports which ones the
+      documentation establishes.</p>
+    <p class="fine">It does not decide whether a transport was medically necessary — it cannot see the
+      patient, and the problem it exists to solve is that the chart does not say. It reports whether a
+      claim reviewer could reach that conclusion from the record, and which question stopped them.</p>
+  </section>
+</main>
+
+<!-- ------------------------------------------------------------------ Drawer -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Chart detail">
+  <div class="drawer-head">
+    <div>
+      <h2 id="dTitle">Incident</h2>
+      <p class="sub" id="dSub"></p>
+    </div>
+    <button class="iconbtn" id="dClose" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="drawer-body" id="dBody"></div>
+</aside>
+
+<footer class="foot">
+  <p><strong>All processing is local.</strong> This application has no network code path: no fetch, no XHR, no analytics, no sync. Charts and notes are stored in this browser's IndexedDB on this device only. Use “Clear all data” when finished on a shared machine.</p>
+  <p class="fine">This tool grades the record, not the transport and not the crew. It applies deterministic keyword and field checks with citations, intended to direct attention and guide coaching. It is not a billing determination, not a compliance audit, and not a clinical judgement.</p>
+</footer>
+
+<script src="lib/xlsx.full.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

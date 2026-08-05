@@ -34,22 +34,22 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        // The chart review tool (public/review) is vendored static files, and
-        // lib/ alone is 2.2 MB of pdf.js + SheetJS. Precaching pushes that to
-        // every device on first load; only admins can open the tab. Excluded
-        // here and runtime-cached below instead, so admins keep the offline
-        // behaviour and nobody else pays for it.
-        globIgnores: ['**/node_modules/**/*', 'review/**/*'],
+        // The chart review tools (public/review, public/necessity) are vendored
+        // static files, and each carries 2.2 MB of pdf.js + SheetJS in lib/.
+        // Precaching pushes 4.4 MB to every device on first load; only admins
+        // can open the tab. Excluded here and runtime-cached below instead, so
+        // admins keep the offline behaviour and nobody else pays for it.
+        globIgnores: ['**/node_modules/**/*', 'review/**/*', 'necessity/**/*'],
         runtimeCaching: [
           {
-            urlPattern: /\/review\/.*$/,
+            urlPattern: /\/(review|necessity)\/.*$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'ems-review-shell',
               // Application shell only — HTML, CSS, JS, the vendored libs. The
               // tool keeps chart data and reviews in IndexedDB, which the
               // Cache API never sees, so no PHI enters the HTTP cache.
-              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 90 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -60,11 +60,16 @@ export default defineConfig({
         // without this the service worker serves index.html for /decks/*.pptx
         // and the router's catch-all lands on the dashboard. Mirrors the
         // dotted-path exclusion in vercel.json.
-        // The /review/ entry is redundant against the dotted-path rule, but the
-        // failure it prevents is bad enough to state twice: an iframe load is a
-        // navigation, so a fallback there renders the whole CES shell inside
-        // the Review tab.
-        navigateFallbackDenylist: [/^\/decks\//, /^\/review\//, /\.[a-z0-9]+$/i],
+        // The dotted-path rule is what keeps the tools working: an iframe load
+        // is a navigation, so without it the fallback renders the whole CES
+        // shell inside the Review tab. `/review/index.html` and
+        // `/necessity/index.html` both carry an extension and are covered.
+        //
+        // Deliberately NOT a directory-wide `/^\/review\//` entry, tempting as
+        // that is to state twice. `/review/necessity` is a real SPA route, and
+        // denying the fallback for it would break navigating straight there
+        // while offline — the one situation the service worker exists for.
+        navigateFallbackDenylist: [/^\/decks\//, /\.[a-z0-9]+$/i],
       },
       devOptions: {
         enabled: false,
