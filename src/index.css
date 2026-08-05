@@ -249,11 +249,22 @@ input[type='date']::-webkit-date-and-time-value {
 
 /* On a phone the subtitle is decorative — drop it so the name stays whole. */
 @media (max-width: 470px) {
-  /* Kept, not hidden: the lockup subtitle is part of the masthead, and with
-     two markets it is also the line that says what this app is. It shrinks
-     instead. */
-  .topbar .brand small { font-size: 11px; }
-  .topbar .brand { font-size: 17px; }
+  /* "AMR Kansas Academy" needs 178px on one line and a small phone has about
+     110 to give, so on a phone the name wraps into a two-line lockup instead
+     of shrinking to a size nobody can read. The bar is 64px tall; two lines
+     of 15px fit inside it comfortably.
+     The subtitle goes with it. It was there to say what the app is, and the
+     longer name plus the market chip beside it now do that between them. */
+  .topbar .brand small { display: none; }
+  .topbar .brand { font-size: 15px; }
+  /* Three classes deep, to match the base rule it is overriding — a media
+     query adds no specificity of its own. */
+  .topbar .brand .brand-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.14;
+  }
   /* Sync chip keeps its state word but sheds the trailing instruction, which
      the title tag and the tap itself already carry. */
   .chip-extra { display: none; }

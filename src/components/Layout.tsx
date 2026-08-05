@@ -73,7 +73,7 @@ export default function Layout() {
         <div className="brand">
           <img src="/pwa-192x192.png" alt="" />
           <div className="brand-text">
-            KC Academy
+            AMR Kansas Academy
             <small>Clinical Education Suite</small>
           </div>
         </div>
