@@ -26,6 +26,8 @@ const LearningView = lazy(() => import('./modules/learning/LearningView'))
 const CourseViewer = lazy(() => import('./modules/learning/CourseViewer'))
 const IntakeForm = lazy(() => import('./modules/intake/IntakeForm'))
 const IntakeResults = lazy(() => import('./modules/intake/IntakeResults'))
+const ExamPage = lazy(() => import('./modules/exam/ExamPage'))
+const ExamResults = lazy(() => import('./modules/exam/ExamResults'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
@@ -91,6 +93,14 @@ export default function App() {
           </Suspense>
         }
       />
+      <Route
+        path="/exam"
+        element={
+          <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+            <ExamPage />
+          </Suspense>
+        }
+      />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         {CE_ENABLED && <Route path="ce" element={<CETracker />} />}
@@ -126,6 +136,14 @@ export default function App() {
           element={
             <AemtOnly>
               <IntakeResults />
+            </AemtOnly>
+          }
+        />
+        <Route
+          path="aemt/exam-results"
+          element={
+            <AemtOnly>
+              <ExamResults />
             </AemtOnly>
           }
         />
