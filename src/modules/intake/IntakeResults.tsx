@@ -12,6 +12,14 @@ import {
 // only an admin reaches this screen; Supabase RLS is the real gate on the data
 // itself (only an admin profile can select the table).
 
+type CommitFilter = 'all' | 'Yes' | 'Not sure yet' | 'No'
+const COMMIT_FILTERS: { key: CommitFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'Yes', label: 'Can commit' },
+  { key: 'Not sure yet', label: 'Not sure' },
+  { key: 'No', label: 'No' },
+]
+
 function fmtDate(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -121,6 +129,7 @@ export default function IntakeResults() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [commitFilter, setCommitFilter] = useState<CommitFilter>('all')
   const [copied, setCopied] = useState(false)
 
   const shareUrl = `${window.location.origin}/intake`
@@ -138,7 +147,21 @@ export default function IntakeResults() {
     void load()
   }, [])
 
-  const visible = useMemo(() => rows.filter((r) => showArchived || !r.archived), [rows, showArchived])
+  // The can-commit filter applies within the current archived scope, so its
+  // counts always match what's actually filterable on screen.
+  const base = useMemo(() => rows.filter((r) => showArchived || !r.archived), [rows, showArchived])
+  const counts = useMemo(() => {
+    const c: Record<CommitFilter, number> = { all: base.length, Yes: 0, 'Not sure yet': 0, No: 0 }
+    for (const r of base) {
+      const v = answerText(r.data.canCommit)
+      if (v === 'Yes' || v === 'Not sure yet' || v === 'No') c[v] += 1
+    }
+    return c
+  }, [base])
+  const visible = useMemo(
+    () => base.filter((r) => commitFilter === 'all' || answerText(r.data.canCommit) === commitFilter),
+    [base, commitFilter],
+  )
   const activeCount = rows.filter((r) => !r.archived).length
 
   const copyLink = async () => {
@@ -184,6 +207,20 @@ export default function IntakeResults() {
         </div>
       </div>
 
+      <div className="segmented" role="tablist" aria-label="Filter by commitment" style={{ marginBottom: 10 }}>
+        {COMMIT_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            role="tab"
+            aria-selected={commitFilter === f.key}
+            className={commitFilter === f.key ? 'active' : ''}
+            onClick={() => setCommitFilter(f.key)}
+          >
+            {f.label} ({counts[f.key]})
+          </button>
+        ))}
+      </div>
+
       <label className="intake-consent" style={{ marginBottom: 10 }}>
         <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
         <span>Show archived</span>
@@ -192,7 +229,11 @@ export default function IntakeResults() {
       {loading && <div className="subtle" style={{ padding: 12 }}>Loading…</div>}
       {error && <div className="banner crit">Couldn't load submissions: {error}</div>}
       {!loading && !error && visible.length === 0 && (
-        <div className="banner info">No submissions yet. Share the candidate link above to start collecting them.</div>
+        <div className="banner info">
+          {base.length === 0
+            ? 'No submissions yet. Share the candidate link above to start collecting them.'
+            : 'No submissions match this filter.'}
+        </div>
       )}
 
       <div className="list" style={{ gap: 10 }}>
