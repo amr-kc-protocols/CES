@@ -1224,3 +1224,36 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .exam-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .exam-table th, .exam-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; }
 .exam-table th { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Exam Integrity Statement — deliberately prominent and weighty. */
+.attestation {
+  margin: 18px 0 12px;
+  border: 2px solid var(--red);
+  border-radius: 12px;
+  background: #fff5f5;
+  padding: 14px 16px;
+  box-shadow: 0 2px 12px rgba(225, 29, 46, 0.12);
+}
+.attestation-head {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--red-700);
+  letter-spacing: 0.01em;
+  margin-bottom: 6px;
+}
+.attestation-lead { margin: 0 0 8px; font-weight: 650; font-size: 14px; }
+.attestation-list { margin: 0 0 12px; padding-left: 20px; line-height: 1.5; font-size: 14px; }
+.attestation-list li { margin-bottom: 6px; }
+.attestation-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0 12px;
+  font-weight: 650;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.attestation-check input { margin-top: 1px; width: 22px; height: 22px; flex: none; }
+@media (prefers-color-scheme: dark) {
+  .attestation { background: rgba(225, 29, 46, 0.08); }
+}

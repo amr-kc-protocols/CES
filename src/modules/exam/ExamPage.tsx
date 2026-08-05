@@ -38,6 +38,7 @@ export default function ExamPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [consent, setConsent] = useState(false)
+  const [signature, setSignature] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const [exam, setExam] = useState<ExamStart | null>(null)
@@ -90,7 +91,10 @@ export default function ExamPage() {
   const begin = async () => {
     setError(null)
     if (!name.trim() || !email.trim()) return setError('Please enter your name and email.')
-    if (!consent) return setError('Please acknowledge the statement to begin.')
+    if (!consent) return setError('Please check the box to agree to the Integrity Statement.')
+    if (!signature.trim()) return setError('Please sign by typing your full name.')
+    if (signature.trim().toLowerCase() !== name.trim().toLowerCase())
+      return setError('Your signature must match the full name you entered above.')
     setPhase('submitting')
     const r = await startExam(name.trim(), email.trim())
     if ('data' in r) {
@@ -178,10 +182,32 @@ export default function ExamPage() {
             <label htmlFor="ex-email">Email</label>
             <input id="ex-email" type="email" placeholder="name@gmr.net" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <label className="intake-consent">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            <span>I confirm I am completing this exam on my own, without help or outside resources.</span>
-          </label>
+
+          <section className="attestation" aria-label="Integrity Statement">
+            <div className="attestation-head">⚖️ Integrity Statement</div>
+            <p className="attestation-lead">Read carefully. Starting this exam is your signed agreement to the following:</p>
+            <ul className="attestation-list">
+              <li>I am completing this exam <strong>entirely on my own</strong> — no notes, books, websites, apps, or other people.</li>
+              <li>The answers I submit are <strong>my own work</strong>, and my attempt is recorded with my name and email.</li>
+              <li>This exam is part of <strong>AMR Kansas City's AEMT selection process</strong>.</li>
+              <li>Giving or receiving help is a violation of <strong>AMR's Standards of Conduct</strong> and may result in <strong>disqualification from selection</strong> and further review.</li>
+            </ul>
+            <label className="attestation-check">
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+              <span>I have read, understand, and agree to this statement.</span>
+            </label>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="ex-sign">Sign by typing your full name</label>
+              <input
+                id="ex-sign"
+                autoComplete="off"
+                placeholder="Type your full name to sign"
+                value={signature}
+                onChange={(e) => setSignature(e.target.value)}
+              />
+            </div>
+          </section>
+
           {error && <div className="banner crit" role="alert">{error}</div>}
           <button className="btn primary" style={{ width: '100%', marginTop: 6 }} disabled={phase === 'submitting'} onClick={begin}>
             {phase === 'submitting' ? 'Starting…' : 'Start exam'}
