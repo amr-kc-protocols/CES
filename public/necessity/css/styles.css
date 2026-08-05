@@ -25,7 +25,10 @@
 }
 
 :root {
-  --navy: #1f3864;
+  /* Aligned to the host app's masthead navy (src/index.css --navy) so the
+     two headers do not sit one above the other in near-but-not-quite the same
+     colour. Upstream is #1f3864. See the changelog in this directory. */
+  --navy: #20395a;
   --navy-2: #2b4a80;
   --ink: #16191d;
   --muted: #5b6470;

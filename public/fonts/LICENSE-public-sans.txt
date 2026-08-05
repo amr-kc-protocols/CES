@@ -1,0 +1,15 @@
+Public Sans — SIL Open Font License 1.1
+https://github.com/uswds/public-sans
+
+Public Sans is a strong, neutral, principles-driven, open source typeface for
+text or display, based on Libre Franklin. It is the typeface of the U.S. Web
+Design System, and is in use on ems.gov.
+
+Copyright (c) 2015 Impallari Type (Libre Franklin)
+Copyright (c) 2019 U.S. General Services Administration (Public Sans)
+
+Licensed under the SIL Open Font License, Version 1.1.
+Full text: https://openfontlicense.org/
+
+Bundled here as a single variable woff2 (latin subset) rather than loaded from
+a CDN, because this app must render correctly with the network switched off.

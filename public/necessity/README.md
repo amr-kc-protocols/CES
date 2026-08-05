@@ -98,7 +98,9 @@ Sibling, not a fork of the product. It shares:
   crew, position, transfer method, level of service and PCS extraction, and a
   completeness check weighted toward the fields this rubric reads
 - `js/store.js` — identical but for the IndexedDB name
-- `css/styles.css` — same base, with additions appended
+- `css/styles.css` — same base, with additions appended, and `--navy` set to
+  the host app's masthead navy so the two headers do not stack in near-but-not-
+  quite the same colour
 - `lib/` — its own copy of pdf.js and SheetJS
 
 It shares no data. Separate IndexedDB (`ems-necessity-review`), separate charts.

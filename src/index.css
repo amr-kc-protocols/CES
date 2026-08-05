@@ -1,21 +1,47 @@
+/* ---------------------------------------------------------------------------
+ * Public Sans — the typeface of the U.S. Web Design System, and the one
+ * ems.gov sets its pages in. Self-hosted rather than pulled from a CDN
+ * because this app has to render correctly with the network switched off,
+ * which is most of a shift in a basement or a rural county.
+ *
+ * One variable file covers every weight we use: 26 KB for 400 through 800.
+ * Licence in public/fonts/LICENSE-public-sans.txt.
+ * ------------------------------------------------------------------------ */
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/public-sans-var.woff2') format('woff2');
+}
+
 :root {
-  /* Brand */
-  --navy: #0b2e4f;
-  --navy-700: #0f3a63;
-  --navy-600: #16497b;
+  /* ---- Brand -------------------------------------------------------------
+   * Navy and the pale blue are sampled from ems.gov itself. The red is AMR's
+   * own #e11d2e rather than ems.gov's brick #bb4241 — the structure is
+   * borrowed, the brand is not. Swap --red here to change the band. */
+  --navy: #20395a;
+  --navy-700: #183b5d;
+  --navy-600: #1a4480;
+  --navy-900: #16293f;
   --red: #e11d2e;
   --red-700: #b91626;
 
-  /* Surfaces */
-  --bg: #f4f6f9;
+  /* Surfaces. ems.gov sets body copy on white over a pale blue field; this
+     app is card-based, so the field goes behind and the cards stay white. */
+  --bg: #eef2f8;
+  --pale: #e3edfc;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --surface-2: #f5f7fb;
+  --border: #d6dbe3;
+  --border-strong: #a9b2bf;
+  /* The grey rule under every page title. Straight off ems.gov. */
+  --rule: #a3a3a3;
 
   /* Text */
-  --text: #0f172a;
-  --text-muted: #64748b;
+  --text: #39404f;
+  --text-strong: #1b2534;
+  --text-muted: #5b6472;
   --text-invert: #ffffff;
 
   /* Status */
@@ -25,23 +51,27 @@
   --warn-bg: #fef3c7;
   --crit: #dc2626;
   --crit-bg: #fee2e2;
-  --info: #2563eb;
-  --info-bg: #dbeafe;
-  --muted-bg: #f1f5f9;
+  --info: #1a4480;
+  --info-bg: #e3edfc;
+  --muted-bg: #f0f3f8;
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 2px 10px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 8px 30px rgba(15, 23, 42, 0.12);
-  --ring: rgba(22, 73, 123, 0.22);
-  --navy-tint: rgba(22, 73, 123, 0.07);
-  --nav-h: 60px;
+  /* USWDS is nearly square. Keeping 2px rather than 0 stops inputs looking
+     like a 1996 form while still reading as institutional. */
+  --radius: 3px;
+  --radius-sm: 2px;
+  /* Borders carry the structure now, so shadows are almost gone. */
+  --shadow: 0 1px 2px rgba(27, 37, 52, 0.06);
+  --shadow-lg: 0 10px 34px rgba(27, 37, 52, 0.18);
+  --ring: rgba(26, 68, 128, 0.28);
+  --navy-tint: rgba(32, 57, 90, 0.06);
+  --nav-h: 64px;
 
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
-    Arial, sans-serif;
+  font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, Helvetica, Arial, sans-serif;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
+
 
 * {
   box-sizing: border-box;
@@ -68,17 +98,46 @@ body {
   outline-offset: 2px;
 }
 
+/* Links are underlined. On a government site that is an accessibility rule;
+   here it is simply the fastest way to tell a link from bold text on a phone
+   screen in daylight. Navigation chrome opts out via .link-plain. */
 a {
   color: var(--navy-600);
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
 }
+
+a:hover { color: var(--navy); }
+
+/* Anything that reads as a control rather than as a link in prose. An
+   underlined button looks broken, and every one of these is a button, a tab,
+   or a whole tappable row. */
+.tabbar a,
+a.btn,
+.link-btn,
+.tool-switch a,
+.list a.row,
+a.row,
+a.pill,
+a.cv-ext,
+a.plain { text-decoration: none; }
 
 h1,
 h2,
 h3 {
   margin: 0;
-  line-height: 1.2;
-  letter-spacing: -0.015em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+/* Body copy sits at 16px with generous leading — ems.gov runs long text at a
+   size you can read at arm's length, and so does most of this app. */
+body {
+  font-size: 16px;
+  line-height: 1.55;
 }
 
 button {
@@ -125,34 +184,40 @@ input[type='date']::-webkit-date-and-time-value {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: linear-gradient(180deg, var(--navy-700), var(--navy));
+  /* Flat, not gradient. USWDS mastheads are one solid colour. */
+  background: var(--navy);
   color: var(--text-invert);
   padding: env(safe-area-inset-top) 16px 0;
   height: calc(var(--nav-h) + env(safe-area-inset-top));
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: var(--shadow);
-  /* AMR red brand line under the header. */
-  border-bottom: 3px solid var(--red);
+  box-shadow: none;
+  /* The red band. On ems.gov this strip carries the site search; here it is
+     a solid rule, and it is the single strongest borrowed cue — a deep navy
+     masthead cut off by a saturated red edge. 3px read as a hairline; 5px
+     reads as a band. */
+  border-bottom: 5px solid var(--red);
 }
 
 .topbar .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  line-height: 1.2;
+  gap: 11px;
+  /* Heavy and tight, like a wordmark rather than a page heading. */
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   /* Must be allowed to shrink, or the sync chip pushes the title into extra
      lines that overflow the fixed-height bar and clip. */
   min-width: 0;
 }
 
 .topbar .brand img {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
+  width: 34px;
+  height: 34px;
+  border-radius: 3px;
   flex: none;
 }
 
@@ -164,11 +229,14 @@ input[type='date']::-webkit-date-and-time-value {
   text-overflow: ellipsis;
 }
 
+/* The "Powered by NHTSA's Office of EMS" slot: lighter, wider, underneath. */
 .topbar .brand small {
-  font-weight: 500;
-  opacity: 0.75;
-  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.82;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
   display: block;
+  margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -180,7 +248,11 @@ input[type='date']::-webkit-date-and-time-value {
 
 /* On a phone the subtitle is decorative — drop it so the name stays whole. */
 @media (max-width: 470px) {
-  .topbar .brand small { display: none; }
+  /* Kept, not hidden: the lockup subtitle is part of the masthead, and with
+     two markets it is also the line that says what this app is. It shrinks
+     instead. */
+  .topbar .brand small { font-size: 11px; }
+  .topbar .brand { font-size: 17px; }
   /* Sync chip keeps its state word but sheds the trailing instruction, which
      the title tag and the tap itself already carry. */
   .chip-extra { display: none; }
@@ -230,7 +302,8 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 .tabbar a.active {
-  color: var(--navy);
+  color: var(--navy-700);
+  font-weight: 700;
 }
 
 .tabbar a.active .icon {
@@ -238,16 +311,16 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 /* Small indicator bar along the top edge of the active tab. */
+/* Squared indicator, full cell width, heavier — matches the flat chrome. */
 .tabbar a.active::after {
   content: '';
   position: absolute;
   top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 44px;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: var(--navy);
+  left: 6px;
+  right: 6px;
+  height: 4px;
+  border-radius: 0;
+  background: var(--red);
 }
 
 /* On wide screens the tabs cluster in the middle instead of stretching. */
@@ -347,37 +420,73 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 /* ---------- Cards ---------- */
+/* Structure comes from the border now, not a shadow. USWDS surfaces are
+   flat and squared; the soft floating card is the thing that made this read
+   as a consumer app rather than a clinical record. */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 16px;
+  box-shadow: none;
+  padding: 18px;
 }
 
 .card + .card {
   margin-top: 14px;
 }
 
+/* Small, spaced, and now navy rather than grey — on ems.gov these act as
+   structure, not as captions. */
 .section-title {
-  font-size: 13px;
+  font-size: 12.5px;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--text-muted);
+  letter-spacing: 0.09em;
+  color: var(--navy-700);
   font-weight: 700;
-  margin: 22px 2px 10px;
+  margin: 26px 2px 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
 }
 
+/* The ems.gov page-title treatment: a large bold navy heading with a heavy
+   grey rule under it. The rule is what makes the page feel like a document
+   rather than a dashboard, and it costs one pseudo-element. */
 .page-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
+  /* Wraps rather than squeezing: on a phone a two-button title row otherwise
+     stacks the actions into a narrow column and drags the rule down with it. */
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  position: relative;
+}
+
+.page-head > :first-child { flex: 1 1 15rem; }
+
+.page-head::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  /* Partial width, as on ems.gov — a full-bleed rule reads as a divider
+     between sections instead of as part of the title. */
+  width: min(320px, 70%);
+  height: 4px;
+  background: var(--rule);
 }
 
 .page-head h1 {
-  font-size: 22px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.028em;
+  color: var(--navy-700);
+}
+
+@media (max-width: 470px) {
+  .page-head h1 { font-size: 26px; }
 }
 
 .subtle {
@@ -397,12 +506,14 @@ input[type='date']::-webkit-date-and-time-value {
   padding: 9px 14px;
   /* Thumb-sized: the whole app is used one-handed on a phone, often in a
      moving truck or with a glove on. */
-  min-height: 40px;
+  min-height: 42px;
   border-radius: var(--radius-sm);
-  font-weight: 600;
-  font-size: 14px;
+  /* USWDS buttons are heavy and squared. Bumping the weight and dropping the
+     shadow is most of what separates a government control from a SaaS one. */
+  font-weight: 700;
+  font-size: 15px;
   white-space: nowrap;
-  box-shadow: 0 1px 1.5px rgba(15, 23, 42, 0.05);
+  box-shadow: none;
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.06s;
 }
 
@@ -417,10 +528,11 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 .btn.primary {
-  background: linear-gradient(180deg, var(--navy-600), var(--navy));
-  border-color: var(--navy);
+  /* Flat, like every other USWDS surface. */
+  background: var(--navy-600);
+  border-color: var(--navy-600);
   color: #fff;
-  box-shadow: 0 1px 3px rgba(11, 46, 79, 0.35);
+  box-shadow: none;
 }
 
 .btn.primary:hover {
@@ -848,11 +960,13 @@ span.att-cell {
 .spacer { flex: 1; }
 
 .banner {
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 13px;
-  margin-bottom: 12px;
-  border-left: 3px solid transparent;
+  background: var(--pale);
+  border: 1px solid #c6d9f4;
+  /* Thick leading edge — USWDS alerts are identified by the bar, not a tint. */
+  border-left: 6px solid var(--navy-600);
+  border-radius: 0;
+  padding: 14px 16px;
+  color: var(--text);
 }
 .banner.info { background: var(--info-bg); color: #1e3a8a; border-left-color: var(--info); }
 .banner.warn { background: var(--warn-bg); color: #92400e; border-left-color: var(--warn); }
