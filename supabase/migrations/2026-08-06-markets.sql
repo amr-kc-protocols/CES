@@ -202,6 +202,66 @@ create policy "records readable by role"
 
 
 -- ============================================================================
+-- 4b. the exam tables — outside `records`, so the fence above does not reach
+-- ============================================================================
+--
+-- The AEMT selection exam does not use the `records` table. It has its own
+-- `exam_questions` and `exam_attempts`, so section 3's policy — scoped to
+-- `public.records` — leaves them completely unfenced. Without this section a
+-- Wichita admin would read every Kansas City candidate's name, email,
+-- responses and score, which is precisely the data the split exists to
+-- separate.
+--
+-- `exam_questions` is deliberately left shared. It is a 120-item curriculum
+-- bank, identical for both operations, and duplicating it would mean
+-- maintaining two copies of the same questions.
+
+alter table public.exam_attempts add column if not exists market text;
+update public.exam_attempts set market = 'kc' where market is null;
+alter table public.exam_attempts alter column market set default 'kc';
+alter table public.exam_attempts alter column market set not null;
+
+alter table public.exam_attempts drop constraint if exists exam_attempts_market_check;
+alter table public.exam_attempts add constraint exam_attempts_market_check
+  check (market in ('kc', 'wichita'));
+
+drop policy if exists "admin reads exam attempts" on public.exam_attempts;
+create policy "admin reads exam attempts"
+  on public.exam_attempts for select
+  to authenticated
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
+
+drop policy if exists "admin manages exam attempts" on public.exam_attempts;
+create policy "admin manages exam attempts"
+  on public.exam_attempts for all
+  to authenticated
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  )
+  with check (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
+
+-- LEFT OPEN, on purpose. A candidate sitting the exam is anonymous —
+-- `exam_start(p_name, p_email)` is granted to `anon`, so there is no
+-- `current_market()` to read and new attempts take the column default of 'kc'.
+--
+-- That is correct today: every attempt on record is a Kansas City one and
+-- Wichita has no candidates. It stops being correct the day Wichita runs a
+-- selection round, which needs `exam_start` to take a market and the candidate
+-- link to carry it. Not done here because it changes a function signature and
+-- the client, and it is not needed until Wichita has someone to test.
+--
+-- The one-attempt-per-email rule inside exam_start is also market-blind, and
+-- should probably stay that way: one person, one attempt.
+
+
+-- ============================================================================
 -- 5. assigning people — the decisions, left for you to make
 -- ============================================================================
 --
