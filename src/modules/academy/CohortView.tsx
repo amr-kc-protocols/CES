@@ -30,6 +30,7 @@ import {
   toggleWaiver,
   setModuleDate,
   fieldProgress,
+  agendaProgress,
   useRidesFor,
   useEvalsFor,
   useSkillCheckFor,
@@ -37,6 +38,8 @@ import {
 } from './academyStore'
 import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
+import { HAS_FTO_AGENDA, trackById } from '../../data/ftoAgenda'
+import { HAS_FIELD_OBJECTIVES } from '../../data/ftObjectives'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
 import AttendanceView from './AttendanceView'
@@ -421,9 +424,20 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/evoc-track`} className="btn sm">
               🚗 EVOC track · {passedOf(evocCheck)}/{SHEETS['evoc-track'].skills.length}
             </Link>
-            {FIELD_OBJECTIVES_ENABLED && (
+            {FIELD_OBJECTIVES_ENABLED && HAS_FIELD_OBJECTIVES && (
               <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">
                 📋 Field checklist · {fieldProgress(trainee).done}/{fieldProgress(trainee).total} objectives
+              </Link>
+            )}
+            {HAS_FTO_AGENDA && (
+              <Link to={`/academy/${trainee.cohortId}/agenda/${trainee.id}`} className="btn sm">
+                🚑 FTO agenda ·{' '}
+                {(() => {
+                  const track = trackById(trainee.ftoTrack?.track as never)
+                  if (!track) return 'no track yet'
+                  const p = agendaProgress(trainee, track)
+                  return `${track.label} ${p.daysComplete}/${p.days} days`
+                })()}
               </Link>
             )}
             {surveyDate ? (

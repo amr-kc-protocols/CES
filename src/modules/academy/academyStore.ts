@@ -16,6 +16,7 @@ import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
 import { PHASE2_TEMPLATE, educationMinutes, timelineFromBlocks } from '../../data/academyPhase2'
 import { dayScheduledHours } from './calendar'
 import { FT_SLOTS, requiredMarks, sectionsFor } from '../../data/ftObjectives'
+import type { AgendaTrack } from '../../data/ftoAgenda'
 import type {
   AcademyCohort,
   AcademyDay,
@@ -655,6 +656,124 @@ export function fieldProgress(t: Trainee): FieldProgress {
     }
   }
   return { done, total }
+}
+
+// ----- Wichita FTO orientation agenda ------------------------------------------
+// The day-by-day agenda, as opposed to the A–G objectives page above. See
+// src/data/ftoAgenda.ts for why these are separate documents rather than one.
+
+/**
+ * Put a trainee on a track, or move them off it.
+ *
+ * Recorded with the date and who chose, because nothing decides this
+ * automatically — it is a judgement call about how much orientation a person
+ * needs, and six months later somebody will want to know who made it.
+ *
+ * Changing track keeps existing marks. Day 1 and 2 are identical across both
+ * tracks and the later days share ids where they share content, so a hire
+ * moved from Red to Green mid-orientation does not lose the shifts they have
+ * already done. Marks on days that no longer exist stay stored and simply
+ * stop being shown, which is recoverable if the track is switched back.
+ */
+export function setFtoTrack(traineeId: string, track: string | null, by?: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      if (!track) {
+        const { ftoTrack: _drop, ...rest } = t
+        return rest as Trainee
+      }
+      return { ...t, ftoTrack: { track, date: todayISO(), by: by?.trim() || undefined } }
+    }),
+  }))
+}
+
+/** Sign off one agenda item, or clear it. Stamped with the active FTO. */
+export function toggleAgendaItem(traineeId: string, itemId: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      const marks = { ...t.agendaMarks }
+      if (marks[itemId]) delete marks[itemId]
+      else marks[itemId] = { date: todayISO(), fto: t.activeFto?.trim() || undefined }
+      return { ...t, agendaMarks: marks }
+    }),
+  }))
+}
+
+/** The FTO's comments for one day of the agenda. */
+export function setAgendaComments(traineeId: string, day: number, text: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) =>
+      t.id === traineeId ? { ...t, agendaComments: { ...t.agendaComments, [day]: text } } : t,
+    ),
+  }))
+}
+
+/** The "skills/procedures reviewed" write-in lines for one day. */
+export function setAgendaSkills(traineeId: string, day: number, text: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) =>
+      t.id === traineeId ? { ...t, agendaSkills: { ...t.agendaSkills, [day]: text } } : t,
+    ),
+  }))
+}
+
+/**
+ * The release-or-remediate recommendation at the foot of the agenda.
+ *
+ * Passing the id already recorded clears it — the two boxes are mutually
+ * exclusive on paper, and an FTO who ticks the wrong one needs a way back
+ * that does not involve picking the other one by mistake.
+ */
+export function setAgendaRecommendation(traineeId: string, id: string | null, note?: string): void {
+  setState((db) => ({
+    ...db,
+    trainees: db.trainees.map((t) => {
+      if (t.id !== traineeId) return t
+      if (!id || t.agendaRecommendation?.id === id) {
+        const { agendaRecommendation: _drop, ...rest } = t
+        return rest as Trainee
+      }
+      return {
+        ...t,
+        agendaRecommendation: {
+          id,
+          date: todayISO(),
+          fto: t.activeFto?.trim() || undefined,
+          note: note?.trim() || undefined,
+        },
+      }
+    }),
+  }))
+}
+
+export interface AgendaProgress {
+  /** Items signed off on days that exist in the assigned track. */
+  done: number
+  total: number
+  /** Days where every item is signed off. */
+  daysComplete: number
+  days: number
+}
+
+/** Agenda completion for a trainee against their assigned track. */
+export function agendaProgress(t: Trainee, track: AgendaTrack | undefined): AgendaProgress {
+  if (!track) return { done: 0, total: 0, daysComplete: 0, days: 0 }
+  let done = 0
+  let total = 0
+  let daysComplete = 0
+  for (const d of track.days) {
+    const marked = d.items.filter((i) => t.agendaMarks?.[i.id]).length
+    done += marked
+    total += d.items.length
+    if (d.items.length && marked === d.items.length) daysComplete++
+  }
+  return { done, total, daysComplete, days: track.days.length }
 }
 
 // ----- selectors ---------------------------------------------------------------

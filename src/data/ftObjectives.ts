@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Credential } from '../types'
+import { activeMarket, type Market } from '../lib/market'
 
 export interface FTObjective {
   id: string
@@ -25,7 +26,7 @@ export interface FTSection {
 
 export const FT_SLOTS = 6
 
-export const FT_SECTIONS: FTSection[] = [
+const KC_FT_SECTIONS: FTSection[] = [
   {
     id: 'A',
     title: 'A. Operations & Truck',
@@ -156,7 +157,7 @@ export interface ExposureGroup {
 
 export const EXPOSURE_SLOTS = 10
 
-export const EXPOSURE_GROUPS: ExposureGroup[] = [
+const KC_EXPOSURE_GROUPS: ExposureGroup[] = [
   {
     label: 'BLS',
     types: [
@@ -187,3 +188,39 @@ export const EXPOSURE_GROUPS: ExposureGroup[] = [
     types: ['NICU / Maternal-Fetal / ECMO / Impella / IABP', 'Long-distance (>100 mi)'],
   },
 ]
+
+
+/* ---------------------------------------------------------------------------
+ * Per-market selection.
+ *
+ * Everything above is Kansas City's document, transcribed from the AMR KC IFT
+ * Field Training Objectives Page, and it names Kansas City throughout: the
+ * hospitals to navigate to without GPS (C1), the posts to locate (C2), the
+ * downtown airport tour (C7), the "KC Metro standard" for enroute time (B7),
+ * and the controlled-substance sections for KC / Linn / Cass (G6).
+ *
+ * None of that is true in Wichita. This file is compiled into the bundle
+ * rather than stored in `records`, so the market fence in the database never
+ * reaches it — the same route by which a Wichita admin once saw a Kansas City
+ * FTO roster. The split has to happen here.
+ *
+ * Wichita is empty rather than adapted. It runs the day-by-day FTO orientation
+ * agenda in `ftoAgenda.ts` instead, which is its own document with its own two
+ * tracks; whether it also wants a cumulative objectives page is an open
+ * question for Wichita to answer. An empty list gives the screens a clear
+ * "not built yet" state, which is honest. A Wichita edition of Kansas City's
+ * objectives, with the hospital names swapped out and the targets kept, would
+ * look finished and would be nobody's actual programme.
+ *
+ * Read once at module load, which is safe because switching markets reloads
+ * the page (see setActiveMarket).
+ * ------------------------------------------------------------------------ */
+
+const SECTIONS_BY_MARKET: Record<Market, FTSection[]> = { kc: KC_FT_SECTIONS, wichita: [] }
+const EXPOSURE_BY_MARKET: Record<Market, ExposureGroup[]> = { kc: KC_EXPOSURE_GROUPS, wichita: [] }
+
+export const FT_SECTIONS: FTSection[] = SECTIONS_BY_MARKET[activeMarket()]
+export const EXPOSURE_GROUPS: ExposureGroup[] = EXPOSURE_BY_MARKET[activeMarket()]
+
+/** Does this market run the cumulative A–G objectives page at all? */
+export const HAS_FIELD_OBJECTIVES = FT_SECTIONS.length > 0

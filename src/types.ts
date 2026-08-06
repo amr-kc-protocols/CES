@@ -169,6 +169,47 @@ export interface Trainee {
   activeFto?: string
   /** ISO date the New Hire Orientation (exit) survey was submitted. */
   exitSurveyDate?: string
+  // ----- Wichita FTO orientation agenda -------------------------------------
+  // Kansas City runs the A–G objectives page above instead; these stay unset
+  // there. See src/data/ftoAgenda.ts for why the two are different documents.
+  /**
+   * Which agenda track this hire is on. Assigned by an FTO or manager, never
+   * inferred — nothing in the source documents says what decides it, and a
+   * guess puts someone on the wrong length of orientation.
+   */
+  ftoTrack?: FtoTrackAssignment
+  /** Agenda item id -> the mark recording who signed it off and when. */
+  agendaMarks?: Record<string, AgendaMark>
+  /** Day number -> the FTO's free-text comments for that shift. */
+  agendaComments?: Record<number, string>
+  /** Day number -> skills/procedures reviewed, the write-in lines. */
+  agendaSkills?: Record<number, string>
+  /** The release-or-remediate recommendation at the foot of the agenda. */
+  agendaRecommendation?: AgendaRecommendation
+}
+
+export interface FtoTrackAssignment {
+  /** 'red' | 'green' — kept loose here so types.ts owns no agenda content. */
+  track: string
+  /** ISO date the track was assigned. */
+  date: string
+  /** Who assigned it. Recorded because the choice is a judgement call. */
+  by?: string
+}
+
+export interface AgendaMark {
+  /** ISO date the item was signed off. */
+  date: string
+  /** FTO initials or name, stamped from the agenda's active-FTO field. */
+  fto?: string
+}
+
+export interface AgendaRecommendation {
+  /** 'remediate' | 'release'. */
+  id: string
+  date: string
+  fto?: string
+  note?: string
 }
 
 /** One filled slot on a field objective — an FTO-witnessed occurrence. */

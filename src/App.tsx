@@ -6,6 +6,8 @@ import { useCan } from './lib/role'
 import Layout from './components/Layout'
 import Dashboard from './modules/dashboard/Dashboard'
 import { QA_ENABLED, CE_ENABLED, FIELD_OBJECTIVES_ENABLED } from './config/features'
+import { HAS_FTO_AGENDA } from './data/ftoAgenda'
+import { HAS_FIELD_OBJECTIVES } from './data/ftObjectives'
 
 // Route components are code-split: each screen loads on demand, so the initial
 // payload is just the shell + dashboard. Layout wraps <Outlet> in Suspense.
@@ -13,6 +15,7 @@ const CETracker = lazy(() => import('./modules/ce/CETracker'))
 const AcademyList = lazy(() => import('./modules/academy/AcademyList'))
 const CohortView = lazy(() => import('./modules/academy/CohortView'))
 const FieldChecklistView = lazy(() => import('./modules/academy/FieldChecklistView'))
+const FtoAgendaView = lazy(() => import('./modules/academy/FtoAgendaView'))
 const ExitSurveyView = lazy(() => import('./modules/academy/ExitSurveyView'))
 const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
 const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
@@ -115,8 +118,11 @@ export default function App() {
         <Route path="academy" element={<AcademyList />} />
         <Route path="academy/ftos" element={<FtoScheduleView />} />
         <Route path="academy/:cohortId" element={<CohortView />} />
-        {FIELD_OBJECTIVES_ENABLED && (
+        {FIELD_OBJECTIVES_ENABLED && HAS_FIELD_OBJECTIVES && (
           <Route path="academy/:cohortId/checklist/:traineeId" element={<FieldChecklistView />} />
+        )}
+        {HAS_FTO_AGENDA && (
+          <Route path="academy/:cohortId/agenda/:traineeId" element={<FtoAgendaView />} />
         )}
         <Route path="academy/:cohortId/eval/:traineeId" element={<DailyEvalView />} />
         <Route path="academy/:cohortId/skills/:traineeId" element={<SkillSheetView />} />
