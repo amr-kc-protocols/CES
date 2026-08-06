@@ -114,7 +114,7 @@ starts, so the words for that conversation ship with it. It also goes into the
 workbook and onto the print sheet.
 
 ```
-K. Vance — incident FB-001
+Kim Vance — response 30100001
 
 1. Administrative reason with no clinical reason beside it. The record gives
    "facility requested" and nothing clinical. This is the pattern that reads
@@ -138,16 +138,32 @@ something is wrong stops being read.
 
 ### Who the author is
 
-The **author** is the technician who took patient care and wrote the narrative
-— `Primary Patient Caregiver` in ImageTrend, or an `author` column on import.
-Deliberately not the crew: counting a chart against everyone who was on the
-truck tells a partner they write badly when they may not have written a word
-of it.
+The **author** is whoever wrote the narrative — `Crew Member Completing this
+Report` in ImageTrend, or an `author` column on import. Deliberately not the
+crew: counting a chart against everyone who was on the truck tells a partner
+they write badly when they may not have written a word of it.
+
+The export renders that field as `Vance, Kim (00000)`, and the column window
+sometimes catches the tail of the cell above it, so the raw value can arrive as
+`ure. Vance, Kim (00000)` — the end of "Signature", the name, and an employee
+number. `cleanName()` in `js/parser.js` reduces that to
+`Kim Vance`: first-name-first because that is how every other name in this
+app reads, and without the employee number, which identifies the person more
+than a coaching message needs to and is not what a colleague would call them.
 
 Where a chart names no author the first crew member is assumed, and it is
 labelled **assumed** everywhere it appears — in the grid, in the drawer, and as
 its own column in the workbook. Coaching the wrong person is worse than having
 to ask who wrote it.
+
+### How a chart is referred to
+
+By its **EMS response number** — the eight-digit number crews already scan onto
+trailing paperwork and quote to each other. `chartRef()` in `js/necessity.js`
+falls back to the incident number, then to the date of service, so a chart is
+never addressed as "(none)". The incident number is still shown beneath the
+response number in the grid and is still searchable; it is simply not what a
+message to a crew member leads with.
 
 ## Coaching view
 
@@ -157,7 +173,7 @@ everyone is bad.
 
 - **What this sample misses most** — element gaps ranked by how often they are
   absent. The top row is the one worth a shift briefing.
-- **By crew member** — ordered by chart count, *not* by score. This is
+- **By report author** — ordered by chart count, *not* by score. This is
   employment data about identifiable staff, and the useful output is "three
   people never record functional status", a class to teach — not a league table.
   Samples under four charts are labelled as such.
@@ -218,6 +234,11 @@ Two findings from the real export worth knowing:
   Incident Type are the pickup facility and its type.
 - **The author is `Crew Member Completing this Report`**, which is exactly the
   field this tool needs and not the same as the crew list.
+- **`EMS Response #` is the number crews actually use.** Its label wraps across
+  three lines (`EMS` / `Response` / `# :`), which is exactly the shape a
+  per-label regex cannot see and `layoutPairs()` can. It is distinct from the
+  incident number and is what the tool leads with — see *How a chart is
+  referred to* above.
 
 Validated against three real "EMS Patient Care Report (3.5)" charts: **100%
 parse completeness on all three**, with transport mode, patient position,
@@ -233,8 +254,7 @@ it — see `ALIASES` in `js/parser.js`.
   banks and the weights should be reviewed by whoever owns billing compliance —
   they encode a house opinion about what a reviewer looks for, and that opinion
   should be theirs.
-- The PDF field anchors above need checking against a real IFT export.
-- The crew-trend screen names identifiable employees. Confirm that is
+- The author-trend screen names identifiable employees. Confirm that is
   appropriate use before it is shown to anyone but the reviewer.
 
 ## Privacy

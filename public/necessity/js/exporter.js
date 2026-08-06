@@ -8,7 +8,7 @@
  * ask, so the sheet can be handed to a crew member and read without the app.
  * ==========================================================================*/
 
-import { ELEMENTS, STATUS, crewTrends, elementGaps, authorOf, feedbackText } from './necessity.js';
+import { ELEMENTS, STATUS, crewTrends, elementGaps, authorOf, feedbackText, chartRef } from './necessity.js';
 
 const XLSX = () => window.XLSX;
 
@@ -36,6 +36,7 @@ export function buildWorkbook(rows, all = rows) {
   /* --- 1. Chart review ---------------------------------------------------- */
   const chartRows = rows.map(({ record: r, evaluation: ev, review = {} }) => {
     const out = {
+      'EMS response #': r.responseNo || '',
       Incident: r.incident || '',
       'Date of service': r.dateOfService || '',
       Origin: r.originName || '',
@@ -180,7 +181,7 @@ export function printSheet(rows) {
     return `<section class="sheet">
       <header>
         <div>
-          <h1>Incident ${esc(r.incident || '(none)')}</h1>
+          <h1>${esc(chartRef(r).label === 'response' ? 'Response' : 'Incident')} ${esc(chartRef(r).value)}</h1>
           <p>${esc(r.dateOfService)} · ${esc(r.originName || 'origin not recorded')} → ${esc(r.destination || 'destination not recorded')} · ${esc(r.levelOfService || r.serviceRequested || 'level not recorded')}</p>
           <p>Author: ${esc(authorOf(r).name || 'not recorded')}${authorOf(r).name && !authorOf(r).certain ? ' (assumed from crew)' : ''} · Crew: ${esc(r.crew || 'not recorded')}</p>
         </div>

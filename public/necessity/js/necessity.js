@@ -890,6 +890,24 @@ export function authorOf(rec) {
   return { name: '', certain: false };
 }
 
+/**
+ * What to call a chart when talking to a crew.
+ *
+ * The EMS Response number is the one crews recognise — it is what the IFT
+ * handbook has them scan onto trailing documents, and what they quote to each
+ * other and to dispatch. The incident number is an ImageTrend key; saying it
+ * out loud to a medic means nothing. Falls back to the incident number, then
+ * to the date, so a chart is never referred to as "(none)".
+ */
+export function chartRef(rec) {
+  const resp = String(rec.responseNo ?? '').trim();
+  if (resp) return { label: 'response', value: resp };
+  const inc = String(rec.incident ?? '').trim();
+  if (inc) return { label: 'incident', value: inc };
+  const d = String(rec.dateOfService ?? '').trim();
+  return { label: 'chart', value: d || '(unidentified)' };
+}
+
 /** Cap on feedback lines. Three is what someone reads; eight is what they skim. */
 const FEEDBACK_LIMIT = 3;
 
@@ -910,7 +928,7 @@ export function feedbackFor(rec, ev, limit = FEEDBACK_LIMIT) {
   const lines = [];
 
   if (ev.score == null) {
-    return { author, incident: rec.incident || '', lines: [], more: 0, clean: false, outOfScope: true };
+  return { author, ref: chartRef(rec), lines: [], more: 0, clean: false, outOfScope: true };
   }
 
   // Contradictions and audit triggers first — severity 3 only.
@@ -928,7 +946,7 @@ export function feedbackFor(rec, ev, limit = FEEDBACK_LIMIT) {
   const shown = lines.slice(0, limit);
   return {
     author,
-    incident: rec.incident || '',
+    ref: chartRef(rec),
     lines: shown,
     more: Math.max(0, lines.length - shown.length),
     clean: lines.length === 0,
@@ -941,7 +959,7 @@ export function feedbackText(rec, ev, limit = FEEDBACK_LIMIT) {
   const f = feedbackFor(rec, ev, limit);
   if (f.outOfScope) return '';
   const who = f.author.name || 'crew';
-  const head = `${who} — incident ${f.incident || '(no number)'}`;
+  const head = `${who} — ${f.ref.label} ${f.ref.value}`;
   if (f.clean) {
     return `${head}\n\nNothing to change on this one. All seven medical-necessity elements are established.`;
   }

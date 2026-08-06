@@ -3,7 +3,7 @@
  * ==========================================================================*/
 
 import { ingestFile } from './parser.js';
-import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText } from './necessity.js';
+import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText, chartRef } from './necessity.js';
 import * as store from './store.js';
 import { downloadWorkbook, printSheet } from './exporter.js';
 
@@ -213,7 +213,7 @@ function applyFilters() {
     if (q) {
       const hay = [
         r.incident, r.impression, r.narrative, r.destination, r.originName,
-        r.patientName, r.crew, r.author, r.levelOfService, r.dispatchNature,
+        r.patientName, r.crew, r.author, r.levelOfService, r.dispatchNature, r.responseNo,
       ].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
@@ -233,7 +233,8 @@ function applyFilters() {
         const p = (row.record.dateOfService || '').split('/');
         return p.length === 3 ? Number(`${p[2]}${p[0].padStart(2, '0')}${p[1].padStart(2, '0')}`) : 0;
       }
-      case 'incident': return row.record.incident || '';
+      // Sorts on what the column shows: the response number crews use.
+      case 'incident': return row.record.responseNo || row.record.incident || '';
       default: return 0;
     }
   };
@@ -316,7 +317,7 @@ function renderTable() {
 
       return `<tr data-key="${esc(row.key)}" class="${state.selected === row.key ? 'sel' : ''}">
         <td class="num">${scoreCell}</td>
-        <td><b>${esc(r.incident || '—')}</b> ${lowParse}</td>
+        <td><b>${esc(chartRef(r).value)}</b>${r.responseNo && r.incident ? `<span class="mini">inc ${esc(r.incident)}</span>` : ''} ${lowParse}</td>
         <td>${esc(r.dateOfService)}</td>
         <td><span class="trunc" title="${esc(`${r.originName || '?'} → ${r.destination || '?'}`)}">${esc(r.originName || '—')} → ${esc(r.destination || '—')}</span></td>
         <td>${esc(r.levelOfService || r.serviceRequested || '—')}</td>
@@ -385,7 +386,8 @@ function openDrawer(key) {
   state.selected = key;
   const { record: r, evaluation: ev, review = {} } = row;
 
-  $('dTitle').textContent = `Incident ${r.incident || '(none)'}`;
+  const ref = chartRef(r);
+  $('dTitle').textContent = `${ref.label === 'response' ? 'Response' : ref.label === 'incident' ? 'Incident' : 'Chart'} ${ref.value}`;
   $('dSub').textContent = `${r.dateOfService} · ${r.originName || 'origin not recorded'} → ${r.destination || 'destination not recorded'}`;
 
   const verdict = ev.score == null
@@ -420,6 +422,8 @@ function openDrawer(key) {
   const kv = [
     ['Origin', r.originName], ['Origin type', r.originType],
     ['Destination', r.destination], ['Destination reason', r.destinationReason],
+    ['EMS response #', r.responseNo],
+    ['Incident #', r.incident],
     ['Report author', authorTitle(r)],
     ['Level of service', r.levelOfService || r.serviceRequested],
     ['Transport mode', r.transportMode], ['Primary impression', r.impression],

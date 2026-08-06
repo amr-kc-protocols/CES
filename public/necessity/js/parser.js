@@ -790,6 +790,11 @@ const FIELD_PATTERNS = {
   acuity: [/initial patient acuity/i],
   destinationType: [/destination type/i],
   dateOfService: [/transport date/i, /^date of service/i],
+  // What crews actually quote to each other: the 8-digit EMS Response number
+  // from LOGIS, which is what the IFT handbook has them scan onto trailing
+  // documents. The label spans three lines in the export -- "EMS" / "Response"
+  // / "# :" -- with the value beside the first.
+  responseNo: [/ems\s*response\s*#?/i, /^response\s*#?$/i],
 };
 
 /**
@@ -810,6 +815,30 @@ const TRAILING_BLEED = /\s+\d{4,}$/;
  * the importer showed a single record.
  */
 const KEEPS_TRAILING_NUMBER = new Set(['incident', 'dateOfService']);
+
+/**
+ * Pull a person's name out of a crew-member cell.
+ *
+ * The real export renders these as "Vance, Kim (00000)", and the column window
+ * sometimes catches a tail of the preceding cell, so the raw value arrives as
+ * "ure. Vance, Kim (00000)" — the end of "Signature" plus the name plus an
+ * employee number. Addressing feedback to "ure. Vance, Kim (00000)" would be
+ * worse than not naming anyone.
+ *
+ * Reordered to "Kim Vance" so it reads the way every other name in this
+ * app does, and the employee number is dropped: it identifies the person more
+ * than the message needs to, and it is not what a colleague would call them.
+ */
+export function cleanName(raw) {
+  const v = String(raw ?? '').replace(/\(\s*\d+\s*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!v) return '';
+  const m = v.match(/([A-Z][A-Za-z''\-]{1,24}),\s*([A-Z][A-Za-z''\-]{1,24})/);
+  if (m) return `${m[2]} ${m[1]}`;
+  // No "Last, First" shape — keep alphabetic words only, so leading fragments
+  // like "ure." fall away rather than being addressed by name.
+  const words = v.split(/\s+/).filter((w) => /^[A-Z][A-Za-z''\-]{1,24}$/.test(w));
+  return words.slice(0, 3).join(' ');
+}
 
 /** First value whose label matches, or ''. */
 export function pickField(pairs, key) {
@@ -859,7 +888,10 @@ export function parseRecord(rawText) {
   const rec = {
     source: 'pdf',
     incident,
-    responseNo: (text.match(/EMS Response\s*(?:#:)?\s*(\d+)/i) || [])[1] || '',
+    responseNo:
+      (L('responseNo').match(/\d{6,}/) || [])[0] ||
+      (text.match(/EMS Response\s*(?:#:)?\s*(\d+)/i) || [])[1] ||
+      '',
     // The real export labels this "Transport Date"; the last resort is simply
     // the first date on the chart, which beats an empty field on every screen
     // that sorts or filters by it.
@@ -928,7 +960,7 @@ export function parseRecord(rawText) {
     // "Crew Member Completing this Report" in the real export — the
     // technician who took patient care and wrote the narrative.
     author:
-      L('author') ||
+      cleanName(L('author')) ||
       field(text, 'Primary Patient Caregiver', { stopAtGap: true }) ||
       field(text, 'Report Author', { stopAtGap: true }) ||
       '',
