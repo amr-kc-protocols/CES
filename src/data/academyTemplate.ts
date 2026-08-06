@@ -162,40 +162,89 @@ const KC_FACILITY_KEY_POINTS = [
  * ------------------------------------------------------------------------ */
 
 /**
- * The days that carry across.
+ * Wichita's own NEOP week, transcribed from NEOP_Calendar.docx (Sept 9–13).
  *
- * EVOC and stretcher handling are delivered against corporate standards — the
- * GMR EVOC curriculum and Safe Stretcher Handling v3.2 — so the days
- * themselves are the same in Wichita as in Kansas City, and the digital
- * check-off sheets behind them are already shared.
+ * This replaces the three-day corporate skeleton that stood here while
+ * Wichita's real schedule was outstanding. It is a different week from Kansas
+ * City's, not a variant of it: EVOC is a single Friday rather than two days,
+ * skills checks are split by credential on the Thursday, and every day closes
+ * on "Corner Stones".
  *
- * What does NOT carry across is who runs them and where. The facilitators and
- * the road-course location are Kansas City people and a Kansas City venue, so
- * those fields are left empty for Wichita to fill in rather than inherited.
+ * Day titles are ours — the source calendar labels its columns Monday through
+ * Friday and nothing else. Times and session names are verbatim.
  *
- * The other two Kansas City days — HR & Systems Onboarding and PCR
- * Documentation — are local in content as well as staffing, so Wichita builds
- * its own.
+ * One ordering note: the source Tuesday cell lists the 12:00 lunch above the
+ * 11:00 DCHARTE block. That is a layout artifact of the calendar, not a
+ * schedule, so the blocks are in clock order here.
  */
 const WICHITA_CLASSROOM_TEMPLATE: TemplateDay[] = [
   {
-    title: 'EVOC Classroom (Corporate)',
-    note: 'Materials are corporate / read-only. No CES-level planning required; classroom is delivered against the GMR EVOC standard. Facilitators to be confirmed for Wichita.',
-    blocks: [{ time: '0900–1600', title: 'EVOC classroom — GMR corporate curriculum' }],
-  },
-  {
-    title: 'EVOC Road Course (Corporate)',
-    note: 'Covered by the corporate EVOC team. Facilitators and course location to be confirmed for Wichita.',
-    blocks: [{ time: '0700–1600', title: 'EVOC road course' }],
-  },
-  {
-    title: 'Stretcher & Equipment Check-Off',
-    note: 'Runs against the Stretcher Handling deck and equipment check-off sheet (GMR Safe Stretcher Handling v3.2). Facilitators to be confirmed for Wichita.',
+    title: 'Welcome, Compliance & HR',
+    facilitators: 'Cassie Powell · Brian Powell',
+    note: 'Guests: Melissa McCaslin (working lunch) · Melissa Ellis (compliance) · Chamayn Middleton (HR).',
     blocks: [
-      { time: '0900–1200', title: 'Stretcher lab', note: 'PowerLoad + Stryker hand placement, stair chair.' },
+      { time: '0830', title: 'Welcome / intro', note: 'Connect, email.' },
+      { time: '1130', title: 'Working lunch with Melissa McCaslin' },
+      { time: '1230', title: 'Compliance with Melissa Ellis' },
+      { time: '1330', title: 'HR with Chamayn Middleton', note: 'GMR People Services, I-9.' },
+      { time: '—', title: 'Station tour' },
+      { time: '1600', title: 'Corner Stones' },
+    ],
+  },
+  {
+    title: 'Systems, Health Screening & Documentation',
+    facilitators: 'Brian Powell · Kacie Stull',
+    blocks: [
+      { time: '0830', title: 'PSTrax, Kronos, Telestaff, Zoll Respond, Teams' },
+      { time: '1000', title: 'Mask fit test · TB test · Flu shot' },
+      { time: '1100', title: 'DCHARTE narrative writing' },
       { time: '1200–1300', title: 'Lunch' },
-      { time: '1300–1530', title: 'Equipment check-off' },
-      { time: '1530–1600', title: 'Final sign-offs · retrieval quiz' },
+      { time: '1300', title: 'Scenarios' },
+      { time: '1600', title: 'Corner Stones' },
+    ],
+  },
+  {
+    title: 'ImageTrend, Handoffs & Clinical Skills',
+    facilitators: 'Cassie Powell · Kacie Stull',
+    blocks: [
+      { time: '0830', title: 'ImageTrend' },
+      { time: '1000', title: 'Verbal reports / hand-off reports' },
+      { time: '1100', title: 'Partner expectations' },
+      { time: '1200–1300', title: 'Lunch (on your own)' },
+      {
+        time: '1300',
+        title: 'Split by credential',
+        note: 'EMTs: how to be a good partner / EMT skills. Medics: vent and medication review.',
+      },
+      { time: '1500', title: 'ACLS mega code' },
+      { time: '1600', title: 'Corner Stones' },
+    ],
+  },
+  {
+    title: 'Skills Checks, NICU & Stretcher Handling',
+    facilitators: 'Cassie Powell · Alex Thomas · Spencer Callison',
+    blocks: [
+      {
+        time: '0830',
+        title: 'Skills check — split by credential',
+        note: 'Medics: cardiac monitors, IV pumps, vents, Flow-Safe II. EMTs: glucometer, nebulizers, patient movement, IV set-up.',
+      },
+      { time: '1100', title: 'NICU presentation' },
+      { time: '1200–1300', title: 'Lunch (on your own)' },
+      { time: '1300', title: 'FTO expectations during orientation' },
+      { time: '1400', title: 'Safe Stretcher Handling' },
+      { time: '1600', title: 'Corner Stones' },
+    ],
+  },
+  {
+    title: 'EVOC (Corporate)',
+    facilitators: 'Spencer Dean · Janica Haynie · Chris With · Cassie Powell',
+    note: 'Delivered against the GMR EVOC standard. Wichita runs lesson, exam and course in one day.',
+    blocks: [
+      { time: '0800', title: 'EVOC lesson' },
+      { time: '1100', title: 'EVOC exam' },
+      { time: '1200–1300', title: 'Lunch (on your own)' },
+      { time: '1300', title: 'EVOC driving course' },
     ],
   },
 ]

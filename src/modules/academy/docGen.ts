@@ -7,6 +7,7 @@ import {
   FACILITY_KEY_POINTS,
 } from '../../data/academyTemplate'
 import { CREDENTIAL_LABELS } from '../../data/academy'
+import { AGENDA_ORIENTEE_NOTE, AGENDA_RECOMMENDATIONS, type AgendaTrack } from '../../data/ftoAgenda'
 import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import { operationName } from '../../data/operations'
 import { formatDate, formatSignedAt, fromISODate, toISODate } from '../../lib/date'
@@ -195,6 +196,79 @@ export function safeFilename(s: string): string {
 }
 
 // ----- Field Training Objectives Page ---------------------------------------
+
+// ---------------------------------------------------------------------------
+// Wichita's day-by-day FTO orientation agenda, marks filled in.
+//
+// Laid out to match the source Word document rather than the app: one table
+// per day, the FTO guidance above the day it introduces, the comments box and
+// skills write-in printed with whatever the app holds, and the
+// release-or-remediate recommendation at the foot. An FTO who prints this
+// mid-orientation gets a partly-filled paper copy they can finish by hand.
+// ---------------------------------------------------------------------------
+
+export function ftoAgendaHTML(t: Trainee, track: AgendaTrack): string {
+  const shortDate = (iso: string) => {
+    const [, m, d] = iso.split('-')
+    return `${Number(m)}/${Number(d)}`
+  }
+
+  const dayHtml = track.days
+    .map((day) => {
+      const rows = day.items
+        .map((item) => {
+          const mark = t.agendaMarks?.[item.id]
+          const sub = item.sub
+            ? `<div style="margin:2px 0 0 14px;color:#444">${item.sub.map((s) => `&#9702; ${esc(s)}`).join('<br/>')}</div>`
+            : ''
+          const stamp = mark
+            ? `${mark.fto ? `${esc(mark.fto)} ` : ''}<span style="font-size:9px">${esc(shortDate(mark.date))}</span>`
+            : '&nbsp;'
+          return `<tr><td class="slot">${mark ? '&#9746;' : '&#9744;'}</td><td>${esc(item.text)}${sub}</td><td class="target">${stamp}</td></tr>`
+        })
+        .join('')
+
+      const skills = day.skillsPractice
+        ? `<p class="sig" style="margin-top:4px"><strong>Skills practice</strong> — skills/procedures reviewed:</p>
+           <div style="border:1px solid #999;min-height:44px;padding:4px 6px;white-space:pre-wrap">${esc(t.agendaSkills?.[day.day]) || '&nbsp;'}</div>`
+        : ''
+
+      return `
+        ${day.ftoNote ? `<p class="note"><strong>FTO:</strong> ${esc(day.ftoNote)}</p>` : ''}
+        <h2>Day ${day.day}: ${esc(day.title)}</h2>
+        <table>
+          <tr><th class="slot">&nbsp;</th><th>Task</th><th class="target">Signed</th></tr>
+          ${rows}
+        </table>
+        ${skills}
+        <p class="sig" style="margin-top:6px"><strong>Comments</strong></p>
+        <div style="border:1px solid #999;min-height:52px;padding:4px 6px;white-space:pre-wrap">${esc(t.agendaComments?.[day.day]) || '&nbsp;'}</div>`
+    })
+    .join('')
+
+  const rec = t.agendaRecommendation
+  const recRows = AGENDA_RECOMMENDATIONS.map(
+    (r) =>
+      `<tr><td class="slot">${rec?.id === r.id ? '&#9746;' : '&#9744;'}</td><td>${esc(r.text)}</td></tr>`,
+  ).join('')
+
+  const body = `
+    <h1>FTO Orientation Agenda</h1>
+    <p class="sub">${esc(t.name)} &middot; ${esc(CREDENTIAL_LABELS[t.credential])} &middot; <span class="badge">${esc(track.label)} — ${track.length} days</span></p>
+    <p class="note">${esc(AGENDA_ORIENTEE_NOTE)}</p>
+    <table class="meta">
+      <tr><td>Orientee</td><td><span class="line">${esc(t.name)}</span></td>
+          <td>Track assigned</td><td><span class="line">${t.ftoTrack ? esc(formatDate(t.ftoTrack.date)) : ''}${t.ftoTrack?.by ? ` by ${esc(t.ftoTrack.by)}` : ''}</span></td></tr>
+    </table>
+    ${dayHtml}
+    <h2>FTO Recommendation</h2>
+    <table>${recRows}</table>
+    ${rec ? `<p class="sub2">Recorded ${esc(formatDate(rec.date))}${rec.fto ? ` by ${esc(rec.fto)}` : ''}.</p>` : ''}
+    <p class="sig">FTO signature <span>&nbsp;</span> Date <span style="min-width:110px">&nbsp;</span></p>
+    <p class="sig">Orientee signature <span>&nbsp;</span> Date <span style="min-width:110px">&nbsp;</span></p>`
+
+  return docShell(`${t.name} — FTO Orientation Agenda`, body)
+}
 
 export function objectivesPageHTML(t: Trainee): string {
   const isMedic = t.credential === 'paramedic'
