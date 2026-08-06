@@ -3,7 +3,7 @@ import { Empty, ProgressBar } from '../../components/ui'
 import SignaturePad from '../../components/SignaturePad'
 import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
-import { SHEETS, skillsFor } from '../../data/checkoffSheets'
+import { SHEETS, skillsFor, sheetsForTrainee } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import { useCan } from '../../lib/role'
 import { printDoc, downloadDoc, checkoffSheetHTML, safeFilename } from './docGen'
@@ -38,6 +38,20 @@ export default function SkillSheetView() {
     return (
       <Empty icon="🤔" title="Trainee not found">
         <Link to="/academy" className="link-btn">Back to NEOP</Link>
+      </Empty>
+    )
+  }
+
+  // Refuse a sheet this market or credential does not run, rather than
+  // trusting the URL. Wichita runs no BLS, ALS or ventilator sheet, and an
+  // unrecognised param falls back to 'bls' — so without this a stale link or
+  // a typo renders a Kansas City form to a Wichita instructor.
+  if (!sheetsForTrainee(trainee).includes(sheet)) {
+    return (
+      <Empty icon="📋" title="Not part of this programme">
+        {SHEETS[sheet].label} is not one of the check-off sheets {trainee.name}
+        &rsquo;s operation runs.{' '}
+        <Link to={`/academy/${cohortId}`} className="link-btn">Back to the roster</Link>
       </Empty>
     )
   }
