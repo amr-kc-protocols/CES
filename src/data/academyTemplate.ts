@@ -161,7 +161,49 @@ const KC_FACILITY_KEY_POINTS = [
  * Read once at module load — switching markets reloads the page.
  * ------------------------------------------------------------------------ */
 
-const TEMPLATE_BY_MARKET: Record<Market, TemplateDay[]> = { kc: KC_CLASSROOM_TEMPLATE, wichita: [] }
+/**
+ * The days that carry across.
+ *
+ * EVOC and stretcher handling are delivered against corporate standards — the
+ * GMR EVOC curriculum and Safe Stretcher Handling v3.2 — so the days
+ * themselves are the same in Wichita as in Kansas City, and the digital
+ * check-off sheets behind them are already shared.
+ *
+ * What does NOT carry across is who runs them and where. The facilitators and
+ * the road-course location are Kansas City people and a Kansas City venue, so
+ * those fields are left empty for Wichita to fill in rather than inherited.
+ *
+ * The other two Kansas City days — HR & Systems Onboarding and PCR
+ * Documentation — are local in content as well as staffing, so Wichita builds
+ * its own.
+ */
+const WICHITA_CLASSROOM_TEMPLATE: TemplateDay[] = [
+  {
+    title: 'EVOC Classroom (Corporate)',
+    note: 'Materials are corporate / read-only. No CES-level planning required; classroom is delivered against the GMR EVOC standard. Facilitators to be confirmed for Wichita.',
+    blocks: [{ time: '0900–1600', title: 'EVOC classroom — GMR corporate curriculum' }],
+  },
+  {
+    title: 'EVOC Road Course (Corporate)',
+    note: 'Covered by the corporate EVOC team. Facilitators and course location to be confirmed for Wichita.',
+    blocks: [{ time: '0700–1600', title: 'EVOC road course' }],
+  },
+  {
+    title: 'Stretcher & Equipment Check-Off',
+    note: 'Runs against the Stretcher Handling deck and equipment check-off sheet (GMR Safe Stretcher Handling v3.2). Facilitators to be confirmed for Wichita.',
+    blocks: [
+      { time: '0900–1200', title: 'Stretcher lab', note: 'PowerLoad + Stryker hand placement, stair chair.' },
+      { time: '1200–1300', title: 'Lunch' },
+      { time: '1300–1530', title: 'Equipment check-off' },
+      { time: '1530–1600', title: 'Final sign-offs · retrieval quiz' },
+    ],
+  },
+]
+
+const TEMPLATE_BY_MARKET: Record<Market, TemplateDay[]> = {
+  kc: KC_CLASSROOM_TEMPLATE,
+  wichita: WICHITA_CLASSROOM_TEMPLATE,
+}
 const FACILITIES_BY_MARKET: Record<Market, Facility[]> = { kc: KC_FACILITY_LIST, wichita: [] }
 const KEY_POINTS_BY_MARKET: Record<Market, string[]> = { kc: KC_FACILITY_KEY_POINTS, wichita: [] }
 

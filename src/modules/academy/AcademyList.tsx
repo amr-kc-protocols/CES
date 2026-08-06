@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Empty, ProgressBar, Stat } from '../../components/ui'
+import { activeMarket, marketName } from '../../lib/market'
+import { FTO_CREWS } from '../../data/ftoSchedule'
 import { formatDate, todayISO } from '../../lib/date'
 import {
   useCohorts,
@@ -103,6 +105,29 @@ export default function AcademyList() {
         <div className="banner info" style={{ marginTop: 14 }}>
           🎓 {readyForRelease} trainee{readyForRelease > 1 ? 's have' : ' has'} reached the
           contact minimum and can be evaluated for release.
+        </div>
+      )}
+
+      {/* A market with no cohorts AND no FTO schedule has never been set up,
+          as opposed to one between classes. Without this, Wichita's first look
+          at NEOP is a row of zeroes that reads as "this app has nothing in it"
+          rather than "this app is ready and waiting for your data". The point
+          is to say what already works, so nobody rebuilds what they have. */}
+      {sorted.length === 0 && FTO_CREWS.length === 0 && (
+        <div className="banner info" style={{ marginTop: 14 }}>
+          <strong>{marketName(activeMarket())} is set up and empty.</strong> Nothing was copied
+          from another operation — cohorts, trainees, evaluations and records all start here.
+          <br />
+          <br />
+          <strong>Ready to use now:</strong> the clinical skill sheets, the Safe Stretcher
+          Handling and EVOC track check-offs, daily performance evaluations, the exit survey,
+          and the AEMT program with its curriculum and selection test. These appear as soon as
+          you create a cohort and add its roster.
+          <br />
+          <br />
+          <strong>Yours to add:</strong> your FTO roster and shift schedule, your classroom
+          week beyond the corporate EVOC and stretcher days, and your receiving-facility list.
+          Send those over whenever you have them.
         </div>
       )}
 
