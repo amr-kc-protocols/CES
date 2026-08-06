@@ -240,6 +240,66 @@ Two findings from the real export worth knowing:
   incident number and is what the tool leads with — see *How a chart is
   referred to* above.
 
+### Reading the procedures tables
+
+`Procedures`, `Medical Devices` and `Medication Administration` are where the
+chart records **what was actually done for the patient**, and they are the
+strongest necessity evidence a chart carries. One real chart in the sample has
+a heparin infusion at 10.9 ml/hr, an existing IV being monitored and a cardiac
+monitor on the patient. Read only the narrative and prose fields and that
+transport looks thin; read these tables and the argument is already there.
+
+They are **tables, not the colon-delimited form**, so `layoutPairs()` cannot
+see them — there is no colon to anchor to. They wrap in both directions, with
+cells broken mid-word:
+
+```
+    Yes       Other        Venous      Antecubi       20 gauge
+            Healthc        Access -     tal-Left
+                are,       Monitor
+            Professi    Existing IV
+                onal
+```
+
+`parseInterventions()` takes the **first line of a row** as the column anchors
+— the only line guaranteed to carry one fragment per column — and assigns every
+later fragment to the nearest anchor. Cells are right-ragged inside their
+column, so nearest-anchor beats any fixed band. Fragments rejoin mid-word
+(`Healthc` + `are,` → `Healthcare,`), and the split threshold is **three**
+spaces rather than two because a dosage cell reads `10.9  Milliliters per Hour`
+with two spaces inside one value.
+
+### Who did it: the crew or the sending facility
+
+The export writes a real person as `Vance, Kim (00000)` and writes anything
+done by the sending facility as `Other Healthcare, Professional (999999)`.
+That sentinel is the whole distinction, and it changes two conclusions:
+
+- **Level of service.** An ALS level has to be supported by what *this crew*
+  assessed or did. A drip the hospital hung before the truck arrived is
+  evidence the patient needed an ambulance — it is not this crew's ALS
+  intervention. `elLevel()` reads a crew-only haystack for that reason, and
+  scores ALS-billed-with-facility-only-content as **partial**, not full, with
+  the fix "record what you did with it".
+- **`als-by-facility-only`**, a record flag saying exactly that.
+
+The other new flag is the useful one:
+
+- **`evidence-only-in-tables`** — the tables document a necessity reason and
+  the narrative never mentions it. A claim reviewer reads the narrative. This
+  is a coaching finding rather than a fault: the care happened and was
+  recorded, just not where the argument gets read.
+
+  Compared **by reason, not by phrase**. A narrative that says "cardiac
+  monitor" has made the monitoring argument; the device table also saying
+  `ECG-Monitor` is the same reason written twice, not a buried one. Firing on
+  the synonym flagged every chart in the sample that documented itself
+  properly.
+
+Both appear in the drawer under *What was done for the patient*, on the print
+sheet, and in the workbook as **Care by this crew** and **Care by the sending
+facility**.
+
 Validated against three real "EMS Patient Care Report (3.5)" charts: **100%
 parse completeness on all three**, with transport mode, patient position,
 acuity, level of service, movement method and author all correct. The old
@@ -256,6 +316,12 @@ it — see `ALIASES` in `js/parser.js`.
   should be theirs.
 - The author-trend screen names identifiable employees. Confirm that is
   appropriate use before it is shown to anyone but the reviewer.
+- **The crew/facility split is a documentation rule here, not a billing one.**
+  Whether monitoring an infusion the sending facility started supports an ALS
+  claim is a question for billing compliance. What this tool asserts is
+  narrower and defensible on its own: if the crew did something, the chart has
+  to say the crew did it. Check the ALS rule against the house position before
+  anyone treats a partial as a finding.
 
 ## Privacy
 

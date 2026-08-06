@@ -8,7 +8,7 @@
  * ask, so the sheet can be handed to a crew member and read without the app.
  * ==========================================================================*/
 
-import { ELEMENTS, STATUS, crewTrends, elementGaps, authorOf, feedbackText, chartRef } from './necessity.js';
+import { ELEMENTS, STATUS, crewTrends, elementGaps, authorOf, feedbackText, chartRef, interventionWho } from './necessity.js';
 
 const XLSX = () => window.XLSX;
 
@@ -57,6 +57,17 @@ export function buildWorkbook(rows, all = rows) {
       out[el.label] = found ? STATUS_WORD[found.status] : '';
     }
     out['Elements missing'] = ev.missing;
+    // What was done for the patient, split by who did it. A reviewer comparing
+    // these two columns against the narrative is the whole point of carrying
+    // them: care the crew performed is theirs to claim, care the sending
+    // facility performed is evidence of the patient's condition and not of an
+    // ALS intervention by this crew.
+    out['Care by this crew'] = (r.interventions || [])
+      .filter((i) => i.by !== 'facility')
+      .map((i) => i.text).join('\n');
+    out['Care by the sending facility'] = (r.interventions || [])
+      .filter((i) => i.by === 'facility')
+      .map((i) => i.text).join('\n');
     out['Record flags'] = ev.integrity.map((i) => i.label).join('; ');
     out['Questions a reviewer would ask'] = ev.questions.map((q, i) => `${i + 1}. ${q.ask}`).join('\n');
     // Ready to paste into a message. The point of the workbook is the
@@ -178,6 +189,14 @@ export function printSheet(rows) {
       ? `<ul>${ev.integrity.map((i) => `<li><b>${esc(i.label)}</b> — ${esc(i.detail)}</li>`).join('')}</ul>`
       : '<p class="mini">None.</p>';
 
+    const ivs = r.interventions || [];
+    const KIND = { procedure: 'Procedure', device: 'Device', medication: 'Medication' };
+    const care = ivs.length
+      ? `<table class="el"><tr><th>Type</th><th>What was done</th><th>By whom</th></tr>${ivs.map((i) => `
+          <tr><td>${esc(KIND[i.kind] || i.kind)}</td><td>${esc(i.text)}</td>
+              <td>${esc(interventionWho(i))}</td></tr>`).join('')}</table>`
+      : '<p class="mini">No procedures, devices or medications recorded on this chart.</p>';
+
     return `<section class="sheet">
       <header>
         <div>
@@ -202,6 +221,9 @@ export function printSheet(rows) {
 
       <h2>Record flags</h2>
       ${flags}
+
+      <h2>What was done for the patient</h2>
+      ${care}
 
       <h2>Narrative as written</h2>
       <div class="narr">${esc(r.narrative) || 'No narrative recorded.'}</div>

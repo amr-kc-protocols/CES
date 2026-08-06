@@ -620,6 +620,210 @@ function parseGlucose(text) {
   return out;
 }
 
+/* ---------------------------------------------------------------------------
+ * Interventions: the Procedures, Medical Devices and Medications tables
+ * ---------------------------------------------------------------------------
+ * What was actually DONE for the patient, and by whom.
+ *
+ * These are the three places a chart records care that the narrative often
+ * never mentions. A real chart in the sample carries a heparin infusion at
+ * 10.9 ml/hr, an existing IV being monitored, and a cardiac monitor on the
+ * patient — and says none of it in prose. Read only the narrative and that
+ * transport looks undocumented; read these tables and the necessity argument
+ * is sitting right there, in a form a claim reviewer may never open.
+ *
+ * They are TABLES, not the colon-delimited form the rest of the chart uses, so
+ * layoutPairs() cannot see them: there is no colon to anchor to. They also
+ * wrap, in both directions, with cells broken mid-word:
+ *
+ *     Yes       Other        Venous      Antecubi       20 gauge
+ *             Healthc        Access -     tal-Left
+ *                 are,       Monitor
+ *             Professi    Existing IV
+ *                 onal
+ *
+ * The reconstruction takes the FIRST line of a row as the column anchors —
+ * it is the only line guaranteed to carry one fragment per column — and
+ * assigns every later fragment to the nearest anchor. Cells are right-ragged
+ * within their column, so nearest-anchor beats any fixed band.
+ *
+ * WHO did it is the part that matters most and is the easiest to read: the
+ * export writes a real name as "Lastname, Firstname (12345)" and writes
+ * anything done by the sending facility as "Other Healthcare, Professional
+ * (999999)". That sentinel is the whole crew/facility distinction.
+ * -------------------------------------------------------------------------*/
+
+/** Section headings that open an intervention table. */
+const INTERVENTION_HEADS = [
+  { kind: 'procedure', re: /^\s*Procedures\s*$/i },
+  { kind: 'device', re: /^\s*Medical Devices\s*$/i },
+  { kind: 'medication', re: /^\s*Medications\s*$/i },
+];
+
+/** Any heading that closes one. */
+const INTERVENTION_END =
+  /^\s*(Procedures?|Medical Devices?|Medication Administration|Medications?|Other Comments|Comments|Transfer of Care|Run Completion|Narrative|Vitals|Additional Values|Signatures?)\s*$/i;
+
+/**
+ * A data row starts with its first column: a Yes/No for the "performed prior to
+ * this unit's care" flag, or a timestamp. Header text never does.
+ */
+const INTERVENTION_ROW = /^\s*(Yes|No|\d\d:\d\d:\d\d)(\s{2,}\S|\s*$)/i;
+
+/** The sending facility, not this crew. ImageTrend's sentinel for "not us". */
+const NOT_THIS_CREW = /other\s*healthcare/i;
+/** "Vance, Kim (00000)" — a real person on this truck. */
+const CREW_NAME_CELL = /^[A-Z][A-Za-z''\-]+,\s*[A-Z]/;
+
+/** Cells that carry no clinical meaning: flags, counts, serial numbers, times. */
+const CELL_NOISE = /^(yes|no|n\/a|none)$/i;
+
+/**
+ * Split a line into fragments and remember where each one starts.
+ *
+ * Three spaces, not two: a dosage cell reads "10.9  Milliliters per Hour",
+ * with two spaces inside one value. Splitting on two would make the number its
+ * own column, and the wrapped "Hour (ml/hr)" would then land under the number
+ * rather than under its units — turning a heparin rate into "10.9 Hour;
+ * Milliliters per". Real column gaps in this layout are five spaces or more.
+ */
+function cells(line) {
+  const out = [];
+  const re = /\s{3,}/g;
+  let last = 0;
+  let m;
+  const push = (raw, at) => {
+    const s = raw.trim();
+    if (s) out.push({ x: at + (raw.length - raw.trimStart().length), s });
+  };
+  while ((m = re.exec(line))) {
+    push(line.slice(last, m.index), last);
+    last = re.lastIndex;
+  }
+  push(line.slice(last), last);
+  return out;
+}
+
+/**
+ * Join fragments of one cell back together.
+ *
+ * A wrap mid-word rejoins with no space ("Healthc" + "are," -> "Healthcare,"),
+ * as does a trailing hyphen attached to a word ("Non-" + "Emergent"). A dash
+ * standing alone is a real dash and keeps its spaces ("Access -" + "Monitor").
+ */
+function joinCell(parts) {
+  let out = '';
+  for (const raw of parts) {
+    const p = raw.trim();
+    if (!p || BLEED.test(p)) continue;
+    if (!out) out = p;
+    else if (/[A-Za-z]$/.test(out) && /^[a-z)]/.test(p)) out += p;
+    else if (/[A-Za-z]-$/.test(out)) out += p;
+    else out += ' ' + p;
+  }
+  return collapse(out);
+}
+
+/** Rebuild one row's columns from its first line's fragment positions. */
+function rowColumns(rowLines) {
+  const anchors = cells(rowLines[0]).map((c) => c.x);
+  if (!anchors.length) return [];
+  const cols = anchors.map(() => []);
+  for (const line of rowLines) {
+    for (const c of cells(line)) {
+      let best = 0;
+      let bestDist = Infinity;
+      anchors.forEach((a, i) => {
+        const d = Math.abs(a - c.x);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      });
+      cols[best].push(c.s);
+    }
+  }
+  return cols.map(joinCell).filter(Boolean);
+}
+
+/** Group a table block's lines into rows: a starter line plus its wraps. */
+function tableRows(lines) {
+  const rows = [];
+  let cur = null;
+  for (const line of lines) {
+    if (INTERVENTION_ROW.test(line)) {
+      if (cur) rows.push(cur);
+      cur = [line];
+    } else if (cur && line.trim()) {
+      cur.push(line);
+    }
+  }
+  if (cur) rows.push(cur);
+  return rows;
+}
+
+export function parseInterventions(text) {
+  const lines = text.split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const head = INTERVENTION_HEADS.find((h) => h.re.test(lines[i]));
+    if (!head) continue;
+
+    // Collect to the next heading — but only once a data row has been seen,
+    // because these sections open with a duplicate title line and several
+    // rows of wrapped column headers.
+    const block = [];
+    let seenRow = false;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (INTERVENTION_ROW.test(lines[j])) seenRow = true;
+      else if (seenRow && INTERVENTION_END.test(lines[j])) break;
+      else if (!seenRow && INTERVENTION_END.test(lines[j]) && !head.re.test(lines[j])) {
+        // A second title line for the same section is not the end of it.
+        if (!/^\s*(Procedures?|Medical Devices?|Medications?|Medication Administration)\s*$/i.test(lines[j])) break;
+      }
+      block.push(lines[j]);
+    }
+
+    for (const rowLines of tableRows(block)) {
+      const cols = rowColumns(rowLines);
+      if (!cols.length) continue;
+
+      const performerCell = cols.find((c) => NOT_THIS_CREW.test(c) || CREW_NAME_CELL.test(c)) || '';
+      const by = NOT_THIS_CREW.test(performerCell)
+        ? 'facility'
+        : CREW_NAME_CELL.test(performerCell)
+          ? 'crew'
+          : '';
+
+      // The first column is the "prior to this unit's EMS care" flag on the
+      // procedure and medication tables. On the device table it is a
+      // timestamp, and the flag — when the export includes it at all — is the
+      // cell straight after.
+      const flagCell = /^(yes|no)$/i.test(cols[0]) ? cols[0] : /^(yes|no)$/i.test(cols[1] || '') ? cols[1] : '';
+      const priorToArrival = /^yes$/i.test(flagCell);
+
+      const detail = cols
+        .filter((c) => c !== performerCell && c !== flagCell)
+        .filter((c) => !CELL_NOISE.test(c) && !/^[\d\s.:/-]+$/.test(c))
+        .join('; ');
+      if (!detail) continue;
+
+      const entry = {
+        kind: head.kind,
+        by,
+        performer: by === 'crew' ? cleanName(performerCell) : '',
+        priorToArrival,
+        text: detail,
+      };
+      if (!out.some((e) => e.kind === entry.kind && e.text === entry.text && e.by === entry.by)) {
+        out.push(entry);
+      }
+    }
+  }
+  return out;
+}
+
 function parseMedications(text) {
   const out = [];
   const re = /Medication Administration/gi;
@@ -991,6 +1195,7 @@ export function parseRecord(rawText) {
     gcs,
     glucose: parseGlucose(text),
     medications: parseMedications(text),
+    interventions: parseInterventions(text),
     narrative: parseNarrative(text),
     _rawLength: text.length,
   };
@@ -1187,6 +1392,7 @@ function normaliseImported(o) {
     gcs: Array.isArray(o.gcs) ? o.gcs : [],
     glucose: Array.isArray(o.glucose) ? o.glucose : [],
     medications: Array.isArray(o.medications) ? o.medications : [],
+    interventions: Array.isArray(o.interventions) ? o.interventions : [],
     narrative: String(o.narrative ?? '').trim(),
     times: o.times || {},
 

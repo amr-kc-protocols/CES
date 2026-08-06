@@ -3,7 +3,7 @@
  * ==========================================================================*/
 
 import { ingestFile } from './parser.js';
-import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText, chartRef } from './necessity.js';
+import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText, chartRef, interventionWho } from './necessity.js';
 import * as store from './store.js';
 import { downloadWorkbook, printSheet } from './exporter.js';
 
@@ -432,6 +432,20 @@ function openDrawer(key) {
     ['Parse completeness', `${Math.round(r.completeness.score * 100)}%`],
   ].map(([k, v]) => `<div><b>${esc(k)}</b>${esc(v) || '—'}</div>`).join('');
 
+  // What was done for the patient, and by whom. Shown next to the narrative so
+  // a reviewer can see at a glance which of it the narrative actually says.
+  const ivs = r.interventions || [];
+  const KIND = { procedure: 'Procedure', device: 'Device', medication: 'Medication' };
+  const ivBlock = ivs.length
+    ? `<table class="ivtable"><tbody>${ivs.map((i) => `<tr>
+         <td class="ivk">${esc(KIND[i.kind] || i.kind)}</td>
+         <td>${esc(i.text)}</td>
+         <td class="ivby"><span class="tag ${i.by === 'facility' ? 'amber' : 'grey'}">${esc(interventionWho(i))}</span></td>
+       </tr>`).join('')}</tbody></table>
+       <p class="mini">Read alongside the narrative. Anything here that the narrative does not
+         also say is care a claim reviewer will not see.</p>`
+    : '<p class="mini">No procedures, devices or medications recorded on this chart.</p>';
+
   const fb = feedbackFor(r, ev);
   const fbBlock = ev.score == null ? '' : `
     <div class="dsec"><h3>Feedback for the author</h3>
@@ -455,6 +469,7 @@ function openDrawer(key) {
     <div class="dsec"><h3>The seven elements</h3>${elements}</div>
     <div class="dsec"><h3>Record flags</h3>${integ}</div>
     <div class="dsec"><h3>Chart fields</h3><div class="kv">${kv}</div></div>
+    <div class="dsec"><h3>What was done for the patient</h3>${ivBlock}</div>
     <div class="dsec"><h3>Narrative</h3><div class="narr">${esc(r.narrative) || 'No narrative recorded.'}</div></div>
 
     <div class="dsec"><h3>Coaching note</h3>

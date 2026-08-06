@@ -93,6 +93,8 @@ const CONTRAINDICATION = {
   'monitoring in transit': [
     'cardiac monitor', 'continuous monitoring', 'telemetry', 'continuous pulse ox',
     'continuous cardiac', 'requires monitoring', 'monitored en route', 'monitored during transport',
+    // As the Medical Devices table writes it.
+    'ecg-monitor', 'ecg monitor', 'cardiac monitoring', '12-lead', '12 lead',
   ],
   'oxygen or airway': [
     'oxygen', 'o2 at', 'nasal cannula', 'non-rebreather', 'nonrebreather', 'nrb',
@@ -103,6 +105,26 @@ const CONTRAINDICATION = {
     'iv infusion', 'iv running', 'iv fluids running', 'infusion pump', 'pca pump',
     'heparin drip', 'insulin drip', 'iv medication en route', 'blood transfusion',
     'transfusing', 'tpn', 'picc', 'central line',
+    // As the Procedures table writes it.
+    'venous access', 'existing iv', 'monitor existing iv', 'saline lock',
+    // As a crew writes it. Bare "iv" is deliberately absent — it collides with
+    // Roman numerals ("stage IV", "Level IV") — so the line is matched through
+    // the phrasings people actually use around it.
+    // "rate of" is deliberately absent: it matches "heart rate of 78" and would
+    // hand out infusion credit for a vital sign.
+    'iv in place', 'iv site', 'iv patent', 'peripheral iv', 'iv to the', 'iv pump',
+    'on a pump', 'pump running', 'pump at', 'via pump', 'infusing at',
+    // A named continuous infusion. In an interfacility transport these are
+    // drips, and writing the drug's name is documenting one.
+    'heparin', 'insulin drip', 'nitroglycerin', 'nitro drip', 'amiodarone',
+    'diltiazem', 'cardizem', 'norepinephrine', 'levophed', 'dopamine', 'dobutamine',
+    'propofol', 'precedex', 'dexmedetomidine', 'vancomycin', 'antibiotic infusion',
+    'prbc', 'packed red', 'platelets',
+    // A dose expressed as a RATE is a running infusion, whoever hung it. This
+    // is what catches "Heparin 10.9 Milliliters per Hour" in the medication
+    // table on a chart whose narrative never mentions a drip at all.
+    'ml/hr', 'milliliters per hour', 'units per hour', 'units/hr',
+    'mcg/kg/min', 'mcg/min', 'mg/hr', 'per hour (ml',
   ],
   'behavioral or safety risk': [
     'restraints', 'restrained', 'combative', 'agitated', 'altered mental status',
@@ -193,6 +215,8 @@ const ALS_CONTENT = [
   'iv access', 'saline lock', 'medication administered', 'administered', 'advanced airway',
   'intubat', 'capnography', 'etco2', 'end tidal', 'als assessment', 'cardiac rhythm',
   'defibrillat', 'pacing', 'nebulizer', 'im injection', 'push',
+  // As the Procedures and Medical Devices tables write it.
+  'ecg-monitor', 'ecg monitor', 'cardiac monitoring', 'venous access', 'existing iv',
 ];
 
 /** Scheduled/recurring transports, where a PCS is normally expected. */
@@ -337,6 +361,36 @@ function quote(text, phrase) {
   while (end < t.length && !'.!?\n'.includes(t[end])) end++;
   const s = t.slice(start, Math.min(end + 1, t.length)).trim();
   return s.length > 260 ? s.slice(0, 257) + '…' : s;
+}
+
+/* ------------------------------------------------------- interventions */
+
+/**
+ * The procedures, devices and medications tables as searchable text.
+ *
+ * Each row is its own line so `quote()` cites the row and not the whole table,
+ * and each is prefixed with who did it, so a citation reads
+ * "Sending facility, prior to arrival: Heparin; 10.9 Milliliters per Hour"
+ * rather than leaving a reviewer to guess whether the crew hung it.
+ *
+ * `filter` narrows to a subset — used to ask what THIS CREW did.
+ */
+export function interventionText(rec, filter = null) {
+  return (rec.interventions || [])
+    .filter((i) => (filter ? filter(i) : true))
+    .map((i) => `${interventionWho(i)}: ${i.text}`)
+    .join('\n');
+}
+
+/** How a row's attribution reads in a citation. */
+export function interventionWho(i) {
+  if (i.by === 'facility') {
+    return i.priorToArrival ? 'Sending facility, prior to arrival' : 'Sending facility';
+  }
+  if (i.by === 'crew') {
+    return i.priorToArrival ? `${i.performer || 'Crew'}, prior to arrival` : i.performer || 'Crew';
+  }
+  return i.priorToArrival ? 'Prior to arrival' : 'Recorded';
 }
 
 /** Does the chart carry objective numbers at all? Backs the adjective rule. */
@@ -615,10 +669,11 @@ function elReason(rec, hay) {
 }
 
 /* --- 6. level of service support ----------------------------------------- */
-function elLevel(rec, hay) {
+function elLevel(rec, hay, crewHay) {
   const los = norm(join(rec.levelOfService, rec.serviceRequested));
   const alsBilled = /als|advanced|paramedic|specialty care|sct/.test(los) || /yes/i.test(rec.alsOnScene || '');
   const alsFound = hits(hay, ALS_CONTENT);
+  const alsByCrew = hits(crewHay || hay, ALS_CONTENT);
 
   if (!los) {
     return {
@@ -632,12 +687,24 @@ function elLevel(rec, hay) {
   if (!alsBilled) {
     return { status: FULL, detail: `BLS level recorded (${join(rec.levelOfService, rec.serviceRequested)}).`, cite: '', good: true };
   }
-  if (alsFound.length) {
+  if (alsByCrew.length) {
     return {
       status: FULL,
-      detail: `ALS level supported by documented assessment or intervention: ${alsFound.slice(0, 3).join(', ')}.`,
-      cite: quote(hay, alsFound[0]),
+      detail: `ALS level supported by documented assessment or intervention: ${alsByCrew.slice(0, 3).join(', ')}.`,
+      cite: quote(crewHay || hay, alsByCrew[0]),
       good: true,
+    };
+  }
+  // ALS content exists, but every bit of it was done by the sending facility.
+  // Continuing someone else's drip may well be an ALS transport; the chart just
+  // does not say that this crew did anything, and that is what gets denied.
+  if (alsFound.length) {
+    return {
+      status: PARTIAL,
+      detail: `The only ALS content in this chart was performed by the sending facility, not by this crew: ${alsFound.slice(0, 3).join(', ')}.`,
+      cite: quote(hay, alsFound[0]),
+      ask: 'What did THIS crew assess or do? Monitoring an existing line still has to be written down.',
+      fix: 'Record what you did with it — "monitored the existing heparin infusion en route, rate unchanged" is an ALS intervention; the hospital hanging it is not yours.',
     };
   }
   return {
@@ -690,7 +757,7 @@ function elNarrative(rec) {
  * gap, because a gap is an omission and a contradiction invites a question
  * about everything else in the record.
  */
-function integrityFindings(rec, hay, allRows) {
+function integrityFindings(rec, hay, allRows, prose = '', crewHay = '') {
   const out = [];
   const n = String(rec.narrative || '');
 
@@ -748,6 +815,58 @@ function integrityFindings(rec, hay, allRows) {
       detail: 'An ALS level of service is recorded and nothing in the chart shows an ALS assessment or intervention.',
       cite: `Level of service: ${join(rec.levelOfService, rec.serviceRequested)}`,
     });
+  }
+
+  // The necessity argument is in a table and not in the narrative.
+  //
+  // This is the most useful thing the intervention tables buy, and it is a
+  // coaching finding rather than a fault: the care happened and was recorded,
+  // just not where the argument gets read. A claim reviewer works from the
+  // narrative. A crew that writes "transported without incident" over a chart
+  // carrying a heparin drip and a cardiac monitor has done the work and thrown
+  // away the justification for it.
+  if (prose && (rec.interventions || []).length) {
+    // Compared by REASON, not by phrase. A narrative that says "cardiac
+    // monitor" has made the monitoring argument; the device table also saying
+    // "ECG-Monitor" is the same reason written twice, not a buried one. Firing
+    // on the synonym would flag every chart that documents itself properly.
+    const buried = [];
+    for (const [group, phrases] of Object.entries(CONTRAINDICATION)) {
+      if (phrases.some((p) => has(prose, p))) continue;
+      const found = phrases.find((p) => has(hay, p));
+      if (found) buried.push({ group, phrase: found });
+    }
+    if (buried.length) {
+      const groups = [...new Set(buried.map((b) => b.group))];
+      out.push({
+        id: 'evidence-only-in-tables',
+        label: 'Necessity evidence recorded only in the procedures tables',
+        severity: 2,
+        detail:
+          `The procedures, devices or medications tables document ${groups.join(', ')} — ` +
+          'and the narrative does not mention it. A claim reviewer reads the narrative. ' +
+          'This is the argument for the transport, and it is in the one place they may never open.',
+        cite: quote(hay, buried[0].phrase),
+      });
+    }
+  }
+
+  // ALS content that all belongs to the sending facility.
+  if (crewHay) {
+    const alsAll = hits(hay, ALS_CONTENT);
+    const alsMine = hits(crewHay, ALS_CONTENT);
+    if (alsAll.length && !alsMine.length) {
+      out.push({
+        id: 'als-by-facility-only',
+        label: 'Every ALS intervention was the sending facility’s',
+        severity: 2,
+        detail:
+          'The only ALS assessments or interventions in this chart are attributed to the sending ' +
+          'facility rather than to this crew. Continuing that care en route can still be an ALS ' +
+          'transport — but the chart has to say what this crew did.',
+        cite: quote(hay, alsAll[0]),
+      });
+    }
   }
 
   // Scheduled/recurring transport with no PCS reference.
@@ -837,19 +956,32 @@ export function evaluate(rec, allRows = null) {
   // Everything the phrase banks read. Structured fields are included so a crew
   // who records functional status in the right ImageTrend field rather than in
   // prose still gets credit for it.
-  const hay = [
+  const prose = [
     rec.narrative, rec.impression, rec.destinationReason, rec.complaints,
     rec.dispatchNature, rec.movedToAmbulance, rec.movedByMethod, rec.position,
     rec.mobility, rec.levelOfService, rec.serviceRequested,
     (rec.medications || []).map((m) => m.text).join(' '),
   ].filter(Boolean).join('  \n  ');
 
+  // The procedures, devices and medications tables — what was actually DONE.
+  // Read alongside the narrative rather than instead of it: on a real chart in
+  // the sample these carry a heparin infusion, an existing IV and a cardiac
+  // monitor that the narrative never mentions once.
+  const hay = [prose, interventionText(rec)].filter(Boolean).join('  \n  ');
+
+  // The same, minus anything the SENDING FACILITY did. An ALS level of service
+  // has to be supported by what THIS crew assessed or did; a drip the hospital
+  // hung before the truck arrived is evidence the patient needed an ambulance,
+  // but it is not this crew's ALS intervention.
+  const crewHay = [prose, interventionText(rec, (i) => i.by !== 'facility')]
+    .filter(Boolean).join('  \n  ');
+
   const elements = ELEMENTS.map((def) => {
-    const result = EVALUATORS[def.id](rec, hay);
+    const result = EVALUATORS[def.id](rec, hay, crewHay);
     return { ...def, ...result, earned: CREDIT[result.status] * def.weight };
   });
 
-  const integrity = integrityFindings({ ...rec, __key: rec.__key }, hay, allRows);
+  const integrity = integrityFindings({ ...rec, __key: rec.__key }, hay, allRows, prose, crewHay);
   const score = scope.inScope
     ? Math.round(elements.reduce((sum, e) => sum + e.earned, 0))
     : null;
