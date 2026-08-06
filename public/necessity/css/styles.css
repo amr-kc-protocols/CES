@@ -401,3 +401,11 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   border-radius: var(--radius);
   padding: 8px;
 }
+
+/* What was done for the patient — the procedures, devices and medications
+   tables, shown so a reviewer can compare them against the narrative. */
+.ivtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ivtable td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ivtable tr:last-child td { border-bottom: 0; }
+.ivtable .ivk { color: var(--muted); white-space: nowrap; width: 1%; font-size: 12px; }
+.ivtable .ivby { text-align: right; white-space: nowrap; width: 1%; }

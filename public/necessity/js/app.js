@@ -3,7 +3,7 @@
  * ==========================================================================*/
 
 import { ingestFile } from './parser.js';
-import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText } from './necessity.js';
+import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText, chartRef, interventionWho } from './necessity.js';
 import * as store from './store.js';
 import { downloadWorkbook, printSheet } from './exporter.js';
 
@@ -213,7 +213,7 @@ function applyFilters() {
     if (q) {
       const hay = [
         r.incident, r.impression, r.narrative, r.destination, r.originName,
-        r.patientName, r.crew, r.author, r.levelOfService, r.dispatchNature,
+        r.patientName, r.crew, r.author, r.levelOfService, r.dispatchNature, r.responseNo,
       ].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
@@ -233,7 +233,8 @@ function applyFilters() {
         const p = (row.record.dateOfService || '').split('/');
         return p.length === 3 ? Number(`${p[2]}${p[0].padStart(2, '0')}${p[1].padStart(2, '0')}`) : 0;
       }
-      case 'incident': return row.record.incident || '';
+      // Sorts on what the column shows: the response number crews use.
+      case 'incident': return row.record.responseNo || row.record.incident || '';
       default: return 0;
     }
   };
@@ -316,7 +317,7 @@ function renderTable() {
 
       return `<tr data-key="${esc(row.key)}" class="${state.selected === row.key ? 'sel' : ''}">
         <td class="num">${scoreCell}</td>
-        <td><b>${esc(r.incident || '—')}</b> ${lowParse}</td>
+        <td><b>${esc(chartRef(r).value)}</b>${r.responseNo && r.incident ? `<span class="mini">inc ${esc(r.incident)}</span>` : ''} ${lowParse}</td>
         <td>${esc(r.dateOfService)}</td>
         <td><span class="trunc" title="${esc(`${r.originName || '?'} → ${r.destination || '?'}`)}">${esc(r.originName || '—')} → ${esc(r.destination || '—')}</span></td>
         <td>${esc(r.levelOfService || r.serviceRequested || '—')}</td>
@@ -385,7 +386,8 @@ function openDrawer(key) {
   state.selected = key;
   const { record: r, evaluation: ev, review = {} } = row;
 
-  $('dTitle').textContent = `Incident ${r.incident || '(none)'}`;
+  const ref = chartRef(r);
+  $('dTitle').textContent = `${ref.label === 'response' ? 'Response' : ref.label === 'incident' ? 'Incident' : 'Chart'} ${ref.value}`;
   $('dSub').textContent = `${r.dateOfService} · ${r.originName || 'origin not recorded'} → ${r.destination || 'destination not recorded'}`;
 
   const verdict = ev.score == null
@@ -420,6 +422,8 @@ function openDrawer(key) {
   const kv = [
     ['Origin', r.originName], ['Origin type', r.originType],
     ['Destination', r.destination], ['Destination reason', r.destinationReason],
+    ['EMS response #', r.responseNo],
+    ['Incident #', r.incident],
     ['Report author', authorTitle(r)],
     ['Level of service', r.levelOfService || r.serviceRequested],
     ['Transport mode', r.transportMode], ['Primary impression', r.impression],
@@ -427,6 +431,20 @@ function openDrawer(key) {
     ['Position', r.position], ['PCS', r.pcs], ['Crew', r.crew],
     ['Parse completeness', `${Math.round(r.completeness.score * 100)}%`],
   ].map(([k, v]) => `<div><b>${esc(k)}</b>${esc(v) || '—'}</div>`).join('');
+
+  // What was done for the patient, and by whom. Shown next to the narrative so
+  // a reviewer can see at a glance which of it the narrative actually says.
+  const ivs = r.interventions || [];
+  const KIND = { procedure: 'Procedure', device: 'Device', medication: 'Medication' };
+  const ivBlock = ivs.length
+    ? `<table class="ivtable"><tbody>${ivs.map((i) => `<tr>
+         <td class="ivk">${esc(KIND[i.kind] || i.kind)}</td>
+         <td>${esc(i.text)}</td>
+         <td class="ivby"><span class="tag ${i.by === 'facility' ? 'amber' : 'grey'}">${esc(interventionWho(i))}</span></td>
+       </tr>`).join('')}</tbody></table>
+       <p class="mini">Read alongside the narrative. Anything here that the narrative does not
+         also say is care a claim reviewer will not see.</p>`
+    : '<p class="mini">No procedures, devices or medications recorded on this chart.</p>';
 
   const fb = feedbackFor(r, ev);
   const fbBlock = ev.score == null ? '' : `
@@ -451,6 +469,7 @@ function openDrawer(key) {
     <div class="dsec"><h3>The seven elements</h3>${elements}</div>
     <div class="dsec"><h3>Record flags</h3>${integ}</div>
     <div class="dsec"><h3>Chart fields</h3><div class="kv">${kv}</div></div>
+    <div class="dsec"><h3>What was done for the patient</h3>${ivBlock}</div>
     <div class="dsec"><h3>Narrative</h3><div class="narr">${esc(r.narrative) || 'No narrative recorded.'}</div></div>
 
     <div class="dsec"><h3>Coaching note</h3>

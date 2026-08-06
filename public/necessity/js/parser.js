@@ -620,6 +620,210 @@ function parseGlucose(text) {
   return out;
 }
 
+/* ---------------------------------------------------------------------------
+ * Interventions: the Procedures, Medical Devices and Medications tables
+ * ---------------------------------------------------------------------------
+ * What was actually DONE for the patient, and by whom.
+ *
+ * These are the three places a chart records care that the narrative often
+ * never mentions. A real chart in the sample carries a heparin infusion at
+ * 10.9 ml/hr, an existing IV being monitored, and a cardiac monitor on the
+ * patient — and says none of it in prose. Read only the narrative and that
+ * transport looks undocumented; read these tables and the necessity argument
+ * is sitting right there, in a form a claim reviewer may never open.
+ *
+ * They are TABLES, not the colon-delimited form the rest of the chart uses, so
+ * layoutPairs() cannot see them: there is no colon to anchor to. They also
+ * wrap, in both directions, with cells broken mid-word:
+ *
+ *     Yes       Other        Venous      Antecubi       20 gauge
+ *             Healthc        Access -     tal-Left
+ *                 are,       Monitor
+ *             Professi    Existing IV
+ *                 onal
+ *
+ * The reconstruction takes the FIRST line of a row as the column anchors —
+ * it is the only line guaranteed to carry one fragment per column — and
+ * assigns every later fragment to the nearest anchor. Cells are right-ragged
+ * within their column, so nearest-anchor beats any fixed band.
+ *
+ * WHO did it is the part that matters most and is the easiest to read: the
+ * export writes a real name as "Lastname, Firstname (12345)" and writes
+ * anything done by the sending facility as "Other Healthcare, Professional
+ * (999999)". That sentinel is the whole crew/facility distinction.
+ * -------------------------------------------------------------------------*/
+
+/** Section headings that open an intervention table. */
+const INTERVENTION_HEADS = [
+  { kind: 'procedure', re: /^\s*Procedures\s*$/i },
+  { kind: 'device', re: /^\s*Medical Devices\s*$/i },
+  { kind: 'medication', re: /^\s*Medications\s*$/i },
+];
+
+/** Any heading that closes one. */
+const INTERVENTION_END =
+  /^\s*(Procedures?|Medical Devices?|Medication Administration|Medications?|Other Comments|Comments|Transfer of Care|Run Completion|Narrative|Vitals|Additional Values|Signatures?)\s*$/i;
+
+/**
+ * A data row starts with its first column: a Yes/No for the "performed prior to
+ * this unit's care" flag, or a timestamp. Header text never does.
+ */
+const INTERVENTION_ROW = /^\s*(Yes|No|\d\d:\d\d:\d\d)(\s{2,}\S|\s*$)/i;
+
+/** The sending facility, not this crew. ImageTrend's sentinel for "not us". */
+const NOT_THIS_CREW = /other\s*healthcare/i;
+/** "Vance, Kim (00000)" — a real person on this truck. */
+const CREW_NAME_CELL = /^[A-Z][A-Za-z''\-]+,\s*[A-Z]/;
+
+/** Cells that carry no clinical meaning: flags, counts, serial numbers, times. */
+const CELL_NOISE = /^(yes|no|n\/a|none)$/i;
+
+/**
+ * Split a line into fragments and remember where each one starts.
+ *
+ * Three spaces, not two: a dosage cell reads "10.9  Milliliters per Hour",
+ * with two spaces inside one value. Splitting on two would make the number its
+ * own column, and the wrapped "Hour (ml/hr)" would then land under the number
+ * rather than under its units — turning a heparin rate into "10.9 Hour;
+ * Milliliters per". Real column gaps in this layout are five spaces or more.
+ */
+function cells(line) {
+  const out = [];
+  const re = /\s{3,}/g;
+  let last = 0;
+  let m;
+  const push = (raw, at) => {
+    const s = raw.trim();
+    if (s) out.push({ x: at + (raw.length - raw.trimStart().length), s });
+  };
+  while ((m = re.exec(line))) {
+    push(line.slice(last, m.index), last);
+    last = re.lastIndex;
+  }
+  push(line.slice(last), last);
+  return out;
+}
+
+/**
+ * Join fragments of one cell back together.
+ *
+ * A wrap mid-word rejoins with no space ("Healthc" + "are," -> "Healthcare,"),
+ * as does a trailing hyphen attached to a word ("Non-" + "Emergent"). A dash
+ * standing alone is a real dash and keeps its spaces ("Access -" + "Monitor").
+ */
+function joinCell(parts) {
+  let out = '';
+  for (const raw of parts) {
+    const p = raw.trim();
+    if (!p || BLEED.test(p)) continue;
+    if (!out) out = p;
+    else if (/[A-Za-z]$/.test(out) && /^[a-z)]/.test(p)) out += p;
+    else if (/[A-Za-z]-$/.test(out)) out += p;
+    else out += ' ' + p;
+  }
+  return collapse(out);
+}
+
+/** Rebuild one row's columns from its first line's fragment positions. */
+function rowColumns(rowLines) {
+  const anchors = cells(rowLines[0]).map((c) => c.x);
+  if (!anchors.length) return [];
+  const cols = anchors.map(() => []);
+  for (const line of rowLines) {
+    for (const c of cells(line)) {
+      let best = 0;
+      let bestDist = Infinity;
+      anchors.forEach((a, i) => {
+        const d = Math.abs(a - c.x);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      });
+      cols[best].push(c.s);
+    }
+  }
+  return cols.map(joinCell).filter(Boolean);
+}
+
+/** Group a table block's lines into rows: a starter line plus its wraps. */
+function tableRows(lines) {
+  const rows = [];
+  let cur = null;
+  for (const line of lines) {
+    if (INTERVENTION_ROW.test(line)) {
+      if (cur) rows.push(cur);
+      cur = [line];
+    } else if (cur && line.trim()) {
+      cur.push(line);
+    }
+  }
+  if (cur) rows.push(cur);
+  return rows;
+}
+
+export function parseInterventions(text) {
+  const lines = text.split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const head = INTERVENTION_HEADS.find((h) => h.re.test(lines[i]));
+    if (!head) continue;
+
+    // Collect to the next heading — but only once a data row has been seen,
+    // because these sections open with a duplicate title line and several
+    // rows of wrapped column headers.
+    const block = [];
+    let seenRow = false;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (INTERVENTION_ROW.test(lines[j])) seenRow = true;
+      else if (seenRow && INTERVENTION_END.test(lines[j])) break;
+      else if (!seenRow && INTERVENTION_END.test(lines[j]) && !head.re.test(lines[j])) {
+        // A second title line for the same section is not the end of it.
+        if (!/^\s*(Procedures?|Medical Devices?|Medications?|Medication Administration)\s*$/i.test(lines[j])) break;
+      }
+      block.push(lines[j]);
+    }
+
+    for (const rowLines of tableRows(block)) {
+      const cols = rowColumns(rowLines);
+      if (!cols.length) continue;
+
+      const performerCell = cols.find((c) => NOT_THIS_CREW.test(c) || CREW_NAME_CELL.test(c)) || '';
+      const by = NOT_THIS_CREW.test(performerCell)
+        ? 'facility'
+        : CREW_NAME_CELL.test(performerCell)
+          ? 'crew'
+          : '';
+
+      // The first column is the "prior to this unit's EMS care" flag on the
+      // procedure and medication tables. On the device table it is a
+      // timestamp, and the flag — when the export includes it at all — is the
+      // cell straight after.
+      const flagCell = /^(yes|no)$/i.test(cols[0]) ? cols[0] : /^(yes|no)$/i.test(cols[1] || '') ? cols[1] : '';
+      const priorToArrival = /^yes$/i.test(flagCell);
+
+      const detail = cols
+        .filter((c) => c !== performerCell && c !== flagCell)
+        .filter((c) => !CELL_NOISE.test(c) && !/^[\d\s.:/-]+$/.test(c))
+        .join('; ');
+      if (!detail) continue;
+
+      const entry = {
+        kind: head.kind,
+        by,
+        performer: by === 'crew' ? cleanName(performerCell) : '',
+        priorToArrival,
+        text: detail,
+      };
+      if (!out.some((e) => e.kind === entry.kind && e.text === entry.text && e.by === entry.by)) {
+        out.push(entry);
+      }
+    }
+  }
+  return out;
+}
+
 function parseMedications(text) {
   const out = [];
   const re = /Medication Administration/gi;
@@ -671,10 +875,201 @@ function normMode(raw) {
   return raw || '';
 }
 
+
+/* ---------------------------------------------------------------------------
+ * Layout-aware label/value extraction
+ * ---------------------------------------------------------------------------
+ * Written against real ImageTrend "EMS Patient Care Report (3.5)" exports. The
+ * report is a TWO-COLUMN form, and both halves of a pair wrap vertically:
+ *
+ *        Incident   75123459          <- label starts, value sits beside it
+ *              # :                    <- label finishes, colon here
+ *
+ *        Destination Name  : AdventHealth
+ *                            Shawnee Mission        <- value continues below
+ *
+ * A per-label regex cannot read that. `field('Incident #')` never matches
+ * because the two halves of the label are on different lines, and
+ * `field('Destination Name')` stops at the line break and returns half a
+ * hospital. Against these three charts the old approach produced an empty
+ * incident number, an empty origin, "UNIVERSITY OF" for a destination and
+ * "Non-" for a transport mode.
+ *
+ * So: find every colon, walk UP for the rest of the label and the start of the
+ * value, walk DOWN for the rest of the value, and cut at column gaps.
+ * ------------------------------------------------------------------------*/
+
+const colAt = (line, from, to) => (line || '').slice(from, to);
+const firstCell = (s) => s.split(/\s{3,}/)[0].trim();
+const blankIn = (line, from, to) => !colAt(line, from, to).trim();
+
+/** Footer, URL and pagination fragments that bleed in from other columns. */
+const BLEED = /https?:|%[0-9A-F]{2}|Page \d+ of \d+|imagetrend/i;
+
+/** Join continuation fragments, respecting a hyphen split ("Non-" + "Emergent"). */
+function joinValue(parts) {
+  let out = '';
+  for (const raw of parts) {
+    const part = raw.trim();
+    if (!part || BLEED.test(part)) continue;
+    if (!out) out = part;
+    else if (out.endsWith('-')) out += part;
+    else out += ' ' + part;
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+export function layoutPairs(text) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    for (const m of [...line.matchAll(/:/g)]) {
+      const c = m.index;
+      const left = line.slice(0, c);
+      const segs = left.split(/\s{3,}/).map((x) => x.trim()).filter(Boolean);
+      const label = segs[segs.length - 1] || '';
+      if (!/[A-Za-z#]/.test(label)) continue;
+      const labStart = left.lastIndexOf(label);
+      const vStart = c + 1;
+
+      // Upwards: the rest of a wrapped label, and the value that sits beside
+      // the label's FIRST line rather than beside its colon.
+      const labelPre = [];
+      const valuePre = [];
+      for (let up = i - 1; up >= 0 && up > i - 4; up--) {
+        const prev = lines[up];
+        if (blankIn(prev, Math.max(0, labStart - 8), c + 1) && blankIn(prev, vStart, vStart + 42)) break;
+        // A colon in this band means that line is its own pair, not our label.
+        if (colAt(prev, Math.max(0, labStart - 8), vStart + 2).includes(':')) break;
+        const lab = firstCell(colAt(prev, Math.max(0, labStart - 8), c + 1));
+        const val = firstCell(colAt(prev, vStart, vStart + 42));
+        if (!lab && !val) break;
+        if (lab) labelPre.unshift(lab);
+        if (val) valuePre.unshift(val);
+      }
+
+      // Downwards: the rest of a wrapped value.
+      const valuePost = [];
+      for (let dn = i + 1; dn < lines.length && dn < i + 7; dn++) {
+        const nxt = lines[dn];
+        if (colAt(nxt, Math.max(0, vStart - 30), vStart + 2).includes(':')) break;
+        const val = firstCell(colAt(nxt, vStart, vStart + 42));
+        if (!val) break;
+        valuePost.push(val);
+      }
+
+      const fullLabel = [...labelPre, label].join(' ').replace(/\s+/g, ' ').trim();
+      const value = joinValue([...valuePre, firstCell(colAt(line, vStart, vStart + 42)), ...valuePost]);
+      if (fullLabel && value) out.push({ label: fullLabel, value });
+    }
+  }
+  return out;
+}
+
+/**
+ * Labels are matched loosely on purpose.
+ *
+ * Column slicing shaves characters off the front of a wrapped label — the real
+ * export yields "f Patient During Transport" and "Crew Member mpleting this
+ * Report". Requiring an exact string would drop both. Matching on the distinctive
+ * tail is stable against that, and these labels are distinctive enough that a
+ * loose match cannot collide.
+ */
+const FIELD_PATTERNS = {
+  incident: [/^incident\s*#/i],
+  originName: [/incident name/i],
+  originType: [/incident type/i],
+  destination: [/destination name/i],
+  destinationReason: [/destination reason/i],
+  transportMode: [/^transport mode$/i, /ems transport method/i],
+  transportDescriptors: [/transport mode descriptors/i],
+  levelOfService: [/type of service/i, /^requested$/i],
+  // The technician who took patient care and wrote the narrative.
+  author: [/crew member.*(completing|mpleting).*report/i],
+  movedToAmbulance: [/patient moved to ambulance/i],
+  movedByMethod: [/moved from ambulance/i],
+  position: [/patient during transport/i],
+  impression: [/^primary impression/i],
+  acuity: [/initial patient acuity/i],
+  destinationType: [/destination type/i],
+  dateOfService: [/transport date/i, /^date of service/i],
+  // What crews actually quote to each other: the 8-digit EMS Response number
+  // from LOGIS, which is what the IFT handbook has them scan onto trailing
+  // documents. The label spans three lines in the export -- "EMS" / "Response"
+  // / "# :" -- with the value beside the first.
+  responseNo: [/ems\s*response\s*#?/i, /^response\s*#?$/i],
+};
+
+/**
+ * Trailing fragments that belong to the next column, not to this value.
+ *
+ * A value's column window is a fixed width, so a neighbouring narrow column
+ * sometimes lands inside it — "Hospital-to-Hospital Transfer 12650" picks up
+ * the EMS unit number sitting to its right. Only a bare trailing number is
+ * stripped, because that is the shape that bleeds; real values do not end in
+ * a naked four-digit run.
+ */
+const TRAILING_BLEED = /\s+\d{4,}$/;
+
+/**
+ * Fields whose value legitimately ends in a long number, and which therefore
+ * must NOT be de-bled. Stripping the tail off "Ground 75123459" left every
+ * chart with an incident of "Ground", so all three collapsed onto one key and
+ * the importer showed a single record.
+ */
+const KEEPS_TRAILING_NUMBER = new Set(['incident', 'dateOfService']);
+
+/**
+ * Pull a person's name out of a crew-member cell.
+ *
+ * The real export renders these as "Vance, Kim (00000)", and the column window
+ * sometimes catches a tail of the preceding cell, so the raw value arrives as
+ * "ure. Vance, Kim (00000)" — the end of "Signature" plus the name plus an
+ * employee number. Addressing feedback to "ure. Vance, Kim (00000)" would be
+ * worse than not naming anyone.
+ *
+ * Reordered to "Kim Vance" so it reads the way every other name in this
+ * app does, and the employee number is dropped: it identifies the person more
+ * than the message needs to, and it is not what a colleague would call them.
+ */
+export function cleanName(raw) {
+  const v = String(raw ?? '').replace(/\(\s*\d+\s*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!v) return '';
+  const m = v.match(/([A-Z][A-Za-z''\-]{1,24}),\s*([A-Z][A-Za-z''\-]{1,24})/);
+  if (m) return `${m[2]} ${m[1]}`;
+  // No "Last, First" shape — keep alphabetic words only, so leading fragments
+  // like "ure." fall away rather than being addressed by name.
+  const words = v.split(/\s+/).filter((w) => /^[A-Z][A-Za-z''\-]{1,24}$/.test(w));
+  return words.slice(0, 3).join(' ');
+}
+
+/** First value whose label matches, or ''. */
+export function pickField(pairs, key) {
+  const pats = FIELD_PATTERNS[key];
+  if (!pats) return '';
+  for (const pat of pats) {
+    const hit = pairs.find((p) => pat.test(p.label));
+    if (!hit || !hit.value) continue;
+    return KEEPS_TRAILING_NUMBER.has(key)
+      ? hit.value.trim()
+      : hit.value.replace(TRAILING_BLEED, '').trim();
+  }
+  return '';
+}
+
 export function parseRecord(rawText) {
   const text = stripNoise(rawText);
+  // Layout pass first — it reads the two-column form correctly. The older
+  // per-label regexes stay as a fallback for anything it does not find, and
+  // for exports whose layout differs again.
+  const pairs = layoutPairs(text);
+  const L = (k) => pickField(pairs, k);
 
-  const incident = field(text, 'Incident #', { stopAtGap: true }).split(/\s+/)[0] || '';
+  // The layout value can carry a leading service word ("Ground 75123459"),
+  // so take the number rather than the first token.
+  const incidentRaw = L('incident') || field(text, 'Incident #', { stopAtGap: true });
+  const incident = (incidentRaw.match(/\d{5,}/) || [])[0] || incidentRaw.split(/\s+/)[0] || '';
   // pdf.js emits wrapped labels with no separating space, so the value can be
   // welded to the label ("Initial PatientEmergent (Yellow)"). Match the known
   // acuity vocabulary directly rather than relying on a delimiter.
@@ -697,23 +1092,33 @@ export function parseRecord(rawText) {
   const rec = {
     source: 'pdf',
     incident,
-    responseNo: (text.match(/EMS Response\s*(?:#:)?\s*(\d+)/i) || [])[1] || '',
-    dateOfService: (text.match(/Date of Service:?:?\s*(\d\d\/\d\d\/\d{4})/i) || [])[1] || '',
+    responseNo:
+      (L('responseNo').match(/\d{6,}/) || [])[0] ||
+      (text.match(/EMS Response\s*(?:#:)?\s*(\d+)/i) || [])[1] ||
+      '',
+    // The real export labels this "Transport Date"; the last resort is simply
+    // the first date on the chart, which beats an empty field on every screen
+    // that sorts or filters by it.
+    dateOfService:
+      (L('dateOfService').match(/\d\d\/\d\d\/\d{4}/) || [])[0] ||
+      (text.match(/Date of Service:?:?\s*(\d\d\/\d\d\/\d{4})/i) || [])[1] ||
+      (text.match(/\b(\d\d\/\d\d\/\d{4})\b/) || [])[1] ||
+      '',
     patientName: field(text, 'Patient Name', { stopAtGap: true }),
     age: (text.match(/Age:\s*(\d+)\s*(Years|Months|Days)/i) || []).slice(1).join(' '),
     ageYears: num((text.match(/Age:\s*(\d+)\s*Years/i) || [])[1]),
     sex: (text.match(/Gender:\s*(\w+)/i) || [])[1] || '',
     dispatchNature: field(text, 'Nature of Call', { stopAtGap: true }),
     emdCard: (text.match(/EMD Card Number:\s*(\S+)/i) || [])[1] || '',
-    impression: field(text, 'Primary Impression', { stopAtGap: true }),
+    impression: L('impression') || field(text, 'Primary Impression', { stopAtGap: true }),
     acuity: normAcuity(acuityRaw),
     responseMode: normMode(fieldWrapped(text, 'Response Mode to Scene', 2)),
-    transportMode: normMode(field(text, 'Transport Mode', { stopAtGap: true })),
+    transportMode: normMode(L('transportMode') || field(text, 'Transport Mode', { stopAtGap: true })),
     transportDescriptors: transportDescRaw,
     lightsSirens,
     serviceRequested: fieldWrapped(text, 'Type of Service Requested', 2),
-    destination: field(text, 'Destination Name', { stopAtGap: true }),
-    destinationReason: field(text, 'Destination reason', { stopAtGap: true }),
+    destination: L('destination') || field(text, 'Destination Name', { stopAtGap: true }),
+    destinationReason: L('destinationReason') || field(text, 'Destination reason', { stopAtGap: true }),
     // Value may sit on the same line or the next, depending on the extractor.
     preArrivalAlert:
       (text.match(/Destination Team Pre-Arrival Alert or Activation\s*:?\s*(Yes[^\s]*|No)\b/i) || [])[1] ||
@@ -725,7 +1130,7 @@ export function parseRecord(rawText) {
       (text.match(/ALS provider on scene\s*with\s*:?\s*(Yes|No)\b/i) || [])[1] ||
       (text.match(/ALS provider on scene[\s\S]{0,90}?:\s*(Yes|No)\b/i) || [])[1] ||
       '',
-    movedToAmbulance: fieldWrapped(text, 'Patient Moved to Ambulance', 1),
+    movedToAmbulance: L('movedToAmbulance') || fieldWrapped(text, 'Patient Moved to Ambulance', 1),
 
     // ----- medical-necessity additions ------------------------------------
     // Fields the emergent-transport review never needed. The mode question is
@@ -738,14 +1143,13 @@ export function parseRecord(rawText) {
     // alias, which is the ingestion path to prefer while they are unproven.
     // A miss costs a "not documented" finding, which is recoverable; a wrong
     // value would be a confident false pass, which is not.
-    originName:
-      field(text, 'Incident Facility Name', { stopAtGap: true }) ||
-      field(text, 'Scene Facility Name', { stopAtGap: true }) ||
-      field(text, 'Incident Location Name', { stopAtGap: true }),
-    originType: fieldWrapped(text, 'Incident Location Type', 1),
-    position: fieldWrapped(text, 'Position of Patient During Transport', 1),
-    movedByMethod: fieldWrapped(text, 'Patient Moved to Ambulance by', 1),
-    levelOfService: fieldWrapped(text, 'Type of Service Requested', 2),
+    // For an interfacility transport the "incident" is the sending facility,
+    // so ImageTrend's Incident Name / Incident Type ARE the origin.
+    originName: L('originName') || field(text, 'Incident Facility Name', { stopAtGap: true }),
+    originType: L('originType') || fieldWrapped(text, 'Incident Location Type', 1),
+    position: L('position') || fieldWrapped(text, 'Position of Patient During Transport', 1),
+    movedByMethod: L('movedByMethod') || fieldWrapped(text, 'Patient Moved to Ambulance by', 1),
+    levelOfService: L('levelOfService') || fieldWrapped(text, 'Type of Service Requested', 2),
     /**
      * Who wrote the report.
      *
@@ -757,11 +1161,12 @@ export function parseRecord(rawText) {
      * Like the other fields added for this tool, the PDF anchors below are
      * outside the parser's 13-chart validation. Prefer the CSV/JSON column.
      */
+    // "Crew Member Completing this Report" in the real export — the
+    // technician who took patient care and wrote the narrative.
     author:
+      cleanName(L('author')) ||
       field(text, 'Primary Patient Caregiver', { stopAtGap: true }) ||
-      field(text, 'Primary Caregiver', { stopAtGap: true }) ||
       field(text, 'Report Author', { stopAtGap: true }) ||
-      field(text, 'Created By', { stopAtGap: true }) ||
       '',
     crew: (() => {
       const out = [];
@@ -790,6 +1195,7 @@ export function parseRecord(rawText) {
     gcs,
     glucose: parseGlucose(text),
     medications: parseMedications(text),
+    interventions: parseInterventions(text),
     narrative: parseNarrative(text),
     _rawLength: text.length,
   };
@@ -986,6 +1392,7 @@ function normaliseImported(o) {
     gcs: Array.isArray(o.gcs) ? o.gcs : [],
     glucose: Array.isArray(o.glucose) ? o.glucose : [],
     medications: Array.isArray(o.medications) ? o.medications : [],
+    interventions: Array.isArray(o.interventions) ? o.interventions : [],
     narrative: String(o.narrative ?? '').trim(),
     times: o.times || {},
 

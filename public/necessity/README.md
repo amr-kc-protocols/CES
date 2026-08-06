@@ -114,7 +114,7 @@ starts, so the words for that conversation ship with it. It also goes into the
 workbook and onto the print sheet.
 
 ```
-K. Vance — incident FB-001
+Kim Vance — response 30100001
 
 1. Administrative reason with no clinical reason beside it. The record gives
    "facility requested" and nothing clinical. This is the pattern that reads
@@ -138,16 +138,32 @@ something is wrong stops being read.
 
 ### Who the author is
 
-The **author** is the technician who took patient care and wrote the narrative
-— `Primary Patient Caregiver` in ImageTrend, or an `author` column on import.
-Deliberately not the crew: counting a chart against everyone who was on the
-truck tells a partner they write badly when they may not have written a word
-of it.
+The **author** is whoever wrote the narrative — `Crew Member Completing this
+Report` in ImageTrend, or an `author` column on import. Deliberately not the
+crew: counting a chart against everyone who was on the truck tells a partner
+they write badly when they may not have written a word of it.
+
+The export renders that field as `Vance, Kim (00000)`, and the column window
+sometimes catches the tail of the cell above it, so the raw value can arrive as
+`ure. Vance, Kim (00000)` — the end of "Signature", the name, and an employee
+number. `cleanName()` in `js/parser.js` reduces that to
+`Kim Vance`: first-name-first because that is how every other name in this
+app reads, and without the employee number, which identifies the person more
+than a coaching message needs to and is not what a colleague would call them.
 
 Where a chart names no author the first crew member is assumed, and it is
 labelled **assumed** everywhere it appears — in the grid, in the drawer, and as
 its own column in the workbook. Coaching the wrong person is worse than having
 to ask who wrote it.
+
+### How a chart is referred to
+
+By its **EMS response number** — the eight-digit number crews already scan onto
+trailing paperwork and quote to each other. `chartRef()` in `js/necessity.js`
+falls back to the incident number, then to the date of service, so a chart is
+never addressed as "(none)". The incident number is still shown beneath the
+response number in the grid and is still searchable; it is simply not what a
+message to a crew member leads with.
 
 ## Coaching view
 
@@ -157,7 +173,7 @@ everyone is bad.
 
 - **What this sample misses most** — element gaps ranked by how often they are
   absent. The top row is the one worth a shift briefing.
-- **By crew member** — ordered by chart count, *not* by score. This is
+- **By report author** — ordered by chart count, *not* by score. This is
   employment data about identifiable staff, and the useful output is "three
   people never record functional status", a class to teach — not a league table.
   Samples under four charts are labelled as such.
@@ -182,20 +198,115 @@ table.
 
 `js/necessity.js` and `js/app.js` and `js/exporter.js` are original.
 
-### Parser caveat
+### Reading the real PDF
 
-The base parser carries a 13-chart validation against real ImageTrend "EMS
-Patient Care Report (3.5)" exports. **The fields added for this tool do not.**
-That ground truth predates them.
+The report is a **two-column form, and both halves of a pair wrap vertically**:
 
-They are written defensively — miss rather than guess — because a miss costs a
-"not documented" finding, which is recoverable, while a wrong value is a
-confident false pass, which is not. Every added field also has a CSV/JSON
-column alias, and **that is the ingestion path to prefer** until the PDF anchors
-are checked against real charts.
+```
+       Incident   75123459          <- label starts, value sits beside it
+             # :                    <- label finishes, colon lands here
 
-`origin`, `crew`, `level of service`, `patient moved to ambulance`,
-`transfer method`, `patient position`, `pcs` — see `ALIASES` in `js/parser.js`.
+       Destination Name  : AdventHealth
+                           Shawnee Mission     <- value continues below
+```
+
+A per-label regex cannot read that. `field('Incident #')` never matches, because
+the two halves of the label are on different lines and the value is beside the
+first. `field('Destination Name')` stops at the line break and returns half a
+hospital. Against three real charts the original approach produced an empty
+incident number, an empty origin, `"UNIVERSITY OF"` for a destination and
+`"Non-"` for a transport mode — **56% parse completeness**.
+
+`layoutPairs()` instead finds every colon, walks **up** for the rest of the
+label and the start of the value, walks **down** for the rest of the value, and
+cuts at column gaps. Hyphen splits rejoin (`"Non-"` + `"Emergent"`), and
+footer/URL fragments that bleed in from neighbouring columns are dropped.
+
+Labels are matched **loosely**, because column slicing shaves characters off the
+front of a wrapped one — the real export yields `"f Patient During Transport"`
+and `"Crew Member mpleting this Report"`. Matching on the distinctive tail is
+stable against that.
+
+Two findings from the real export worth knowing:
+
+- **`Incident Name` is the origin.** For an interfacility transport the
+  "incident" happens at the sending facility, so ImageTrend's Incident Name and
+  Incident Type are the pickup facility and its type.
+- **The author is `Crew Member Completing this Report`**, which is exactly the
+  field this tool needs and not the same as the crew list.
+- **`EMS Response #` is the number crews actually use.** Its label wraps across
+  three lines (`EMS` / `Response` / `# :`), which is exactly the shape a
+  per-label regex cannot see and `layoutPairs()` can. It is distinct from the
+  incident number and is what the tool leads with — see *How a chart is
+  referred to* above.
+
+### Reading the procedures tables
+
+`Procedures`, `Medical Devices` and `Medication Administration` are where the
+chart records **what was actually done for the patient**, and they are the
+strongest necessity evidence a chart carries. One real chart in the sample has
+a heparin infusion at 10.9 ml/hr, an existing IV being monitored and a cardiac
+monitor on the patient. Read only the narrative and prose fields and that
+transport looks thin; read these tables and the argument is already there.
+
+They are **tables, not the colon-delimited form**, so `layoutPairs()` cannot
+see them — there is no colon to anchor to. They wrap in both directions, with
+cells broken mid-word:
+
+```
+    Yes       Other        Venous      Antecubi       20 gauge
+            Healthc        Access -     tal-Left
+                are,       Monitor
+            Professi    Existing IV
+                onal
+```
+
+`parseInterventions()` takes the **first line of a row** as the column anchors
+— the only line guaranteed to carry one fragment per column — and assigns every
+later fragment to the nearest anchor. Cells are right-ragged inside their
+column, so nearest-anchor beats any fixed band. Fragments rejoin mid-word
+(`Healthc` + `are,` → `Healthcare,`), and the split threshold is **three**
+spaces rather than two because a dosage cell reads `10.9  Milliliters per Hour`
+with two spaces inside one value.
+
+### Who did it: the crew or the sending facility
+
+The export writes a real person as `Vance, Kim (00000)` and writes anything
+done by the sending facility as `Other Healthcare, Professional (999999)`.
+That sentinel is the whole distinction, and it changes two conclusions:
+
+- **Level of service.** An ALS level has to be supported by what *this crew*
+  assessed or did. A drip the hospital hung before the truck arrived is
+  evidence the patient needed an ambulance — it is not this crew's ALS
+  intervention. `elLevel()` reads a crew-only haystack for that reason, and
+  scores ALS-billed-with-facility-only-content as **partial**, not full, with
+  the fix "record what you did with it".
+- **`als-by-facility-only`**, a record flag saying exactly that.
+
+The other new flag is the useful one:
+
+- **`evidence-only-in-tables`** — the tables document a necessity reason and
+  the narrative never mentions it. A claim reviewer reads the narrative. This
+  is a coaching finding rather than a fault: the care happened and was
+  recorded, just not where the argument gets read.
+
+  Compared **by reason, not by phrase**. A narrative that says "cardiac
+  monitor" has made the monitoring argument; the device table also saying
+  `ECG-Monitor` is the same reason written twice, not a buried one. Firing on
+  the synonym flagged every chart in the sample that documented itself
+  properly.
+
+Both appear in the drawer under *What was done for the patient*, on the print
+sheet, and in the workbook as **Care by this crew** and **Care by the sending
+facility**.
+
+Validated against three real "EMS Patient Care Report (3.5)" charts: **100%
+parse completeness on all three**, with transport mode, patient position,
+acuity, level of service, movement method and author all correct. The old
+per-label regexes remain as a fallback for exports whose layout differs again.
+
+CSV/JSON import is unchanged and still the simplest path where you can produce
+it — see `ALIASES` in `js/parser.js`.
 
 ## Before this goes near real charts
 
@@ -203,9 +314,14 @@ are checked against real charts.
   banks and the weights should be reviewed by whoever owns billing compliance —
   they encode a house opinion about what a reviewer looks for, and that opinion
   should be theirs.
-- The PDF field anchors above need checking against a real IFT export.
-- The crew-trend screen names identifiable employees. Confirm that is
+- The author-trend screen names identifiable employees. Confirm that is
   appropriate use before it is shown to anyone but the reviewer.
+- **The crew/facility split is a documentation rule here, not a billing one.**
+  Whether monitoring an infusion the sending facility started supports an ALS
+  claim is a question for billing compliance. What this tool asserts is
+  narrower and defensible on its own: if the crew did something, the chart has
+  to say the crew did it. Check the ALS rule against the house position before
+  anyone treats a partial as a finding.
 
 ## Privacy
 
