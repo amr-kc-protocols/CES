@@ -671,10 +671,172 @@ function normMode(raw) {
   return raw || '';
 }
 
+
+/* ---------------------------------------------------------------------------
+ * Layout-aware label/value extraction
+ * ---------------------------------------------------------------------------
+ * Written against real ImageTrend "EMS Patient Care Report (3.5)" exports. The
+ * report is a TWO-COLUMN form, and both halves of a pair wrap vertically:
+ *
+ *        Incident   75123459          <- label starts, value sits beside it
+ *              # :                    <- label finishes, colon here
+ *
+ *        Destination Name  : AdventHealth
+ *                            Shawnee Mission        <- value continues below
+ *
+ * A per-label regex cannot read that. `field('Incident #')` never matches
+ * because the two halves of the label are on different lines, and
+ * `field('Destination Name')` stops at the line break and returns half a
+ * hospital. Against these three charts the old approach produced an empty
+ * incident number, an empty origin, "UNIVERSITY OF" for a destination and
+ * "Non-" for a transport mode.
+ *
+ * So: find every colon, walk UP for the rest of the label and the start of the
+ * value, walk DOWN for the rest of the value, and cut at column gaps.
+ * ------------------------------------------------------------------------*/
+
+const colAt = (line, from, to) => (line || '').slice(from, to);
+const firstCell = (s) => s.split(/\s{3,}/)[0].trim();
+const blankIn = (line, from, to) => !colAt(line, from, to).trim();
+
+/** Footer, URL and pagination fragments that bleed in from other columns. */
+const BLEED = /https?:|%[0-9A-F]{2}|Page \d+ of \d+|imagetrend/i;
+
+/** Join continuation fragments, respecting a hyphen split ("Non-" + "Emergent"). */
+function joinValue(parts) {
+  let out = '';
+  for (const raw of parts) {
+    const part = raw.trim();
+    if (!part || BLEED.test(part)) continue;
+    if (!out) out = part;
+    else if (out.endsWith('-')) out += part;
+    else out += ' ' + part;
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+export function layoutPairs(text) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    for (const m of [...line.matchAll(/:/g)]) {
+      const c = m.index;
+      const left = line.slice(0, c);
+      const segs = left.split(/\s{3,}/).map((x) => x.trim()).filter(Boolean);
+      const label = segs[segs.length - 1] || '';
+      if (!/[A-Za-z#]/.test(label)) continue;
+      const labStart = left.lastIndexOf(label);
+      const vStart = c + 1;
+
+      // Upwards: the rest of a wrapped label, and the value that sits beside
+      // the label's FIRST line rather than beside its colon.
+      const labelPre = [];
+      const valuePre = [];
+      for (let up = i - 1; up >= 0 && up > i - 4; up--) {
+        const prev = lines[up];
+        if (blankIn(prev, Math.max(0, labStart - 8), c + 1) && blankIn(prev, vStart, vStart + 42)) break;
+        // A colon in this band means that line is its own pair, not our label.
+        if (colAt(prev, Math.max(0, labStart - 8), vStart + 2).includes(':')) break;
+        const lab = firstCell(colAt(prev, Math.max(0, labStart - 8), c + 1));
+        const val = firstCell(colAt(prev, vStart, vStart + 42));
+        if (!lab && !val) break;
+        if (lab) labelPre.unshift(lab);
+        if (val) valuePre.unshift(val);
+      }
+
+      // Downwards: the rest of a wrapped value.
+      const valuePost = [];
+      for (let dn = i + 1; dn < lines.length && dn < i + 7; dn++) {
+        const nxt = lines[dn];
+        if (colAt(nxt, Math.max(0, vStart - 30), vStart + 2).includes(':')) break;
+        const val = firstCell(colAt(nxt, vStart, vStart + 42));
+        if (!val) break;
+        valuePost.push(val);
+      }
+
+      const fullLabel = [...labelPre, label].join(' ').replace(/\s+/g, ' ').trim();
+      const value = joinValue([...valuePre, firstCell(colAt(line, vStart, vStart + 42)), ...valuePost]);
+      if (fullLabel && value) out.push({ label: fullLabel, value });
+    }
+  }
+  return out;
+}
+
+/**
+ * Labels are matched loosely on purpose.
+ *
+ * Column slicing shaves characters off the front of a wrapped label — the real
+ * export yields "f Patient During Transport" and "Crew Member mpleting this
+ * Report". Requiring an exact string would drop both. Matching on the distinctive
+ * tail is stable against that, and these labels are distinctive enough that a
+ * loose match cannot collide.
+ */
+const FIELD_PATTERNS = {
+  incident: [/^incident\s*#/i],
+  originName: [/incident name/i],
+  originType: [/incident type/i],
+  destination: [/destination name/i],
+  destinationReason: [/destination reason/i],
+  transportMode: [/^transport mode$/i, /ems transport method/i],
+  transportDescriptors: [/transport mode descriptors/i],
+  levelOfService: [/type of service/i, /^requested$/i],
+  // The technician who took patient care and wrote the narrative.
+  author: [/crew member.*(completing|mpleting).*report/i],
+  movedToAmbulance: [/patient moved to ambulance/i],
+  movedByMethod: [/moved from ambulance/i],
+  position: [/patient during transport/i],
+  impression: [/^primary impression/i],
+  acuity: [/initial patient acuity/i],
+  destinationType: [/destination type/i],
+  dateOfService: [/transport date/i, /^date of service/i],
+};
+
+/**
+ * Trailing fragments that belong to the next column, not to this value.
+ *
+ * A value's column window is a fixed width, so a neighbouring narrow column
+ * sometimes lands inside it — "Hospital-to-Hospital Transfer 12650" picks up
+ * the EMS unit number sitting to its right. Only a bare trailing number is
+ * stripped, because that is the shape that bleeds; real values do not end in
+ * a naked four-digit run.
+ */
+const TRAILING_BLEED = /\s+\d{4,}$/;
+
+/**
+ * Fields whose value legitimately ends in a long number, and which therefore
+ * must NOT be de-bled. Stripping the tail off "Ground 75123459" left every
+ * chart with an incident of "Ground", so all three collapsed onto one key and
+ * the importer showed a single record.
+ */
+const KEEPS_TRAILING_NUMBER = new Set(['incident', 'dateOfService']);
+
+/** First value whose label matches, or ''. */
+export function pickField(pairs, key) {
+  const pats = FIELD_PATTERNS[key];
+  if (!pats) return '';
+  for (const pat of pats) {
+    const hit = pairs.find((p) => pat.test(p.label));
+    if (!hit || !hit.value) continue;
+    return KEEPS_TRAILING_NUMBER.has(key)
+      ? hit.value.trim()
+      : hit.value.replace(TRAILING_BLEED, '').trim();
+  }
+  return '';
+}
+
 export function parseRecord(rawText) {
   const text = stripNoise(rawText);
+  // Layout pass first — it reads the two-column form correctly. The older
+  // per-label regexes stay as a fallback for anything it does not find, and
+  // for exports whose layout differs again.
+  const pairs = layoutPairs(text);
+  const L = (k) => pickField(pairs, k);
 
-  const incident = field(text, 'Incident #', { stopAtGap: true }).split(/\s+/)[0] || '';
+  // The layout value can carry a leading service word ("Ground 75123459"),
+  // so take the number rather than the first token.
+  const incidentRaw = L('incident') || field(text, 'Incident #', { stopAtGap: true });
+  const incident = (incidentRaw.match(/\d{5,}/) || [])[0] || incidentRaw.split(/\s+/)[0] || '';
   // pdf.js emits wrapped labels with no separating space, so the value can be
   // welded to the label ("Initial PatientEmergent (Yellow)"). Match the known
   // acuity vocabulary directly rather than relying on a delimiter.
@@ -698,22 +860,29 @@ export function parseRecord(rawText) {
     source: 'pdf',
     incident,
     responseNo: (text.match(/EMS Response\s*(?:#:)?\s*(\d+)/i) || [])[1] || '',
-    dateOfService: (text.match(/Date of Service:?:?\s*(\d\d\/\d\d\/\d{4})/i) || [])[1] || '',
+    // The real export labels this "Transport Date"; the last resort is simply
+    // the first date on the chart, which beats an empty field on every screen
+    // that sorts or filters by it.
+    dateOfService:
+      (L('dateOfService').match(/\d\d\/\d\d\/\d{4}/) || [])[0] ||
+      (text.match(/Date of Service:?:?\s*(\d\d\/\d\d\/\d{4})/i) || [])[1] ||
+      (text.match(/\b(\d\d\/\d\d\/\d{4})\b/) || [])[1] ||
+      '',
     patientName: field(text, 'Patient Name', { stopAtGap: true }),
     age: (text.match(/Age:\s*(\d+)\s*(Years|Months|Days)/i) || []).slice(1).join(' '),
     ageYears: num((text.match(/Age:\s*(\d+)\s*Years/i) || [])[1]),
     sex: (text.match(/Gender:\s*(\w+)/i) || [])[1] || '',
     dispatchNature: field(text, 'Nature of Call', { stopAtGap: true }),
     emdCard: (text.match(/EMD Card Number:\s*(\S+)/i) || [])[1] || '',
-    impression: field(text, 'Primary Impression', { stopAtGap: true }),
+    impression: L('impression') || field(text, 'Primary Impression', { stopAtGap: true }),
     acuity: normAcuity(acuityRaw),
     responseMode: normMode(fieldWrapped(text, 'Response Mode to Scene', 2)),
-    transportMode: normMode(field(text, 'Transport Mode', { stopAtGap: true })),
+    transportMode: normMode(L('transportMode') || field(text, 'Transport Mode', { stopAtGap: true })),
     transportDescriptors: transportDescRaw,
     lightsSirens,
     serviceRequested: fieldWrapped(text, 'Type of Service Requested', 2),
-    destination: field(text, 'Destination Name', { stopAtGap: true }),
-    destinationReason: field(text, 'Destination reason', { stopAtGap: true }),
+    destination: L('destination') || field(text, 'Destination Name', { stopAtGap: true }),
+    destinationReason: L('destinationReason') || field(text, 'Destination reason', { stopAtGap: true }),
     // Value may sit on the same line or the next, depending on the extractor.
     preArrivalAlert:
       (text.match(/Destination Team Pre-Arrival Alert or Activation\s*:?\s*(Yes[^\s]*|No)\b/i) || [])[1] ||
@@ -725,7 +894,7 @@ export function parseRecord(rawText) {
       (text.match(/ALS provider on scene\s*with\s*:?\s*(Yes|No)\b/i) || [])[1] ||
       (text.match(/ALS provider on scene[\s\S]{0,90}?:\s*(Yes|No)\b/i) || [])[1] ||
       '',
-    movedToAmbulance: fieldWrapped(text, 'Patient Moved to Ambulance', 1),
+    movedToAmbulance: L('movedToAmbulance') || fieldWrapped(text, 'Patient Moved to Ambulance', 1),
 
     // ----- medical-necessity additions ------------------------------------
     // Fields the emergent-transport review never needed. The mode question is
@@ -738,14 +907,13 @@ export function parseRecord(rawText) {
     // alias, which is the ingestion path to prefer while they are unproven.
     // A miss costs a "not documented" finding, which is recoverable; a wrong
     // value would be a confident false pass, which is not.
-    originName:
-      field(text, 'Incident Facility Name', { stopAtGap: true }) ||
-      field(text, 'Scene Facility Name', { stopAtGap: true }) ||
-      field(text, 'Incident Location Name', { stopAtGap: true }),
-    originType: fieldWrapped(text, 'Incident Location Type', 1),
-    position: fieldWrapped(text, 'Position of Patient During Transport', 1),
-    movedByMethod: fieldWrapped(text, 'Patient Moved to Ambulance by', 1),
-    levelOfService: fieldWrapped(text, 'Type of Service Requested', 2),
+    // For an interfacility transport the "incident" is the sending facility,
+    // so ImageTrend's Incident Name / Incident Type ARE the origin.
+    originName: L('originName') || field(text, 'Incident Facility Name', { stopAtGap: true }),
+    originType: L('originType') || fieldWrapped(text, 'Incident Location Type', 1),
+    position: L('position') || fieldWrapped(text, 'Position of Patient During Transport', 1),
+    movedByMethod: L('movedByMethod') || fieldWrapped(text, 'Patient Moved to Ambulance by', 1),
+    levelOfService: L('levelOfService') || fieldWrapped(text, 'Type of Service Requested', 2),
     /**
      * Who wrote the report.
      *
@@ -757,11 +925,12 @@ export function parseRecord(rawText) {
      * Like the other fields added for this tool, the PDF anchors below are
      * outside the parser's 13-chart validation. Prefer the CSV/JSON column.
      */
+    // "Crew Member Completing this Report" in the real export — the
+    // technician who took patient care and wrote the narrative.
     author:
+      L('author') ||
       field(text, 'Primary Patient Caregiver', { stopAtGap: true }) ||
-      field(text, 'Primary Caregiver', { stopAtGap: true }) ||
       field(text, 'Report Author', { stopAtGap: true }) ||
-      field(text, 'Created By', { stopAtGap: true }) ||
       '',
     crew: (() => {
       const out = [];

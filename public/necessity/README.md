@@ -182,20 +182,50 @@ table.
 
 `js/necessity.js` and `js/app.js` and `js/exporter.js` are original.
 
-### Parser caveat
+### Reading the real PDF
 
-The base parser carries a 13-chart validation against real ImageTrend "EMS
-Patient Care Report (3.5)" exports. **The fields added for this tool do not.**
-That ground truth predates them.
+The report is a **two-column form, and both halves of a pair wrap vertically**:
 
-They are written defensively — miss rather than guess — because a miss costs a
-"not documented" finding, which is recoverable, while a wrong value is a
-confident false pass, which is not. Every added field also has a CSV/JSON
-column alias, and **that is the ingestion path to prefer** until the PDF anchors
-are checked against real charts.
+```
+       Incident   75123459          <- label starts, value sits beside it
+             # :                    <- label finishes, colon lands here
 
-`origin`, `crew`, `level of service`, `patient moved to ambulance`,
-`transfer method`, `patient position`, `pcs` — see `ALIASES` in `js/parser.js`.
+       Destination Name  : AdventHealth
+                           Shawnee Mission     <- value continues below
+```
+
+A per-label regex cannot read that. `field('Incident #')` never matches, because
+the two halves of the label are on different lines and the value is beside the
+first. `field('Destination Name')` stops at the line break and returns half a
+hospital. Against three real charts the original approach produced an empty
+incident number, an empty origin, `"UNIVERSITY OF"` for a destination and
+`"Non-"` for a transport mode — **56% parse completeness**.
+
+`layoutPairs()` instead finds every colon, walks **up** for the rest of the
+label and the start of the value, walks **down** for the rest of the value, and
+cuts at column gaps. Hyphen splits rejoin (`"Non-"` + `"Emergent"`), and
+footer/URL fragments that bleed in from neighbouring columns are dropped.
+
+Labels are matched **loosely**, because column slicing shaves characters off the
+front of a wrapped one — the real export yields `"f Patient During Transport"`
+and `"Crew Member mpleting this Report"`. Matching on the distinctive tail is
+stable against that.
+
+Two findings from the real export worth knowing:
+
+- **`Incident Name` is the origin.** For an interfacility transport the
+  "incident" happens at the sending facility, so ImageTrend's Incident Name and
+  Incident Type are the pickup facility and its type.
+- **The author is `Crew Member Completing this Report`**, which is exactly the
+  field this tool needs and not the same as the crew list.
+
+Validated against three real "EMS Patient Care Report (3.5)" charts: **100%
+parse completeness on all three**, with transport mode, patient position,
+acuity, level of service, movement method and author all correct. The old
+per-label regexes remain as a fallback for exports whose layout differs again.
+
+CSV/JSON import is unchanged and still the simplest path where you can produce
+it — see `ALIASES` in `js/parser.js`.
 
 ## Before this goes near real charts
 
