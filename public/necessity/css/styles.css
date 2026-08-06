@@ -358,3 +358,46 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
 @media (max-width: 720px) {
   .gaphead { flex-direction: column; gap: 2px; }
 }
+
+/* ----- Feedback for the author ----------------------------------------- */
+
+/* Sits directly under the verdict, because it is the thing the reviewer is
+   actually going to act on — the element breakdown below is the evidence for
+   it, not the point of it. */
+.fbbox {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--navy);
+  border-radius: var(--radius);
+  background: #fbfcfe;
+  padding: 12px 14px;
+}
+
+.fbhead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+
+.fbhead b { font-size: 14.5px; color: var(--navy); }
+.fbhead .btn { margin-left: auto; }
+
+.btn.sm { font-size: 12px; padding: 4px 10px; }
+
+.fblines { margin: 0; padding-left: 20px; }
+.fblines li { margin-bottom: 7px; font-size: 13.5px; line-height: 1.45; }
+.fblines li:last-child { margin-bottom: 0; }
+
+.fbclean { margin: 0; font-size: 13.5px; color: var(--green); }
+
+/* Shown only when the clipboard API is unavailable. */
+.fbfallback {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 96px;
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+}

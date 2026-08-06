@@ -746,6 +746,23 @@ export function parseRecord(rawText) {
     position: fieldWrapped(text, 'Position of Patient During Transport', 1),
     movedByMethod: fieldWrapped(text, 'Patient Moved to Ambulance by', 1),
     levelOfService: fieldWrapped(text, 'Type of Service Requested', 2),
+    /**
+     * Who wrote the report.
+     *
+     * Distinct from `crew`, and the distinction matters: coaching goes to the
+     * person who wrote the narrative, not to whoever else was on the truck.
+     * The IFT Field Handbook is explicit that "the technician who took patient
+     * care writes the ePCR", so the primary patient caregiver is the author.
+     *
+     * Like the other fields added for this tool, the PDF anchors below are
+     * outside the parser's 13-chart validation. Prefer the CSV/JSON column.
+     */
+    author:
+      field(text, 'Primary Patient Caregiver', { stopAtGap: true }) ||
+      field(text, 'Primary Caregiver', { stopAtGap: true }) ||
+      field(text, 'Report Author', { stopAtGap: true }) ||
+      field(text, 'Created By', { stopAtGap: true }) ||
+      '',
     crew: (() => {
       const out = [];
       const re = /Crew Member(?:\s*ID)?\s*:?\s*([A-Za-z][A-Za-z'\-. ]{2,40}?)\s{2,}/g;
@@ -850,6 +867,7 @@ const ALIASES = {
   movedByMethod: ['patient moved to ambulance by', 'moved by', 'transfer method'],
   levelOfService: ['level of service', 'type of service requested', 'service level', 'edisposition.21', 'eresponse.05'],
   crew: ['crew', 'crew members', 'personnel', 'attendant'],
+  author: ['author', 'report author', 'created by', 'written by', 'primary caregiver', 'primary patient caregiver'],
   pcs: ['pcs', 'physician certification statement', 'cmn', 'certificate of medical necessity'],
   mobility: ['mobility', 'ambulatory status', 'functional status'],
 };
@@ -981,6 +999,7 @@ function normaliseImported(o) {
     movedByMethod: String(o.movedByMethod ?? '').trim(),
     levelOfService: String(o.levelOfService ?? '').trim(),
     crew: String(o.crew ?? '').trim(),
+    author: String(o.author ?? '').trim(),
     pcs: String(o.pcs ?? '').trim(),
     mobility: String(o.mobility ?? '').trim(),
   };

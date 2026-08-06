@@ -106,6 +106,49 @@ job correctly. Use the emergent review tool for those.
 The scope filter defaults to in-scope charts. `inScope()` in `js/necessity.js`
 is the whole rule.
 
+## Feedback for the author
+
+Every scored chart produces a short message addressed to whoever wrote it,
+with a **Copy** button — the point of the review is the conversation it
+starts, so the words for that conversation ship with it. It also goes into the
+workbook and onto the print sheet.
+
+```
+K. Vance — incident FB-001
+
+1. Administrative reason with no clinical reason beside it. The record gives
+   "facility requested" and nothing clinical. This is the pattern that reads
+   worst on review.
+2. Name what made an ambulance necessary — the monitor, the oxygen, the
+   infusion, the positioning, the fall risk. One clause is enough.
+3. Record vitals and a mental status. One blood pressure does more for this
+   chart than a paragraph.
+
+(4 more in the full review.)
+```
+
+Three lines maximum. Three is what someone reads; eight is what they skim.
+Contradictions come first, then the heaviest missing elements — *"you wrote
+ambulatory and moved them by stretcher"* is more useful to hear than *"add a
+second set of vitals"*, because a reviewer who finds a contradiction starts
+doubting the rest of the record rather than just that line.
+
+A chart with nothing wrong says so. Coaching that only ever arrives when
+something is wrong stops being read.
+
+### Who the author is
+
+The **author** is the technician who took patient care and wrote the narrative
+— `Primary Patient Caregiver` in ImageTrend, or an `author` column on import.
+Deliberately not the crew: counting a chart against everyone who was on the
+truck tells a partner they write badly when they may not have written a word
+of it.
+
+Where a chart names no author the first crew member is assumed, and it is
+labelled **assumed** everywhere it appears — in the grid, in the drawer, and as
+its own column in the workbook. Coaching the wrong person is worse than having
+to ask who wrote it.
+
 ## Coaching view
 
 Two aggregates, both across every loaded chart rather than the current filter —
