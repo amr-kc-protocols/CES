@@ -8,6 +8,7 @@ import Dashboard from './modules/dashboard/Dashboard'
 import { QA_ENABLED, CE_ENABLED, FIELD_OBJECTIVES_ENABLED } from './config/features'
 import { HAS_FTO_AGENDA } from './data/ftoAgenda'
 import { HAS_FIELD_OBJECTIVES } from './data/ftObjectives'
+import { HAS_EXIT_SURVEY } from './data/exitSurvey'
 
 // Route components are code-split: each screen loads on demand, so the initial
 // payload is just the shell + dashboard. Layout wraps <Outlet> in Suspense.
@@ -128,7 +129,9 @@ export default function App() {
         <Route path="academy/:cohortId/skills/:traineeId" element={<SkillSheetView />} />
         <Route path="academy/:cohortId/skills/:traineeId/:sheet" element={<SkillSheetView />} />
         <Route path="academy/:cohortId/checkoff/:sheet" element={<ClassCheckoffView />} />
-        <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
+        {HAS_EXIT_SURVEY && (
+          <Route path="academy/:cohortId/survey/:traineeId" element={<ExitSurveyView />} />
+        )}
         <Route
           path="aemt"
           element={

@@ -1,7 +1,12 @@
 import type { AcademyTemplate, TemplateBlock, TemplateSession } from '../types'
+import { activeMarket, type Market } from '../lib/market'
 
 // ---------------------------------------------------------------------------
-// AMR KC New Hire Academy — one unified template spanning both weeks.
+// New Hire Academy template.
+//
+// The sessions below are KANSAS CITY's, spanning both weeks. Wichita runs
+// Week 1 only and a modified stretcher day — see the per-market selection at
+// the foot of this file, which is what `ACADEMY_TEMPLATE` actually exports.
 //
 //   Week 1 (Systems & Safety): HR/onboarding, EVOC classroom, EVOC road course
 //     (offsite Independence, 0700), PCR/ImageTrend software mechanics, stretcher
@@ -281,22 +286,121 @@ const SESSIONS: TemplateSession[] = [
   },
 ]
 
+/* ---------------------------------------------------------------------------
+ * Per-market selection.
+ *
+ * Wichita runs WEEK 1 ONLY. Its academy keeps HR & systems onboarding, both
+ * EVOC days, PCR documentation, the stretcher day and the corporate-compliance
+ * Cornerstone day, and drops all four Week 2 days: mechanical ventilation, the
+ * second (clinical flipped pre-work) Cornerstone day, hemodynamics/pressors/MCS
+ * and the clinical-mindset capstone.
+ *
+ * That is Wichita's call about its own programme, not a gap to be filled in
+ * later. Every cross-reference between sessions — the `gatesSession` links on
+ * the flipped pre-work and the `pullsFrom` retrieval chains — points from one
+ * Week 2 session to another, so the four come out together and leave nothing
+ * dangling behind them.
+ *
+ * The stretcher day differs too. Kansas City spends its afternoon on the BLS
+ * equipment check-off, which is one of the digital skill sheets Wichita is not
+ * running; see WICHITA_P1S5 for what replaces it.
+ *
+ * Read once at module load, which is safe because switching markets reloads
+ * the page (see setActiveMarket).
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Wichita's stretcher day.
+ *
+ * Same morning as Kansas City's — the stretcher lab runs against the same GMR
+ * v3.2 deck, and the digital stretcher check-off is shared. The afternoon is
+ * not: Kansas City fills it with the BLS equipment check-off on a digital
+ * skill sheet, and Wichita is not running that sheet.
+ *
+ * The block is left as unscheduled time rather than being filled with a guess.
+ * Wichita does run skills checks — split by credential, on the Thursday of
+ * their NEOP week — but that content is theirs to place, and inventing a
+ * digital check-off they never asked for would put a form in front of an
+ * instructor that nobody agreed to.
+ */
+const WICHITA_P1S5: TemplateSession = {
+  ...SESSIONS.find((s) => s.id === 'p1s5')!,
+  objectives: ['Demonstrate safe stretcher handling (GMR v3.2)'],
+  blocks: [
+    { durationMin: 15, kind: 'education', title: 'Opener · objectives · safety brief' },
+    { durationMin: 165, kind: 'hands-on', title: 'Stretcher lab', notes: 'PowerLoad + Stryker hand placement, stair chair. Runs against the GMR Safe Stretcher Handling v3.2 deck.' },
+    { durationMin: 60, kind: 'lunch', title: 'Lunch' },
+    { durationMin: 150, kind: 'education', title: 'Open — Wichita skills checks', notes: 'Kansas City runs the BLS equipment check-off here on a digital skill sheet. Wichita is not running that sheet; its own skills checks are delivered in the NEOP week, split by credential. Placeholder time — replace with Wichita’s content.' },
+    { durationMin: 30, kind: 'closeout', title: 'Final sign-offs · retrieval quiz · housekeeping' },
+  ],
+  retrieval: { pullsFrom: [] },
+}
+
+/**
+ * Kansas City's PCR day defers narrative quality to Week 2 by name. With no
+ * Week 2 in Wichita that note points at a day that does not exist, which reads
+ * as "someone else teaches this" when in fact nobody does.
+ */
+const WICHITA_P1S4: TemplateSession = {
+  ...SESSIONS.find((s) => s.id === 'p1s4')!,
+  blocks: SESSIONS.find((s) => s.id === 'p1s4')!.blocks!.map((b) =>
+    b.title === 'ImageTrend Field — Independent Entry (mechanics)'
+      ? {
+          ...b,
+          notes:
+            'Students enter a chart solo — navigation, required fields, validation. This day is software mechanics only; narrative quality (DCHARTE) is taught in the NEOP week. No later academy day picks it up.',
+        }
+      : b,
+  ),
+}
+
+const WICHITA_SESSIONS: TemplateSession[] = SESSIONS.filter((s) => s.week === 1).map((s) => {
+  if (s.id === 'p1s4') return WICHITA_P1S4
+  if (s.id === 'p1s5') return WICHITA_P1S5
+  return s
+})
+
+const SESSIONS_BY_MARKET: Record<Market, TemplateSession[]> = {
+  kc: SESSIONS,
+  wichita: WICHITA_SESSIONS,
+}
+
+const ACADEMY_NAME_BY_MARKET: Record<Market, string> = {
+  kc: 'AMR Kansas City New Hire Academy',
+  wichita: 'AMR Wichita New Hire Academy',
+}
+
+const PHASE_NAME_BY_MARKET: Record<Market, string> = {
+  kc: 'Systems & Safety (Week 1) + Clinical Depth (Week 2)',
+  wichita: 'Systems & Safety (Week 1)',
+}
+
 export const ACADEMY_TEMPLATE: AcademyTemplate = {
   id: 'academy',
-  name: 'AMR KC New Hire Academy',
+  name: ACADEMY_NAME_BY_MARKET[activeMarket()],
   notCE: true,
   // A real 0900–1600 day (1h lunch, 1530 content stop, 30m housekeeping) holds
   // ~5h of teaching; in-person sessions are fitted to that.
   minEducationHoursPerDay: 5,
-  phase: { id: 'academy', name: 'Systems & Safety (Week 1) + Clinical Depth (Week 2)' },
-  sessions: SESSIONS,
+  phase: { id: 'academy', name: PHASE_NAME_BY_MARKET[activeMarket()] },
+  sessions: SESSIONS_BY_MARKET[activeMarket()],
 }
 
-/** Human labels for the two academy weeks. */
-export const WEEK_LABELS: Record<1 | 2, string> = {
-  1: 'Week 1 — Systems, Safety & Onboarding',
-  2: 'Week 2 — Clinical Depth',
-}
+/** Weeks this market's academy actually runs. */
+export const ACADEMY_WEEKS: (1 | 2)[] = [
+  ...new Set(ACADEMY_TEMPLATE.sessions.map((s) => s.week)),
+].sort() as (1 | 2)[]
+
+/**
+ * Human labels for the academy weeks.
+ *
+ * Wichita's Week 1 is its whole academy, so calling it "Week 1" on screen
+ * would imply a Week 2 that does not exist.
+ */
+export const WEEK_LABELS: Record<1 | 2, string> =
+  ACADEMY_WEEKS.length > 1
+    ? { 1: 'Week 1 — Systems, Safety & Onboarding', 2: 'Week 2 — Clinical Depth' }
+    : { 1: 'Systems, Safety & Onboarding', 2: 'Clinical Depth' }
 
 /** @deprecated Use ACADEMY_TEMPLATE — the template now spans both weeks. */
 export const PHASE2_TEMPLATE = ACADEMY_TEMPLATE

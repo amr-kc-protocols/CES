@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import type { OperationId, SkillSheetId, Trainee } from '../types'
+import { activeMarket, type Market } from '../lib/market'
 import { BLS_SKILLS, LINN_MEDIC_SKILLS, RSI_SKILLS, VENT_SKILLS, type SkillDef } from './skillSheets'
 
 /** Safe Stretcher Handling v3.2 — stations flattened to one pass line each. */
@@ -107,19 +108,69 @@ export function skillsFor(sheet: SkillSheetId, operation: OperationId): SkillDef
 }
 
 /**
+ * Does this market run the clinical skill sheets at all?
+ *
+ * Wichita does not. It runs no BLS sheet, no ALS sheet and no ventilator
+ * sheet — its own skills checks are delivered in its NEOP week, split by
+ * credential, and are not digitised here. Stretcher handling and the EVOC
+ * track sheet are unaffected: both are corporate standards and both markets
+ * run them.
+ *
+ * This is a decision about Wichita's programme rather than a gap. Leaving the
+ * Kansas City sheets in place would put three forms in front of a Wichita
+ * instructor that nobody agreed to fill in, and count them as outstanding work
+ * on every trainee card.
+ */
+const CLINICAL_SHEETS_BY_MARKET: Record<Market, boolean> = { kc: true, wichita: false }
+
+export const HAS_CLINICAL_SHEETS = CLINICAL_SHEETS_BY_MARKET[activeMarket()]
+
+/**
  * The clinical sheets a trainee completes: BLS for every hire, the core ALS
  * sheet for every paramedic, plus the operation's advanced-airway sheet —
  * RSI for Linn County, Ventilator Management for KC/Cass.
+ *
+ * Empty in a market that does not run them.
  */
 export function clinicalSheetsFor(t: Trainee): SkillSheetId[] {
+  if (!HAS_CLINICAL_SHEETS) return []
   if (t.credential !== 'paramedic') return ['bls']
   return ['bls', 'linn-medic', t.operation === 'linn' ? 'rsi' : 'vent']
 }
 
-/** Academy sessions that carry a class-day digital check-off. */
-export const SESSION_CHECKOFFS: Record<string, SkillSheetId[]> = {
-  p1s3: ['evoc-track'], // EVOC Road Course day
-  // Stretcher day doubles as the BLS equipment check-off — every hire,
-  // every operation. The ALS sheet is separate, done during FTO time.
-  p1s5: ['stretcher', 'bls'],
+/**
+ * Sheets that run in every market: both are corporate standards delivered
+ * against the same materials wherever the truck is.
+ */
+const UNIVERSAL_SHEETS: SkillSheetId[] = ['stretcher', 'evoc-track']
+
+/**
+ * Every sheet this trainee may open — the clinical ones their market and
+ * credential call for, plus the corporate standards.
+ *
+ * Views use this to refuse a sheet rather than trusting the URL. Without it a
+ * deep link to `/skills/:id/bls` renders a Kansas City form in Wichita, and so
+ * does a typo: the sheet param falls back to `bls` when it is unrecognised.
+ */
+export function sheetsForTrainee(t: Trainee): SkillSheetId[] {
+  return [...clinicalSheetsFor(t), ...UNIVERSAL_SHEETS]
 }
+
+/** Academy sessions that carry a class-day digital check-off. */
+const CHECKOFFS_BY_MARKET: Record<Market, Record<string, SkillSheetId[]>> = {
+  kc: {
+    p1s3: ['evoc-track'], // EVOC Road Course day
+    // Stretcher day doubles as the BLS equipment check-off — every hire,
+    // every operation. The ALS sheet is separate, done during FTO time.
+    p1s5: ['stretcher', 'bls'],
+  },
+  // Wichita's stretcher day carries the stretcher check-off only; the BLS
+  // equipment check-off that fills Kansas City's afternoon is not run there.
+  wichita: {
+    p1s3: ['evoc-track'],
+    p1s5: ['stretcher'],
+  },
+}
+
+export const SESSION_CHECKOFFS: Record<string, SkillSheetId[]> =
+  CHECKOFFS_BY_MARKET[activeMarket()]
