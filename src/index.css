@@ -222,12 +222,20 @@ input[type='date']::-webkit-date-and-time-value {
   flex: none;
 }
 
-/* Title truncates rather than wrapping — the bar has no room to grow. */
+/* The name wraps rather than truncating.
+ *
+ * "AMR Kansas Academy" does not fit on one line anywhere below about 700px,
+ * so an ellipsis rule turned it into "AMR K…" across the entire tablet and
+ * large-phone range. Breakpoints were the wrong instrument: the width at
+ * which it stops fitting depends on the market chip beside it, which is
+ * wider for Wichita than for Kansas City. Letting it wrap handles every
+ * width without knowing any of that, and the bar has the vertical room for
+ * two lines once the subtitle steps aside on a phone. */
 .topbar .brand .brand-text {
   min-width: 0;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.14;
 }
 
 /* The "Powered by NHTSA's Office of EMS" slot: lighter, wider, underneath. */
@@ -248,7 +256,7 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 /* On a phone the subtitle is decorative — drop it so the name stays whole. */
-@media (max-width: 470px) {
+@media (max-width: 660px) {
   /* "AMR Kansas Academy" needs 178px on one line and a small phone has about
      110 to give, so on a phone the name wraps into a two-line lockup instead
      of shrinking to a size nobody can read. The bar is 64px tall; two lines
@@ -257,18 +265,22 @@ input[type='date']::-webkit-date-and-time-value {
      longer name plus the market chip beside it now do that between them. */
   .topbar .brand small { display: none; }
   .topbar .brand { font-size: 15px; }
-  /* Three classes deep, to match the base rule it is overriding — a media
-     query adds no specificity of its own. */
-  .topbar .brand .brand-text {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    line-height: 1.14;
-  }
-  /* Sync chip keeps its state word but sheds the trailing instruction, which
+  /* Sync chip keeps its state word but sheds the trailing timestamp, which
      the title tag and the tap itself already carry. */
   .chip-extra { display: none; }
 }
+
+/* Below ~390px the wider "Wichita" chip takes enough room that the name
+   breaks a third time ("AMR / Kansas / Academy"), which reads as broken
+   rather than wrapped. One step down in size keeps it to two lines. */
+@media (max-width: 400px) {
+  .topbar .brand { font-size: 13.5px; }
+}
+
+/* Below ~370px the Wichita chip leaves so little room that the name takes a
+   third line whatever size it is set at. It still fits inside the bar and
+   still does not truncate, so it is left alone rather than shrunk to buy
+   nothing — legibility matters more here than tidiness. */
 
 /* An `all` account carries a dropdown instead of a label, which is 115px
    against 50px — enough to push the app name into an ellipsis on a small

@@ -1,3 +1,4 @@
+import { activeMarket, type Market } from '../lib/market'
 // ---------------------------------------------------------------------------
 // GENERATED historical new-hire class data — transcribed from the legacy
 // Microsoft Forms / survey workbooks (exit surveys, BLS clinical skills
@@ -9,7 +10,7 @@
 import type { DailyEval, SkillCheck } from '../types'
 
 /** Legacy exit-survey responses, same field keys the in-app survey posts. */
-export const HISTORICAL_SURVEYS: Record<string, string | number>[] = [
+const KC_HISTORICAL_SURVEYS: Record<string, string | number>[] = [
   {
     "submittedAt": "2025-08-07T15:00:00",
     "fullName": "Angelina Parra",
@@ -750,7 +751,7 @@ export const HISTORICAL_SURVEYS: Record<string, string | number>[] = [
   }
 ]
 
-export const HISTORICAL_SKILLS: SkillCheck[] = [
+const KC_HISTORICAL_SKILLS: SkillCheck[] = [
   {
     "id": "hskill1",
     "traineeName": "Ryan Vigil",
@@ -1576,7 +1577,7 @@ export const HISTORICAL_SKILLS: SkillCheck[] = [
   }
 ] as SkillCheck[]
 
-export const HISTORICAL_EVALS: DailyEval[] = [
+const KC_HISTORICAL_EVALS: DailyEval[] = [
   {
     "id": "heval2",
     "traineeName": "Ashton Davis-Stout",
@@ -4745,7 +4746,7 @@ export const HISTORICAL_EVALS: DailyEval[] = [
 ] as DailyEval[]
 
 /** Every historical hire with the first date they appear in any record. */
-export const HISTORICAL_HIRES: { name: string; firstSeen: string }[] = [
+const KC_HISTORICAL_HIRES: { name: string; firstSeen: string }[] = [
   {
     "name": "Harry \"Ross\" Jamison",
     "firstSeen": "2025-04-17"
@@ -4927,3 +4928,37 @@ export const HISTORICAL_HIRES: { name: string; firstSeen: string }[] = [
     "firstSeen": "2026-05-16"
   }
 ]
+
+
+/* ---------------------------------------------------------------------------
+ * Per-market selection.
+ *
+ * Every record above belongs to Kansas City: its past cohorts, the surveys
+ * those new hires filled in, and the FTOs named in them. Wichita has no
+ * history in this app because it has not run a cohort in it yet, and it must
+ * not inherit somebody else's.
+ *
+ * Read once at module load — switching markets reloads the page.
+ * ------------------------------------------------------------------------ */
+
+const SURVEYS_BY_MARKET: Record<Market, typeof KC_HISTORICAL_SURVEYS> = {
+  kc: KC_HISTORICAL_SURVEYS,
+  wichita: [],
+}
+const SKILLS_BY_MARKET: Record<Market, typeof KC_HISTORICAL_SKILLS> = {
+  kc: KC_HISTORICAL_SKILLS,
+  wichita: [],
+}
+const EVALS_BY_MARKET: Record<Market, typeof KC_HISTORICAL_EVALS> = {
+  kc: KC_HISTORICAL_EVALS,
+  wichita: [],
+}
+const HIRES_BY_MARKET: Record<Market, typeof KC_HISTORICAL_HIRES> = {
+  kc: KC_HISTORICAL_HIRES,
+  wichita: [],
+}
+
+export const HISTORICAL_SURVEYS = SURVEYS_BY_MARKET[activeMarket()]
+export const HISTORICAL_SKILLS = SKILLS_BY_MARKET[activeMarket()]
+export const HISTORICAL_EVALS = EVALS_BY_MARKET[activeMarket()]
+export const HISTORICAL_HIRES = HIRES_BY_MARKET[activeMarket()]

@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { fromISODate } from '../lib/date'
+import { activeMarket, type Market } from '../lib/market'
 
 /** Week 1 Sunday the rotation is anchored to. */
 export const FTO_ROTATION_ANCHOR = '2026-07-19'
@@ -51,7 +52,7 @@ export interface FtoCrew {
   cycle?: { anchor: string; onDays: number; cycleDays: number }
 }
 
-export const FTO_CREWS: FtoCrew[] = [
+const KC_FTO_CREWS: FtoCrew[] = [
   {
     unit: 'KC102',
     level: 'ALS',
@@ -149,14 +150,14 @@ export const FTO_CREWS: FtoCrew[] = [
 ]
 
 /** FTOs on the List tab with no recurring line in the master schedule. */
-export const FTOS_WITHOUT_LINE: string[] = ['David Richardson']
+const KC_FTOS_WITHOUT_LINE: string[] = ['David Richardson']
 
 /**
  * Clinical educators / staff who assess skill sheets and daily evals but don't
  * run a ride line — they appear in the evaluator dropdowns and facilitator
  * chips, but not in the ride planner or its "schedule rides directly" banner.
  */
-export const ADDITIONAL_EVALUATORS: string[] = ['Jordan Jones']
+const KC_ADDITIONAL_EVALUATORS: string[] = ['Jordan Jones']
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -205,3 +206,33 @@ export function allFtos(): string[] {
   const fromCrews = FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name))
   return [...new Set([...fromCrews, ...FTOS_WITHOUT_LINE, ...ADDITIONAL_EVALUATORS])]
 }
+
+
+/* ---------------------------------------------------------------------------
+ * Per-market selection.
+ *
+ * Everything above is the Kansas City Metro operation, transcribed from its
+ * workbook: KC's units, KC's crews, KC's rotation. None of it is true in
+ * Wichita, which runs its own people on its own lines.
+ *
+ * This file is compiled into the bundle rather than stored in `records`, so
+ * the market fence in the database never reaches it — which is exactly how a
+ * Wichita admin ended up looking at KC104 and a Kansas City FTO roster on
+ * their own dashboard. The split has to happen here instead.
+ *
+ * Read once at module load. That is safe because switching markets reloads
+ * the page (see setActiveMarket), so these can never be stale.
+ *
+ * Wichita is empty on purpose. Its schedule is real operational data about
+ * real people and has to be transcribed from Wichita's own workbook — a
+ * placeholder would be worse than a blank screen, because a blank screen is
+ * obviously unfinished and a wrong roster is not.
+ * ------------------------------------------------------------------------ */
+
+const CREWS_BY_MARKET: Record<Market, FtoCrew[]> = { kc: KC_FTO_CREWS, wichita: [] }
+const NO_LINE_BY_MARKET: Record<Market, string[]> = { kc: KC_FTOS_WITHOUT_LINE, wichita: [] }
+const EVALUATORS_BY_MARKET: Record<Market, string[]> = { kc: KC_ADDITIONAL_EVALUATORS, wichita: [] }
+
+export const FTO_CREWS: FtoCrew[] = CREWS_BY_MARKET[activeMarket()]
+export const FTOS_WITHOUT_LINE: string[] = NO_LINE_BY_MARKET[activeMarket()]
+export const ADDITIONAL_EVALUATORS: string[] = EVALUATORS_BY_MARKET[activeMarket()]
