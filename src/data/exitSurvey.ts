@@ -4,9 +4,27 @@
 // Google Apps Script endpoint maps them to sheet columns by name.
 // ---------------------------------------------------------------------------
 
+import { activeMarket, type Market } from '../lib/market'
+
 /** Google Apps Script web-app endpoint collecting responses into Sheets. */
 export const SURVEY_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbxAUtgOCaEXbh-Uq42FLWzbFZi_5fXYtVIK0q8sJpvZmd2360_ujeO52zVjSlE0VXIuyw/exec'
+
+/**
+ * Does this market run the exit survey?
+ *
+ * Wichita does not, for now.
+ *
+ * This one needs a real gate rather than a hidden button. The endpoint above
+ * is a single Google Apps Script feeding one Kansas City sheet, and the
+ * question keys are its column names — so a Wichita response would not merely
+ * be unwanted, it would land in Kansas City's results and be counted there.
+ * That is the market fence failing outward, to a third party, where no
+ * database policy can catch it.
+ */
+const SURVEY_BY_MARKET: Record<Market, boolean> = { kc: true, wichita: false }
+
+export const HAS_EXIT_SURVEY = SURVEY_BY_MARKET[activeMarket()]
 
 export type SurveyQuestion =
   | { kind: 'text'; name: string; label: string; placeholder?: string; required?: boolean }

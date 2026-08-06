@@ -40,6 +40,7 @@ import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
 import { HAS_FTO_AGENDA, trackById } from '../../data/ftoAgenda'
 import { HAS_FIELD_OBJECTIVES } from '../../data/ftObjectives'
+import { HAS_EXIT_SURVEY } from '../../data/exitSurvey'
 import CohortForm from './CohortForm'
 import ScheduleView from './Phase2View'
 import AttendanceView from './AttendanceView'
@@ -173,7 +174,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
   const rides = useRidesFor(trainee.id)
   const evals = useEvalsFor(trainee.id)
   const surveyDate = useSurveyDateFor(trainee.id)
-  // Every hire runs the BLS sheet; paramedics additionally run the ALS sheet.
+  // Every hire runs the BLS sheet and paramedics additionally run the ALS sheet
+  // — in a market that runs the clinical sheets at all. Wichita does not.
   const blsCheck = useSkillCheckFor(trainee.id, 'bls')
   const alsCheck = useSkillCheckFor(trainee.id, 'linn-medic')
   const rsiCheck = useSkillCheckFor(trainee.id, 'rsi')
@@ -400,9 +402,11 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             <Link to={`/academy/${trainee.cohortId}/eval/${trainee.id}`} className="btn sm">
               ⭐ Daily evals · {evals.length}
             </Link>
-            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/bls`} className="btn sm">
-              🩺 BLS · {passedOf(blsCheck)}/{skillsFor('bls', trainee.operation).length}
-            </Link>
+            {clinicalSheetsFor(trainee).includes('bls') && (
+              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/bls`} className="btn sm">
+                🩺 BLS · {passedOf(blsCheck)}/{skillsFor('bls', trainee.operation).length}
+              </Link>
+            )}
             {clinicalSheetsFor(trainee).includes('linn-medic') && (
               <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/linn-medic`} className="btn sm">
                 💉 ALS · {passedOf(alsCheck)}/{skillsFor('linn-medic', trainee.operation).length}
@@ -440,15 +444,16 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                 })()}
               </Link>
             )}
-            {surveyDate ? (
-              <span className="pill ok" title={`Exit survey submitted ${formatDate(surveyDate)}`}>
-                📝 Survey ✓ {formatDate(surveyDate)}
-              </span>
-            ) : (
-              <Link to={`/academy/${trainee.cohortId}/survey/${trainee.id}`} className="btn sm">
-                📝 Exit survey
-              </Link>
-            )}
+            {HAS_EXIT_SURVEY &&
+              (surveyDate ? (
+                <span className="pill ok" title={`Exit survey submitted ${formatDate(surveyDate)}`}>
+                  📝 Survey ✓ {formatDate(surveyDate)}
+                </span>
+              ) : (
+                <Link to={`/academy/${trainee.cohortId}/survey/${trainee.id}`} className="btn sm">
+                  📝 Exit survey
+                </Link>
+              ))}
           </div>
           <div className="subtle" style={{ fontSize: 12, marginBottom: 10 }}>
             🚑{' '}
