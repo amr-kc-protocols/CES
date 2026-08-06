@@ -48,6 +48,35 @@ Each element resolves to **Established / Partial / Missing** and carries its own
 citation — the sentence it fired on. A finding you cannot check is a finding you
 cannot coach from.
 
+### Negation
+
+Matching ignores anything the chart rules out. Without this the tool read
+
+> "Patient is **not** bed bound and is able to ambulate independently… **No**
+> oxygen required and **no** cardiac monitor was applied. There are **no**
+> isolation precautions."
+
+as a documented functional limitation plus two documented reasons an ambulance
+was needed, and scored that chart **78 of 100** — the clearest possible
+*not necessary* record, told its documentation was good. Structured fields did
+the same from the other side: `Oxygen: None` and `Restraints: N/A` counted as
+reasons.
+
+The rule is a cut-down NegEx. Looking backwards from a match, inside its own
+clause, for a trigger (`no`, `not`, `denies`, `without`, `no longer`, `ruled
+out`…); and forwards for a `label: value` tail that means "did not apply".
+Full stops end a negation's reach, and `but` / `however` / `except` cancel one,
+so *"no history of falls **but** is a high fall risk today"* still counts. Every
+occurrence of a phrase is scanned, not just the first, so *"no cardiac monitor
+on arrival. Cardiac monitor applied before departure."* counts too.
+
+It is deliberately conservative, because the two errors are not equal. Missing
+a negation credits a crew for something they explicitly ruled out — that is how
+the tool told people the opposite of the truth. Over-negating costs a "not
+documented" finding on something that was, which is recoverable and visible in
+the citation. Phrases that contain a negative word themselves — `unable to
+ambulate`, `not available at` — are unaffected.
+
 **Bands:** 85+ Defensible · 70–84 Thin · 50–69 At risk · under 50 Not established.
 
 ### Record flags

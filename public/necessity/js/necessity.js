@@ -216,16 +216,108 @@ const norm = (s) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ');
  */
 const join = (...parts) => parts.map((v) => String(v ?? '').trim()).filter(Boolean).join(' ');
 
-/** Word-boundary-aware contains. Avoids "vent" inside "prevented". */
-function has(haystack, phrase) {
+/* --------------------------------------------------------------- negation */
+
+/**
+ * Words that negate what comes after them.
+ *
+ * Without this the tool read "no oxygen required and no cardiac monitor was
+ * applied" as two documented reasons an ambulance was needed, and "patient is
+ * not bed bound and is able to ambulate independently" as a documented
+ * functional limitation. A chart that ruled out every necessity factor in
+ * plain English — the clearest possible NOT-necessary record — scored 78 and
+ * was told its documentation was good.
+ *
+ * This is a cut-down NegEx: look back from the match, inside its own clause,
+ * for a trigger. Deliberately conservative, because the two errors are not
+ * equal. Missing a negation credits a crew for something they ruled out, which
+ * is how the tool told people the opposite of the truth. Over-negating costs a
+ * "not documented" finding on something that was — recoverable, and visible to
+ * the reviewer reading the citation.
+ */
+const NEGATION_TRIGGERS = [
+  'no', 'not', 'non', 'without', 'denies', 'denied', 'denying', 'negative for',
+  'free of', 'absent', 'absence of', 'never', 'none', 'nil', 'no evidence of',
+  'no sign of', 'no signs of', 'no longer', 'ruled out', 'rules out', 'resolved',
+  'does not', "doesn't", 'did not', "didn't", 'was not', "wasn't", 'is not',
+  "isn't", 'are not', "aren't", 'were not', "weren't", 'will not', "won't",
+  'unremarkable for', 'cleared of', 'declined', 'refused',
+];
+
+/**
+ * Words that close a negation's scope before it reaches the phrase.
+ *
+ * "No history of falls BUT is currently a high fall risk" negates the first
+ * half only. Without these, one early "no" would suppress everything after it
+ * in a long sentence.
+ */
+const SCOPE_BREAKERS = ['but', 'however', 'although', 'though', 'except', 'other than', 'aside from', 'apart from', 'yet', 'still'];
+
+/** How many words back a trigger can reach. Beyond this it is another thought. */
+const NEGATION_WINDOW = 6;
+
+/**
+ * Values that mean "this did not apply", written after a label.
+ *
+ * ePCR exports are full of `label: value` pairs, and they reach the phrase
+ * banks through the structured fields. Looking only backwards credited
+ * "Oxygen: None" and "Restraints: N/A" as documented reasons an ambulance was
+ * needed — the same error as the narrative case, arriving from the other side.
+ */
+const NEGATIVE_VALUE = /^[\s:;,\-–—]*(none|no|n\/a|na|not applicable|negative|denied|nil|absent|0)\s*[.;,)]?\s*$/;
+
+function isNegated(hay, at, len) {
+  // Back to the start of this clause — a negation never crosses a full stop.
+  let start = at;
+  while (start > 0 && !'.!?;\n'.includes(hay[start - 1])) start--;
+  let clause = hay.slice(start, at);
+
+  // A scope breaker cancels anything negated before it.
+  for (const b of SCOPE_BREAKERS) {
+    const i = clause.lastIndexOf(` ${b} `);
+    if (i >= 0) clause = clause.slice(i + b.length + 2);
+  }
+
+  const words = clause.split(/[^a-z0-9']+/).filter(Boolean).slice(-NEGATION_WINDOW);
+  const window = ` ${words.join(' ')} `;
+  if (NEGATION_TRIGGERS.some((t) => window.includes(` ${t} `))) return true;
+
+  // Then forwards, for the `label: value` case. Only the tail after the last
+  // colon in this clause counts, so "Isolation precautions: none" is negated
+  // while "Isolation precautions: contact (MRSA)" is not.
+  let end = at + len;
+  while (end < hay.length && !'.!?;\n'.includes(hay[end])) end++;
+  const rest = hay.slice(at + len, end);
+  const colon = rest.lastIndexOf(':');
+  if (colon >= 0 && NEGATIVE_VALUE.test(rest.slice(colon + 1))) return true;
+  return NEGATIVE_VALUE.test(rest);
+}
+
+/**
+ * Index of the first affirmative, word-boundary-aligned occurrence, or -1.
+ *
+ * Scans every occurrence rather than only the first: "no cardiac monitor on
+ * arrival. Cardiac monitor applied prior to departure." is a real chart, and
+ * stopping at the first match would throw the second one away.
+ */
+function findPhrase(haystack, phrase) {
   const h = norm(haystack);
   const p = norm(phrase);
-  if (!p) return false;
-  const i = h.indexOf(p);
-  if (i < 0) return false;
-  const before = i === 0 ? ' ' : h[i - 1];
-  const after = i + p.length >= h.length ? ' ' : h[i + p.length];
-  return !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+  if (!p) return -1;
+  let i = h.indexOf(p);
+  while (i >= 0) {
+    const before = i === 0 ? ' ' : h[i - 1];
+    const after = i + p.length >= h.length ? ' ' : h[i + p.length];
+    const aligned = !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+    if (aligned && !isNegated(h, i, p.length)) return i;
+    i = h.indexOf(p, i + 1);
+  }
+  return -1;
+}
+
+/** Word-boundary-aware contains, ignoring anything the chart negates. */
+function has(haystack, phrase) {
+  return findPhrase(haystack, phrase) >= 0;
 }
 
 function hits(haystack, phrases) {
@@ -235,7 +327,9 @@ function hits(haystack, phrases) {
 /** The sentence a phrase appeared in — so every finding can show its evidence. */
 function quote(text, phrase) {
   const t = String(text ?? '');
-  const i = norm(t).indexOf(norm(phrase));
+  // The affirmative occurrence, so the citation shows the sentence the finding
+  // actually fired on rather than a negated mention earlier in the chart.
+  const i = findPhrase(t, phrase);
   if (i < 0) return '';
   let start = i;
   while (start > 0 && !'.!?\n'.includes(t[start - 1])) start--;
