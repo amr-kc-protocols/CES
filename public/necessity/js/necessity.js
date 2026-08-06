@@ -216,16 +216,108 @@ const norm = (s) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ');
  */
 const join = (...parts) => parts.map((v) => String(v ?? '').trim()).filter(Boolean).join(' ');
 
-/** Word-boundary-aware contains. Avoids "vent" inside "prevented". */
-function has(haystack, phrase) {
+/* --------------------------------------------------------------- negation */
+
+/**
+ * Words that negate what comes after them.
+ *
+ * Without this the tool read "no oxygen required and no cardiac monitor was
+ * applied" as two documented reasons an ambulance was needed, and "patient is
+ * not bed bound and is able to ambulate independently" as a documented
+ * functional limitation. A chart that ruled out every necessity factor in
+ * plain English — the clearest possible NOT-necessary record — scored 78 and
+ * was told its documentation was good.
+ *
+ * This is a cut-down NegEx: look back from the match, inside its own clause,
+ * for a trigger. Deliberately conservative, because the two errors are not
+ * equal. Missing a negation credits a crew for something they ruled out, which
+ * is how the tool told people the opposite of the truth. Over-negating costs a
+ * "not documented" finding on something that was — recoverable, and visible to
+ * the reviewer reading the citation.
+ */
+const NEGATION_TRIGGERS = [
+  'no', 'not', 'non', 'without', 'denies', 'denied', 'denying', 'negative for',
+  'free of', 'absent', 'absence of', 'never', 'none', 'nil', 'no evidence of',
+  'no sign of', 'no signs of', 'no longer', 'ruled out', 'rules out', 'resolved',
+  'does not', "doesn't", 'did not', "didn't", 'was not', "wasn't", 'is not',
+  "isn't", 'are not', "aren't", 'were not', "weren't", 'will not', "won't",
+  'unremarkable for', 'cleared of', 'declined', 'refused',
+];
+
+/**
+ * Words that close a negation's scope before it reaches the phrase.
+ *
+ * "No history of falls BUT is currently a high fall risk" negates the first
+ * half only. Without these, one early "no" would suppress everything after it
+ * in a long sentence.
+ */
+const SCOPE_BREAKERS = ['but', 'however', 'although', 'though', 'except', 'other than', 'aside from', 'apart from', 'yet', 'still'];
+
+/** How many words back a trigger can reach. Beyond this it is another thought. */
+const NEGATION_WINDOW = 6;
+
+/**
+ * Values that mean "this did not apply", written after a label.
+ *
+ * ePCR exports are full of `label: value` pairs, and they reach the phrase
+ * banks through the structured fields. Looking only backwards credited
+ * "Oxygen: None" and "Restraints: N/A" as documented reasons an ambulance was
+ * needed — the same error as the narrative case, arriving from the other side.
+ */
+const NEGATIVE_VALUE = /^[\s:;,\-–—]*(none|no|n\/a|na|not applicable|negative|denied|nil|absent|0)\s*[.;,)]?\s*$/;
+
+function isNegated(hay, at, len) {
+  // Back to the start of this clause — a negation never crosses a full stop.
+  let start = at;
+  while (start > 0 && !'.!?;\n'.includes(hay[start - 1])) start--;
+  let clause = hay.slice(start, at);
+
+  // A scope breaker cancels anything negated before it.
+  for (const b of SCOPE_BREAKERS) {
+    const i = clause.lastIndexOf(` ${b} `);
+    if (i >= 0) clause = clause.slice(i + b.length + 2);
+  }
+
+  const words = clause.split(/[^a-z0-9']+/).filter(Boolean).slice(-NEGATION_WINDOW);
+  const window = ` ${words.join(' ')} `;
+  if (NEGATION_TRIGGERS.some((t) => window.includes(` ${t} `))) return true;
+
+  // Then forwards, for the `label: value` case. Only the tail after the last
+  // colon in this clause counts, so "Isolation precautions: none" is negated
+  // while "Isolation precautions: contact (MRSA)" is not.
+  let end = at + len;
+  while (end < hay.length && !'.!?;\n'.includes(hay[end])) end++;
+  const rest = hay.slice(at + len, end);
+  const colon = rest.lastIndexOf(':');
+  if (colon >= 0 && NEGATIVE_VALUE.test(rest.slice(colon + 1))) return true;
+  return NEGATIVE_VALUE.test(rest);
+}
+
+/**
+ * Index of the first affirmative, word-boundary-aligned occurrence, or -1.
+ *
+ * Scans every occurrence rather than only the first: "no cardiac monitor on
+ * arrival. Cardiac monitor applied prior to departure." is a real chart, and
+ * stopping at the first match would throw the second one away.
+ */
+function findPhrase(haystack, phrase) {
   const h = norm(haystack);
   const p = norm(phrase);
-  if (!p) return false;
-  const i = h.indexOf(p);
-  if (i < 0) return false;
-  const before = i === 0 ? ' ' : h[i - 1];
-  const after = i + p.length >= h.length ? ' ' : h[i + p.length];
-  return !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+  if (!p) return -1;
+  let i = h.indexOf(p);
+  while (i >= 0) {
+    const before = i === 0 ? ' ' : h[i - 1];
+    const after = i + p.length >= h.length ? ' ' : h[i + p.length];
+    const aligned = !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+    if (aligned && !isNegated(h, i, p.length)) return i;
+    i = h.indexOf(p, i + 1);
+  }
+  return -1;
+}
+
+/** Word-boundary-aware contains, ignoring anything the chart negates. */
+function has(haystack, phrase) {
+  return findPhrase(haystack, phrase) >= 0;
 }
 
 function hits(haystack, phrases) {
@@ -235,7 +327,9 @@ function hits(haystack, phrases) {
 /** The sentence a phrase appeared in — so every finding can show its evidence. */
 function quote(text, phrase) {
   const t = String(text ?? '');
-  const i = norm(t).indexOf(norm(phrase));
+  // The affirmative occurrence, so the citation shows the sentence the finding
+  // actually fired on rather than a negated mention earlier in the chart.
+  const i = findPhrase(t, phrase);
   if (i < 0) return '';
   let start = i;
   while (start > 0 && !'.!?\n'.includes(t[start - 1])) start--;
@@ -332,6 +426,7 @@ function elFunctional(rec, hay) {
         'infers the limitation rather than reading it.',
       cite: transfers.length ? quote(hay, transfers[0]) : `Patient moved: ${join(rec.movedToAmbulance, rec.movedByMethod)}`,
       ask: 'Could this patient walk, transfer, or sit upright? Say so directly.',
+      fix: 'Add one line saying what they could not do — “unable to stand”, “unable to sit upright”, “requires two-person assist”.',
     };
   }
   if (ambulatoryOnly) {
@@ -342,6 +437,7 @@ function elFunctional(rec, hay) {
         'On its face this chart describes a patient who could have travelled another way.',
       cite: `Patient moved: ${join(rec.movedToAmbulance, rec.movedByMethod) || '(ambulatory)'}`,
       ask: 'If the patient was genuinely unable to travel otherwise, what stopped them?',
+      fix: 'If something stopped this patient travelling another way, write it. If nothing did, raise it before the claim goes out.',
     };
   }
   return {
@@ -349,6 +445,7 @@ function elFunctional(rec, hay) {
     detail: 'No functional status recorded anywhere in this chart.',
     cite: '',
     ask: 'Can the patient ambulate? Transfer? Sit upright? "Patient unable to…" is what a reviewer looks for.',
+    fix: 'Add one line: “Patient unable to ambulate; requires two-person assist to transfer.” That sentence carries the chart.',
   };
 }
 
@@ -383,6 +480,7 @@ function elContraindication(rec, hay) {
       detail: `One reason documented (${found[0].group}), never tied back to why a car or wheelchair van would not do.`,
       cite: quote(hay, found[0].phrase),
       ask: 'Connect it: what would have happened to this patient in a private vehicle?',
+      fix: 'Connect it — say what would have happened to this patient in a private vehicle.',
     };
   }
   return {
@@ -391,6 +489,7 @@ function elContraindication(rec, hay) {
       'Nothing in this chart distinguishes this transport from a wheelchair van or a family car.',
     cite: '',
     ask: 'A claim reviewer with no medical training should be able to tell from the narrative why a car was not enough.',
+    fix: 'Name what made an ambulance necessary — the monitor, the oxygen, the infusion, the positioning, the fall risk. One clause is enough.',
   };
 }
 
@@ -416,6 +515,7 @@ function elObjective(rec, hay) {
           : `Only ${obj.vitalSets} set of vitals for a transport.`,
       cite: '',
       ask: 'A second set of vitals and a mental status show the patient was assessed, not just moved.',
+      fix: 'Take a second set of vitals en route, and record a mental status.',
     };
   }
   return {
@@ -425,6 +525,7 @@ function elObjective(rec, hay) {
       : 'No vital signs and no mental status recorded.',
     cite: adjectives.length ? quote(hay, adjectives[0]) : '',
     ask: 'Numbers beat adjectives. "Stable" is a conclusion; a blood pressure is evidence.',
+    fix: 'Record vitals and a mental status. One blood pressure does more for this chart than a paragraph.',
   };
 }
 
@@ -442,6 +543,7 @@ function elDestination(rec, hay) {
       detail: 'No destination recorded.',
       cite: '',
       ask: 'Where did this patient go, and why there?',
+      fix: 'Record where the patient went.',
     };
   }
   if (found.length) {
@@ -458,6 +560,7 @@ function elDestination(rec, hay) {
       detail: `A destination reason is coded ("${stated}") but the narrative does not say what this facility provides that the sending one did not.`,
       cite: `Destination reason: ${stated}`,
       ask: 'What can they do there that could not be done where the patient was?',
+      fix: 'Say what this facility provides that the sending one did not — dialysis, wound care, the specialist.',
     };
   }
   return {
@@ -465,6 +568,7 @@ function elDestination(rec, hay) {
     detail: `Destination recorded (${rec.destination}) with no reason for choosing it.`,
     cite: '',
     ask: 'Why this specific facility? Specialty service, continuity of care, or nearest appropriate — say which.',
+    fix: 'Add why this facility: specialty service, continuity of care, or nearest appropriate.',
   };
 }
 
@@ -489,6 +593,7 @@ function elReason(rec, hay) {
         : 'A reason is implied but no primary impression is recorded.',
       cite: '',
       ask: 'What is this transfer for — a procedure, an admission, a return home?',
+      fix: 'Say what the transfer is for — a procedure, an admission, a return home.',
     };
   }
   if (logistical.length) {
@@ -497,6 +602,7 @@ function elReason(rec, hay) {
       detail: `The only reason given is administrative: "${logistical[0]}".`,
       cite: quote(hay, logistical[0]),
       ask: 'A facility asking is not a clinical reason. What was wrong with the patient?',
+      fix: 'A facility asking is not a clinical reason. Add what was wrong with the patient.',
     };
   }
   return {
@@ -504,6 +610,7 @@ function elReason(rec, hay) {
     detail: 'No reason for the transport recorded.',
     cite: '',
     ask: 'Why is this patient being moved at all?',
+    fix: 'Say why this patient is being moved.',
   };
 }
 
@@ -519,6 +626,7 @@ function elLevel(rec, hay) {
       detail: 'Level of service not recorded, so it cannot be checked against what was done.',
       cite: '',
       ask: 'Record the level of service requested.',
+      fix: 'Record the level of service requested.',
     };
   }
   if (!alsBilled) {
@@ -537,6 +645,7 @@ function elLevel(rec, hay) {
     detail: 'ALS level of service with no ALS assessment or intervention documented anywhere in the chart.',
     cite: '',
     ask: 'What made this an ALS transport? A monitor, an IV, a 12-lead, a medication — record it.',
+    fix: 'Record the ALS assessment or intervention that made this ALS — monitor, IV, 12-lead or medication.',
   };
 }
 
@@ -548,7 +657,7 @@ function elNarrative(rec) {
   const restatement = dispatch && words < 60 && norm(n).includes(dispatch);
 
   if (!n) {
-    return { status: ABSENT, detail: 'No narrative.', cite: '', ask: 'The narrative is the only place the necessity argument can be made.' };
+    return { status: ABSENT, detail: 'No narrative.', cite: '', ask: 'The narrative is the only place the necessity argument can be made.', fix: 'Write a narrative. It is the only place the necessity argument can be made.' };
   }
   if (restatement) {
     return {
@@ -556,6 +665,7 @@ function elNarrative(rec) {
       detail: `The narrative largely restates the dispatch reason (${words} words).`,
       cite: n.slice(0, 200),
       ask: 'Say what you found and what you did, not what you were told before you arrived.',
+      fix: 'Write what you found and what you did, not what dispatch told you before you arrived.',
     };
   }
   if (words < 60) {
@@ -564,6 +674,7 @@ function elNarrative(rec) {
       detail: `Short narrative (${words} words) — usually too little to carry the necessity argument.`,
       cite: n.slice(0, 200),
       ask: 'Add functional status and why other transport was not an option.',
+      fix: 'Expand it — functional status, and why other transport was not an option.',
     };
   }
   return { status: FULL, detail: `${words}-word narrative.`, cite: '', good: true };
@@ -762,6 +873,83 @@ export function evaluate(rec, allRows = null) {
   };
 }
 
+/* ------------------------------------------------------------- feedback */
+
+/**
+ * Who to address.
+ *
+ * The author is the technician who took patient care and wrote the narrative.
+ * Falling back to the first crew member is a guess, and it is labelled as one
+ * — coaching the wrong person is worse than asking who wrote it.
+ */
+export function authorOf(rec) {
+  const explicit = String(rec.author ?? '').trim();
+  if (explicit) return { name: explicit, certain: true };
+  const first = String(rec.crew ?? '').split(/;|,/)[0].trim();
+  if (first) return { name: first, certain: false };
+  return { name: '', certain: false };
+}
+
+/** Cap on feedback lines. Three is what someone reads; eight is what they skim. */
+const FEEDBACK_LIMIT = 3;
+
+/**
+ * Concise, direct feedback addressed to whoever wrote the report.
+ *
+ * Ordered by what would change the chart most, not by the order the elements
+ * happen to sit in. Contradictions come first: "you wrote ambulatory and moved
+ * them by stretcher" is more useful to hear than "add a second set of vitals",
+ * because a reviewer who spots a contradiction starts doubting the rest of the
+ * record rather than just this line.
+ *
+ * A chart with nothing wrong says so. Coaching that only ever arrives when
+ * something is wrong stops being read.
+ */
+export function feedbackFor(rec, ev, limit = FEEDBACK_LIMIT) {
+  const author = authorOf(rec);
+  const lines = [];
+
+  if (ev.score == null) {
+    return { author, incident: rec.incident || '', lines: [], more: 0, clean: false, outOfScope: true };
+  }
+
+  // Contradictions and audit triggers first — severity 3 only.
+  for (const f of ev.integrity) {
+    if (f.severity < 3) continue;
+    lines.push(f.label + '. ' + f.detail);
+  }
+
+  // Then the elements that are missing outright, heaviest first, then partials.
+  const byWeight = (a, b) => b.weight - a.weight;
+  const absent = ev.elements.filter((e) => e.status === ABSENT && e.fix).sort(byWeight);
+  const partial = ev.elements.filter((e) => e.status === PARTIAL && e.fix).sort(byWeight);
+  for (const e of [...absent, ...partial]) lines.push(e.fix);
+
+  const shown = lines.slice(0, limit);
+  return {
+    author,
+    incident: rec.incident || '',
+    lines: shown,
+    more: Math.max(0, lines.length - shown.length),
+    clean: lines.length === 0,
+    outOfScope: false,
+  };
+}
+
+/** The same feedback as plain text, for pasting into an email or a message. */
+export function feedbackText(rec, ev, limit = FEEDBACK_LIMIT) {
+  const f = feedbackFor(rec, ev, limit);
+  if (f.outOfScope) return '';
+  const who = f.author.name || 'crew';
+  const head = `${who} — incident ${f.incident || '(no number)'}`;
+  if (f.clean) {
+    return `${head}\n\nNothing to change on this one. All seven medical-necessity elements are established.`;
+  }
+  const body = f.lines.map((l, i) => `${i + 1}. ${l}`).join('\n');
+  const tail = f.more ? `\n\n(${f.more} more in the full review.)` : '';
+  return `${head}\n\n${body}${tail}`;
+}
+
 /* --------------------------------------------------------------- trends */
 
 /**
@@ -777,8 +965,12 @@ export function crewTrends(rows) {
   const by = new Map();
   for (const row of rows) {
     if (!row.evaluation || row.evaluation.score == null) continue;
-    const names = String(row.record.crew || '').split(/;|,/).map((s) => s.trim()).filter(Boolean);
-    for (const name of names.length ? names : ['(crew not recorded)']) {
+    // By author, not by crew. Coaching goes to whoever wrote the narrative;
+    // counting a chart against everyone who was on the truck tells the partner
+    // they write badly when they may not have written it at all.
+    const a = authorOf(row.record);
+    const names = a.name ? [a.name] : [];
+    for (const name of names.length ? names : ['(author not recorded)']) {
       if (!by.has(name)) by.set(name, { name, charts: 0, total: 0, missed: {} });
       const e = by.get(name);
       e.charts++;

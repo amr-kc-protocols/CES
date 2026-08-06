@@ -48,6 +48,35 @@ Each element resolves to **Established / Partial / Missing** and carries its own
 citation — the sentence it fired on. A finding you cannot check is a finding you
 cannot coach from.
 
+### Negation
+
+Matching ignores anything the chart rules out. Without this the tool read
+
+> "Patient is **not** bed bound and is able to ambulate independently… **No**
+> oxygen required and **no** cardiac monitor was applied. There are **no**
+> isolation precautions."
+
+as a documented functional limitation plus two documented reasons an ambulance
+was needed, and scored that chart **78 of 100** — the clearest possible
+*not necessary* record, told its documentation was good. Structured fields did
+the same from the other side: `Oxygen: None` and `Restraints: N/A` counted as
+reasons.
+
+The rule is a cut-down NegEx. Looking backwards from a match, inside its own
+clause, for a trigger (`no`, `not`, `denies`, `without`, `no longer`, `ruled
+out`…); and forwards for a `label: value` tail that means "did not apply".
+Full stops end a negation's reach, and `but` / `however` / `except` cancel one,
+so *"no history of falls **but** is a high fall risk today"* still counts. Every
+occurrence of a phrase is scanned, not just the first, so *"no cardiac monitor
+on arrival. Cardiac monitor applied before departure."* counts too.
+
+It is deliberately conservative, because the two errors are not equal. Missing
+a negation credits a crew for something they explicitly ruled out — that is how
+the tool told people the opposite of the truth. Over-negating costs a "not
+documented" finding on something that was, which is recoverable and visible in
+the citation. Phrases that contain a negative word themselves — `unable to
+ambulate`, `not available at` — are unaffected.
+
 **Bands:** 85+ Defensible · 70–84 Thin · 50–69 At risk · under 50 Not established.
 
 ### Record flags
@@ -76,6 +105,49 @@ job correctly. Use the emergent review tool for those.
 
 The scope filter defaults to in-scope charts. `inScope()` in `js/necessity.js`
 is the whole rule.
+
+## Feedback for the author
+
+Every scored chart produces a short message addressed to whoever wrote it,
+with a **Copy** button — the point of the review is the conversation it
+starts, so the words for that conversation ship with it. It also goes into the
+workbook and onto the print sheet.
+
+```
+K. Vance — incident FB-001
+
+1. Administrative reason with no clinical reason beside it. The record gives
+   "facility requested" and nothing clinical. This is the pattern that reads
+   worst on review.
+2. Name what made an ambulance necessary — the monitor, the oxygen, the
+   infusion, the positioning, the fall risk. One clause is enough.
+3. Record vitals and a mental status. One blood pressure does more for this
+   chart than a paragraph.
+
+(4 more in the full review.)
+```
+
+Three lines maximum. Three is what someone reads; eight is what they skim.
+Contradictions come first, then the heaviest missing elements — *"you wrote
+ambulatory and moved them by stretcher"* is more useful to hear than *"add a
+second set of vitals"*, because a reviewer who finds a contradiction starts
+doubting the rest of the record rather than just that line.
+
+A chart with nothing wrong says so. Coaching that only ever arrives when
+something is wrong stops being read.
+
+### Who the author is
+
+The **author** is the technician who took patient care and wrote the narrative
+— `Primary Patient Caregiver` in ImageTrend, or an `author` column on import.
+Deliberately not the crew: counting a chart against everyone who was on the
+truck tells a partner they write badly when they may not have written a word
+of it.
+
+Where a chart names no author the first crew member is assumed, and it is
+labelled **assumed** everywhere it appears — in the grid, in the drawer, and as
+its own column in the workbook. Coaching the wrong person is worse than having
+to ask who wrote it.
 
 ## Coaching view
 

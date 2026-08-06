@@ -3,7 +3,7 @@
  * ==========================================================================*/
 
 import { ingestFile } from './parser.js';
-import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps } from './necessity.js';
+import { evaluate, ELEMENTS, BANDS, STATUS, crewTrends, elementGaps, authorOf, feedbackFor, feedbackText } from './necessity.js';
 import * as store from './store.js';
 import { downloadWorkbook, printSheet } from './exporter.js';
 
@@ -180,6 +180,13 @@ async function handleFiles(files) {
   note(bits.join(' '), problems.length ? 'err' : low ? 'warn' : 'ok');
 }
 
+/** Author with a note when it was inferred rather than recorded. */
+function authorTitle(r) {
+  const a = authorOf(r);
+  if (!a.name) return '';
+  return a.certain ? a.name : `${a.name} (assumed from the crew list)`;
+}
+
 function note(msg, kind) {
   const el = $('intakeNote');
   el.textContent = msg;
@@ -206,7 +213,7 @@ function applyFilters() {
     if (q) {
       const hay = [
         r.incident, r.impression, r.narrative, r.destination, r.originName,
-        r.patientName, r.crew, r.levelOfService, r.dispatchNature,
+        r.patientName, r.crew, r.author, r.levelOfService, r.dispatchNature,
       ].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
@@ -315,7 +322,7 @@ function renderTable() {
         <td>${esc(r.levelOfService || r.serviceRequested || '—')}</td>
         <td><div class="domains">${chips}</div></td>
         <td class="num">${ev.integrity.length ? `<span class="tag red">${ev.integrity.length}</span>` : '<span class="mini">0</span>'}</td>
-        <td><span class="trunc" title="${esc(r.crew)}">${esc(r.crew || '—')}</span></td>
+        <td><span class="trunc" title="${esc(authorTitle(r))}">${esc(authorOf(r).name || '—')}${authorOf(r).name && !authorOf(r).certain ? '<span class="mini">?</span>' : ''}</span></td>
         <td><button class="btn ghost" data-open="${esc(row.key)}" type="button">Coach</button></td>
       </tr>`;
     })
@@ -351,7 +358,7 @@ function renderCoaching() {
 
   const crews = crewTrends(state.rows);
   $('crewList').innerHTML = crews.length
-    ? `<table class="vt"><tr><th>Crew member</th><th>Charts</th><th>Mean score</th><th>Most often missing</th></tr>${crews
+    ? `<table class="vt"><tr><th>Report author</th><th>Charts</th><th>Mean score</th><th>Most often missing</th></tr>${crews
         .map((c) => {
           const worst = c.worst ? (ELEMENTS.find((e) => e.id === c.worst[0]) || {}).label : null;
           return `<tr>
@@ -413,6 +420,7 @@ function openDrawer(key) {
   const kv = [
     ['Origin', r.originName], ['Origin type', r.originType],
     ['Destination', r.destination], ['Destination reason', r.destinationReason],
+    ['Report author', authorTitle(r)],
     ['Level of service', r.levelOfService || r.serviceRequested],
     ['Transport mode', r.transportMode], ['Primary impression', r.impression],
     ['Moved to ambulance', r.movedToAmbulance], ['Moved by', r.movedByMethod],
@@ -420,8 +428,25 @@ function openDrawer(key) {
     ['Parse completeness', `${Math.round(r.completeness.score * 100)}%`],
   ].map(([k, v]) => `<div><b>${esc(k)}</b>${esc(v) || '—'}</div>`).join('');
 
+  const fb = feedbackFor(r, ev);
+  const fbBlock = ev.score == null ? '' : `
+    <div class="dsec"><h3>Feedback for the author</h3>
+      <div class="fbbox">
+        <div class="fbhead">
+          <b>${esc(fb.author.name || 'Author not recorded')}</b>
+          ${fb.author.name && !fb.author.certain ? '<span class="tag amber" title="Taken from the crew list — the chart did not name an author">assumed</span>' : ''}
+          <button class="btn ghost sm" id="fbCopy" type="button">Copy</button>
+        </div>
+        ${fb.clean
+          ? '<p class="fbclean">Nothing to change on this one. All seven elements are established.</p>'
+          : `<ol class="fblines">${fb.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ol>` +
+            (fb.more ? `<p class="mini">${fb.more} more below.</p>` : '')}
+      </div>
+    </div>`;
+
   $('dBody').innerHTML = `
     ${verdict}
+    ${fbBlock}
     <div class="dsec"><h3>What a claim reviewer would ask</h3>${questions}</div>
     <div class="dsec"><h3>The seven elements</h3>${elements}</div>
     <div class="dsec"><h3>Record flags</h3>${integ}</div>
@@ -448,6 +473,27 @@ function openDrawer(key) {
         <span class="saved" id="rSaved" hidden>Saved</span>
       </div>
     </div>`;
+
+  const copyBtn = $('fbCopy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      const text = feedbackText(r, ev);
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'Copied';
+      } catch {
+        // Clipboard is blocked in some embedded contexts; select it instead so
+        // the reviewer can still copy by hand rather than being stuck.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.className = 'fbfallback';
+        copyBtn.parentElement.after(ta);
+        ta.select();
+        copyBtn.textContent = 'Select and copy';
+      }
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2200);
+    });
+  }
 
   $('rSave').addEventListener('click', async () => {
     await saveReview(key, {

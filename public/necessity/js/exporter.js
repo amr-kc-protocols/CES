@@ -8,7 +8,7 @@
  * ask, so the sheet can be handed to a crew member and read without the app.
  * ==========================================================================*/
 
-import { ELEMENTS, STATUS, crewTrends, elementGaps } from './necessity.js';
+import { ELEMENTS, STATUS, crewTrends, elementGaps, authorOf, feedbackText } from './necessity.js';
 
 const XLSX = () => window.XLSX;
 
@@ -43,6 +43,8 @@ export function buildWorkbook(rows, all = rows) {
       'Destination reason': r.destinationReason || '',
       'Level of service': r.levelOfService || r.serviceRequested || '',
       'Transport mode': r.transportMode || '',
+      Author: authorOf(r).name || '',
+      'Author assumed': authorOf(r).name && !authorOf(r).certain ? 'Yes — taken from the crew list' : '',
       Crew: r.crew || '',
       'In scope': ev.scope.inScope ? 'Yes' : 'No',
       'Out-of-scope reason': ev.scope.inScope ? '' : ev.scope.why,
@@ -56,6 +58,9 @@ export function buildWorkbook(rows, all = rows) {
     out['Elements missing'] = ev.missing;
     out['Record flags'] = ev.integrity.map((i) => i.label).join('; ');
     out['Questions a reviewer would ask'] = ev.questions.map((q, i) => `${i + 1}. ${q.ask}`).join('\n');
+    // Ready to paste into a message. The point of the workbook is the
+    // conversation it starts, so the words for that conversation ship with it.
+    out['Feedback for the author'] = feedbackText(r, ev);
     out['Reviewed by'] = review.reviewer || '';
     out['Discussed with crew'] = review.discussed || '';
     out['Coaching note'] = review.note || '';
@@ -100,7 +105,7 @@ export function buildWorkbook(rows, all = rows) {
 
   /* --- 4. By crew member -------------------------------------------------- */
   const crews = crewTrends(all).map((c) => ({
-    'Crew member': c.name,
+    'Report author': c.name,
     Charts: c.charts,
     'Mean score': c.mean,
     'Small sample': c.charts < 4 ? 'Yes — interpret with care' : '',
@@ -123,7 +128,7 @@ export function buildWorkbook(rows, all = rows) {
   add(chartRows, 'Chart Review');
   add(summary, 'Summary');
   add(gaps, 'Element Gaps');
-  add(crews, 'By Crew Member');
+  add(crews, 'By Report Author');
   add(rubric, 'Rubric');
   return wb;
 }
@@ -177,13 +182,16 @@ export function printSheet(rows) {
         <div>
           <h1>Incident ${esc(r.incident || '(none)')}</h1>
           <p>${esc(r.dateOfService)} · ${esc(r.originName || 'origin not recorded')} → ${esc(r.destination || 'destination not recorded')} · ${esc(r.levelOfService || r.serviceRequested || 'level not recorded')}</p>
-          <p>Crew: ${esc(r.crew || 'not recorded')}</p>
+          <p>Author: ${esc(authorOf(r).name || 'not recorded')}${authorOf(r).name && !authorOf(r).certain ? ' (assumed from crew)' : ''} · Crew: ${esc(r.crew || 'not recorded')}</p>
         </div>
         <div class="score ${ev.band ? ev.band.id : 'none'}">
           <b>${ev.score == null ? '—' : ev.score}</b>
           <span>${ev.band ? esc(ev.band.label) : esc(ev.scope.why)}</span>
         </div>
       </header>
+
+      ${ev.score == null ? '' : `<h2>Feedback for the author</h2>
+      <div class="fb">${esc(feedbackText(r, ev)).replace(/\n/g, '<br>')}</div>`}
 
       <h2>What a claim reviewer would ask</h2>
       ${asks}
@@ -243,6 +251,8 @@ export function printSheet(rows) {
     .sig td:nth-child(odd) { background: #f7f9fc; font-size: 10px; text-transform: uppercase;
                              letter-spacing: .04em; color: #5b6470; width: 15%; }
     .mini { color: #5b6470; font-size: 11px; }
+    .fb { border: 1px solid #d8dde5; border-left: 4px solid #1f3864; padding: 8px 10px;
+          background: #fbfcfe; font-size: 11.5px; line-height: 1.5; }
     footer { margin-top: 14px; padding-top: 6px; border-top: 1px solid #d8dde5;
              font-size: 10px; color: #5b6470; }
     @page { margin: 12mm; }
