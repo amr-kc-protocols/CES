@@ -34,6 +34,8 @@ const TABS = [
   // the tab must stay hidden from crews whose own transports it reviews.
   { ...TAB, to: '/review', label: 'Review', icon: '🔎', end: false, review: true },
   { ...TAB, to: '/courses', label: 'Resources', icon: '📚', end: false },
+  // KS/MO EMS regulatory reference — for every provider in both markets.
+  { ...TAB, to: '/ems', label: 'EMS Ref', icon: '⚖️', end: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
   { ...TAB, to: '/history', label: 'History', icon: '📊', end: false, admin: true },
   { ...TAB, to: '/settings', label: 'Settings', icon: '⚙️', end: false },
