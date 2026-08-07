@@ -28,6 +28,7 @@ const AemtCourseView = lazy(() => import('./modules/aemt/AemtCourseView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
 const LearningView = lazy(() => import('./modules/learning/LearningView'))
 const CourseViewer = lazy(() => import('./modules/learning/CourseViewer'))
+const EmsReference = lazy(() => import('./modules/reference/EmsReference'))
 const IntakeForm = lazy(() => import('./modules/intake/IntakeForm'))
 const IntakeResults = lazy(() => import('./modules/intake/IntakeResults'))
 const ExamPage = lazy(() => import('./modules/exam/ExamPage'))
@@ -184,6 +185,7 @@ export default function App() {
         />
         <Route path="courses" element={<LearningView />} />
         <Route path="courses/view" element={<CourseViewer />} />
+        <Route path="ems" element={<EmsReference />} />
         <Route path="history" element={<HistoryView />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />
