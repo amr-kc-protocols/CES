@@ -35,7 +35,10 @@ const TABS = [
   { ...TAB, to: '/review', label: 'Review', icon: '🔎', end: false, review: true },
   { ...TAB, to: '/courses', label: 'Resources', icon: '📚', end: false },
   // KS/MO EMS regulatory reference — for every provider in both markets.
-  { ...TAB, to: '/ems', label: 'EMS Ref', icon: '⚖️', end: false },
+  // Labelled "Regs" rather than "EMS Ref": at the admin tab count (8) a 375px
+  // phone gives each cell ~43px, and the two-word label wrapped to two lines
+  // while every other stayed on one, leaving the row ragged.
+  { ...TAB, to: '/ems', label: 'Regs', icon: '⚖️', end: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
   { ...TAB, to: '/history', label: 'History', icon: '📊', end: false, admin: true },
   { ...TAB, to: '/settings', label: 'Settings', icon: '⚙️', end: false },
