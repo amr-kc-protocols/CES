@@ -33,6 +33,7 @@ const IntakeForm = lazy(() => import('./modules/intake/IntakeForm'))
 const IntakeResults = lazy(() => import('./modules/intake/IntakeResults'))
 const ExamPage = lazy(() => import('./modules/exam/ExamPage'))
 const ExamResults = lazy(() => import('./modules/exam/ExamResults'))
+const BankReview = lazy(() => import('./modules/exam/BankReview'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
@@ -154,6 +155,17 @@ export default function App() {
           element={
             <AemtOnly>
               <ExamResults />
+            </AemtOnly>
+          }
+        />
+        {/* Reads the bank for a subject-matter audit. Same gate as the
+            results screen — it shows the answer key, and RLS is the real
+            enforcement. Creates no attempt and writes nothing. */}
+        <Route
+          path="aemt/exam-bank"
+          element={
+            <AemtOnly>
+              <BankReview />
             </AemtOnly>
           }
         />

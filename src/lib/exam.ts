@@ -196,6 +196,8 @@ export interface BankRow {
   id: number
   domain: string
   stem: string
+  /** The four choices, in bank order. The exam shuffles display order. */
+  options: string[]
   answer: number
 }
 
@@ -203,6 +205,6 @@ export interface BankRow {
 export async function listExamBank(): Promise<{ rows?: BankRow[]; error?: string }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
-  const { data, error } = await c.from('exam_questions').select('id, domain, stem, answer')
+  const { data, error } = await c.from('exam_questions').select('id, domain, stem, options, answer')
   return error ? { error: error.message } : { rows: (data ?? []) as BankRow[] }
 }
