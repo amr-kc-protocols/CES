@@ -225,8 +225,20 @@ export function analyseExam(
         .map((x) => x.i)
       const flags: ItemFlag[] = []
       if (n < MIN_N_ITEM) flags.push('low-n')
-      if (p !== undefined && p >= 0.95) flags.push('too-easy')
-      if (p !== undefined && p <= 0.3) flags.push('too-hard')
+
+      // DIFFICULTY FLAGS NEED A SAMPLE, exactly as discrimination does.
+      //
+      // A proportion correct is arithmetically real at any n and meaningless
+      // at small n: with one exposure every item is 0% or 100%, so a single
+      // candidate answering 49 of 50 correctly makes 49 items "too easy" and
+      // the one they missed "too hard". None of that is a property of the
+      // items — it is a property of having asked one person.
+      //
+      // The p-value is still REPORTED, alongside its n, because "1 of 1
+      // correct" is a true statement. It is the JUDGEMENT that waits.
+      const enoughToJudge = n >= MIN_N_ITEM
+      if (enoughToJudge && p !== undefined && p >= 0.95) flags.push('too-easy')
+      if (enoughToJudge && p !== undefined && p <= 0.3) flags.push('too-hard')
       // Catching a miskey without crying wolf.
       //
       // A point-biserial from n candidates has a standard error near
