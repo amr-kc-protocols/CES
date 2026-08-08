@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   EXAM_DEADLINE,
+  EXAM_LIMIT_MINUTES,
   examClosed,
   startExam,
   submitExam,
   type ExamQuestion,
   type ExamStart,
 } from '../../lib/exam'
+import { confirmAction } from '../../lib/dialog'
 
 // Public, no-login AEMT selection exam. Questions come from the server without
 // answers; grading is server-side. One attempt per email, before the cutoff.
@@ -44,8 +46,27 @@ export default function ExamPage() {
   const [exam, setExam] = useState<ExamStart | null>(null)
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
+
+  // Answers survive a refresh.
+  //
+  // They previously lived only in React state, so a reload, a browser crash or
+  // an incoming call wiped every answer while the server clock kept running —
+  // on a one-attempt exam with no way to start again. Keyed by attempt id, so
+  // one candidate's stored answers can never be served to another, and cleared
+  // once the attempt is submitted.
+  const answersKey = (attemptId: string) => `ces.exam.answers.${attemptId}`
   const [remaining, setRemaining] = useState(0)
   const submittedRef = useRef(false)
+
+  useEffect(() => {
+    if (!exam) return
+    try {
+      localStorage.setItem(answersKey(exam.attemptId), JSON.stringify(answers))
+    } catch {
+      // Private browsing or a full quota. The exam still works in memory —
+      // this is a safety net, not a dependency.
+    }
+  }, [exam, answers])
 
   const orders = useMemo(() => {
     if (!exam) return {}
@@ -71,6 +92,11 @@ export default function ExamPage() {
         setError(err + ' — please try Submit again.')
         setPhase('exam')
         return
+      }
+      try {
+        localStorage.removeItem(answersKey(exam.attemptId))
+      } catch {
+        // Nothing to do; the entry is inert either way.
       }
       setPhase('done')
       window.scrollTo(0, 0)
@@ -101,11 +127,19 @@ export default function ExamPage() {
     if (signature.trim().toLowerCase() !== name.trim().toLowerCase())
       return setError('Your signature must match the full name you entered above.')
     setPhase('submitting')
-    const r = await startExam(name.trim(), email.trim())
+    const r = await startExam(name.trim(), email.trim(), consent, signature.trim())
     if ('data' in r) {
       setExam(r.data)
       setIndex(0)
-      setAnswers({})
+      // Resume picks up where the candidate left off rather than blank.
+      let restored: Record<number, number> = {}
+      try {
+        const raw = localStorage.getItem(answersKey(r.data.attemptId))
+        if (raw) restored = JSON.parse(raw) as Record<number, number>
+      } catch {
+        // A corrupt or unreadable entry is not worth failing the exam over.
+      }
+      setAnswers(restored)
       submittedRef.current = false
       setPhase('exam')
     } else if ('reason' in r) {
@@ -189,7 +223,7 @@ export default function ExamPage() {
           <h2 style={{ marginTop: 0 }}>Before you begin</h2>
           <ul style={{ paddingLeft: 18, lineHeight: 1.6 }}>
             <li><strong>50 questions</strong>, multiple choice.</li>
-            <li><strong>40-minute time limit</strong> — a timer runs at the top; the exam submits automatically when it reaches zero.</li>
+            <li><strong>{EXAM_LIMIT_MINUTES}-minute time limit</strong> — a timer runs at the top; the exam submits automatically when it reaches zero.</li>
             <li><strong>One attempt.</strong> Once you start, the clock runs even if you close the page, so start when you're ready and undisturbed.</li>
             <li>Answer on your own — this is part of your selection.</li>
           </ul>
@@ -281,7 +315,25 @@ export default function ExamPage() {
           ‹ Back
         </button>
         {last ? (
-          <button className="btn primary" disabled={phase === 'submitting'} onClick={() => void finish('manual')}>
+          <button
+            className="btn primary"
+            disabled={phase === 'submitting'}
+            onClick={async () => {
+              // One attempt, no undo. A mistaken tap should not be able to end
+              // somebody's exam with questions still blank.
+              const answered = Object.keys(answers).length
+              const left = exam.questions.length - answered
+              const ok = await confirmAction({
+                title: 'Submit your exam?',
+                body: left
+                  ? `${left} question${left === 1 ? ' is' : 's are'} still unanswered. Once you submit you cannot return — this is a one-attempt exam.`
+                  : 'All questions answered. Once you submit you cannot return — this is a one-attempt exam.',
+                confirmLabel: 'Submit',
+                danger: left > 0,
+              })
+              if (ok) void finish('manual')
+            }}
+          >
             {phase === 'submitting' ? 'Submitting…' : 'Submit exam'}
           </button>
         ) : (
