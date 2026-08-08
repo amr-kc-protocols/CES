@@ -859,11 +859,28 @@ export interface AemtCandidate {
   courseId: string
   name: string
   employeeNumber?: string
+  /**
+   * The email the candidate sat the selection exam under. This is the only
+   * link between a candidate record and their attempt — exam_attempts is
+   * keyed on email, and it is a public no-login form, so nothing else joins
+   * them. Stored lowercased to match how the exam normalises it.
+   */
+  email?: string
   /** Gate id -> met. Absent = not yet assessed. */
   gates: Record<string, boolean>
   /** Additional-duty bonus tier. */
   bonusTier?: 'fto' | 'additional' | 'none'
-  /** Raw marks by test section id. */
+  /**
+   * Selection exam result, pulled from exam_attempts by email. This is the
+   * 40% test component; `testMarks` below only supplements it.
+   */
+  examPercent?: number
+  /** ISO date the exam result was pulled, so a stale figure is visible. */
+  examPulledAt?: string
+  /**
+   * Raw marks by test section id, for supplementary sections run on paper.
+   * Optional — see the header of data/aemtSelection.ts.
+   */
   testMarks?: Record<string, number>
   /** One entry per interviewer. Scored independently before conferring. */
   interviews?: AemtInterviewScore[]

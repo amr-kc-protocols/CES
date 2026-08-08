@@ -4,6 +4,7 @@ import { useSyncStatus } from '../../lib/sync'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
+import { listExamResults } from '../../lib/exam'
 import {
   blockPlanTotals,
   CLINICAL_REQUIREMENTS,
@@ -2025,17 +2026,75 @@ export function useCandidates(courseId: string | undefined): AemtCandidate[] {
   )
 }
 
-export function addCandidate(courseId: string, name: string, employeeNumber?: string): AemtCandidate {
+export function addCandidate(
+  courseId: string,
+  name: string,
+  employeeNumber?: string,
+  email?: string,
+): AemtCandidate {
   const candidate: AemtCandidate = {
     id: uid('acand'),
     courseId,
     name,
     employeeNumber,
+    // Lowercased to match how exam_start normalises it, so the join works.
+    email: email?.trim().toLowerCase() || undefined,
     gates: {},
     createdAt: new Date().toISOString(),
   }
   setState((db) => ({ ...db, aemtCandidates: [...db.aemtCandidates, candidate] }))
   return candidate
+}
+
+/**
+ * Attach selection-exam results to candidates, matched by email.
+ *
+ * Email is the only join available: the exam is a public no-login form and
+ * exam_attempts carries nothing else that identifies a person. A candidate
+ * with no email, or whose email does not match the one they sat under, simply
+ * goes unmatched and is reported rather than guessed at — matching on a name
+ * would eventually attach one person's score to another's record.
+ */
+export async function pullExamResults(courseId: string): Promise<{
+  matched: number
+  unmatched: string[]
+  noEmail: string[]
+  error?: string
+}> {
+  const { rows, error } = await listExamResults()
+  if (error) return { matched: 0, unmatched: [], noEmail: [], error }
+
+  const byEmail = new Map<string, { percent: number | null }>()
+  for (const r of rows ?? []) byEmail.set(r.email.trim().toLowerCase(), { percent: r.percent })
+
+  const candidates = getState().aemtCandidates.filter((c) => c.courseId === courseId)
+  const noEmail: string[] = []
+  const unmatched: string[] = []
+  const patches = new Map<string, number>()
+
+  for (const c of candidates) {
+    if (!c.email) {
+      noEmail.push(c.name)
+      continue
+    }
+    const hit = byEmail.get(c.email)
+    if (!hit || hit.percent == null) {
+      unmatched.push(c.name)
+      continue
+    }
+    patches.set(c.id, hit.percent)
+  }
+
+  if (patches.size) {
+    const now = todayISO()
+    setState((db) => ({
+      ...db,
+      aemtCandidates: db.aemtCandidates.map((c) =>
+        patches.has(c.id) ? { ...c, examPercent: patches.get(c.id), examPulledAt: now } : c,
+      ),
+    }))
+  }
+  return { matched: patches.size, unmatched, noEmail }
 }
 
 export function updateCandidate(id: string, patch: Partial<AemtCandidate>): void {
@@ -2090,7 +2149,7 @@ export interface CandidateScore {
   /** Raw interview total out of 30, averaged across interviewers. */
   interviewRaw?: number
   /** Per-section test percentages. */
-  sections: { id: string; label: string; pct?: number; floor?: number; met: boolean }[]
+  sections: { id: string; label: string; pct?: number; floor?: number; scored: boolean; met: boolean }[]
   /** Everything blocking advancement, in the order it should be read. */
   blockers: string[]
   gatesMet: boolean
@@ -2112,13 +2171,24 @@ export function scoreCandidate(c: AemtCandidate): CandidateScore {
       label: s.label,
       pct,
       floor: s.floor,
-      met: s.floor === undefined || (pct !== undefined && pct >= s.floor),
+      /** Whether this supplement was administered at all. */
+      scored: pct !== undefined,
+      // Unscored means nothing to fail, not a failure.
+      met: s.floor === undefined || pct === undefined || pct >= s.floor,
     }
   })
 
+  // The online exam is the selection test. Hand-entered section marks are a
+  // supplement and only stand in where no attempt exists — see the header of
+  // data/aemtSelection.ts for why this narrowed.
   const anyMarks = TEST_SECTIONS.some((s) => typeof c.testMarks?.[s.id] === 'number')
   const testTotal = TEST_SECTIONS.reduce((n, s) => n + (c.testMarks?.[s.id] ?? 0), 0)
-  const test = anyMarks ? (testTotal / TEST_TOTAL_MARKS) * 100 : undefined
+  const test =
+    typeof c.examPercent === 'number'
+      ? c.examPercent
+      : anyMarks
+        ? (testTotal / TEST_TOTAL_MARKS) * 100
+        : undefined
 
   const iv = c.interviews ?? []
   const totals = iv.map((i) => Object.values(i.scores).reduce((n, v) => n + v, 0))
@@ -2146,13 +2216,13 @@ export function scoreCandidate(c: AemtCandidate): CandidateScore {
     const failed = ELIGIBILITY_GATES.filter((g) => c.gates[g.id] !== true).map((g) => g.label)
     blockers.push(`Eligibility not met: ${failed.join(', ')}`)
   }
+  // A floor binds only on a section that was actually administered. Blocking a
+  // candidate for an unscored floor made every candidate un-advanceable, since
+  // the supplementary sections are not delivered by the online exam — a gate
+  // on a test nobody sat is not a gate, it is an outage.
   for (const s of sections) {
-    if (!s.met) {
-      blockers.push(
-        s.pct === undefined
-          ? `${s.label} not scored — floor of ${s.floor}% cannot be checked`
-          : `${s.label} at ${s.pct.toFixed(0)}%, below its ${s.floor}% floor`,
-      )
+    if (s.pct !== undefined && !s.met) {
+      blockers.push(`${s.label} at ${s.pct.toFixed(0)}%, below its ${s.floor}% floor`)
     }
   }
   if (test !== undefined && test < THRESHOLDS.test) {

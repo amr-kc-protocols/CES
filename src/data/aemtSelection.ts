@@ -55,6 +55,37 @@ export const THRESHOLDS = {
   interview: 18,
 }
 
+/* ---------------------------------------------------------------------------
+ * The selection test
+ * ---------------------------------------------------------------------------
+ * THE ONLINE EXAM IS THE SELECTION TEST. It is 50 items drawn from a 120-item
+ * bank of EMT-level recall, sat at /exam, graded server-side, and it supplies
+ * the 40% test component directly — matched to candidates by email.
+ *
+ * That is a deliberate narrowing. What this component is for is predicting who
+ * passes a certification examination, and a certification examination is a
+ * multiple-choice knowledge test. The closest available predictor of
+ * performance on one is performance on another.
+ *
+ * docs/aemt-selection-test.md describes a wider four-section instrument — 48
+ * items across knowledge, dosage arithmetic, reading comprehension and
+ * situational judgment, proctored and closed-book. It was never built, and
+ * until now the app asked an administrator to hand-enter marks for all four
+ * sections of a test nobody sat, while the exam candidates actually took fed
+ * nothing at all. Forty per cent of the composite had no source.
+ *
+ * The four sections remain below as OPTIONAL SUPPLEMENTS. Run one on paper and
+ * enter the marks and it counts; leave it and it does not block anybody. A
+ * floor is only checked against a section that was actually scored — a gate on
+ * a test that was not administered is not a gate, it is an outage.
+ *
+ * The section worth building next is B. Its argument still holds: every value
+ * is supplied in the stem, so it is pure arithmetic with objective answers,
+ * and mid-course maths remediation is the hardest thing to deliver to a
+ * working student. It needs Medical Director approval before it is used, which
+ * is why it is not being written under a deadline.
+ * ------------------------------------------------------------------------ */
+
 export interface TestSection {
   id: string
   label: string

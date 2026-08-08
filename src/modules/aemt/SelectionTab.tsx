@@ -7,6 +7,7 @@ import {
   addCandidate,
   updateCandidate,
   deleteCandidate,
+  pullExamResults,
   recordInterview,
   scoreCandidate,
   interviewDisagreements,
@@ -45,6 +46,7 @@ function ScoreModal({ candidate, onClose }: { candidate: AemtCandidate; onClose:
   const [att, setAtt] = useState(String(candidate.attendancePercent ?? ''))
   const [tier, setTier] = useState(candidate.bonusTier ?? 'none')
   const [gates, setGates] = useState<Record<string, boolean>>(candidate.gates ?? {})
+  const [email, setEmail] = useState(candidate.email ?? '')
 
   const num = (v: string) => {
     const n = Number(v)
@@ -79,6 +81,41 @@ function ScoreModal({ candidate, onClose }: { candidate: AemtCandidate; onClose:
       ))}
 
       <div className="section-title">Selection test</div>
+      <div className="field">
+        <label htmlFor="sc-email">Exam email</label>
+        <input
+          id="sc-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="the address they sat the exam under"
+        />
+      </div>
+      {typeof candidate.examPercent === 'number' ? (
+        <div className="banner ok" style={{ marginTop: 8 }}>
+          <strong>Selection exam: {candidate.examPercent.toFixed(0)}%</strong>
+          {candidate.examPulledAt ? ` · pulled ${candidate.examPulledAt}` : ''}
+          <div className="help-text" style={{ marginTop: 2 }}>
+            This is the 40% test component. It comes from the exam they sat — it is not entered
+            here.
+          </div>
+        </div>
+      ) : (
+        <div className="banner warn" style={{ marginTop: 8 }}>
+          No selection-exam result attached.
+          <div className="help-text" style={{ marginTop: 2 }}>
+            Set the exam email above, then use <strong>Pull exam results</strong>. Until then the
+            test component falls back to any supplementary marks entered below.
+          </div>
+        </div>
+      )}
+
+      <div className="section-title">Supplementary sections</div>
+      <div className="help-text" style={{ marginTop: 0 }}>
+        Optional. The online exam does not produce these — enter marks only for a section you
+        actually administered on paper. A floor is checked only against a section that was
+        scored, so leaving these blank blocks nobody.
+      </div>
       {TEST_SECTIONS.map((s) => (
         <div className="field" key={s.id}>
           <label htmlFor={`sc-${s.id}`}>
@@ -132,6 +169,7 @@ function ScoreModal({ candidate, onClose }: { candidate: AemtCandidate; onClose:
           onClick={() => {
             updateCandidate(candidate.id, {
               gates,
+              email: email.trim().toLowerCase() || undefined,
               testMarks: Object.fromEntries(
                 TEST_SECTIONS.map((s) => [s.id, num(marks[s.id])]).filter(
                   (e): e is [string, number] => typeof e[1] === 'number',
@@ -264,6 +302,9 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [empNo, setEmpNo] = useState('')
+  const [email, setEmail] = useState('')
+  const [pulling, setPulling] = useState(false)
+  const [pullNote, setPullNote] = useState<string | null>(null)
   const [scoring, setScoring] = useState<AemtCandidate | null>(null)
   const [interviewing, setInterviewing] = useState<AemtCandidate | null>(null)
 
@@ -295,11 +336,40 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
         <div className="spacer" />
         {canEdit && <SavedIndicator />}
         {canEdit && (
+          <button
+            className="btn"
+            disabled={pulling || candidates.length === 0}
+            onClick={async () => {
+              setPulling(true)
+              setPullNote(null)
+              const r = await pullExamResults(course.id)
+              setPulling(false)
+              if (r.error) {
+                setPullNote(r.error)
+                return
+              }
+              const bits = [`${r.matched} result${r.matched === 1 ? '' : 's'} attached`]
+              if (r.unmatched.length) bits.push(`no attempt found for ${r.unmatched.join(', ')}`)
+              if (r.noEmail.length) bits.push(`no exam email on ${r.noEmail.join(', ')}`)
+              setPullNote(bits.join(' · '))
+            }}
+            title="Match candidates to their selection-exam attempts by email"
+          >
+            {pulling ? 'Pulling…' : '⬇ Pull exam results'}
+          </button>
+        )}
+        {canEdit && (
           <button className="btn primary" onClick={() => setAdding(true)}>
             + Candidate
           </button>
         )}
       </div>
+
+      {pullNote && (
+        <div className="banner info" style={{ marginTop: 8 }}>
+          {pullNote}
+        </div>
+      )}
 
       {/* Filling a seat below threshold costs more than leaving it empty, and
           that is far easier to hold to before you know who the names are. */}
@@ -424,14 +494,29 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
             <label htmlFor="cand-emp">Employee number</label>
             <input id="cand-emp" value={empNo} onChange={(e) => setEmpNo(e.target.value)} />
           </div>
+          <div className="field">
+            <label htmlFor="cand-email">Exam email</label>
+            <input
+              id="cand-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="the address they sat the exam under"
+            />
+            <div className="help-text">
+              The only link to their selection-exam result. The exam is a no-login form, so a
+              candidate whose address does not match is left unmatched rather than guessed at.
+            </div>
+          </div>
           <div className="btn-row" style={{ marginTop: 12 }}>
             <button
               className="btn primary"
               disabled={name.trim() === ''}
               onClick={() => {
-                addCandidate(course.id, name.trim(), empNo.trim() || undefined)
+                addCandidate(course.id, name.trim(), empNo.trim() || undefined, email.trim() || undefined)
                 setName('')
                 setEmpNo('')
+                setEmail('')
                 setAdding(false)
               }}
             >
