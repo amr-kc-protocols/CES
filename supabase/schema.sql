@@ -230,10 +230,17 @@ create table if not exists public.exam_attempts (
   responses jsonb,                  -- { "<question id>": <chosen option 0-3> }
   score int,
   total int not null,
-  percent numeric(5,2)
+  percent numeric(5,2),
+  -- The allowance GRANTED AT START, so changing the cap never reaches
+  -- backwards into a sitting already under way.
+  limit_seconds int not null default 2400
 );
 
 create index if not exists exam_attempts_email_idx on public.exam_attempts (email);
+-- One submitted attempt per email, enforced by the database rather than by an
+-- EXISTS that two concurrent starts can both pass.
+create unique index if not exists exam_attempts_one_submitted_per_email
+  on public.exam_attempts (email) where submitted_at is not null;
 
 alter table public.exam_attempts enable row level security;
 create policy "admin reads exam attempts" on public.exam_attempts
@@ -253,7 +260,8 @@ declare
   v_email  text := lower(trim(p_email));
   v_name   text := trim(p_name);
   v_cutoff constant timestamptz := '2026-08-17 17:00:00-05';  -- Aug 17, 5 PM Central
-  v_limit  constant int := 40 * 60;                            -- 40 minutes
+  -- 50 items at 30 seconds each. See the header for why this came down.
+  v_limit  constant int := 25 * 60;
   v_draw   constant int := 50;
   v_attempt public.exam_attempts;
   v_qids bigint[];
@@ -265,35 +273,45 @@ begin
   if now() > v_cutoff then
     return jsonb_build_object('error', 'closed');
   end if;
-  -- One attempt per email: block if they already submitted.
-  if exists (select 1 from public.exam_attempts a
-             where a.email = v_email and a.submitted_at is not null) then
-    return jsonb_build_object('error', 'already_taken');
-  end if;
-  -- Resume an unfinished attempt still inside its time window (e.g. a refresh).
+
+  -- The most recent attempt this email holds, in any state. One row is the
+  -- whole story: there is no path that creates a second one.
   select * into v_attempt from public.exam_attempts a
-    where a.email = v_email and a.submitted_at is null
-      and a.started_at > now() - make_interval(secs => v_limit)
+    where a.email = v_email
     order by a.started_at desc limit 1;
-  if not found then
+
+  if found then
+    if v_attempt.submitted_at is not null then
+      return jsonb_build_object('error', 'already_taken');
+    end if;
+    -- Unfinished. Resume it with THE SAME QUESTIONS if the clock is still
+    -- running; otherwise the attempt is spent. Previously this branch fell
+    -- through to a fresh draw, which is what made the bank enumerable.
+    if now() > v_attempt.started_at + make_interval(secs => v_attempt.limit_seconds) then
+      return jsonb_build_object('error', 'expired');
+    end if;
+    v_qids := v_attempt.question_ids;
+  else
     select array_agg(id) into v_qids
       from (select id from public.exam_questions where active order by random() limit v_draw) s;
-    insert into public.exam_attempts (name, email, question_ids, total)
-      values (v_name, v_email, v_qids, coalesce(array_length(v_qids, 1), 0))
+    insert into public.exam_attempts (name, email, question_ids, total, limit_seconds)
+      values (v_name, v_email, v_qids, coalesce(array_length(v_qids, 1), 0), v_limit)
       returning * into v_attempt;
-  else
-    v_qids := v_attempt.question_ids;
   end if;
+
   select jsonb_agg(
            jsonb_build_object('id', q.id, 'domain', q.domain, 'stem', q.stem, 'options', q.options)
            order by array_position(v_qids, q.id))
     into v_questions
     from public.exam_questions q
     where q.id = any(v_qids);
+
   return jsonb_build_object(
     'attemptId', v_attempt.id,
     'startedAt', v_attempt.started_at,
-    'limitSeconds', v_limit,
+    -- The attempt's own allowance, not the current constant, so a resumed
+    -- attempt counts down the window it was actually granted.
+    'limitSeconds', v_attempt.limit_seconds,
     'questions', coalesce(v_questions, '[]'::jsonb));
 end;
 $$;
@@ -309,6 +327,7 @@ security definer
 set search_path = public
 as $$
 declare
+  v_grace constant int := 60;
   v_attempt public.exam_attempts;
   v_score int := 0;
   v_qid bigint;
@@ -322,6 +341,11 @@ begin
   if v_attempt.submitted_at is not null then
     return jsonb_build_object('error', 'already_submitted');
   end if;
+  if now() > v_attempt.started_at
+             + make_interval(secs => v_attempt.limit_seconds + v_grace) then
+    return jsonb_build_object('error', 'expired');
+  end if;
+
   foreach v_qid in array v_attempt.question_ids loop
     select answer into v_ans from public.exam_questions where id = v_qid;
     v_chosen := nullif(p_responses ->> v_qid::text, '')::int;
@@ -329,6 +353,7 @@ begin
       v_score := v_score + 1;
     end if;
   end loop;
+
   update public.exam_attempts
      set submitted_at = now(),
          responses = p_responses,

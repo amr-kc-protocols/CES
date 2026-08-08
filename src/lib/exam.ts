@@ -31,9 +31,15 @@ export interface ExamStart {
   questions: ExamQuestion[]
 }
 
+/**
+ * `expired` means the attempt's clock ran out before it was submitted. The
+ * server treats that as the attempt being spent — the draw happens once per
+ * email, so there is no second set of questions to hand out. Clearing it is a
+ * deliberate admin action, not something the candidate can trigger.
+ */
 export type StartResult =
   | { data: ExamStart }
-  | { reason: 'closed' | 'already_taken' }
+  | { reason: 'closed' | 'already_taken' | 'expired' }
   | { error: string }
 
 export async function startExam(name: string, email: string): Promise<StartResult> {
@@ -43,7 +49,9 @@ export async function startExam(name: string, email: string): Promise<StartResul
   if (error) return { error: error.message }
   const d = data as Record<string, unknown>
   if (d?.error) {
-    if (d.error === 'closed' || d.error === 'already_taken') return { reason: d.error }
+    if (d.error === 'closed' || d.error === 'already_taken' || d.error === 'expired') {
+      return { reason: d.error as 'closed' | 'already_taken' | 'expired' }
+    }
     return { error: String(d.error) }
   }
   return { data: data as ExamStart }
@@ -53,12 +61,13 @@ export async function startExam(name: string, email: string): Promise<StartResul
 export async function submitExam(
   attemptId: string,
   responses: Record<number, number>,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; expired?: boolean }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
   const { data, error } = await c.rpc('exam_submit', { p_attempt: attemptId, p_responses: responses })
   if (error) return { error: error.message }
   const d = data as Record<string, unknown>
+  if (d?.error === 'expired') return { expired: true }
   if (d?.error) return { error: String(d.error) }
   return {}
 }
@@ -84,4 +93,47 @@ export async function listExamResults(): Promise<{ rows?: ExamAttempt[]; error?:
     .not('submitted_at', 'is', null)
     .order('percent', { ascending: false })
   return error ? { error: error.message } : { rows: (data ?? []) as ExamAttempt[] }
+}
+
+/* -------------------------------------------------------------------------
+ * Item analysis (admin)
+ *
+ * These two reads are what the test-quality panel runs on. Both are already
+ * permitted by the existing RLS policies — "admin reads exam bank" and "admin
+ * reads exam attempts" — so this widens nothing: any admin could already
+ * fetch the key with one call. It is worth knowing that it happens, though.
+ * The bank's answers reach an ADMIN browser here; they still never reach a
+ * candidate's, which is the guarantee the design actually makes.
+ * ---------------------------------------------------------------------- */
+
+export interface AttemptRow {
+  id: string
+  question_ids: number[]
+  responses: Record<string, number> | null
+}
+
+/** Submitted attempts with their served items and raw responses. */
+export async function listAttemptsForAnalysis(): Promise<{ rows?: AttemptRow[]; error?: string }> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { data, error } = await c
+    .from('exam_attempts')
+    .select('id, question_ids, responses')
+    .not('submitted_at', 'is', null)
+  return error ? { error: error.message } : { rows: (data ?? []) as AttemptRow[] }
+}
+
+export interface BankRow {
+  id: number
+  domain: string
+  stem: string
+  answer: number
+}
+
+/** The bank, with the key. Admin only, by RLS. */
+export async function listExamBank(): Promise<{ rows?: BankRow[]; error?: string }> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { data, error } = await c.from('exam_questions').select('id, domain, stem, answer')
+  return error ? { error: error.message } : { rows: (data ?? []) as BankRow[] }
 }
