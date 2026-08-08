@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listExamResults, type ExamAttempt } from '../../lib/exam'
+import TestQuality from './TestQuality'
 
 // Admin review of AEMT exam results. Route is wrapped in <AemtOnly>; RLS is the
 // real gate (only an admin profile can read exam_attempts). Ranked by score.
@@ -136,6 +137,8 @@ export default function ExamResults() {
           </table>
         </div>
       )}
+
+      <TestQuality />
     </div>
   )
 }
