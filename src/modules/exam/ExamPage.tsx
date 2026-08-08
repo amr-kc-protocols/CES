@@ -11,7 +11,7 @@ import {
 // Public, no-login AEMT selection exam. Questions come from the server without
 // answers; grading is server-side. One attempt per email, before the cutoff.
 
-type Phase = 'intro' | 'exam' | 'submitting' | 'done' | 'closed' | 'taken'
+type Phase = 'intro' | 'exam' | 'submitting' | 'done' | 'closed' | 'taken' | 'expired'
 
 // Stable per-question shuffle of the option display order. We submit the
 // ORIGINAL index, so shuffling is purely visual (screenshot resistance).
@@ -60,7 +60,12 @@ export default function ExamPage() {
       submittedRef.current = true
       setPhase('submitting')
       setError(null)
-      const { error: err } = await submitExam(exam.attemptId, answers)
+      const { error: err, expired } = await submitExam(exam.attemptId, answers)
+      if (expired) {
+        setPhase('expired')
+        window.scrollTo(0, 0)
+        return
+      }
       if (err) {
         submittedRef.current = false
         setError(err + ' — please try Submit again.')
@@ -104,7 +109,7 @@ export default function ExamPage() {
       submittedRef.current = false
       setPhase('exam')
     } else if ('reason' in r) {
-      setPhase(r.reason === 'closed' ? 'closed' : 'taken')
+      setPhase(r.reason === 'closed' ? 'closed' : r.reason === 'expired' ? 'expired' : 'taken')
     } else {
       setError(r.error)
       setPhase('intro')
@@ -144,6 +149,20 @@ export default function ExamPage() {
         <p className="subtle" style={{ margin: 0 }}>
           Our records show a completed attempt for this email. The exam is one attempt only. If you
           think this is a mistake, contact the AMR KC education team.
+        </p>
+      </div>,
+    )
+
+  if (phase === 'expired')
+    return shell(
+      <div className="card" style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>⏰</div>
+        <h2 style={{ marginBottom: 8 }}>Your time ran out</h2>
+        <p className="subtle" style={{ margin: 0 }}>
+          This attempt's time limit passed before it was submitted, so it is closed. The exam is
+          one attempt with one set of questions — there is no second sitting to hand out. If
+          something went wrong at your end, contact the AMR KC education team and they can reset
+          it for you.
         </p>
       </div>,
     )

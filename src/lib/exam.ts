@@ -31,9 +31,15 @@ export interface ExamStart {
   questions: ExamQuestion[]
 }
 
+/**
+ * `expired` means the attempt's clock ran out before it was submitted. The
+ * server treats that as the attempt being spent — the draw happens once per
+ * email, so there is no second set of questions to hand out. Clearing it is a
+ * deliberate admin action, not something the candidate can trigger.
+ */
 export type StartResult =
   | { data: ExamStart }
-  | { reason: 'closed' | 'already_taken' }
+  | { reason: 'closed' | 'already_taken' | 'expired' }
   | { error: string }
 
 export async function startExam(name: string, email: string): Promise<StartResult> {
@@ -43,7 +49,9 @@ export async function startExam(name: string, email: string): Promise<StartResul
   if (error) return { error: error.message }
   const d = data as Record<string, unknown>
   if (d?.error) {
-    if (d.error === 'closed' || d.error === 'already_taken') return { reason: d.error }
+    if (d.error === 'closed' || d.error === 'already_taken' || d.error === 'expired') {
+      return { reason: d.error as 'closed' | 'already_taken' | 'expired' }
+    }
     return { error: String(d.error) }
   }
   return { data: data as ExamStart }
@@ -53,12 +61,13 @@ export async function startExam(name: string, email: string): Promise<StartResul
 export async function submitExam(
   attemptId: string,
   responses: Record<number, number>,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; expired?: boolean }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
   const { data, error } = await c.rpc('exam_submit', { p_attempt: attemptId, p_responses: responses })
   if (error) return { error: error.message }
   const d = data as Record<string, unknown>
+  if (d?.error === 'expired') return { expired: true }
   if (d?.error) return { error: String(d.error) }
   return {}
 }
