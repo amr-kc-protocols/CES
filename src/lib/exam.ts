@@ -8,9 +8,45 @@
 
 import { getSupabaseClient } from './sync'
 
+/**
+ * The exam window, and how long a sitting lasts.
+ *
+ * BOTH VALUES MUST MATCH THE SQL. `v_cutoff` and `v_limit` in
+ * supabase/migrations/2026-08-08-exam-hardening.sql are what actually govern
+ * the exam; these exist so the candidate can be told before they start. The
+ * server is authoritative — once an attempt begins, the timer counts down
+ * `limitSeconds` from the server response, not this constant. Only the
+ * pre-start copy can drift, and it did: the instructions advertised 40 minutes
+ * for a week after the server moved to 25.
+ */
+export const EXAM_LIMIT_MINUTES = 25
+
+const DEADLINE_ISO = '2026-08-17T17:00:00-05:00'
+
+/**
+ * The weekday is DERIVED, never typed.
+ *
+ * It previously read "Sunday, August 17" when 17 August 2026 is a Monday.
+ * A candidate reading that has two different deadlines a day apart and no way
+ * to tell which is meant — exactly the sort of thing that becomes a dispute
+ * about somebody's place in a cohort. Computing it removes the failure mode
+ * rather than correcting one instance of it.
+ */
+function deadlineDisplay(iso: string): string {
+  const d = new Date(iso)
+  // Rendered in the deadline's own timezone (US Central), not the reader's, so
+  // a candidate in a different zone still sees the date the rule refers to.
+  const fmt = (opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', ...opts }).format(d)
+  return `${fmt({ weekday: 'long' })}, ${fmt({ month: 'long', day: 'numeric' })} at ${fmt({
+    hour: 'numeric',
+    minute: '2-digit',
+  })} (Central)`
+}
+
 export const EXAM_DEADLINE = {
-  iso: '2026-08-17T17:00:00-05:00',
-  display: 'Sunday, August 17 at 5:00 PM (Central)',
+  iso: DEADLINE_ISO,
+  display: deadlineDisplay(DEADLINE_ISO),
 }
 
 export function examClosed(now: number = Date.now()): boolean {
@@ -42,10 +78,43 @@ export type StartResult =
   | { reason: 'closed' | 'already_taken' | 'expired' }
   | { error: string }
 
-export async function startExam(name: string, email: string): Promise<StartResult> {
+/**
+ * The Integrity Statement the candidate agrees to.
+ *
+ * Kept here rather than only in the component so the exact wording can be
+ * hashed and stored with the attempt. A future edit to the statement then
+ * cannot silently change what a past candidate is recorded as having agreed
+ * to — the stored hash simply stops matching, which is the honest outcome.
+ */
+export const ATTESTATION_TEXT = [
+  'I am completing this exam entirely on my own — no notes, books, websites, apps, or other people.',
+  'The answers I submit are my own work, and my attempt is recorded with my name and email.',
+  "This exam is part of AMR Kansas City's AEMT selection process.",
+  "Giving or receiving help is a violation of AMR's Standards of Conduct and may result in disqualification from selection and further review.",
+].join('\n')
+
+/** Stable, non-cryptographic digest. Identifies the wording, not a secret. */
+export function attestationHash(text: string = ATTESTATION_TEXT): string {
+  let h = 5381
+  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0
+  return `v1-${h.toString(16)}`
+}
+
+export async function startExam(
+  name: string,
+  email: string,
+  attested?: boolean,
+  signature?: string,
+): Promise<StartResult> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'The exam is temporarily unavailable. Please try again shortly.' }
-  const { data, error } = await c.rpc('exam_start', { p_name: name, p_email: email })
+  const { data, error } = await c.rpc('exam_start', {
+    p_name: name,
+    p_email: email,
+    p_attested: attested ?? null,
+    p_signature: signature ?? null,
+    p_attestation_hash: attested ? attestationHash() : null,
+  })
   if (error) return { error: error.message }
   const d = data as Record<string, unknown>
   if (d?.error) {
@@ -127,6 +196,8 @@ export interface BankRow {
   id: number
   domain: string
   stem: string
+  /** The four choices, in bank order. The exam shuffles display order. */
+  options: string[]
   answer: number
 }
 
@@ -134,6 +205,6 @@ export interface BankRow {
 export async function listExamBank(): Promise<{ rows?: BankRow[]; error?: string }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
-  const { data, error } = await c.from('exam_questions').select('id, domain, stem, answer')
+  const { data, error } = await c.from('exam_questions').select('id, domain, stem, options, answer')
   return error ? { error: error.message } : { rows: (data ?? []) as BankRow[] }
 }

@@ -130,7 +130,15 @@ function median(xs: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
 }
 
-/** Correlation between a 0/1 item vector and total score. */
+/**
+ * Corrected item-total correlation.
+ *
+ * `totals` must ALREADY EXCLUDE the item being analysed. Correlating an item
+ * against a total that contains it means the item is partly correlated with
+ * itself, which inflates every figure — worst on short tests and on the very
+ * items that need judging most honestly. Subtracting the item first is the
+ * standard correction and the reason this takes rest-scores rather than totals.
+ */
 function pointBiserial(correct: number[], totals: number[]): number | undefined {
   if (correct.length < 3) return undefined
   const sdT = sd(totals)
@@ -207,8 +215,12 @@ export function analyseExam(
       }
       const rec = seen.get(qid)!
       const chosen = a.responses[String(qid)]
-      rec.correct.push(chosen !== undefined && chosen === key[String(qid)] ? 1 : 0)
-      rec.totals.push(totals[ai])
+      const right = chosen !== undefined && chosen === key[String(qid)] ? 1 : 0
+      rec.correct.push(right)
+      // The REST score: this candidate's total minus this item. See
+      // pointBiserial — correlating an item against a total containing it
+      // inflates the result.
+      rec.totals.push(totals[ai] - right)
       if (chosen === undefined) rec.omitted++
       else if (chosen >= 0 && chosen < optionCount) rec.chosen[chosen]++
     }

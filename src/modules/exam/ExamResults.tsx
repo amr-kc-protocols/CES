@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { listExamResults, type ExamAttempt } from '../../lib/exam'
 import TestQuality from './TestQuality'
 
@@ -82,6 +83,7 @@ export default function ExamResults() {
           </div>
         </div>
         <div className="btn-row">
+          <Link to="/aemt/exam-bank" className="btn sm">📋 Review the bank</Link>
           <button className="btn sm" onClick={() => void load()}>↻ Refresh</button>
           <button className="btn sm" onClick={exportCsv} disabled={rows.length === 0}>⬇ CSV</button>
         </div>
