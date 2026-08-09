@@ -16,12 +16,23 @@ import type { AuditPackageInput } from './auditPackage'
 // packet is for reading, the JSON is for verifying.
 // ---------------------------------------------------------------------------
 
-/** Stable stringify — key order must not depend on object construction. */
+/**
+ * Stable stringify — key order must not depend on object construction.
+ *
+ * Keys holding `undefined` are skipped, because JSON.stringify drops them and
+ * the downloaded bundle is what a verifier re-hashes. Serialising them as null
+ * here made the printed fingerprint unreproducible for any course that had ever
+ * had an attestation withdrawn or a sign-off revoked — both of those write
+ * `undefined` over a field rather than deleting it — which is precisely the
+ * check the packet tells an auditor to perform.
+ */
 function canonical(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null)
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   const obj = value as Record<string, unknown>
-  const keys = Object.keys(obj).sort()
+  const keys = Object.keys(obj)
+    .filter((k) => obj[k] !== undefined)
+    .sort()
   return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(obj[k])}`).join(',')}}`
 }
 
@@ -103,6 +114,14 @@ export function downloadJSON(filename: string, data: unknown): void {
   const a = document.createElement('a')
   a.href = url
   a.download = filename.endsWith('.json') ? filename : `${filename}.json`
+  // Attached and revoked on a later tick: a detached anchor and a synchronous
+  // revoke race the download in Firefox and Safari, and this is the half of the
+  // packet the fingerprint is checked against.
+  a.style.display = 'none'
+  document.body.append(a)
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => {
+    URL.revokeObjectURL(url)
+    a.remove()
+  }, 0)
 }

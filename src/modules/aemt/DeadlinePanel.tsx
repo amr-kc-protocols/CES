@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '../../components/ui'
+import { confirmAction } from '../../lib/dialog'
 import { formatDate, todayISO } from '../../lib/date'
 import { useDeadlines, setDeadlineSubmission, useRecordSafety } from './aemtStore'
 import type { DueDeadline } from './aemtStore'
@@ -124,7 +125,17 @@ function SubmissionModal({ due, onClose }: { due: DueDeadline; onClose: () => vo
           <button
             className="btn danger"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
+            onClick={async () => {
+              const ok = await confirmAction({
+                title: 'Clear this submission record?',
+                body:
+                  `The portal confirmation${r.confirmationNumber ? ` (${r.confirmationNumber})` : ''} ` +
+                  'is the receipt proving this was filed with KBEMS, and it is not recoverable from ' +
+                  'anywhere else in the app. The deadline goes back to outstanding. Clearing it is ' +
+                  'written to the audit trail.',
+                confirmLabel: 'Clear submission',
+              })
+              if (!ok) return
               setDeadlineSubmission(due.course.id, due.deadline.id, null, safety.actor)
               onClose()
             }}

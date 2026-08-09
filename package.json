@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "icons": "node scripts/gen-icons.mjs"
+    "icons": "node scripts/gen-icons.mjs",
+    "check:evidence": "node scripts/check-evidence-hash.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

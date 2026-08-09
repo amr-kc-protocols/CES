@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { confirmAction } from '../../lib/dialog'
+import { confirmAction, notifyUser } from '../../lib/dialog'
 import { Empty, Modal } from '../../components/ui'
 import {
   useStudents,
   useStudentReadiness,
+  useCompletions,
   addStudent,
   updateStudent,
   deleteStudent,
@@ -23,10 +24,13 @@ const STATUS_PILL: Record<AemtStudentStatus, string> = {
 function StudentForm({
   courseId,
   existing,
+  hasCompletion,
   onClose,
 }: {
   courseId: string
   existing?: AemtStudent
+  /** A verified completion is on file, so status is not editable here. */
+  hasCompletion: boolean
   onClose: () => void
 }) {
   const [name, setName] = useState(existing?.name ?? '')
@@ -45,8 +49,15 @@ function StudentForm({
       phone: phone.trim() || undefined,
       status,
     }
-    if (existing) updateStudent(existing.id, patch)
-    else addStudent(courseId, patch.name, patch)
+    if (existing) {
+      const res = updateStudent(existing.id, patch)
+      if (!res.ok) {
+        notifyUser(res.refused ?? 'That change was refused.', 'crit')
+        return
+      }
+    } else {
+      addStudent(courseId, patch.name, patch)
+    }
     onClose()
   }
 
@@ -87,6 +98,7 @@ function StudentForm({
           <select
             id="as-status"
             value={status}
+            disabled={hasCompletion}
             onChange={(e) => setStatus(e.target.value as AemtStudentStatus)}
           >
             <option value="active">Active</option>
@@ -94,8 +106,19 @@ function StudentForm({
             {existing.status === 'completed' && <option value="completed">Completed</option>}
           </select>
           <div className="help-text">
-            Completed is set by verifying readiness below, not chosen here — it is what makes a
-            student eligible to sit the NREMT cognitive exam.
+            {hasCompletion ? (
+              <>
+                This student has a <strong>verified completion</strong> on file, so status is not
+                editable here — moving them off Completed would leave that record in place while the
+                roster said otherwise. Use <strong>Revoke</strong> in Completion readiness below,
+                which records who did it and why.
+              </>
+            ) : (
+              <>
+                Completed is set by verifying readiness below, not chosen here — it is what makes a
+                student eligible to sit the NREMT cognitive exam.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -140,6 +163,7 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
   const readiness = useStudentReadiness(course.id, course.monitorSheetId)
+  const completions = useCompletions(course.id)
 
   return (
     <div>
@@ -193,9 +217,16 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
         <CompletionPanel course={course} readiness={readiness} canEdit={manageAcademy} />
       )}
 
-      {adding && <StudentForm courseId={course.id} onClose={() => setAdding(false)} />}
+      {adding && (
+        <StudentForm courseId={course.id} hasCompletion={false} onClose={() => setAdding(false)} />
+      )}
       {editing && (
-        <StudentForm courseId={course.id} existing={editing} onClose={() => setEditing(null)} />
+        <StudentForm
+          courseId={course.id}
+          existing={editing}
+          hasCompletion={completions.some((c) => c.studentId === editing.id)}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   )

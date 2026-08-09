@@ -166,9 +166,11 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
             // Keep whatever was filed. Each commitment is independent, and a
             // course that knows three of its four numbers should reconcile
             // against those three rather than against nothing.
+            // Zero is a commitment of zero hours, not a blank — see the same
+            // note in CourseSetupPanel. Blank is what means "not filed".
             const num = (v: string) => {
               const n = Number(v)
-              return v.trim() !== '' && Number.isFinite(n) && n > 0 ? n : undefined
+              return v.trim() !== '' && Number.isFinite(n) && n >= 0 ? n : undefined
             }
             const targets = {
               didactic: num(didactic),

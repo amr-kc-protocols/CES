@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Empty, Modal } from '../../components/ui'
 import SavedIndicator from '../../components/SavedIndicator'
+import DebouncedInput from '../../components/DebouncedInput'
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
@@ -15,8 +16,10 @@ import {
   seedShortfall,
   addPlaceholderSessions,
   sessionProblems,
+  parseClock,
 } from './aemtStore'
 import { blockPlanTotals } from '../../data/aemt'
+import { addDays } from '../../lib/date'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
 
@@ -106,9 +109,9 @@ function SessionRow({
         </label>
         <label className="subtle" style={{ fontSize: 12, gridColumn: '1 / -1' }}>
           Title
-          <input
+          <DebouncedInput
             value={session.title}
-            onChange={(e) => updateSession(session.id, { title: e.target.value })}
+            onCommit={(v) => updateSession(session.id, { title: v })}
             placeholder="Airway management — supraglottic devices"
             style={{ display: 'block', width: '100%', marginTop: 2 }}
           />
@@ -129,9 +132,9 @@ function SessionRow({
         </label>
         <label className="subtle" style={{ fontSize: 12 }}>
           Instructor
-          <input
+          <DebouncedInput
             value={session.instructor ?? ''}
-            onChange={(e) => updateSession(session.id, { instructor: e.target.value || undefined })}
+            onCommit={(v) => updateSession(session.id, { instructor: v || undefined })}
             style={{ display: 'block', width: '100%', marginTop: 2 }}
           />
         </label>
@@ -186,9 +189,10 @@ function AddSessionModal({ course, onClose }: { course: AemtCourse; onClose: () 
   function setSpan(start: string, end: string): void {
     setStartTime(start)
     setEndTime(end)
-    if (start && end && end > start) {
-      const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
-      setHours(String((mins(end) - mins(start)) / 60))
+    const from = parseClock(start)
+    const to = parseClock(end)
+    if (from !== undefined && to !== undefined && to > from) {
+      setHours(String((to - from) / 60))
     }
   }
 
@@ -322,6 +326,13 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
   const plan = blockPlanTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
+  // The plan lays 16 weeks of Tue/Thu sessions from the first Tuesday on or
+  // after the start date. A course whose own end date falls sooner gets a
+  // schedule that runs past it, and every session beyond gets flagged as
+  // outside the course dates — better said before building than discovered
+  // as a wall of warnings afterwards.
+  const lastSeeded = addDays(course.startDate, 15 * 7 + 9)
+  const runsPast = lastSeeded > course.endDate
 
   return (
     <Modal title="Build the AMR KC 16-week plan" onClose={onClose}>
@@ -356,6 +367,15 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
       ) : (
         <div className="banner warn">
           This course has filed no hour targets, so there is nothing to check the plan against.
+        </div>
+      )}
+
+      {runsPast && (
+        <div className="banner warn">
+          <strong>This runs past the course's end date.</strong> Sixteen weeks from{' '}
+          {formatDate(course.startDate)} reaches {formatDate(lastSeeded)}, but the course is recorded
+          as ending {formatDate(course.endDate)}. The sessions will still be created — every one past
+          the end date will be flagged until the course dates are corrected in Course setup.
         </div>
       )}
 

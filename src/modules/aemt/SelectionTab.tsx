@@ -48,9 +48,14 @@ function ScoreModal({ candidate, onClose }: { candidate: AemtCandidate; onClose:
   const [gates, setGates] = useState<Record<string, boolean>>(candidate.gates ?? {})
   const [email, setEmail] = useState(candidate.email ?? '')
 
-  const num = (v: string) => {
+  // Clamped on save. The min/max attributes on a number input constrain the
+  // spinner, not what a person can type or paste — and an unclamped 500% QA
+  // score flows straight into the weighted composite and puts a candidate at
+  // the top of a list four seats are filled from.
+  const num = (v: string, max: number) => {
     const n = Number(v)
-    return v.trim() !== '' && Number.isFinite(n) ? n : undefined
+    if (v.trim() === '' || !Number.isFinite(n)) return undefined
+    return Math.min(max, Math.max(0, n))
   }
 
   return (
@@ -171,12 +176,12 @@ function ScoreModal({ candidate, onClose }: { candidate: AemtCandidate; onClose:
               gates,
               email: email.trim().toLowerCase() || undefined,
               testMarks: Object.fromEntries(
-                TEST_SECTIONS.map((s) => [s.id, num(marks[s.id])]).filter(
+                TEST_SECTIONS.map((s) => [s.id, num(marks[s.id], s.marks)]).filter(
                   (e): e is [string, number] => typeof e[1] === 'number',
                 ),
               ),
-              qaPercent: num(qa),
-              attendancePercent: num(att),
+              qaPercent: num(qa, 100),
+              attendancePercent: num(att, 100),
               bonusTier: tier,
             })
             onClose()
@@ -201,18 +206,51 @@ function InterviewModal({
   actor: string
   onClose: () => void
 }) {
-  const mine = (candidate.interviews ?? []).find((i) => i.scorer === actor)
+  // On a device with no cloud sync the actor is the literal 'local' for
+  // everybody, so two interviewers scoring on one tablet both wrote as 'local'
+  // and the second silently replaced the first — defeating independent scoring
+  // and zeroing out the disagreement check, which needs two entries to fire.
+  const anonymous = actor === 'local'
+  const [scorer, setScorer] = useState(anonymous ? '' : actor)
+  const identity = anonymous ? scorer.trim() : actor
+  const mine = (candidate.interviews ?? []).find((i) => i.scorer === identity)
   const [scores, setScores] = useState<Record<string, number>>(mine?.scores ?? {})
   const [notes, setNotes] = useState<Record<string, string>>(mine?.notes ?? {})
   const total = Object.values(scores).reduce((n, v) => n + v, 0)
-  const complete = INTERVIEW_QUESTIONS.every((q) => typeof scores[q.id] === 'number')
+  const complete =
+    INTERVIEW_QUESTIONS.every((q) => typeof scores[q.id] === 'number') && identity !== ''
+  const alreadyScored = (candidate.interviews ?? []).map((i) => i.scorer)
 
   return (
     <Modal title={`Interview — ${candidate.name}`} onClose={onClose}>
-      <div className="banner info" style={{ marginTop: 0 }}>
-        Scoring as <strong>{actor}</strong>. Two interviewers score independently and confer
-        afterwards — this saves your scores only.
-      </div>
+      {anonymous ? (
+        <>
+          <div className="banner warn" style={{ marginTop: 0 }}>
+            <strong>This device is not signed in</strong>, so it cannot tell interviewers apart.
+            Enter your name — scores are stored against it, and a second interviewer entering the
+            same name would replace yours rather than being counted alongside it.
+          </div>
+          <div className="field">
+            <label htmlFor="iv-scorer">Your name</label>
+            <input
+              id="iv-scorer"
+              value={scorer}
+              onChange={(e) => setScorer(e.target.value)}
+              placeholder="Interviewer name"
+            />
+            {identity !== '' && alreadyScored.includes(identity) && (
+              <div className="help-text" style={{ color: 'var(--warn)' }}>
+                {identity} has already scored this candidate — saving replaces that entry.
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="banner info" style={{ marginTop: 0 }}>
+          Scoring as <strong>{actor}</strong>. Two interviewers score independently and confer
+          afterwards — this saves your scores only.
+        </div>
+      )}
 
       {INTERVIEW_QUESTIONS.map((q) => (
         <div key={q.id} className="card" style={{ padding: 12, marginTop: 10 }}>
@@ -279,9 +317,15 @@ function InterviewModal({
         <button
           className="btn primary"
           disabled={!complete}
-          title={complete ? 'Save your scores' : 'Score every question first'}
+          title={
+            complete
+              ? 'Save your scores'
+              : identity === ''
+                ? 'Enter your name first'
+                : 'Score every question first'
+          }
           onClick={() => {
-            recordInterview(candidate.id, actor, scores, notes)
+            recordInterview(candidate.id, identity, scores, notes)
             onClose()
           }}
         >
@@ -424,6 +468,12 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                       {b}
                     </div>
                   ))}
+                  {(c.interviews?.length ?? 0) === 1 && (
+                    <div className="meta" style={{ color: 'var(--warn)' }}>
+                      Scored by one interviewer ({c.interviews![0].scorer}). The procedure has two
+                      score independently before conferring, and the disagreement check needs both.
+                    </div>
+                  )}
                   {disagree.length > 0 && (
                     <div className="meta" style={{ color: 'var(--warn)' }}>
                       Interviewers differ by 2 or more on{' '}

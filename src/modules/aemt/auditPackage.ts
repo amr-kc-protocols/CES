@@ -15,7 +15,13 @@ import {
   docStatus,
 } from '../../data/aemtRecords'
 import { sheetsForCourse } from '../../data/aemtSkills'
-import { attestationIsEvidence, encounterCounts } from './aemtStore'
+import {
+  attestationIsEvidence,
+  encounterCounts,
+  isClassroomSession,
+  skillSignoffIsEvidence,
+  standingFor,
+} from './aemtStore'
 import type {
   AemtAuditEvent,
   AemtClinicalShift,
@@ -46,6 +52,23 @@ function esc(s: unknown): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
+
+/**
+ * A numeric field, rendered.
+ *
+ * The store is hydrated by JSON.parse from localStorage, by importDB, and by
+ * applyRemote from rows another device wrote — all with unchecked casts, so a
+ * field typed `number` is only as trustworthy as its source. Numbers used to be
+ * interpolated raw on the grounds that their type made escaping unnecessary.
+ * Anything that is not actually a number is escaped and flagged rather than
+ * printed into the document.
+ */
+function num(v: unknown, digits?: number): string {
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    return `<span class="crit">${esc(v ?? '—')}</span>`
+  }
+  return digits === undefined ? String(v) : v.toFixed(digits)
 }
 
 const CSS = `
@@ -98,7 +121,7 @@ export function auditPackageHTML(
       (s) => `<tr><td>${esc(formatDate(s.date))}</td>
       <td>${esc(s.startTime ?? '')}${s.endTime ? `–${esc(s.endTime)}` : ''}${!s.startTime ? '<span class="warn">no time</span>' : ''}</td>
       <td>${esc(s.title || '—')}</td><td>${esc(s.kind)}</td>
-      <td style="text-align:right">${s.hours}</td><td>${esc(s.instructor ?? '—')}</td></tr>`,
+      <td style="text-align:right">${num(s.hours)}</td><td>${esc(s.instructor ?? '—')}</td></tr>`,
     )
     .join('')
 
@@ -116,16 +139,21 @@ export function auditPackageHTML(
     .reduce((a, x) => a + x, 0)
   const cell = (n: number, target: number | undefined) =>
     typeof target !== 'number'
-      ? `<td style="text-align:right" class="muted">${n.toFixed(2)} <span class="warn">/ not filed</span></td>`
-      : `<td style="text-align:right" class="${n >= target ? 'ok' : 'crit'}">${n.toFixed(2)} / ${target}</td>`
+      ? `<td style="text-align:right" class="muted">${num(n, 2)} <span class="warn">/ not filed</span></td>`
+      : `<td style="text-align:right" class="${n >= target ? 'ok' : 'crit'}">${num(n, 2)} / ${num(target)}</td>`
   const attendance = d.students
     .map((st) => {
       let earned = 0
       let absent = 0
       for (const s of d.sessions) {
         const rec = d.attendance.find((a) => a.studentId === st.id && a.sessionId === s.id)
+        // Classroom kinds only, from the store's single definition — this used
+        // to be written inversely here (`kind !== 'clinical'`), and clinical
+        // rotation hours were credited as classroom time on top of counting
+        // again through their attested shift.
+        if (!isClassroomSession(s.kind)) continue
         if (rec?.status === 'present') earned += rec.hours ?? s.hours
-        if (rec?.status === 'absent' && s.kind !== 'clinical') absent += s.hours
+        if (rec?.status === 'absent') absent += s.hours
       }
       const mine = d.shifts.filter((s) => s.studentId === st.id && attestationIsEvidence(s))
       const clin = mine.filter((s) => s.setting === 'hospital').reduce((a, s) => a + s.hours, 0)
@@ -133,10 +161,10 @@ export function auditPackageHTML(
       const over = absent > MAX_ABSENT_HOURS
       return `<tr><td>${esc(st.name)}</td><td>${esc(st.certNumber ?? '—')}</td>
         ${cell(earned, classTarget)}${cell(clin, t?.clinical)}${cell(field, t?.field)}
-        <td style="text-align:right"><strong>${(earned + clin + field).toFixed(2)}</strong>${
-          filedTotal > 0 ? ` / ${filedTotal}` : ''
+        <td style="text-align:right"><strong>${num(earned + clin + field, 2)}</strong>${
+          filedTotal > 0 ? ` / ${num(filedTotal)}` : ''
         }</td>
-        <td style="text-align:right" class="${over ? 'crit' : ''}">${absent.toFixed(2)}</td>
+        <td style="text-align:right" class="${over ? 'crit' : ''}">${num(absent, 2)}</td>
         <td>${over ? '<span class="crit">over policy</span>' : '<span class="ok">within policy</span>'}</td></tr>`
     })
     .join('')
@@ -156,7 +184,7 @@ export function auditPackageHTML(
         )
         const n = counted.reduce((a, e) => a + e.count, 0)
         const met = n >= req.minimum
-        return `<td style="text-align:right" class="${met ? 'ok' : 'crit'}">${n}/${req.minimum}</td>`
+        return `<td style="text-align:right" class="${met ? 'ok' : 'crit'}">${num(n)}/${num(req.minimum)}</td>`
       }).join('')
       return `<tr><td>${esc(st.name)}</td>${cells}</tr>`
   }
@@ -191,7 +219,7 @@ export function auditPackageHTML(
       return `<tr><td>${esc(formatDate(e.date))}</td><td>${esc(nameOf(e.studentId))}</td>
       <td>${esc(REQ_LABEL.get(e.requirementId) ?? e.requirementId)}</td>
       <td>${esc(e.siteKind)}</td>
-      <td style="text-align:right">${e.count}${e.count > 1 ? ' <span class="warn">batch</span>' : ''}</td>
+      <td style="text-align:right">${num(e.count)}${e.count > 1 ? ' <span class="warn">batch</span>' : ''}</td>
       <td>${e.outcome ? esc(e.outcome) : '<span class="warn">not stated</span>'}</td>
       <td>${e.sourceRef ? esc(e.sourceRef) : '<span class="warn">none</span>'}</td>
       <td>${esc(e.preceptor ?? '—')}</td>
@@ -203,7 +231,7 @@ export function auditPackageHTML(
   const shifts = d.shifts
     .map(
       (s) => `<tr><td>${esc(formatDate(s.date))}</td><td>${esc(nameOf(s.studentId))}</td>
-      <td>${esc(s.setting)}</td><td>${esc(s.site)}</td><td style="text-align:right">${s.hours}</td>
+      <td>${esc(s.setting)}</td><td>${esc(s.site)}</td><td style="text-align:right">${num(s.hours)}</td>
       <td>${esc(s.preceptorName)} (${esc(cred(s.preceptorCredential))}${s.preceptorCertNumber ? ` #${esc(s.preceptorCertNumber)}` : ''})</td>
       <td class="${attestationIsEvidence(s) ? 'ok' : 'warn'}">${
         attestationIsEvidence(s)
@@ -215,13 +243,57 @@ export function auditPackageHTML(
     )
     .join('')
 
+  // ----- corrections after signature -----
+  // The revision trail was captured on the record but never printed, so the
+  // packet showed the corrected values without showing that they had been
+  // corrected — the one thing a reviewer most wants from a signed record.
+  const revisionRows = d.shifts
+    .flatMap((s) => (s.revisions ?? []).map((r) => ({ shift: s, rev: r })))
+    .sort((a, b) => a.rev.at.localeCompare(b.rev.at))
+    .map(
+      ({ shift: s, rev: r }) => `<tr><td>${esc(r.at.replace('T', ' ').slice(0, 16))}</td>
+      <td>${esc(nameOf(s.studentId))}</td>
+      <td>${esc(formatDate(s.date))} · ${esc(s.site)}</td>
+      <td>${esc(r.actor)}</td>
+      <td class="${r.reason === 'not stated' ? 'warn' : ''}">${esc(r.reason)}</td>
+      <td>${
+        r.changed.length
+          ? r.changed.map((c) => `${esc(c.field)}: ${esc(c.from)} → ${esc(c.to)}`).join('<br>')
+          : '<span class="muted">signature withdrawn, no field changed</span>'
+      }</td>
+      <td class="${r.invalidated ? 'crit' : 'muted'}">${
+        r.invalidated
+          ? `${esc(r.invalidated.by)} (${esc(cred(r.invalidated.credential))}${
+              r.invalidated.certNumber ? ` #${esc(r.invalidated.certNumber)}` : ''
+            }) ${esc(r.invalidated.at.slice(0, 10))}`
+          : 'none'
+      }</td></tr>`,
+    )
+    .join('')
+
   // ----- skills -----
+  // Held to the same bar as a shift attestation. This section used to print a
+  // green date for any `passedDate`, so a sign-off with nobody behind it — the
+  // state the app's own UI calls "does not count toward completion" — was shown
+  // to an auditor as satisfied competency. It now distinguishes a signed sheet
+  // from an unattributed one, and from one the recorded results contradict.
   const skills = d.students
     .map((st) => {
-      const cells = sheets
-        .map((sh) => {
-          const c = d.skillChecks.find((x) => x.studentId === st.id && x.sheetId === sh.id)
-          return `<td class="${c?.passedDate ? 'ok' : 'crit'}">${c?.passedDate ? formatDate(c.passedDate) : '—'}</td>`
+      const standing = standingFor(d.skillChecks, st.id, sheets)
+      const cells = standing
+        .map((s) => {
+          const c = s.check
+          if (!c?.passedDate) return '<td class="crit">—</td>'
+          if (s.contradicted) {
+            return `<td class="crit">${esc(formatDate(c.passedDate))}<div class="crit">CONTRADICTED — recorded results do not support this sign-off</div></td>`
+          }
+          if (!skillSignoffIsEvidence(c)) {
+            return `<td class="warn">${esc(formatDate(c.passedDate))}<div class="warn">UNATTRIBUTED — no signer recorded</div></td>`
+          }
+          const a = c.attestation!
+          return `<td class="ok">${esc(formatDate(c.passedDate))}<div class="muted">${esc(a.by)} (${esc(
+            cred(a.credential),
+          )}${a.certNumber ? ` #${esc(a.certNumber)}` : ''})</div></td>`
         })
         .join('')
       return `<tr><td>${esc(st.name)}</td>${cells}</tr>`
@@ -235,7 +307,7 @@ export function auditPackageHTML(
       if (!c)
         return `<tr><td>${esc(st.name)}</td><td colspan="4" class="muted">${esc(st.status)}</td></tr>`
       return `<tr><td>${esc(st.name)}</td><td>${esc(formatDate(c.completedDate))}</td>
-        <td style="text-align:right">${c.finalGradePercent}%</td><td>${esc(c.verifiedBy)}</td>
+        <td style="text-align:right">${num(c.finalGradePercent)}%</td><td>${esc(c.verifiedBy)}</td>
         <td class="${c.override ? 'crit' : 'ok'}">${
           c.override
             ? `OVERRIDE — bypassed ${esc(c.override.unmetChecks.join(', '))}; approved by ${esc(c.override.approver)}: ${esc(c.override.reason)}`
@@ -331,7 +403,7 @@ packet CES produced. This document is HTML and can be edited — the fingerprint
 format, is what makes alteration detectable.</div>
 <h2 style="font-size:12px;border:0;margin:10px 0 2px">Record manifest</h2>
 <table><tr><th>Record type</th><th style="text-align:right">Count</th></tr>
-${provenance.manifest.map((m) => `<tr><td>${esc(m.record)}</td><td style="text-align:right">${m.count}</td></tr>`).join('')}
+${provenance.manifest.map((m) => `<tr><td>${esc(m.record)}</td><td style="text-align:right">${num(m.count)}</td></tr>`).join('')}
 </table>`
     : '<div class="note crit">Generated without an integrity fingerprint. Use the Records tab export, which computes one.</div>'
 }
@@ -415,6 +487,22 @@ ${shifts || '<tr><td colspan="7" class="muted">No shifts recorded</td></tr>'}</t
 <h2>6 · Psychomotor competency</h2>
 <table><tr><th>Student</th>${sheets.map((s) => `<th>${esc(s.title)}</th>`).join('')}</tr>
 ${skills || '<tr><td class="muted">No students</td></tr>'}</table>
+<div class="note">A sheet counts toward K.A.R. 109-11-8(a)(2) only where an identified evaluator
+signed it, with a credential and licence number, and the recorded criteria still support that
+signature. Sheets marked UNATTRIBUTED or CONTRADICTED are shown and do not count.${
+    course.monitorSheetId
+      ? ''
+      : ' <span class="crit">This course names no cardiac monitor, so no monitor sheet is required of any student — the column is absent above rather than unmet.</span>'
+  }</div>
+
+<h2>5a · Corrections after signature</h2>
+<table><tr><th>When</th><th>Student</th><th>Shift</th><th>By</th><th>Reason</th><th>Changed</th><th>Signature invalidated</th></tr>
+${
+  revisionRows ||
+  '<tr><td colspan="7" class="muted">No attested record has been corrected</td></tr>'
+}</table>
+<div class="note">A material change to an attested shift clears the signature and is retained here
+rather than overwriting what was signed. An empty table means no signed record was ever altered.</div>
 
 <h2>7 · Evaluations on file</h2>
 <table><tr><th>Form</th><th>Count</th></tr>

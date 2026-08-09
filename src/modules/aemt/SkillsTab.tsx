@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
+import DebouncedInput from '../../components/DebouncedInput'
 import { confirmAction } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
+import ReasonModal from './ReasonModal'
 import {
   useStudents,
   useSkillChecks,
@@ -12,6 +14,7 @@ import {
   setSkillEvaluator,
   signSkillSheet,
   revokeSkillSignoff,
+  recordedFailures,
   useRecordSafety,
   SKILL_STATEMENT,
 } from './aemtStore'
@@ -121,6 +124,7 @@ function SheetDetail({
   const { manageAemt: canEdit } = useCan()
   const safety = useRecordSafety()
   const [signing, setSigning] = useState(false)
+  const [revoking, setRevoking] = useState(false)
   const sheet = skillSheet(sheetId)
   if (!sheet) return null
 
@@ -128,6 +132,12 @@ function SheetDetail({
   const results = standing.check?.results ?? {}
   const criticalFailed = standing.check?.criticalFailed ?? []
   const allIds = sheet.sections.flatMap((s) => s.criteria.map((c) => c.id))
+  // A signed sheet is locked. The evaluator attested to these exact criteria,
+  // so re-grading them behind the signature would leave it describing a record
+  // that no longer exists. The store invalidates the signature if it happens
+  // anyway; this makes the order of operations obvious instead of surprising.
+  const locked = !!standing.check?.passedDate
+  const canGrade = canEdit && !locked
 
   return (
     <div>
@@ -160,11 +170,43 @@ function SheetDetail({
         </div>
       )}
 
-      {canEdit && (
+      {standing.contradicted && (
+        <div className="banner crit" style={{ marginTop: 10 }}>
+          <strong>This sign-off is contradicted by the results recorded on it.</strong> It does not
+          count toward completion. Revoke it, finish grading, and sign it again.
+        </div>
+      )}
+
+      {locked && !standing.contradicted && (
+        <div className="banner info" style={{ marginTop: 10 }}>
+          <strong>Signed and locked.</strong> The criteria below are what{' '}
+          {standing.check?.attestation?.by ?? 'the evaluator'} attested to. Revoke the sign-off below
+          to change any of them.
+        </div>
+      )}
+
+      {canGrade && (
         <div className="toolbar" style={{ marginTop: 10 }}>
           <button
             className="btn sm"
-            onClick={() => passAllCriteria(course.id, studentId, sheet.id, allIds)}
+            onClick={async () => {
+              // "Pass all" replaces every result. On a part-graded sheet that
+              // discards the record of what the student could not do, which is
+              // what a remediation plan is built from.
+              const failures = recordedFailures(standing.check)
+              if (failures > 0) {
+                const ok = await confirmAction({
+                  title: 'Overwrite the recorded failures?',
+                  body:
+                    `${failures} criteri${failures === 1 ? 'on is' : 'a are'} recorded as needing ` +
+                    'practice on this sheet. Passing everything erases that, and it is what a ' +
+                    'remediation plan would have been built from.',
+                  confirmLabel: 'Pass all anyway',
+                })
+                if (!ok) return
+              }
+              passAllCriteria(course.id, studentId, sheet.id, allIds, safety.actor)
+            }}
           >
             ✓ Pass all
           </button>
@@ -195,9 +237,13 @@ function SheetDetail({
                     <button
                       className={`choice${r === 'pass' ? ' active' : ''}`}
                       style={{ padding: '6px 12px', fontSize: 13 }}
-                      disabled={!canEdit}
+                      disabled={!canGrade}
+                      title={locked ? 'Signed — revoke the sign-off to re-grade' : undefined}
                       onClick={() =>
-                        setSkillResult(course.id, studentId, sheet.id, c.id, r === 'pass' ? null : 'pass')
+                        setSkillResult(
+                          course.id, studentId, sheet.id, c.id,
+                          r === 'pass' ? null : 'pass', safety.actor,
+                        )
                       }
                     >
                       ✓
@@ -205,9 +251,13 @@ function SheetDetail({
                     <button
                       className={`choice${r === 'fail' ? ' active' : ''}`}
                       style={{ padding: '6px 12px', fontSize: 13 }}
-                      disabled={!canEdit}
+                      disabled={!canGrade}
+                      title={locked ? 'Signed — revoke the sign-off to re-grade' : undefined}
                       onClick={() =>
-                        setSkillResult(course.id, studentId, sheet.id, c.id, r === 'fail' ? null : 'fail')
+                        setSkillResult(
+                          course.id, studentId, sheet.id, c.id,
+                          r === 'fail' ? null : 'fail', safety.actor,
+                        )
                       }
                     >
                       ↻
@@ -243,8 +293,11 @@ function SheetDetail({
                     fontWeight: 500,
                     ...(on ? { borderColor: 'var(--crit)', background: 'var(--crit-bg)' } : {}),
                   }}
-                  disabled={!canEdit}
-                  onClick={() => toggleCriticalFailure(course.id, studentId, sheet.id, text)}
+                  disabled={!canGrade}
+                  title={locked ? 'Signed — revoke the sign-off to re-grade' : undefined}
+                  onClick={() =>
+                    toggleCriticalFailure(course.id, studentId, sheet.id, text, safety.actor)
+                  }
                 >
                   {on ? '✗ ' : '☐ '}
                   {text}
@@ -259,12 +312,12 @@ function SheetDetail({
         <div className="card" style={{ marginTop: 16, padding: 12 }}>
           <div className="field">
             <label htmlFor="sk-eval">Evaluator</label>
-            <input
+            <DebouncedInput
               id="sk-eval"
               value={standing.check?.evaluator ?? ''}
-              onChange={(e) =>
-                setSkillEvaluator(course.id, studentId, sheet.id, e.target.value)
-              }
+              disabled={locked}
+              title={locked ? 'Signed — the signer of record is shown below' : undefined}
+              onCommit={(v) => setSkillEvaluator(course.id, studentId, sheet.id, v)}
             />
           </div>
           {standing.signedOff ? (
@@ -276,18 +329,15 @@ function SheetDetail({
                 ? ` #${standing.check.attestation.certNumber}`
                 : ''}
               )
-              <button
-                className="link-btn"
-                style={{ marginLeft: 10 }}
-                onClick={async () => {
-                  const ok = await confirmAction({
-                    title: 'Revoke this sign-off?',
-                    body: 'The sheet returns to unsigned and stops counting toward completion. Recorded in the audit trail.',
-                    confirmLabel: 'Revoke sign-off',
-                  })
-                  if (ok) revokeSkillSignoff(course.id, studentId, sheet.id, safety.actor)
-                }}
-              >
+              <button className="link-btn" style={{ marginLeft: 10 }} onClick={() => setRevoking(true)}>
+                Revoke
+              </button>
+            </div>
+          ) : standing.contradicted ? (
+            <div className="banner crit">
+              This sheet carries a sign-off its recorded results do not support, so it does not count
+              toward completion.
+              <button className="link-btn" style={{ marginLeft: 10 }} onClick={() => setRevoking(true)}>
                 Revoke
               </button>
             </div>
@@ -295,6 +345,9 @@ function SheetDetail({
             <div className="banner crit">
               Signed off with no evaluator recorded — this does not count toward completion. Sign
               it again with a name and licence number.
+              <button className="link-btn" style={{ marginLeft: 10 }} onClick={() => setRevoking(true)}>
+                Clear it
+              </button>
             </div>
           ) : (
             <button
@@ -334,6 +387,20 @@ function SheetDetail({
           actor={safety.actor}
           onSign={(a) => signSkillSheet(course.id, studentId, sheet.id, { ...a, actor: safety.actor })}
           onClose={() => setSigning(false)}
+        />
+      )}
+
+      {revoking && (
+        <ReasonModal
+          title={`Revoke the sign-off — ${sheet.title}`}
+          body="The sheet returns to unsigned, stops counting toward the K.A.R. 109-11-8(a)(2) skills requirement, and becomes editable again."
+          placeholder="Re-assessed after remediation; original sign-off recorded against the wrong sheet"
+          confirmLabel="Revoke sign-off"
+          actor={safety.actor}
+          onConfirm={(reason) =>
+            revokeSkillSignoff(course.id, studentId, sheet.id, safety.actor, reason)
+          }
+          onClose={() => setRevoking(false)}
         />
       )}
     </div>
@@ -416,12 +483,23 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
         </select>
       </div>
 
+      {!course.monitorSheetId && (
+        <div className="banner warn" style={{ marginTop: 10 }}>
+          <strong>No cardiac monitor selected for this course.</strong> Students are checked off on
+          their own monitor only, so with none chosen the monitor sheet is absent from the list below
+          and no student is required to complete it. Set it in <strong>Course setup</strong>.
+        </div>
+      )}
+
       <div className="toolbar">
         <span className="subtle">
           {done} of {SHEETS.length} sheets signed off
         </span>
       </div>
-      <ProgressBar pct={Math.round((done / SHEETS.length) * 100)} complete={done === SHEETS.length} />
+      <ProgressBar
+        pct={SHEETS.length === 0 ? 0 : Math.round((done / SHEETS.length) * 100)}
+        complete={SHEETS.length > 0 && done === SHEETS.length}
+      />
 
       <div className="list" style={{ marginTop: 12 }}>
         {standing.map((s) => (
@@ -448,6 +526,8 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
             </div>
             {s.signedOff ? (
               <span className="pill ok">✓ Passed</span>
+            ) : s.contradicted ? (
+              <span className="pill crit">Sign-off contradicted</span>
             ) : s.criticalFailed ? (
               <span className="pill crit">Critical fail</span>
             ) : s.passed > 0 ? (

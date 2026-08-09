@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Empty } from '../../components/ui'
+import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
 import {
@@ -11,6 +12,7 @@ import {
   attKey,
   setAttendance,
   markAllPresent,
+  attendanceOverwrites,
   creditedHours,
   studentHourGaps,
   targetCoverage,
@@ -99,8 +101,36 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
                     <button
                       className="link-btn"
                       style={{ fontSize: 11, padding: '5px 10px', minHeight: 30 }}
-                      title="Mark all present for this session"
-                      onClick={() => markAllPresent(course.id, students.map((t) => t.id), s.id)}
+                      title="Mark everyone not yet marked as present for this session"
+                      onClick={async () => {
+                        const ids = students.map((t) => t.id)
+                        // Fills blanks. Anything already marked absent, or
+                        // credited partial hours for a late arrival, feeds the
+                        // attendance policy — so replacing it is a decision,
+                        // not a side effect of a mis-tap on a scrolling grid.
+                        const clashes = attendanceOverwrites(ids, s.id)
+                        let overwrite = false
+                        if (clashes.length > 0) {
+                          const absences = clashes.filter((a) => a.status !== 'present').length
+                          const partial = clashes.length - absences
+                          overwrite = await confirmAction({
+                            title: 'Replace the marks already recorded?',
+                            body:
+                              `${clashes.length} student${clashes.length === 1 ? ' has' : 's have'} a mark on this session ` +
+                              `already — ${absences} not present, ${partial} credited partial hours. ` +
+                              'Replacing them changes the hours those students have earned and the ' +
+                              'absence total the attendance policy is measured against. ' +
+                              'Cancel to fill only the blank cells.',
+                            confirmLabel: 'Replace them',
+                          })
+                        }
+                        const n = markAllPresent(course.id, ids, s.id, { overwrite })
+                        notifyUser(
+                          n === 0
+                            ? 'Everyone on this session is already marked — nothing changed.'
+                            : `Marked ${n} student${n === 1 ? '' : 's'} present.`,
+                        )
+                      }}
                     >
                       all ✓
                     </button>
@@ -196,7 +226,7 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
                           style={{
                             textAlign: 'center',
                             fontWeight: 600,
-                            color: g.met ? '#166534' : undefined,
+                            color: g.met ? 'var(--ok)' : undefined,
                           }}
                           title={
                             g.met

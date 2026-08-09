@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Modal } from '../../components/ui'
+import { confirmAction } from '../../lib/dialog'
+import { uid } from '../../lib/id'
+import { pushUndo } from '../../lib/undo'
 import { updateCourse, deleteCourse, useCourseFootprint } from './aemtStore'
 import { PRECEPTOR_LABELS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
+import { MONITOR_SHEETS } from '../../data/aemtSkills'
 import { agreementStatus } from '../../data/aemtRecords'
 import type { AemtCourse, AemtSite, PreceptorCredentialId } from '../../types'
 
@@ -50,6 +54,10 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
     course.primaryInstructorCredential ?? 'paramedic',
   )
   const [instructorCert, setInstructorCert] = useState(course.primaryInstructorCertNumber ?? '')
+  // Editable here because it was previously settable only at creation: a course
+  // created without one silently dropped the monitor sheet from every student's
+  // psychomotor requirement, with no way to correct it afterwards.
+  const [monitor, setMonitor] = useState(course.monitorSheetId ?? '')
   // Hour commitments are editable here because they are rarely all known at
   // once — a clinical affiliation is often still being negotiated when the
   // classroom hours are already fixed.
@@ -137,6 +145,26 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
         </div>
       </div>
 
+      <div className="field">
+        <label htmlFor="ce-monitor">Cardiac monitor</label>
+        <select id="ce-monitor" value={monitor} onChange={(e) => setMonitor(e.target.value)}>
+          <option value="">— none selected —</option>
+          {MONITOR_SHEETS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.title}
+            </option>
+          ))}
+        </select>
+        {monitor ? (
+          <div className="help-text">Students are checked off on this monitor only.</div>
+        ) : (
+          <div className="help-text" style={{ color: 'var(--warn)' }}>
+            With none selected, no monitor sheet appears on the Skills tab and no student is required
+            to complete one — the psychomotor requirement is quietly one sheet shorter.
+          </div>
+        )}
+      </div>
+
       <div className="section-title" style={{ marginTop: 16 }}>
         Filed hours
       </div>
@@ -176,9 +204,13 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
           className="btn primary"
           disabled={!valid}
           onClick={() => {
+            // Zero is a filed commitment, not a blank. The empty-string guard
+            // is what separates "not filed" from "filed as 0" — a distinction
+            // reconcileHours is explicit about and `n > 0` erased, leaving a
+            // program that genuinely files no lab hours unable to say so.
             const t = (v: string) => {
               const n = Number(v)
-              return v.trim() !== '' && Number.isFinite(n) && n > 0 ? n : undefined
+              return v.trim() !== '' && Number.isFinite(n) && n >= 0 ? n : undefined
             }
             const targets = {
               didactic: t(didactic),
@@ -188,6 +220,7 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
             }
             updateCourse(course.id, {
               targets: Object.values(targets).some((v) => v !== undefined) ? targets : undefined,
+              monitorSheetId: monitor || undefined,
               label: label.trim(),
               organization: organization.trim() || undefined,
               courseNumber: courseNumber.trim() || undefined,
@@ -240,7 +273,9 @@ function SiteModal({
   const save = () => {
     const sites = [...(course.sites ?? [])]
     const next: AemtSite = {
-      id: existing?.id ?? `site-${Date.now()}`,
+      // uid(), not Date.now(): two sites added in the same millisecond took the
+      // same id, and the findIndex below would then overwrite the first.
+      id: existing?.id ?? uid('site'),
       name: name.trim(),
       kind,
       // Stored for older readers; every display path recomputes it.
@@ -365,10 +400,22 @@ function SiteModal({
           <button
             className="btn danger"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
-              updateCourse(course.id, {
-                sites: (course.sites ?? []).filter((s) => s.id !== existing.id),
+            onClick={async () => {
+              const ok = await confirmAction({
+                title: `Remove ${existing.name}?`,
+                body:
+                  'The site and everything recorded about its affiliation agreement — the document ' +
+                  'location, both signatories, the effective period and the permitted scope — go ' +
+                  'with it. The approval application names its sites, so this may make the course ' +
+                  'un-submittable. Undo is offered afterwards.',
+                confirmLabel: 'Remove site',
               })
+              if (!ok) return
+              // updateCourse registers no undo of its own, and this is the only
+              // record of an executed agreement the app holds.
+              const before = course.sites ?? []
+              pushUndo(`Removed ${existing.name}`, () => updateCourse(course.id, { sites: before }))
+              updateCourse(course.id, { sites: before.filter((s) => s.id !== existing.id) })
               onClose()
             }}
           >
@@ -407,6 +454,8 @@ function DeleteModal({ course, onClose }: { course: AemtCourse; onClose: () => v
     [f.formResponses, 'form response'],
     [f.completions, 'verified completion'],
     [f.auditEvents, 'audit event'],
+    // Named separately in the banner below — different retention schedule.
+    [f.candidates, 'cohort candidate'],
   ]
   const nonZero = counts.filter(([n]) => n > 0)
 
@@ -458,6 +507,15 @@ function DeleteModal({ course, onClose }: { course: AemtCourse; onClose: () => v
             Program records must be kept for three years under K.A.R. 109-17-3 — export the audit
             package from the Records tab before deleting.
           </div>
+          {f.candidates > 0 && (
+            <div className="banner warn">
+              This also removes {f.candidates} cohort candidate
+              {f.candidates === 1 ? '' : 's'} with their scores and interview notes. That is
+              selection data, retained under the employer's HR schedule rather than the three-year
+              K.A.R. 109-17-3 clock, and it does not appear in the audit package — so nothing else
+              holds a copy.
+            </div>
+          )}
           <div className="field">
             <label htmlFor="del-confirm">
               Type <strong>{course.label}</strong> to confirm
