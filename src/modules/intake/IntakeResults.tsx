@@ -12,7 +12,12 @@ import {
   type IntakeStatus,
   type IntakeSubmission,
 } from '../../lib/intake'
-import { buildIntakeEmail, COMMITMENT_PLACEHOLDER } from '../../data/intakeEmail'
+import {
+  buildIntakeEmail,
+  EMAIL_TEMPLATES,
+  templateForStatus,
+  type EmailTemplateId,
+} from '../../data/intakeEmail'
 import { Modal } from '../../components/ui'
 
 // Review of AEMT intake submissions. The route is wrapped in <AemtOnly>, so
@@ -28,10 +33,19 @@ import { Modal } from '../../components/ui'
  * where the signature and the sent-items record live.
  */
 function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => void }) {
-  const generated = useMemo(() => buildIntakeEmail(row), [row])
+  // Default to the template that matches where this candidate already is in
+  // the pipeline; switching regenerates and discards edits, which is why the
+  // picker sits above the body rather than beside the copy button.
+  const [template, setTemplate] = useState<EmailTemplateId>(() => templateForStatus(statusOf(row)))
+  const generated = useMemo(() => buildIntakeEmail(row, template), [row, template])
   const [body, setBody] = useState(generated.body)
   const [copied, setCopied] = useState<'subject' | 'body' | null>(null)
   const to = answerText(row.data.email)
+
+  const pick = (id: EmailTemplateId) => {
+    setTemplate(id)
+    setBody(buildIntakeEmail(row, id).body)
+  }
 
   const copy = async (what: 'subject' | 'body', text: string) => {
     try {
@@ -43,17 +57,31 @@ function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => vo
     }
   }
 
-  // Still carrying the placeholder means the commitment terms were never
-  // filled in. Say so loudly: that paragraph is the contractual one.
-  const unfilled = body.includes(COMMITMENT_PLACEHOLDER)
+  // Recomputed against the EDITED text, so filling a placeholder in the box
+  // clears its warning and a fresh one pasted in raises it.
+  const unfilled = Array.from(new Set(body.match(/\[[^\]]+\]/g) ?? []))
 
   return (
     <Modal title={`Email ${answerText(row.data.name)}`} onClose={onClose}>
-      {unfilled && (
+      <div className="segmented" role="tablist" aria-label="Template" style={{ marginBottom: 12 }}>
+        {EMAIL_TEMPLATES.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={template === t.id}
+            title={t.note}
+            className={template === t.id ? 'active' : ''}
+            onClick={() => pick(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {unfilled.length > 0 && (
         <div className="banner crit">
-          <strong>Not ready to send.</strong> The service commitment terms are still a placeholder.
-          Replace the bracketed paragraph below, or set them once for every email in{' '}
-          <code>data/intakeEmail.ts</code>.
+          <strong>Not ready to send.</strong> Still to fill in: {unfilled.join(' ')} — edit below,
+          or set them once for every email in <code>data/intakeEmail.ts</code>.
         </div>
       )}
 
