@@ -334,6 +334,13 @@ create table if not exists public.exam_attempts (
   signature text,
   attested_at timestamptz,
   attestation_hash text,
+  -- Resetting a candidate's attempt VOIDS it rather than deleting it. A delete
+  -- would take the integrity agreement, the responses, the score and any record
+  -- that a reset happened — at the moment somebody exercises discretion over a
+  -- decision about a seat, which is when the evidence matters most.
+  voided_at timestamptz,
+  voided_by uuid references auth.users (id),
+  void_reason text,
   -- exam_attempts sits OUTSIDE `records`, so the fence on that table does not
   -- reach it. Without this column a Wichita admin reads every Kansas City
   -- candidate's name, email, responses and score.
@@ -342,9 +349,45 @@ create table if not exists public.exam_attempts (
 
 create index if not exists exam_attempts_email_idx on public.exam_attempts (email);
 -- One submitted attempt per email, enforced by the database rather than by an
--- EXISTS that two concurrent starts can both pass.
+-- EXISTS that two concurrent starts can both pass. Voided rows are excluded, or
+-- a reset would record itself and leave the candidate locked out for good.
 create unique index if not exists exam_attempts_one_submitted_per_email
-  on public.exam_attempts (email) where submitted_at is not null;
+  on public.exam_attempts (email)
+  where submitted_at is not null and voided_at is null;
+
+-- voided_by is the account that pressed the button, and an account should not
+-- be able to name a different one. The client sends the reason; the server
+-- decides the who and the when — the same division as stamp_record().
+create or replace function public.stamp_void()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.voided_at is null and new.voided_at is not null then
+    new.voided_at := now();
+    new.voided_by := auth.uid();
+  elsif old.voided_at is not null and new.voided_at is not null then
+    -- Already voided and staying voided: the original stamp is the record and
+    -- is not rewritable — including by an accidental second press of Reset. The
+    -- reason stays editable, because correcting or adding one is legitimate.
+    new.voided_at := old.voided_at;
+    new.voided_by := old.voided_by;
+  elsif old.voided_at is not null and new.voided_at is null then
+    -- Un-voiding is deliberately allowed — a reset pressed by mistake should be
+    -- recoverable — and it clears the stamp rather than keeping a stale one.
+    new.voided_by := null;
+    new.void_reason := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists exam_attempts_stamp_void on public.exam_attempts;
+create trigger exam_attempts_stamp_void
+  before update on public.exam_attempts
+  for each row execute function public.stamp_void();
 
 alter table public.exam_attempts enable row level security;
 create policy "admin reads exam attempts" on public.exam_attempts
@@ -397,6 +440,7 @@ begin
 
   select * into v_attempt from public.exam_attempts a
     where a.email = v_email
+      and a.voided_at is null          -- a reset attempt no longer counts
     order by a.started_at desc limit 1;
 
   if found then
@@ -410,6 +454,12 @@ begin
   else
     select array_agg(id) into v_qids
       from (select id from public.exam_questions where active order by random() limit v_draw) s;
+    -- A bank that cannot fill a draw is a setup problem, and it should say so
+    -- rather than fail on a not-null constraint. Reachable by a project that
+    -- has not run the seed, or a pool retired below the draw size.
+    if v_qids is null or array_length(v_qids, 1) < v_draw then
+      return jsonb_build_object('error', 'bank_too_small');
+    end if;
     insert into public.exam_attempts (
       name, email, question_ids, total, limit_seconds,
       attested, signature, attested_at, attestation_hash)
@@ -457,6 +507,11 @@ begin
   select * into v_attempt from public.exam_attempts where id = p_attempt;
   if not found then
     return jsonb_build_object('error', 'Attempt not found.');
+  end if;
+  -- A candidate holding the page open when an admin resets them would otherwise
+  -- submit minutes later, resurrecting a score that was meant to be set aside.
+  if v_attempt.voided_at is not null then
+    return jsonb_build_object('error', 'voided');
   end if;
   if v_attempt.submitted_at is not null then
     return jsonb_build_object('error', 'already_submitted');
