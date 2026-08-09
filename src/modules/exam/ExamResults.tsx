@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listExamResults, type ExamAttempt } from '../../lib/exam'
+import {
+  attemptExpired,
+  listExamResults,
+  listUnfinishedAttempts,
+  resetAttempt,
+  type ExamAttempt,
+  type UnfinishedAttempt,
+} from '../../lib/exam'
+import { confirmAction, notifyUser } from '../../lib/dialog'
 import TestQuality from './TestQuality'
 
 // Admin review of AEMT exam results. Route is wrapped in <AemtOnly>; RLS is the
@@ -32,24 +40,50 @@ function toCsv(rows: ExamAttempt[]): string {
 
 export default function ExamResults() {
   const [rows, setRows] = useState<ExamAttempt[]>([])
+  const [unfinished, setUnfinished] = useState<UnfinishedAttempt[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
 
   const shareUrl = `${window.location.origin}/exam`
 
   const load = async () => {
     setLoading(true)
     setError(null)
-    const { rows: r, error: err } = await listExamResults()
-    if (err) setError(err)
-    else setRows(r ?? [])
+    const [done, open] = await Promise.all([listExamResults(), listUnfinishedAttempts()])
+    if (done.error) setError(done.error)
+    else setRows(done.rows ?? [])
+    if (!done.error && open.error) setError(open.error)
+    else if (!open.error) setUnfinished(open.rows ?? [])
     setLoading(false)
   }
 
   useEffect(() => {
     void load()
   }, [])
+
+  /** Void an attempt. `scored` names the result being set aside, if any. */
+  const reset = async (id: string, who: string, scored?: string) => {
+    const ok = await confirmAction({
+      title: `Reset ${who}?`,
+      body: scored
+        ? `Their completed result (${scored}) stops counting and they can sit the exam again with a fresh set of questions. The attempt is kept on record — including their signed integrity statement and who reset it — rather than deleted.`
+        : `Their unfinished attempt stops counting and they can start over with a fresh set of questions and a full clock. The attempt is kept on record rather than deleted.`,
+      confirmLabel: 'Reset attempt',
+      danger: true,
+    })
+    if (!ok) return
+    setBusy(id)
+    const { error: err } = await resetAttempt(id)
+    setBusy(null)
+    if (err) {
+      notifyUser(`Couldn't reset: ${err}`, 'crit')
+      return
+    }
+    notifyUser(`${who} can now retake the exam.`, 'info')
+    void load()
+  }
 
   const copyLink = async () => {
     try {
@@ -100,6 +134,45 @@ export default function ExamResults() {
         </div>
       </div>
 
+      {/* Unfinished sittings. Shown above the results because this is the part
+          that needs a decision — a candidate here is locked out until reset. */}
+      {unfinished.length > 0 && (
+        <>
+          <div className="section-title">Unfinished attempts</div>
+          <div className="help-text" style={{ marginTop: 0 }}>
+            Started but never submitted. A candidate whose time ran out cannot start again until
+            you reset them.
+          </div>
+          <div className="list" style={{ gap: 8 }}>
+            {unfinished.map((a) => {
+              const out = attemptExpired(a)
+              return (
+                <div key={a.id} className="card" style={{ padding: 14 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="grow" style={{ minWidth: 180 }}>
+                      <span style={{ display: 'block', fontWeight: 650 }}>{a.name}</span>
+                      <span className="subtle" style={{ fontSize: 12 }}>
+                        {a.email} · started {fmtDate(a.started_at)}
+                      </span>
+                    </span>
+                    <span className={`pill ${out ? 'crit' : 'warn'}`}>
+                      {out ? 'Time expired' : 'In progress'}
+                    </span>
+                    <button
+                      className="btn sm danger"
+                      disabled={busy === a.id}
+                      onClick={() => void reset(a.id, a.name)}
+                    >
+                      {busy === a.id ? 'Resetting…' : 'Reset'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
       {loading && <div className="subtle" style={{ padding: 12 }}>Loading…</div>}
       {error && <div className="banner crit">Couldn't load results: {error}</div>}
       {!loading && !error && rows.length === 0 && (
@@ -116,6 +189,7 @@ export default function ExamResults() {
                 <th style={{ textAlign: 'right' }}>Score</th>
                 <th style={{ textAlign: 'right' }}>%</th>
                 <th>Submitted</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -133,6 +207,17 @@ export default function ExamResults() {
                     <span className={`pill ${pill(r.percent)}`}>{r.percent == null ? '—' : `${r.percent}%`}</span>
                   </td>
                   <td className="subtle" style={{ fontSize: 12 }}>{fmtDate(r.submitted_at)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="btn sm ghost"
+                      disabled={busy === r.id}
+                      onClick={() =>
+                        void reset(r.id, r.name, `${r.score ?? '—'}/${r.total}`)
+                      }
+                    >
+                      {busy === r.id ? '…' : 'Reset'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

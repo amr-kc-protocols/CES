@@ -160,6 +160,7 @@ export async function listExamResults(): Promise<{ rows?: ExamAttempt[]; error?:
     .from('exam_attempts')
     .select('*')
     .not('submitted_at', 'is', null)
+    .is('voided_at', null)
     .order('percent', { ascending: false })
   return error ? { error: error.message } : { rows: (data ?? []) as ExamAttempt[] }
 }
@@ -189,6 +190,8 @@ export async function listAttemptsForAnalysis(): Promise<{ rows?: AttemptRow[]; 
     .from('exam_attempts')
     .select('id, question_ids, responses')
     .not('submitted_at', 'is', null)
+    // A voided attempt must not move an item's difficulty or discrimination.
+    .is('voided_at', null)
   return error ? { error: error.message } : { rows: (data ?? []) as AttemptRow[] }
 }
 
@@ -207,4 +210,72 @@ export async function listExamBank(): Promise<{ rows?: BankRow[]; error?: string
   if (!c) return { error: 'Cloud project not configured.' }
   const { data, error } = await c.from('exam_questions').select('id, domain, stem, options, answer')
   return error ? { error: error.message } : { rows: (data ?? []) as BankRow[] }
+}
+
+/* -------------------------------------------------------------------------
+ * Resetting an attempt (admin)
+ *
+ * One attempt per email is the rule, so a candidate whose sitting went wrong —
+ * a dead submit button, a flat battery, a phone that rang — is locked out
+ * until someone clears it. That was a SQL job; this makes it a button, which
+ * matters because the person who needs it is usually mid-conversation with the
+ * candidate. The `for all` policy from the markets migration already permits
+ * an admin to delete within their own market, so no new grant is involved.
+ * ---------------------------------------------------------------------- */
+
+export interface UnfinishedAttempt {
+  id: string
+  name: string
+  email: string
+  started_at: string
+  limit_seconds: number
+}
+
+/** Started but never submitted — still running, or out of time. Admin only. */
+export async function listUnfinishedAttempts(): Promise<{
+  rows?: UnfinishedAttempt[]
+  error?: string
+}> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { data, error } = await c
+    .from('exam_attempts')
+    .select('id, name, email, started_at, limit_seconds')
+    .is('submitted_at', null)
+    .is('voided_at', null)
+    .order('started_at', { ascending: false })
+  return error ? { error: error.message } : { rows: (data ?? []) as UnfinishedAttempt[] }
+}
+
+/** Whether this attempt's clock has run out. */
+export function attemptExpired(a: UnfinishedAttempt, now: number = Date.now()): boolean {
+  return now > new Date(a.started_at).getTime() + a.limit_seconds * 1000
+}
+
+/**
+ * Clear an attempt so the candidate can sit the exam again.
+ *
+ * VOIDS the row rather than deleting it. A voided attempt stops counting
+ * everywhere — results, unfinished list, item analysis — and stops blocking
+ * the candidate, but it stays in the table.
+ *
+ * Deleting would take the integrity agreement with it: the tick, the typed
+ * signature, the timestamp and the hash of the wording, all stored for exactly
+ * the case where an attempt is later questioned. It would also leave no record
+ * that a reset happened or who decided it. On an instrument that decides who
+ * gets a seat, the evidence should not vanish at the moment somebody exercises
+ * discretion over it.
+ *
+ * `voided_at` is set to a placeholder here; a trigger overwrites it with the
+ * server clock and stamps `voided_by` from the session, so an account cannot
+ * name a different one. The reason is the caller's to supply.
+ */
+export async function resetAttempt(id: string, reason?: string): Promise<{ error?: string }> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { error } = await c
+    .from('exam_attempts')
+    .update({ voided_at: new Date().toISOString(), void_reason: reason?.trim() || null })
+    .eq('id', id)
+  return error ? { error: error.message } : {}
 }
