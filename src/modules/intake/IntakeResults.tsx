@@ -12,10 +12,98 @@ import {
   type IntakeStatus,
   type IntakeSubmission,
 } from '../../lib/intake'
+import { buildIntakeEmail, COMMITMENT_PLACEHOLDER } from '../../data/intakeEmail'
+import { Modal } from '../../components/ui'
 
 // Review of AEMT intake submissions. The route is wrapped in <AemtOnly>, so
 // only an admin reaches this screen; Supabase RLS is the real gate on the data
 // itself (only an admin profile can select the table).
+
+/**
+ * The next-steps email for one candidate, generated from their own answers.
+ *
+ * Editable before it is copied: the generator gets it most of the way, but the
+ * person sending it knows things the form never asked. Copying is the delivery
+ * mechanism rather than a mailto link alone, because these go out from Outlook
+ * where the signature and the sent-items record live.
+ */
+function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => void }) {
+  const generated = useMemo(() => buildIntakeEmail(row), [row])
+  const [body, setBody] = useState(generated.body)
+  const [copied, setCopied] = useState<'subject' | 'body' | null>(null)
+  const to = answerText(row.data.email)
+
+  const copy = async (what: 'subject' | 'body', text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(what)
+      setTimeout(() => setCopied(null), 1800)
+    } catch {
+      // Clipboard blocked — the text is on screen and selectable regardless.
+    }
+  }
+
+  // Still carrying the placeholder means the commitment terms were never
+  // filled in. Say so loudly: that paragraph is the contractual one.
+  const unfilled = body.includes(COMMITMENT_PLACEHOLDER)
+
+  return (
+    <Modal title={`Email ${answerText(row.data.name)}`} onClose={onClose}>
+      {unfilled && (
+        <div className="banner crit">
+          <strong>Not ready to send.</strong> The service commitment terms are still a placeholder.
+          Replace the bracketed paragraph below, or set them once for every email in{' '}
+          <code>data/intakeEmail.ts</code>.
+        </div>
+      )}
+
+      <div className="field">
+        <label>To</label>
+        <input readOnly value={to} onFocus={(e) => e.currentTarget.select()} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="em-subj">Subject</label>
+        <div className="field-row" style={{ alignItems: 'center' }}>
+          <input id="em-subj" readOnly value={generated.subject} style={{ flex: 1 }} />
+          <button className="btn" onClick={() => void copy('subject', generated.subject)}>
+            {copied === 'subject' ? 'Copied ✓' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="em-body">Message — edit before sending if you need to</label>
+        <textarea
+          id="em-body"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={16}
+          style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5 }}
+        />
+      </div>
+
+      <div className="btn-row">
+        <button className="btn primary" onClick={() => void copy('body', body)}>
+          {copied === 'body' ? 'Copied ✓' : '📋 Copy message'}
+        </button>
+        <a
+          className="btn"
+          href={`mailto:${to}?subject=${encodeURIComponent(generated.subject)}&body=${encodeURIComponent(body)}`}
+        >
+          ✉ Open in mail app
+        </a>
+        <button className="btn ghost" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <div className="help-text">
+        Copy the message and paste it into Outlook so it goes out with your signature and lands in
+        your sent items.
+      </div>
+    </Modal>
+  )
+}
 
 type CommitFilter = 'all' | 'Yes' | 'Not sure yet' | 'No'
 const COMMIT_FILTERS: { key: CommitFilter; label: string }[] = [
@@ -45,6 +133,7 @@ function toCsv(rows: IntakeSubmission[]): string {
 function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   const name = answerText(row.data.name)
   const op = answerText(row.data.operation)
   const commit = answerText(row.data.canCommit)
@@ -141,9 +230,9 @@ function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void })
           </dl>
           <div className="btn-row" style={{ marginTop: 10 }}>
             {answerText(row.data.email) !== '—' && (
-              <a className="btn sm" href={`mailto:${answerText(row.data.email)}`}>
-                ✉ Email
-              </a>
+              <button className="btn sm primary" onClick={() => setEmailing(true)}>
+                ✉ Next-steps email
+              </button>
             )}
             {answerText(row.data.phone) !== '—' && (
               <a className="btn sm" href={`tel:${String(row.data.phone).replace(/[^\d+]/g, '')}`}>
@@ -159,6 +248,8 @@ function Row({ row, onChange }: { row: IntakeSubmission; onChange: () => void })
           </div>
         </div>
       )}
+
+      {emailing && <EmailModal row={row} onClose={() => setEmailing(false)} />}
     </div>
   )
 }
