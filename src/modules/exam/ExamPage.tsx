@@ -9,6 +9,7 @@ import {
   type ExamStart,
 } from '../../lib/exam'
 import { confirmAction } from '../../lib/dialog'
+import { ConfirmHost } from '../../components/DialogHost'
 
 // Public, no-login AEMT selection exam. Questions come from the server without
 // answers; grading is server-side. One attempt per email, before the cutoff.
@@ -150,6 +151,12 @@ export default function ExamPage() {
     }
   }
 
+  // ConfirmHost is mounted HERE, not just in Layout.
+  //
+  // This page renders outside the app shell, so it never had a dialog host.
+  // confirmAction() would set a pending request that nothing could render or
+  // resolve, the await never settled, and the Submit button did nothing — on a
+  // one-attempt exam, until the clock ran out and spent the attempt.
   const shell = (body: ReactNode) => (
     <div className="intake-page">
       <header className="intake-head">
@@ -160,6 +167,7 @@ export default function ExamPage() {
         </div>
       </header>
       <main className="intake-body">{body}</main>
+      <ConfirmHost />
     </div>
   )
 
