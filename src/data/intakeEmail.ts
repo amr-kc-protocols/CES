@@ -157,7 +157,10 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       EXAM_URL,
       `Deadline: ${EXAM_DEADLINE.display}`,
       ``,
-      `  • 50 multiple-choice questions, EMT-level material`,
+      // The question count is withheld deliberately, matching the exam itself:
+      // knowing the total and the clock is what makes looking answers up a
+      // safe bet rather than a gamble.
+      `  • Multiple choice, EMT-level material`,
       `  • ${EXAM_LIMIT_MINUTES}-minute time limit — the timer starts when you begin and keeps running even if you close the page`,
       `  • One attempt. Sit down somewhere quiet and undisturbed before you start`,
       `  • No login needed — just your name and your AMR email`,

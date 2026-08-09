@@ -230,7 +230,11 @@ export default function ExamPage() {
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Before you begin</h2>
           <ul style={{ paddingLeft: 18, lineHeight: 1.6 }}>
-            <li><strong>50 questions</strong>, multiple choice.</li>
+            {/* The number of questions is deliberately not given, here or in
+                the progress bar. Knowing the total and the clock lets someone
+                budget the slack for looking answers up; not knowing makes it a
+                gamble against a timer they cannot see the end of. */}
+            <li><strong>Multiple choice.</strong> Answer one question at a time; you can go back.</li>
             <li><strong>{EXAM_LIMIT_MINUTES}-minute time limit</strong> — a timer runs at the top; the exam submits automatically when it reaches zero.</li>
             <li><strong>One attempt.</strong> Once you start, the clock runs even if you close the page, so start when you're ready and undisturbed.</li>
             <li>Answer on your own — this is part of your selection.</li>
@@ -288,8 +292,11 @@ export default function ExamPage() {
   return shell(
     <>
       <div className="exam-bar">
+        {/* The total is withheld on purpose — see the note on the intro copy.
+            Position and answered count are still shown: they orient without
+            revealing how much time is left to spend looking something up. */}
         <span className="exam-progress">
-          Question {index + 1} of {exam.questions.length}
+          Question {index + 1}
           <span className="subtle"> · {answeredCount} answered</span>
         </span>
         <span className={`exam-timer${lowTime ? ' low' : ''}`}>⏱ {fmtClock(remaining)}</span>
