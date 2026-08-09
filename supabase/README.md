@@ -75,9 +75,21 @@ New-hire survey reads are scoped by `updated_by = auth.uid()`, which the
 ## Applying migrations
 
 `schema.sql` is the full current schema for a fresh project. For an existing
-one, run the files in [`migrations/`](./migrations) in date order through the
-SQL Editor. They are written to be safe to re-run, and each carries its own
-revert at the bottom.
+one, run the files in [`migrations/`](./migrations) in **filename order**
+through the SQL Editor. They are written to be safe to re-run, and each
+carries its own revert at the bottom.
+
+Filename order is what matters, not the date alone: two migrations can share a
+date, and where one depends on the other the filenames carry a sequence
+number (`2026-08-08-1-…` before `2026-08-08-2-…`). Applying that pair the
+other way round leaves two `exam_start` overloads, and every attempt to start
+the exam then fails with *"function exam_start(unknown, unknown) is not
+unique"*.
+
+The two are kept in step: applying `schema.sql` to an empty project and
+applying the old baseline plus every migration produce an identical set of
+columns, policies, functions and indexes. If you change one, change the other,
+and diff the two end states before trusting it.
 
 The `2026-08-01` migration changes what non-admins can read. Run it when FTOs
 are not mid-shift: their devices keep whatever they have already pulled, but
