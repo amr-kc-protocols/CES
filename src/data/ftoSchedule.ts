@@ -229,8 +229,33 @@ export function allFtos(): string[] {
  * obviously unfinished and a wrong roster is not.
  * ------------------------------------------------------------------------ */
 
+/**
+ * Wichita's FTOs.
+ *
+ * Listed here rather than in a crew line because their recurring shifts have
+ * not been transcribed yet. That keeps them in every evaluator dropdown and
+ * in the "schedule rides with them directly" note, which is true, without
+ * inventing a rotation for the ride planner to draw — a wrong line would be
+ * read as fact, whereas an absent one is visibly missing.
+ *
+ * Certification level, for whoever builds the Wichita schedule:
+ *   Alex Thomas — paramedic      Alex White — EMT
+ *   Sarah Lamm — paramedic       Nathan Huyett — AEMT
+ *   Jordan Riddall — AEMT
+ */
+const WICHITA_FTOS_WITHOUT_LINE: string[] = [
+  'Alex Thomas',
+  'Alex White',
+  'Sarah Lamm',
+  'Nathan Huyett',
+  'Jordan Riddall',
+]
+
 const CREWS_BY_MARKET: Record<Market, FtoCrew[]> = { kc: KC_FTO_CREWS, wichita: [] }
-const NO_LINE_BY_MARKET: Record<Market, string[]> = { kc: KC_FTOS_WITHOUT_LINE, wichita: [] }
+const NO_LINE_BY_MARKET: Record<Market, string[]> = {
+  kc: KC_FTOS_WITHOUT_LINE,
+  wichita: WICHITA_FTOS_WITHOUT_LINE,
+}
 const EVALUATORS_BY_MARKET: Record<Market, string[]> = { kc: KC_ADDITIONAL_EVALUATORS, wichita: [] }
 
 export const FTO_CREWS: FtoCrew[] = CREWS_BY_MARKET[activeMarket()]
