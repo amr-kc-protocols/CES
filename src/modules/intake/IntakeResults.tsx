@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AEMT_FIELDS,
   answerText,
@@ -14,6 +14,7 @@ import {
 } from '../../lib/intake'
 import {
   buildIntakeEmail,
+  buildSupervisorEmail,
   EMAIL_TEMPLATES,
   templateForStatus,
   type EmailTemplateId,
@@ -25,27 +26,34 @@ import { Modal } from '../../components/ui'
 // itself (only an admin profile can select the table).
 
 /**
- * The next-steps email for one candidate, generated from their own answers.
+ * Compose, edit and copy one generated email.
  *
  * Editable before it is copied: the generator gets it most of the way, but the
  * person sending it knows things the form never asked. Copying is the delivery
  * mechanism rather than a mailto link alone, because these go out from Outlook
  * where the signature and the sent-items record live.
+ *
+ * Shared by the per-candidate email and the supervisor check. Remount it (via
+ * `key`) to load a different draft — that is what discards edits on a template
+ * switch, deliberately.
  */
-function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => void }) {
-  // Default to the template that matches where this candidate already is in
-  // the pipeline; switching regenerates and discards edits, which is why the
-  // picker sits above the body rather than beside the copy button.
-  const [template, setTemplate] = useState<EmailTemplateId>(() => templateForStatus(statusOf(row)))
-  const generated = useMemo(() => buildIntakeEmail(row, template), [row, template])
-  const [body, setBody] = useState(generated.body)
+function EmailSheet({
+  title,
+  to,
+  subject,
+  initialBody,
+  onClose,
+  children,
+}: {
+  title: string
+  to: string
+  subject: string
+  initialBody: string
+  onClose: () => void
+  children?: ReactNode
+}) {
+  const [body, setBody] = useState(initialBody)
   const [copied, setCopied] = useState<'subject' | 'body' | null>(null)
-  const to = answerText(row.data.email)
-
-  const pick = (id: EmailTemplateId) => {
-    setTemplate(id)
-    setBody(buildIntakeEmail(row, id).body)
-  }
 
   const copy = async (what: 'subject' | 'body', text: string) => {
     try {
@@ -62,21 +70,8 @@ function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => vo
   const unfilled = Array.from(new Set(body.match(/\[[^\]]+\]/g) ?? []))
 
   return (
-    <Modal title={`Email ${answerText(row.data.name)}`} onClose={onClose}>
-      <div className="segmented" role="tablist" aria-label="Template" style={{ marginBottom: 12 }}>
-        {EMAIL_TEMPLATES.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={template === t.id}
-            title={t.note}
-            className={template === t.id ? 'active' : ''}
-            onClick={() => pick(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <Modal title={title} onClose={onClose}>
+      {children}
 
       {unfilled.length > 0 && (
         <div className="banner crit">
@@ -85,16 +80,18 @@ function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => vo
         </div>
       )}
 
-      <div className="field">
-        <label>To</label>
-        <input readOnly value={to} onFocus={(e) => e.currentTarget.select()} />
-      </div>
+      {to && (
+        <div className="field">
+          <label>To</label>
+          <input readOnly value={to} onFocus={(e) => e.currentTarget.select()} />
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="em-subj">Subject</label>
         <div className="field-row" style={{ alignItems: 'center' }}>
-          <input id="em-subj" readOnly value={generated.subject} style={{ flex: 1 }} />
-          <button className="btn" onClick={() => void copy('subject', generated.subject)}>
+          <input id="em-subj" readOnly value={subject} style={{ flex: 1 }} />
+          <button className="btn" onClick={() => void copy('subject', subject)}>
             {copied === 'subject' ? 'Copied ✓' : 'Copy'}
           </button>
         </div>
@@ -117,7 +114,7 @@ function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => vo
         </button>
         <a
           className="btn"
-          href={`mailto:${to}?subject=${encodeURIComponent(generated.subject)}&body=${encodeURIComponent(body)}`}
+          href={`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
         >
           ✉ Open in mail app
         </a>
@@ -130,6 +127,66 @@ function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => vo
         your sent items.
       </div>
     </Modal>
+  )
+}
+
+/** Per-candidate email, with the pipeline template picker. */
+function EmailModal({ row, onClose }: { row: IntakeSubmission; onClose: () => void }) {
+  // Default to the template that matches where this candidate already is in
+  // the pipeline; switching regenerates and discards edits, which is why the
+  // picker sits above the body rather than beside the copy button.
+  const [template, setTemplate] = useState<EmailTemplateId>(() => templateForStatus(statusOf(row)))
+  const generated = useMemo(() => buildIntakeEmail(row, template), [row, template])
+
+  return (
+    <EmailSheet
+      key={template}
+      title={`Email ${answerText(row.data.name)}`}
+      to={answerText(row.data.email)}
+      subject={generated.subject}
+      initialBody={generated.body}
+      onClose={onClose}
+    >
+      <div className="segmented" role="tablist" aria-label="Template" style={{ marginBottom: 12 }}>
+        {EMAIL_TEMPLATES.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={template === t.id}
+            title={t.note}
+            className={template === t.id ? 'active' : ''}
+            onClick={() => setTemplate(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </EmailSheet>
+  )
+}
+
+/** One email to supervisors about whichever candidates are on screen. */
+function SupervisorEmailModal({
+  rows,
+  onClose,
+}: {
+  rows: IntakeSubmission[]
+  onClose: () => void
+}) {
+  const generated = useMemo(() => buildSupervisorEmail(rows), [rows])
+  return (
+    <EmailSheet
+      title={`Supervisor check — ${rows.length} candidate${rows.length === 1 ? '' : 's'}`}
+      to=""
+      subject={generated.subject}
+      initialBody={generated.body}
+      onClose={onClose}
+    >
+      <div className="banner info">
+        Covers the <strong>{rows.length}</strong> candidate{rows.length === 1 ? '' : 's'} currently
+        shown. Filter the list first if you want to ask about a subset — the shortlist, say.
+      </div>
+    </EmailSheet>
   )
 }
 
@@ -290,6 +347,7 @@ export default function IntakeResults() {
   const [commitFilter, setCommitFilter] = useState<CommitFilter>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | IntakeStatus>('all')
   const [copied, setCopied] = useState(false)
+  const [supervisorEmail, setSupervisorEmail] = useState(false)
 
   const shareUrl = `${window.location.origin}/intake`
 
@@ -361,6 +419,13 @@ export default function IntakeResults() {
           <div className="subtle">{activeCount} active submission{activeCount === 1 ? '' : 's'}</div>
         </div>
         <div className="btn-row">
+          <button
+            className="btn sm"
+            onClick={() => setSupervisorEmail(true)}
+            disabled={visible.length === 0}
+          >
+            ✉ Supervisor check
+          </button>
           <button className="btn sm" onClick={() => void load()}>↻ Refresh</button>
           <button className="btn sm" onClick={exportCsv} disabled={visible.length === 0}>⬇ CSV</button>
         </div>
@@ -430,6 +495,10 @@ export default function IntakeResults() {
           <Row key={row.id} row={row} onChange={load} />
         ))}
       </div>
+
+      {supervisorEmail && (
+        <SupervisorEmailModal rows={visible} onClose={() => setSupervisorEmail(false)} />
+      )}
     </div>
   )
 }

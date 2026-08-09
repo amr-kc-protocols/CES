@@ -41,6 +41,8 @@ export const COURSE_INFO = {
   orientation: '[ORIENTATION DATE & TIME]',
   /** How long an accepted candidate has to confirm their seat. */
   acceptBy: '[REPLY-BY DATE]',
+  /** How long supervisors have to come back on the candidate check. */
+  supervisorReplyBy: '[SUPERVISOR REPLY-BY DATE]',
 }
 
 export const SENDER = {
@@ -155,7 +157,10 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       EXAM_URL,
       `Deadline: ${EXAM_DEADLINE.display}`,
       ``,
-      `  • 50 multiple-choice questions, EMT-level material`,
+      // The question count is withheld deliberately, matching the exam itself:
+      // knowing the total and the clock is what makes looking answers up a
+      // safe bet rather than a gamble.
+      `  • Multiple choice, EMT-level material`,
       `  • ${EXAM_LIMIT_MINUTES}-minute time limit — the timer starts when you begin and keeps running even if you close the page`,
       `  • One attempt. Sit down somewhere quiet and undisturbed before you start`,
       `  • No login needed — just your name and your AMR email`,
@@ -263,6 +268,85 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       ``,
       `Congratulations again. Reply with any questions.`,
     ],
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Supervisor check
+ *
+ * One email about a set of candidates rather than one candidate, so it is
+ * generated from whatever list is on screen — filter to the shortlist and ask
+ * about those. Grouped by operation because supervisors read the group that is
+ * theirs and skip the rest.
+ * ---------------------------------------------------------------------- */
+
+function candidateLine(sub: IntakeSubmission): string {
+  const d = sub.data
+  const parts = [answerText(d.name)]
+  const emp = answerText(d.employeeId)
+  if (emp !== '—') parts.push(`Emp #${emp}`)
+  const tenure = answerText(d.tenure)
+  if (tenure !== '—') parts.push(tenure)
+  const status = answerText(d.status)
+  if (status !== '—') parts.push(status)
+  return `  • ${parts.join(' — ')}`
+}
+
+export function buildSupervisorEmail(rows: IntakeSubmission[]): GeneratedEmail {
+  const byOperation = new Map<string, IntakeSubmission[]>()
+  for (const r of rows) {
+    const op = answerText(r.data.operation)
+    const list = byOperation.get(op)
+    if (list) list.push(r)
+    else byOperation.set(op, [r])
+  }
+
+  const roster: string[] = []
+  for (const [op, list] of byOperation) {
+    roster.push(op === '—' ? 'Operation not given' : op)
+    for (const r of list) roster.push(candidateLine(r))
+    roster.push('')
+  }
+
+  const body = [
+    `Supervisors,`,
+    ``,
+    `The people below have applied for the next AMR Kansas City AEMT cohort. Before we finalise selection I need your input on anyone who reports to you.`,
+    ``,
+    `THE CANDIDATES`,
+    ``,
+    `Tenure and employment status are as the candidate reported them on their application — please correct anything that looks wrong.`,
+    ``,
+    ...roster,
+    `WHAT I AM ASKING`,
+    ``,
+    `For each of your people, please tell me:`,
+    ``,
+    `  1. Any active or recent corrective action, or any disciplinary matter I should know about.`,
+    `  2. Any attendance concerns over the last 12 months.`,
+    `  3. Any performance or clinical concerns.`,
+    `  4. Anything that would make a 16-week commitment difficult from your side — staffing, schedule, or otherwise.`,
+    `  5. Anything positive worth weighting: FTO, preceptor, CE instructor or peer-mentor work, or someone you would particularly like to see in this course.`,
+    ``,
+    `"Nothing to report" is a complete and useful answer — please send it rather than leaving a name unanswered, so I know the list has been reviewed.`,
+    ``,
+    `A NOTE ON HANDLING`,
+    ``,
+    `This is for cohort selection only. Please keep it to the people who need it. If there is an active investigation, or anything you would rather not put in writing, just reply "call me" and I will phone you.`,
+    ``,
+    `Please come back to me by ${COURSE_INFO.supervisorReplyBy}.`,
+    ``,
+    `Thank you,`,
+    ``,
+    SENDER.name,
+    SENDER.title,
+    SENDER.contact,
+  ].join('\n')
+
+  return {
+    subject: `AEMT selection — supervisor input requested (${rows.length} candidate${rows.length === 1 ? '' : 's'})`,
+    body,
+    unfilled: Array.from(new Set(body.match(/\[[^\]]+\]/g) ?? [])),
   }
 }
 
