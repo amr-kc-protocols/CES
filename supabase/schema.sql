@@ -18,6 +18,9 @@
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text not null,
+  -- Which operation this account works in. 'all' spans both and gets the
+  -- market switcher in the app.
+  market text not null default 'kc' check (market in ('kc', 'wichita', 'all')),
   role text not null default 'newhire' check (role in ('admin', 'fto', 'newhire')),
   created_at timestamptz not null default now()
 );
@@ -58,6 +61,36 @@ as $$
   select role from public.profiles where user_id = auth.uid()
 $$;
 
+/**
+ * The market this request is acting in.
+ *
+ * 'all' spans both and is how a multi-market admin works. Every policy below
+ * that touches market-owned data reads this, so the fence is one function
+ * rather than a condition copied into a dozen places.
+ */
+create or replace function public.current_market()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select market from public.profiles where user_id = auth.uid()), 'kc')
+$$;
+
+/** The AEMT collections. Certification records about identifiable staff. */
+create or replace function public.is_aemt_collection(c text)
+returns boolean
+language sql
+immutable
+as $$
+  select c in (
+    'aemtCourses','aemtStudents','aemtSessions','aemtAttendance','aemtEncounters',
+    'aemtShifts','aemtDeadlines','aemtSkillChecks','aemtFormResponses',
+    'aemtCompletions','aemtRecordDocs','aemtAudit','aemtCandidates'
+  );
+$$;
+
 -- ----- records ---------------------------------------------------------------
 
 create table if not exists public.records (
@@ -69,10 +102,17 @@ create table if not exists public.records (
   deleted boolean not null default false,
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users (id),
-  primary key (collection, id)
+  -- Which operation owns this row. The partition line for the whole app: a
+  -- market owns its cohorts, trainees, evaluations, surveys, AEMT program and
+  -- QA, and nothing in this table is shared between them.
+  market text not null default 'kc' check (market in ('kc', 'wichita')),
+  -- Market is part of the key, so the two operations can hold rows with the
+  -- same collection and id without colliding.
+  primary key (market, collection, id)
 );
 
 create index if not exists records_updated_at_idx on public.records (updated_at);
+create index if not exists records_market_updated_at_idx on public.records (market, updated_at);
 
 -- Server-side timestamp on every write; clients never supply updated_at.
 create or replace function public.stamp_record()
@@ -93,11 +133,54 @@ create trigger records_stamp
 
 alter table public.records enable row level security;
 
--- Everyone signed in can read the workspace.
-create policy "records readable by signed-in users"
+-- Reads are SCOPED BY ROLE, not open to everyone signed in.
+--
+-- A new hire signing in must not be able to read AEMT selection scoring of
+-- their own colleagues, or unredacted exit-survey feedback about their FTO.
+-- "Signed in" is not an authorisation. Each role gets an explicit list, and a
+-- new hire sees only the surveys they themselves wrote.
+create policy "records readable by role"
   on public.records for select
   to authenticated
-  using (true);
+  using (
+    public.current_role() = 'admin'
+    or (
+      public.current_role() = 'fto'
+      and collection in ('cohorts','trainees','days','arrangements','customSessions',
+                         'attendance','rides','evals','skills','settings')
+    )
+    or (
+      public.current_role() = 'newhire'
+      and (
+        collection in ('cohorts','days','arrangements','customSessions','settings')
+        or (collection = 'surveys' and updated_by = auth.uid())
+      )
+    )
+  );
+
+-- AEMT is admin-only to write.
+--
+-- RESTRICTIVE on purpose. Permissive policies OR together, so an FTO's
+-- ride-along write policy would otherwise grant them the AEMT collections
+-- too — which is exactly the privilege escalation this pair closes.
+create policy "aemt is admin only for insert"
+  on public.records as restrictive for insert
+  to authenticated
+  with check (not public.is_aemt_collection(collection) or public.current_role() = 'admin');
+
+create policy "aemt is admin only for update"
+  on public.records as restrictive for update
+  to authenticated
+  using (not public.is_aemt_collection(collection) or public.current_role() = 'admin');
+
+-- The market fence. Applies to every operation on the table, on top of the
+-- role policies above. RESTRICTIVE for the same reason: permissive policies
+-- OR together, so a permissive market policy would fence nothing.
+create policy "market separation"
+  on public.records as restrictive for all
+  to authenticated
+  using (public.current_market() = 'all' or market = public.current_market())
+  with check (public.current_market() = 'all' or market = public.current_market());
 
 -- Admin writes everything.
 create policy "admin writes all records"
@@ -162,7 +245,9 @@ create table if not exists public.intake_submissions (
   data jsonb not null,                  -- all answers, keyed by field id
   archived boolean not null default false,
   -- Admin-set selection status: New / Shortlisted / Contacted / Accepted / Declined.
-  status text not null default 'New'
+  status text not null default 'New',
+  -- Which operation the candidate applied to.
+  market text not null default 'kc' check (market in ('kc', 'wichita'))
 );
 
 -- For projects created before the status column existed.
@@ -184,18 +269,27 @@ create policy "anyone can submit intake"
 create policy "admin reads intake"
   on public.intake_submissions for select
   to authenticated
-  using (public.current_role() = 'admin');
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
 
 -- Only admins can archive (update) or delete them.
 create policy "admin updates intake"
   on public.intake_submissions for update
   to authenticated
-  using (public.current_role() = 'admin');
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
 
 create policy "admin deletes intake"
   on public.intake_submissions for delete
   to authenticated
-  using (public.current_role() = 'admin');
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
 
 -- ----- AEMT selection exam ---------------------------------------------------
 -- Cheat-resistant by construction: the question bank (with answers) is never
@@ -239,7 +333,11 @@ create table if not exists public.exam_attempts (
   attested boolean,
   signature text,
   attested_at timestamptz,
-  attestation_hash text
+  attestation_hash text,
+  -- exam_attempts sits OUTSIDE `records`, so the fence on that table does not
+  -- reach it. Without this column a Wichita admin reads every Kansas City
+  -- candidate's name, email, responses and score.
+  market text not null default 'kc' check (market in ('kc', 'wichita'))
 );
 
 create index if not exists exam_attempts_email_idx on public.exam_attempts (email);
@@ -250,10 +348,21 @@ create unique index if not exists exam_attempts_one_submitted_per_email
 
 alter table public.exam_attempts enable row level security;
 create policy "admin reads exam attempts" on public.exam_attempts
-  for select to authenticated using (public.current_role() = 'admin');
+  for select to authenticated
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
 create policy "admin manages exam attempts" on public.exam_attempts
   for all to authenticated
-  using (public.current_role() = 'admin') with check (public.current_role() = 'admin');
+  using (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  )
+  with check (
+    public.current_role() = 'admin'
+    and (public.current_market() = 'all' or market = public.current_market())
+  );
 
 -- Start (or resume) an attempt. Returns the drawn questions WITHOUT answers.
 create or replace function public.exam_start(
