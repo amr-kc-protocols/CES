@@ -63,13 +63,13 @@ export default function ExamResults() {
     void load()
   }, [])
 
-  /** Clear an attempt. `scored` names what is being destroyed, if anything. */
+  /** Void an attempt. `scored` names the result being set aside, if any. */
   const reset = async (id: string, who: string, scored?: string) => {
     const ok = await confirmAction({
       title: `Reset ${who}?`,
       body: scored
-        ? `This permanently deletes their completed result (${scored}) and lets them sit the exam again with a fresh set of questions. This cannot be undone.`
-        : `This clears their unfinished attempt so they can start over with a fresh set of questions and a full clock. Their current answers, if any, are discarded.`,
+        ? `Their completed result (${scored}) stops counting and they can sit the exam again with a fresh set of questions. The attempt is kept on record — including their signed integrity statement and who reset it — rather than deleted.`
+        : `Their unfinished attempt stops counting and they can start over with a fresh set of questions and a full clock. The attempt is kept on record rather than deleted.`,
       confirmLabel: 'Reset attempt',
       danger: true,
     })
