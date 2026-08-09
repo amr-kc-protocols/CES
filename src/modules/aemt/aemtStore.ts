@@ -114,6 +114,12 @@ const COURSE_OWNED = [
   'aemtCompletions',
   'aemtRecordDocs',
   'aemtAudit',
+  // Selection data is retained under the employer's HR schedule rather than the
+  // K.A.R. 109-17-3 clock, but it is still keyed by courseId: left out of this
+  // list it survived the course as rows nothing could reach, list or delete.
+  // It goes with the course and comes back with the undo, and the delete
+  // confirmation counts it separately so the retention difference stays visible.
+  'aemtCandidates',
 ] as const
 
 type CourseOwnedKey = (typeof COURSE_OWNED)[number]
@@ -131,6 +137,11 @@ export interface CourseFootprint {
   auditEvents: number
   /** Filings recorded as submitted to KBEMS. */
   submissions: number
+  /**
+   * Cohort candidates. Counted apart from the program records above because
+   * their retention is the employer's HR schedule, not K.A.R. 109-17-3.
+   */
+  candidates: number
   /** Nothing has been recorded against this course at all. */
   empty: boolean
 }
@@ -148,6 +159,7 @@ export function useCourseFootprint(courseId: string | undefined): CourseFootprin
       formResponses: n('aemtFormResponses'),
       completions: n('aemtCompletions'),
       auditEvents: n('aemtAudit'),
+      candidates: n('aemtCandidates'),
       submissions: db.aemtDeadlines.filter((d) => d.courseId === courseId && d.submittedDate).length,
     }
     return { ...f, empty: Object.values(f).every((v) => v === 0) }
@@ -213,11 +225,43 @@ export function addStudent(courseId: string, name: string, patch?: Partial<AemtS
   return student
 }
 
-export function updateStudent(id: string, patch: Partial<AemtStudent>): void {
-  setState((db) => ({
-    ...db,
-    aemtStudents: db.aemtStudents.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+/**
+ * Edit a student.
+ *
+ * Refuses to move a student off 'completed' while a verified completion exists.
+ * The roster dropdown correctly declined to *set* Completed, but moving a
+ * completed student to Active or Withdrawn went straight through — leaving the
+ * AemtCompletion record on file, unaudited, still printing in the audit package
+ * and still shown as completed by the panel below. Un-completing someone is
+ * `revokeCompletion`, which takes an actor and a reason.
+ */
+export function updateStudent(
+  id: string,
+  patch: Partial<AemtStudent>,
+): { ok: boolean; refused?: string } {
+  const db = getState()
+  const student = db.aemtStudents.find((s) => s.id === id)
+  if (!student) return { ok: false, refused: 'That student no longer exists.' }
+
+  if (
+    patch.status !== undefined &&
+    patch.status !== 'completed' &&
+    student.status === 'completed' &&
+    db.aemtCompletions.some((c) => c.studentId === id && c.courseId === student.courseId)
+  ) {
+    return {
+      ok: false,
+      refused:
+        'This student has a verified completion on file, which is what makes them eligible to sit ' +
+        'the NREMT cognitive exam. Revoke the completion first — that records who did it and why.',
+    }
+  }
+
+  setState((cur) => ({
+    ...cur,
+    aemtStudents: cur.aemtStudents.map((s) => (s.id === id ? { ...s, ...patch } : s)),
   }))
+  return { ok: true }
 }
 
 /**
@@ -283,6 +327,42 @@ export function useSessions(courseId: string | undefined): AemtSession[] {
   )
 }
 
+/**
+ * Session kinds that are classroom time.
+ *
+ * ONE definition, used by earned hours, by the absence cap and by the audit
+ * package. The package expressed the same rule inversely (`kind !== 'clinical'`)
+ * — identical across today's four kinds and divergent the moment a fifth is
+ * added, with the divergent copy being the one that prints for KBEMS.
+ */
+export const CLASSROOM_KINDS: readonly AemtSessionKind[] = ['didactic', 'lab', 'exam']
+
+/**
+ * 'HH:MM' to minutes past midnight, or undefined when it is not a clock time.
+ * Shared so the schedule checker and the session form agree on what a time is.
+ */
+export function parseClock(t: string | undefined): number | undefined {
+  const m = /^(\d{2}):(\d{2})$/.exec(t ?? '')
+  if (!m) return undefined
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return undefined
+  return h * 60 + min
+}
+
+/** Minutes past midnight back to 'HH:MM'. Returns undefined past the day's end. */
+export function formatClock(minutes: number): string | undefined {
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 24 * 60) return undefined
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/** Is this session classroom contact time, as opposed to a clinical rotation? */
+export function isClassroomSession(kind: AemtSessionKind): boolean {
+  return CLASSROOM_KINDS.includes(kind)
+}
+
 export interface SessionProblem {
   sessionId: string
   /** Short enough to sit under the row it belongs to. */
@@ -317,13 +397,19 @@ export function sessionProblems(
       out.push({ sessionId: s.id, text: `${label} is worth no hours` })
     }
     if (s.startTime && s.endTime) {
-      if (s.endTime <= s.startTime) {
+      const from = parseClock(s.startTime)
+      const to = parseClock(s.endTime)
+      if (from === undefined || to === undefined) {
+        // A time nobody can parse is a filing error in its own right. Reported
+        // rather than skipped: the comparison below used to yield NaN here, and
+        // `Math.abs(NaN) > 0.25` is false, so a malformed time passed silently.
+        out.push({ sessionId: s.id, text: `${label} has a time that cannot be read` })
+      } else if (to <= from) {
         out.push({ sessionId: s.id, text: `${label} ends at or before it starts` })
       } else {
         // Times and hours are filed together, so they have to agree. A quarter
         // hour of slack absorbs rounding without waving through a real gap.
-        const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
-        const span = (mins(s.endTime) - mins(s.startTime)) / 60
+        const span = (to - from) / 60
         if (Math.abs(span - s.hours) > 0.25) {
           out.push({
             sessionId: s.id,
@@ -477,7 +563,11 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
         if (hours <= 0) return
         const h = Math.round(hours * 100) / 100
         // The proposal runs class 09:00-13:00 Tue/Thu; end follows the hours.
-        const endH = 9 + h
+        // Computed in minutes: the previous form printed ':30' for any
+        // fractional part, so a quarter-hour block filed a time that
+        // contradicted its own hours, and anything running past midnight
+        // produced '24:00', which is not a time an input will accept.
+        const startMin = 9 * 60
         created.push({
           id: uid('asess'),
           courseId,
@@ -485,8 +575,8 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
           title: block.title,
           kind,
           hours: h,
-          startTime: '09:00',
-          endTime: `${String(Math.floor(endH)).padStart(2, '0')}:${endH % 1 ? '30' : '00'}`,
+          startTime: formatClock(startMin),
+          endTime: formatClock(startMin + Math.round(h * 60)),
         })
       }
       if (dPerWeek > 0 && lPerWeek > 0) {
@@ -581,19 +671,72 @@ function upsertCheck(
   })
 }
 
+/**
+ * Grading a sheet after it was signed invalidates the signature.
+ *
+ * The evaluator attested that every criterion was performed to the standard.
+ * Changing what the criteria say afterwards leaves that statement describing a
+ * record that no longer exists — the same failure mode `updateShift` guards
+ * against for a preceptor's signature. Previously the criteria stayed editable
+ * after sign-off and nothing cleared the attestation, so a sheet could carry a
+ * recorded critical failure and still satisfy the statutory skills check.
+ *
+ * The prior signature is not silently dropped: it is written to the audit trail
+ * with what changed, and the sheet returns to unsigned so it has to be signed
+ * again.
+ */
+function gradeSheet(
+  courseId: string,
+  studentId: string,
+  sheetId: string,
+  actor: string,
+  what: string,
+  fn: (c: AemtSkillCheck) => AemtSkillCheck,
+): void {
+  const before = getState().aemtSkillChecks.find(
+    (c) => c.courseId === courseId && c.studentId === studentId && c.sheetId === sheetId,
+  )
+  const invalidate = !!before?.attestation || !!before?.passedDate
+
+  upsertCheck(courseId, studentId, sheetId, (c) => {
+    const next = fn(c)
+    if (!invalidate) return next
+    return { ...next, passedDate: undefined, attestation: undefined }
+  })
+
+  if (!invalidate) return
+  const who = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
+  audit(
+    courseId,
+    studentId,
+    actor,
+    'skill sheet edited — SIGN-OFF INVALIDATED',
+    `${who} · ${sheetId} · ${what} · signature by ${before?.attestation?.by ?? 'nobody recorded'} ` +
+      `no longer describes this sheet; it must be signed again`,
+  )
+}
+
 export function setSkillResult(
   courseId: string,
   studentId: string,
   sheetId: string,
   criterionId: string,
   result: 'pass' | 'fail' | null,
+  actor = 'local',
 ): void {
-  upsertCheck(courseId, studentId, sheetId, (c) => {
-    const results = { ...c.results }
-    if (result) results[criterionId] = result
-    else delete results[criterionId]
-    return { ...c, results }
-  })
+  gradeSheet(
+    courseId,
+    studentId,
+    sheetId,
+    actor,
+    `criterion ${criterionId} set to ${result ?? 'unassessed'}`,
+    (c) => {
+      const results = { ...c.results }
+      if (result) results[criterionId] = result
+      else delete results[criterionId]
+      return { ...c, results }
+    },
+  )
 }
 
 /** Mark every criterion on a sheet as passed — the common "clean run" case. */
@@ -602,8 +745,9 @@ export function passAllCriteria(
   studentId: string,
   sheetId: string,
   criterionIds: string[],
+  actor = 'local',
 ): void {
-  upsertCheck(courseId, studentId, sheetId, (c) => ({
+  gradeSheet(courseId, studentId, sheetId, actor, 'every criterion set to pass', (c) => ({
     ...c,
     results: Object.fromEntries(criterionIds.map((id) => [id, 'pass' as const])),
   }))
@@ -614,14 +758,32 @@ export function toggleCriticalFailure(
   studentId: string,
   sheetId: string,
   text: string,
+  actor = 'local',
 ): void {
-  upsertCheck(courseId, studentId, sheetId, (c) => {
-    const cur = c.criticalFailed ?? []
-    return {
-      ...c,
-      criticalFailed: cur.includes(text) ? cur.filter((t) => t !== text) : [...cur, text],
-    }
-  })
+  const cur =
+    getState().aemtSkillChecks.find(
+      (c) => c.courseId === courseId && c.studentId === studentId && c.sheetId === sheetId,
+    )?.criticalFailed ?? []
+  const clearing = cur.includes(text)
+  gradeSheet(
+    courseId,
+    studentId,
+    sheetId,
+    actor,
+    `critical failure ${clearing ? 'cleared' : 'recorded'}: ${text}`,
+    (c) => {
+      const list = c.criticalFailed ?? []
+      return {
+        ...c,
+        criticalFailed: list.includes(text) ? list.filter((t) => t !== text) : [...list, text],
+      }
+    },
+  )
+}
+
+/** How many criteria on a sheet are recorded as failed — for the overwrite warning. */
+export function recordedFailures(c: AemtSkillCheck | undefined): number {
+  return Object.values(c?.results ?? {}).filter((r) => r === 'fail').length
 }
 
 export const SKILL_STATEMENT =
@@ -676,20 +838,46 @@ export function revokeSkillSignoff(
   studentId: string,
   sheetId: string,
   actor: string,
+  reason: string,
 ): void {
+  const before = getState().aemtSkillChecks.find(
+    (c) => c.courseId === courseId && c.studentId === studentId && c.sheetId === sheetId,
+  )
   upsertCheck(courseId, studentId, sheetId, (c) => ({
     ...c,
     passedDate: undefined,
     attestation: undefined,
   }))
   const who = getState().aemtStudents.find((s) => s.id === studentId)?.name ?? studentId
-  audit(courseId, studentId, actor, 'skill sign-off revoked', `${who} · ${sheetId}`)
+  audit(
+    courseId,
+    studentId,
+    actor,
+    'skill sign-off revoked',
+    `${who} · ${sheetId} · signed by ${before?.attestation?.by ?? 'nobody recorded'}` +
+      ` · reason: ${reason.trim() || 'not stated'}`,
+  )
 }
 
 /** A sign-off only counts when an identified evaluator stands behind it. */
 export function skillSignoffIsEvidence(c: AemtSkillCheck | undefined): boolean {
   const a = c?.attestation
   return !!c?.passedDate && !!a && !!a.by.trim() && !!a.certNumber.trim() && !!a.actor.trim()
+}
+
+/**
+ * Signed, but the results recorded on the sheet no longer support it.
+ *
+ * Grading now invalidates a signature, so this cannot arise from new edits —
+ * it catches records written before that rule and rows arriving from sync or an
+ * import. Reported rather than silently reclassified, and it does not count
+ * toward completion.
+ */
+export function skillSignoffContradicted(
+  c: AemtSkillCheck | undefined,
+  allPassed: boolean,
+): boolean {
+  return !!c?.passedDate && !allPassed
 }
 
 export interface SkillStanding {
@@ -702,7 +890,10 @@ export interface SkillStanding {
   criticalFailed: boolean
   /** Every criterion passed and no critical failure. */
   allPassed: boolean
+  /** Signed by an identified evaluator AND still supported by the results. */
   signedOff: boolean
+  /** Carries a signature the recorded results contradict. Never counts. */
+  contradicted: boolean
 }
 
 export function standingFor(
@@ -717,6 +908,8 @@ export function standingFor(
     const passed = ids.filter((id) => results[id] === 'pass').length
     const failed = ids.filter((id) => results[id] === 'fail').length
     const criticalFailed = (check?.criticalFailed?.length ?? 0) > 0
+    const allPassed = passed === ids.length && failed === 0 && !criticalFailed
+    const contradicted = skillSignoffContradicted(check, allPassed)
     return {
       sheet,
       check,
@@ -724,8 +917,11 @@ export function standingFor(
       failed,
       total: ids.length,
       criticalFailed,
-      allPassed: passed === ids.length && failed === 0 && !criticalFailed,
-      signedOff: skillSignoffIsEvidence(check),
+      allPassed,
+      // Both halves are required: an identified signer, and results that still
+      // say what the signer attested to.
+      signedOff: skillSignoffIsEvidence(check) && !contradicted,
+      contradicted,
     }
   })
 }
@@ -936,23 +1132,74 @@ export function setAttendance(
   })
 }
 
-export function markAllPresent(courseId: string, studentIds: string[], sessionId: string): void {
-  setState((db) => {
-    const ids = new Set(studentIds)
-    const rest = db.aemtAttendance.filter((a) => !(ids.has(a.studentId) && a.sessionId === sessionId))
-    return {
-      ...db,
-      aemtAttendance: [
-        ...rest,
-        ...studentIds.map((studentId) => ({
-          courseId,
-          studentId,
-          sessionId,
-          status: 'present' as AttendanceStatus,
-        })),
-      ],
-    }
-  })
+/**
+ * Marks already recorded against a session that a "mark all present" sweep
+ * would overwrite — an absence, or a partial-hour credit for a late arrival.
+ * Both feed the attendance policy gate, so the caller has to say whether it
+ * means to replace them.
+ */
+export function attendanceOverwrites(
+  studentIds: string[],
+  sessionId: string,
+): AemtAttendanceRecord[] {
+  const ids = new Set(studentIds)
+  return getState().aemtAttendance.filter(
+    (a) =>
+      a.sessionId === sessionId &&
+      ids.has(a.studentId) &&
+      (a.status !== 'present' || a.hours !== undefined),
+  )
+}
+
+/**
+ * Mark a session present for a whole roster.
+ *
+ * Fills blanks by default. Overwriting is possible but never accidental: it
+ * used to replace every record unconditionally, which quietly cleared
+ * absences and partial-hour credits — the two things the attendance policy is
+ * computed from — with no confirmation and no undo, from a button sitting in
+ * every column header of a horizontally scrolling grid.
+ */
+export function markAllPresent(
+  courseId: string,
+  studentIds: string[],
+  sessionId: string,
+  opts: { overwrite?: boolean } = {},
+): number {
+  const before = getState().aemtAttendance
+  const existing = new Set(
+    before.filter((a) => a.sessionId === sessionId).map((a) => a.studentId),
+  )
+  const targets = opts.overwrite ? studentIds : studentIds.filter((id) => !existing.has(id))
+  if (targets.length === 0) return 0
+
+  const ids = new Set(targets)
+  const replaced = before.filter((a) => ids.has(a.studentId) && a.sessionId === sessionId)
+  if (replaced.length > 0) {
+    pushUndo(`Marked ${targets.length} present`, () =>
+      setState((cur) => ({
+        ...cur,
+        aemtAttendance: [
+          ...cur.aemtAttendance.filter((a) => !(ids.has(a.studentId) && a.sessionId === sessionId)),
+          ...replaced,
+        ],
+      })),
+    )
+  }
+
+  setState((db) => ({
+    ...db,
+    aemtAttendance: [
+      ...db.aemtAttendance.filter((a) => !(ids.has(a.studentId) && a.sessionId === sessionId)),
+      ...targets.map((studentId) => ({
+        courseId,
+        studentId,
+        sessionId,
+        status: 'present' as AttendanceStatus,
+      })),
+    ],
+  }))
+  return targets.length
 }
 
 /**
@@ -1012,11 +1259,15 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
       const missed: AemtSession[] = []
       for (const s of sessions) {
         const rec = map.get(attKey(student.id, s.id))
-        earned += creditedHours(s, rec)
+        // Classroom time only. A session marked 'clinical' is rotation time,
+        // and counting it here put it in the classroom total AND again in the
+        // clinical total via its attested shift — the same hours reconciled
+        // twice against two different filed commitments.
+        if (isClassroomSession(s.kind)) earned += creditedHours(s, rec)
         if (rec?.status === 'absent') missed.push(s)
       }
       const classAbsentHours = missed
-        .filter((s) => s.kind === 'didactic' || s.kind === 'lab' || s.kind === 'exam')
+        .filter((s) => isClassroomSession(s.kind))
         .reduce((sum, s) => sum + s.hours, 0)
       const totals = shiftHourTotals(shifts.filter((s) => s.studentId === student.id))
       return {
@@ -1319,7 +1570,21 @@ export function attestShift(
   setState((db) => ({
     ...db,
     aemtShifts: db.aemtShifts.map((s) =>
-      s.id === id ? { ...s, attestedAt: full.at, attestation: full } : s,
+      s.id === id
+        ? {
+            ...s,
+            // The signature is written through to the preceptor fields.
+            // `supervisorEligible` decides whether a rep counts from
+            // `preceptorCredential`, so leaving that untouched while the
+            // signature said something else meant eligibility was judged on a
+            // field nobody had signed for.
+            preceptorName: full.by,
+            preceptorCredential: full.credential,
+            preceptorCertNumber: full.certNumber || s.preceptorCertNumber,
+            attestedAt: full.at,
+            attestation: full,
+          }
+        : s,
     ),
   }))
   const who = getState().aemtStudents.find((s) => s.id === shift.studentId)?.name ?? shift.studentId
@@ -1585,8 +1850,14 @@ export function progressFor(
     const eligible = rows.filter((e) => encounterCounts(e, requirement, byId.get(e.shiftId ?? '')))
     const total = eligible.reduce((s, e) => s + e.count, 0)
     const eligibleIds = new Set(eligible)
-    const ineligible = rows.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
-    const unverified = rows
+    // The four categories partition the log: counted, voided, attempted, and
+    // "logged but not counting" for everything else. `ineligible` used to be
+    // simply "whatever encounterCounts rejected", which also swallows voids and
+    // attempts — so a single voided rep was reported under two headings at once
+    // and a reviewer adding up the annotations got more reps than the log holds.
+    const live = rows.filter((e) => !e.voidedAt && e.outcome !== 'attempt')
+    const ineligible = live.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
+    const unverified = live
       .filter((e) => !e.shiftId || !attestationIsEvidence(byId.get(e.shiftId) ?? ({} as AemtClinicalShift)))
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
@@ -1633,7 +1904,14 @@ export function useClinicalStanding(courseId: string | undefined): StudentClinic
         // student ineligible under K.A.R. 109-11-8.
         const statutory = progress.filter((p) => p.requirement.basis === 'kar')
         const metCount = statutory.filter((p) => p.met).length
-        return { student, progress, statutory, metCount, complete: metCount === statutory.length }
+        return {
+          student,
+          progress,
+          statutory,
+          metCount,
+          // An empty requirement set is not a student who has met everything.
+          complete: statutory.length > 0 && metCount === statutory.length,
+        }
       }),
     [students, encounters, shifts],
   )
@@ -1763,6 +2041,7 @@ export function useStudentReadiness(
       const c = clinical.find((x) => x.student.id === student.id)
       const skills = standingFor(checks, student.id, sheets)
       const signed = skills.filter((s) => s.signedOff).length
+      const contradicted = skills.filter((s) => s.contradicted).length
       const mine = responses.filter((r) => r.studentId === student.id)
       const open = openConcerns(mine)
       const courseForms = ['instructor-eval', 'course-eval']
@@ -1773,10 +2052,13 @@ export function useStudentReadiness(
           id: 'attendance',
           basis: 'program' as const,
           label: 'Attendance within policy',
-          status: h && h.classAbsentHours > MAX_ABSENT_HOURS ? 'unmet' : 'met',
+          // No hours row at all means nothing was computed, which is not the
+          // same as being within policy. It asks for an attestation rather than
+          // passing on absent data.
+          status: !h ? 'attest' : h.classAbsentHours > MAX_ABSENT_HOURS ? 'unmet' : 'met',
           detail: h
             ? `${h.classAbsentHours} h of class missed (limit ${MAX_ABSENT_HOURS})`
-            : 'No attendance recorded',
+            : 'No attendance recorded for this student — nothing to check against the policy',
         },
         // Hours and clinical minimums are different questions. A student can
         // hit every K.A.R. 109-11-8 rep count in half the hours the course
@@ -1808,7 +2090,14 @@ export function useStudentReadiness(
           basis: 'statutory' as const,
           label: 'Psychomotor skills signed off',
           status: signed === sheets.length && sheets.length > 0 ? 'met' : 'unmet',
-          detail: `${signed} of ${sheets.length} sheets signed off`,
+          detail:
+            `${signed} of ${sheets.length} sheets signed off` +
+            (contradicted > 0
+              ? ` · ${contradicted} signed but contradicted by the recorded results — must be re-signed`
+              : '') +
+            (monitorSheetId
+              ? ''
+              : ' · no cardiac monitor selected for this course, so no monitor sheet is required of anyone'),
         },
         {
           id: 'concerns',
@@ -1889,14 +2178,37 @@ export function recordCompletion(
     /** The course's named primary instructor, for the role check. */
     primaryInstructor?: string
     finalGradePercent: number
-    blocking?: string[]
+    /**
+     * Statutory checks that have not passed. REQUIRED — an optional list meant
+     * a caller that simply forgot it got a completion recorded past unmet
+     * statutory requirements with no refusal and nothing in the audit trail.
+     * Pass an empty array to assert there are none.
+     */
+    blocking: string[]
     override?: { reason: string; approver: string; unmetChecks: string[] }
   },
 ): { ok: boolean; refused?: string } {
-  if (input.blocking && input.blocking.length > 0) {
+  if (input.blocking.length > 0) {
     return {
       ok: false,
       refused: `Statutory requirements are unmet: ${input.blocking.join(', ')}. These cannot be overridden.`,
+    }
+  }
+  // Grade is attested rather than computed, but it is still a number with a
+  // policy attached. Decided here rather than trusting whichever screen calls
+  // in: below the pass mark it needs a documented override, same as any other
+  // program-policy departure.
+  if (!Number.isFinite(input.finalGradePercent) ||
+      input.finalGradePercent < 0 ||
+      input.finalGradePercent > 100) {
+    return { ok: false, refused: 'The final course grade must be a percentage between 0 and 100.' }
+  }
+  if (input.finalGradePercent < MIN_PASSING_PERCENT && !input.override) {
+    return {
+      ok: false,
+      refused:
+        `The final grade of ${input.finalGradePercent}% is below the ${MIN_PASSING_PERCENT}% pass mark. ` +
+        'Recording completion anyway requires a documented override with a named approver.',
     }
   }
   const named = input.primaryInstructor?.trim().toLowerCase()
@@ -2064,8 +2376,20 @@ export async function pullExamResults(courseId: string): Promise<{
   const { rows, error } = await listExamResults()
   if (error) return { matched: 0, unmatched: [], noEmail: [], error }
 
+  // Remote rows are not trusted to have the shape they are typed with: a null
+  // email threw and failed the whole pull. Where somebody sat the exam twice,
+  // the better attempt wins rather than whichever row came back last — an
+  // arbitrary ordering deciding a selection score is not a defensible tiebreak.
   const byEmail = new Map<string, { percent: number | null }>()
-  for (const r of rows ?? []) byEmail.set(r.email.trim().toLowerCase(), { percent: r.percent })
+  for (const r of rows ?? []) {
+    const email = typeof r?.email === 'string' ? r.email.trim().toLowerCase() : ''
+    if (!email) continue
+    const percent = typeof r.percent === 'number' ? r.percent : null
+    const prev = byEmail.get(email)
+    if (!prev || prev.percent == null || (percent != null && percent > prev.percent)) {
+      byEmail.set(email, { percent })
+    }
+  }
 
   const candidates = getState().aemtCandidates.filter((c) => c.courseId === courseId)
   const noEmail: string[] = []
@@ -2140,7 +2464,13 @@ export interface CandidateScore {
   interview?: number
   qa?: number
   attendance?: number
-  /** Weighted base out of 100, counting only components that have a score. */
+  /**
+   * Weighted total out of 100. An unscored component contributes nothing rather
+   * than being normalised away, so a partially-scored candidate scores LOW, not
+   * proportionally — which is why `complete` exists and why the list sorts
+   * cleared candidates above everyone else. Reading this as a comparable score
+   * before `complete` is true compares a full candidate against a partial one.
+   */
   base: number
   bonus: number
   composite: number

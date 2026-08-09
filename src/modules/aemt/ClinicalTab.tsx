@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
-import { confirmAction } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
+import ReasonModal from './ReasonModal'
 import {
   useStudents,
   useEncounters,
@@ -230,6 +230,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const { manageAemt: canEdit } = useCan()
   const [selectedId, setSelected] = useState<string | null>(null)
   const [logging, setLogging] = useState(false)
+  const [voiding, setVoiding] = useState<AemtEncounter | null>(null)
   const safety = useRecordSafety()
 
   if (students.length === 0) {
@@ -282,7 +283,11 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
               </div>
               <div style={{ marginTop: 6 }}>
                 <ProgressBar
-                  pct={Math.round((s.metCount / s.statutory.length) * 100)}
+                  pct={
+                    s.statutory.length === 0
+                      ? 0
+                      : Math.round((s.metCount / s.statutory.length) * 100)
+                  }
                   complete={s.complete}
                 />
               </div>
@@ -474,14 +479,9 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                   <button
                     className="btn sm danger"
                     aria-label={`Void this ${req?.label ?? e.requirementId} entry`}
-                    onClick={async () => {
-                      const ok = await confirmAction({
-                        title: 'Void this entry?',
-                        body: 'It stops counting but stays on the record with the reason, so the correction is traceable. Deleting a regulated count outright is not an option.',
-                        confirmLabel: 'Void entry',
-                      })
-                      if (ok) voidEncounter(e.id, safety.actor, 'voided by coordinator')
-                    }}
+                    disabled={!safety.canRecordOfficial}
+                    title={safety.reason}
+                    onClick={() => setVoiding(e)}
                   >
                     Void
                   </button>
@@ -499,6 +499,18 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
           shifts={shifts}
           existing={mine}
           onClose={() => setLogging(false)}
+        />
+      )}
+
+      {voiding && (
+        <ReasonModal
+          title="Void this entry?"
+          body="It stops counting toward the minimum but stays on the record with your reason, so the correction is traceable. Deleting a regulated count outright is not an option."
+          placeholder="Logged against the wrong requirement; duplicate of run 24-01188"
+          confirmLabel="Void entry"
+          actor={safety.actor}
+          onConfirm={(reason) => voidEncounter(voiding.id, safety.actor, reason)}
+          onClose={() => setVoiding(null)}
         />
       )}
     </div>

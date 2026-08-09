@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Empty } from '../../components/ui'
+import { Empty, Modal } from '../../components/ui'
+import { confirmAction } from '../../lib/dialog'
 import { formatDate, todayISO } from '../../lib/date'
 import {
   useStudents,
@@ -7,7 +8,11 @@ import {
   addFormResponse,
   deleteFormResponse,
   flaggedResponses,
+  openConcerns,
+  resolveFormResponse,
+  useRecordSafety,
 } from './aemtStore'
+import type { AemtFormResponse } from '../../types'
 import { AEMT_FORMS, aemtForm } from '../../data/aemtForms'
 import type { AemtFormDef, FormField } from '../../data/aemtForms'
 import { useCan } from '../../lib/role'
@@ -106,6 +111,79 @@ function Field({
       )}
       {field.help && <div className="help-text">{field.help}</div>}
     </div>
+  )
+}
+
+/**
+ * Close out a flagged remediation or behaviour conference.
+ *
+ * Completion readiness gates on nothing being open, and until this existed
+ * nothing could set `resolvedDate` — so the first evaluation flagging remedial
+ * education blocked that student permanently, and the only ways past were an
+ * override that recorded a policy breach the program had not committed, or
+ * deleting a record with a three-year retention obligation.
+ */
+function ResolveModal({
+  response,
+  studentName,
+  actor,
+  onClose,
+}: {
+  response: AemtFormResponse
+  studentName: string
+  actor: string
+  onClose: () => void
+}) {
+  const [by, setBy] = useState(actor === 'local' ? '' : actor)
+  const [note, setNote] = useState('')
+  const valid = by.trim() !== '' && note.trim().length >= 4
+
+  return (
+    <Modal title={`Close out — ${studentName}`} onClose={onClose}>
+      <div className="banner info" style={{ marginTop: 0 }}>
+        {aemtForm(response.formId)?.title} · {formatDate(response.date)} ·{' '}
+        {response.values?.remedial === true
+          ? 'remedial education indicated'
+          : 'behaviour conference indicated'}
+      </div>
+      <div className="field">
+        <label htmlFor="rs-by">Closed out by</label>
+        <input
+          id="rs-by"
+          value={by}
+          onChange={(e) => setBy(e.target.value)}
+          placeholder="Program manager"
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="rs-note">What was done</label>
+        <textarea
+          id="rs-note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Remedial IV lab completed 14 Mar with the lead instructor; re-assessed and passed."
+        />
+        <div className="help-text">
+          The record stays on file either way. This says what closed it, which is what the completion
+          readiness check is asking for.
+        </div>
+      </div>
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!valid}
+          onClick={() => {
+            resolveFormResponse(response.id, by.trim(), note.trim())
+            onClose()
+          }}
+        >
+          Close it out
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
   )
 }
 
@@ -212,6 +290,8 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
   // write to certification records.
   const { manageAemt: canEdit } = useCan()
   const [filling, setFilling] = useState<string | null>(null)
+  const [resolving, setResolving] = useState<AemtFormResponse | null>(null)
+  const safety = useRecordSafety()
 
   if (students.length === 0) {
     return (
@@ -226,7 +306,10 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
     return <FillForm course={course} def={def} onDone={() => setFilling(null)} />
   }
 
-  const flagged = flaggedResponses(responses)
+  // Open concerns are what the readiness check reads; resolved ones are shown
+  // separately rather than staying in a queue labelled "needs review".
+  const open = openConcerns(responses)
+  const closed = flaggedResponses(responses).filter((r) => r.resolvedDate)
   const nameOf = (id?: string) => students.find((s) => s.id === id)?.name ?? 'Unknown'
 
   return (
@@ -236,16 +319,19 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
         under K.A.R. 109-11-4a.
       </div>
 
-      {flagged.length > 0 && (
+      {open.length > 0 && (
         <>
           <div className="section-title">
             Needs Program Manager review
             <span className="pill crit" style={{ marginLeft: 8 }}>
-              {flagged.length}
+              {open.length}
             </span>
           </div>
+          <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+            Each of these holds back that student's completion readiness until it is closed out.
+          </div>
           <div className="list">
-            {flagged.map((r) => (
+            {open.map((r) => (
               <div key={r.id} className="row left-accent acc-crit">
                 <div className="grow">
                   <div className="title">{nameOf(r.studentId)}</div>
@@ -255,6 +341,36 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
                       ? 'remedial education indicated'
                       : 'behaviour conference indicated'}
                   </div>
+                </div>
+                {canEdit && (
+                  <button className="btn sm primary" onClick={() => setResolving(r)}>
+                    Close out
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {closed.length > 0 && (
+        <>
+          <div className="section-title">
+            Closed out
+            <span className="pill ok" style={{ marginLeft: 8 }}>
+              {closed.length}
+            </span>
+          </div>
+          <div className="list">
+            {closed.map((r) => (
+              <div key={r.id} className="row left-accent acc-ok">
+                <div className="grow">
+                  <div className="title">{nameOf(r.studentId)}</div>
+                  <div className="meta">
+                    {aemtForm(r.formId)?.title} · {formatDate(r.date)} · closed{' '}
+                    {formatDate(r.resolvedDate)} by {r.resolvedBy}
+                  </div>
+                  {r.resolutionNote && <div className="help-text">{r.resolutionNote}</div>}
                 </div>
               </div>
             ))}
@@ -311,13 +427,36 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
                 </div>
               </div>
               {canEdit && (
-                <button className="btn sm danger" onClick={() => deleteFormResponse(r.id)}>
+                <button
+                  className="btn sm danger"
+                  aria-label={`Delete this ${aemtForm(r.formId)?.title ?? r.formId} for ${nameOf(r.studentId)}`}
+                  onClick={async () => {
+                    const ok = await confirmAction({
+                      title: 'Delete this evaluation?',
+                      body:
+                        'Evaluations are a program record retained for three years under ' +
+                        'K.A.R. 109-17-3. If this one flagged a concern, closing it out keeps the ' +
+                        'record and still clears the readiness check. Undo is offered afterwards.',
+                      confirmLabel: 'Delete evaluation',
+                    })
+                    if (ok) deleteFormResponse(r.id)
+                  }}
+                >
                   ✕
                 </button>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {resolving && (
+        <ResolveModal
+          response={resolving}
+          studentName={nameOf(resolving.studentId)}
+          actor={safety.actor}
+          onClose={() => setResolving(null)}
+        />
       )}
     </div>
   )

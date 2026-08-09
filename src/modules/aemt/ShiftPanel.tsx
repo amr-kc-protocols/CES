@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { confirmAction } from '../../lib/dialog'
 import { Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
+import ReasonModal from './ReasonModal'
 import {
   addShift,
   updateShift,
@@ -34,7 +35,7 @@ const SETTINGS: { value: AemtSiteKind; label: string }[] = [
 function Against({ n, target }: { n: number; target?: number }) {
   if (typeof target !== 'number') return <strong>{n} h</strong>
   return (
-    <strong style={{ color: n >= target ? '#166534' : undefined }}>
+    <strong style={{ color: n >= target ? 'var(--ok)' : undefined }}>
       {n}/{target} h
     </strong>
   )
@@ -70,10 +71,14 @@ function ShiftForm({
   const allowed = SETTING_PRECEPTORS[setting]
   const credOk = allowed.includes(cred as PreceptorCredential)
   const hoursNum = Number(hours)
-  // Would saving change something the preceptor signed for?
+  // Would saving change something the preceptor signed for? Keyed on
+  // `attestedAt`, matching what `updateShift` actually acts on — testing
+  // `attestationIsEvidence` here meant a legacy shift with a bare timestamp
+  // showed no warning and demanded no reason, then had its attestation
+  // invalidated anyway with the reason recorded as 'not stated'.
   const willInvalidate =
     !!existing &&
-    attestationIsEvidence(existing) &&
+    !!existing.attestedAt &&
     materialShiftChanges(existing, {
       date,
       setting,
@@ -179,9 +184,9 @@ function ShiftForm({
         <>
           <div className="banner crit">
             <strong>This invalidates the signature on this shift.</strong>{' '}
-            {existing?.attestation?.by} signed for the values as they stand. Saving keeps the
-            original as a revision, clears the attestation, and the shift has to be signed again
-            before its encounters count.
+            {existing?.attestation?.by ?? 'Whoever attested it'} signed for the values as they stand.
+            Saving keeps the original as a revision, clears the attestation, and the shift has to be
+            signed again before its encounters count.
           </div>
           <div className="field">
             <label htmlFor="sh-reason">Reason for the correction (required)</label>
@@ -263,7 +268,18 @@ function AttestModal({
   const [certNumber, setCert] = useState(shift.preceptorCertNumber ?? '')
   const [agreed, setAgreed] = useState(false)
 
-  const valid = by.trim() !== '' && certNumber.trim() !== '' && agreed
+  // Whether a rep counts is decided from the credential ON THE SHIFT. Signing
+  // under a different one used to be accepted silently, so a field shift
+  // recorded as precepted by a Paramedic could be signed by an LPN and its
+  // supervised ambulance calls still counted — which K.A.R. 109-11-8 does not
+  // allow. Signing now writes the credential through to the shift, so the field
+  // eligibility is judged on is the one somebody actually signed under.
+  const allowed = SETTING_PRECEPTORS[shift.setting]
+  const credOk = allowed.includes(cred as PreceptorCredential)
+  const credChanged = cred !== shift.preceptorCredential
+  const nameChanged = by.trim() !== shift.preceptorName.trim()
+
+  const valid = by.trim() !== '' && certNumber.trim() !== '' && agreed && credOk
 
   return (
     <Modal title="Attest this shift" onClose={onClose}>
@@ -294,6 +310,32 @@ function AttestModal({
           <input id="at-cert" value={certNumber} onChange={(e) => setCert(e.target.value)} />
         </div>
       </div>
+
+      {!credOk && (
+        <div className="banner crit">
+          A {PRECEPTOR_LABELS[cred as PreceptorCredential]} cannot precept a{' '}
+          {SETTINGS.find((s) => s.value === shift.setting)?.label.toLowerCase()} shift under K.A.R.
+          109-1-1, so this signature could not make anything on it count. Allowed:{' '}
+          {allowed.map((c) => PRECEPTOR_LABELS[c]).join(', ')}.
+        </div>
+      )}
+      {credOk && (credChanged || nameChanged) && (
+        <div className="banner warn">
+          This differs from the preceptor recorded on the shift
+          {nameChanged && <> — recorded as <strong>{shift.preceptorName}</strong></>}
+          {credChanged && (
+            <>
+              {nameChanged ? ', ' : ' — recorded as '}
+              <strong>
+                {PRECEPTOR_LABELS[shift.preceptorCredential as PreceptorCredential]}
+              </strong>
+            </>
+          )}
+          . Signing updates the shift to match, because whether a rep counts is decided from the
+          preceptor on the record and the two must not disagree.
+        </div>
+      )}
+
       <label
         className="subtle"
         style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 10 }}
@@ -348,6 +390,7 @@ export default function ShiftPanel({
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtClinicalShift | null>(null)
   const [attesting, setAttesting] = useState<AemtClinicalShift | null>(null)
+  const [withdrawing, setWithdrawing] = useState<AemtClinicalShift | null>(null)
   const safety = useRecordSafety()
   const totals = shiftHourTotals(shifts)
 
@@ -429,14 +472,9 @@ export default function ShiftPanel({
                   {attestationIsEvidence(s) ? (
                     <button
                       className="btn sm"
-                      onClick={async () => {
-                        const ok = await confirmAction({
-                          title: 'Withdraw this attestation?',
-                          body: `${s.attestation!.by} signed this shift. Withdrawing it stops every encounter on the shift from counting, and is recorded in the audit trail.`,
-                          confirmLabel: 'Withdraw signature',
-                        })
-                        if (ok) withdrawAttestation(s.id, safety.actor, 'withdrawn by coordinator')
-                      }}
+                      disabled={!safety.canRecordOfficial}
+                      title={safety.reason}
+                      onClick={() => setWithdrawing(s)}
                     >
                       Withdraw
                     </button>
@@ -470,6 +508,17 @@ export default function ShiftPanel({
 
       {attesting && (
         <AttestModal shift={attesting} actor={safety.actor} onClose={() => setAttesting(null)} />
+      )}
+      {withdrawing && (
+        <ReasonModal
+          title="Withdraw this attestation?"
+          body={`${withdrawing.attestation?.by ?? 'The preceptor'} signed this shift. Withdrawing it stops every encounter logged on it from counting toward a K.A.R. 109-11-8 minimum until it is signed again.`}
+          placeholder="Preceptor reports the hours were recorded from the wrong shift"
+          confirmLabel="Withdraw signature"
+          actor={safety.actor}
+          onConfirm={(reason) => withdrawAttestation(withdrawing.id, safety.actor, reason)}
+          onClose={() => setWithdrawing(null)}
+        />
       )}
       {adding && <ShiftForm course={course} studentId={studentId} onClose={() => setAdding(false)} />}
       {editing && (

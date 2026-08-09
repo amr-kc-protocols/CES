@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Modal } from '../../components/ui'
 import { notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
+import ReasonModal from './ReasonModal'
 import {
   recordCompletion,
   revokeCompletion,
@@ -227,6 +228,7 @@ export default function CompletionPanel({
   canEdit: boolean
 }) {
   const [verifying, setVerifying] = useState<StudentReadiness | null>(null)
+  const [revoking, setRevoking] = useState<StudentReadiness | null>(null)
   const safety = useRecordSafety()
 
   if (readiness.length === 0) return null
@@ -297,12 +299,9 @@ export default function CompletionPanel({
                 (r.completion ? (
                   <button
                     className="btn sm"
-                    onClick={() => {
-                      const why = prompt(`Revoke completion for ${r.student.name}? Reason:`)
-                      if (why?.trim()) {
-                        revokeCompletion(course.id, r.student.id, 'roster', why.trim())
-                      }
-                    }}
+                    disabled={!safety.canRecordOfficial}
+                    title={safety.reason}
+                    onClick={() => setRevoking(r)}
                   >
                     Revoke
                   </button>
@@ -323,6 +322,22 @@ export default function CompletionPanel({
 
       {verifying && (
         <VerifyModal course={course} readiness={verifying} onClose={() => setVerifying(null)} />
+      )}
+
+      {revoking && (
+        <ReasonModal
+          title={`Revoke completion — ${revoking.student.name}`}
+          body="Completion is what makes this student eligible to sit the NREMT cognitive exam. Revoking it returns them to active and is written to the audit trail."
+          placeholder="Clinical hours were credited to the wrong student; recorded before the final grade was confirmed"
+          confirmLabel="Revoke completion"
+          actor={safety.actor}
+          onConfirm={(reason) =>
+            // safety.actor, not a literal: this was attributed to the string
+            // 'roster' for every revocation in every course.
+            revokeCompletion(course.id, revoking.student.id, safety.actor, reason)
+          }
+          onClose={() => setRevoking(null)}
+        />
       )}
     </>
   )
