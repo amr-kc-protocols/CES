@@ -208,3 +208,59 @@ export async function listExamBank(): Promise<{ rows?: BankRow[]; error?: string
   const { data, error } = await c.from('exam_questions').select('id, domain, stem, options, answer')
   return error ? { error: error.message } : { rows: (data ?? []) as BankRow[] }
 }
+
+/* -------------------------------------------------------------------------
+ * Resetting an attempt (admin)
+ *
+ * One attempt per email is the rule, so a candidate whose sitting went wrong —
+ * a dead submit button, a flat battery, a phone that rang — is locked out
+ * until someone clears it. That was a SQL job; this makes it a button, which
+ * matters because the person who needs it is usually mid-conversation with the
+ * candidate. The `for all` policy from the markets migration already permits
+ * an admin to delete within their own market, so no new grant is involved.
+ * ---------------------------------------------------------------------- */
+
+export interface UnfinishedAttempt {
+  id: string
+  name: string
+  email: string
+  started_at: string
+  limit_seconds: number
+}
+
+/** Started but never submitted — still running, or out of time. Admin only. */
+export async function listUnfinishedAttempts(): Promise<{
+  rows?: UnfinishedAttempt[]
+  error?: string
+}> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { data, error } = await c
+    .from('exam_attempts')
+    .select('id, name, email, started_at, limit_seconds')
+    .is('submitted_at', null)
+    .order('started_at', { ascending: false })
+  return error ? { error: error.message } : { rows: (data ?? []) as UnfinishedAttempt[] }
+}
+
+/** Whether this attempt's clock has run out. */
+export function attemptExpired(a: UnfinishedAttempt, now: number = Date.now()): boolean {
+  return now > new Date(a.started_at).getTime() + a.limit_seconds * 1000
+}
+
+/**
+ * Clear an attempt so the candidate can sit the exam again.
+ *
+ * Deletes the row rather than resetting its clock. With no row, `exam_start`
+ * draws a fresh set when they next begin and nothing counts down in the
+ * meantime — whereas restarting the clock would begin burning their 25 minutes
+ * the moment this is pressed, expiring all over again if they are not sitting
+ * there ready. The cost is that they get a different draw, which is the right
+ * trade for someone who has already seen the first one.
+ */
+export async function resetAttempt(id: string): Promise<{ error?: string }> {
+  const c = await getSupabaseClient()
+  if (!c) return { error: 'Cloud project not configured.' }
+  const { error } = await c.from('exam_attempts').delete().eq('id', id)
+  return error ? { error: error.message } : {}
+}
