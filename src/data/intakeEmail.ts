@@ -17,6 +17,7 @@
 // ---------------------------------------------------------------------------
 
 import { CLINICAL_REQUIREMENTS, MAX_ABSENT_HOURS, MIN_PASSING_PERCENT } from './aemt'
+import { INTERVIEW_QUESTIONS, SELECTION_WEIGHTS } from './aemtSelection'
 import { EXAM_DEADLINE, EXAM_LIMIT_MINUTES } from '../lib/exam'
 import { answerText, type IntakeSubmission, type IntakeStatus } from '../lib/intake'
 
@@ -43,6 +44,11 @@ export const COURSE_INFO = {
   acceptBy: '[REPLY-BY DATE]',
   /** How long supervisors have to come back on the candidate check. */
   supervisorReplyBy: '[SUPERVISOR REPLY-BY DATE]',
+  /** The span of days interviews are being held across. */
+  interviewWindow: '[INTERVIEW WINDOW — e.g. the week of 24 August]',
+  interviewLocation: '[INTERVIEW LOCATION — or "by phone / Teams"]',
+  /** From docs/aemt-selection-interview.md: 45 minutes, six questions. */
+  interviewMinutes: 45,
 }
 
 export const SENDER = {
@@ -59,18 +65,25 @@ const PROGRAM_SHAPE = [
   `Classroom and lab sessions are held at AMR Kansas City headquarters. Hospital clinical and field internship hours are completed at partner sites in the Kansas City area.`,
 ].join(' ')
 
-export type EmailTemplateId = 'next-steps' | 'not-selected' | 'accepted'
+export type EmailTemplateId = 'next-steps' | 'interview' | 'not-selected' | 'accepted'
 
 export const EMAIL_TEMPLATES: { id: EmailTemplateId; label: string; note: string }[] = [
   { id: 'next-steps', label: 'Next steps', note: 'Take the selection exam' },
+  { id: 'interview', label: 'Interview invitation', note: 'Cleared the exam, booking an interview' },
   { id: 'not-selected', label: 'Not selected', note: 'Declined for this cohort' },
   { id: 'accepted', label: 'Accepted', note: 'Offered a seat' },
 ]
 
-/** Sensible default: follow the status already set on the candidate. */
+/**
+ * Sensible default: follow the status already set on the candidate.
+ *
+ * Shortlisted and Contacted both mean the exam is behind them and the
+ * interview is the live step, so both land on the invitation.
+ */
 export function templateForStatus(status: IntakeStatus): EmailTemplateId {
   if (status === 'Accepted') return 'accepted'
   if (status === 'Declined') return 'not-selected'
+  if (status === 'Shortlisted' || status === 'Contacted') return 'interview'
   return 'next-steps'
 }
 
@@ -199,6 +212,64 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       `QUESTIONS`,
       ``,
       `Reply to this email or contact me directly.`,
+    ],
+  }
+}
+
+/**
+ * The interview invitation.
+ *
+ * Says what the interview measures, because the scoring rubric rewards
+ * specific worked examples over general claims and there is no reason to make
+ * that a secret — a candidate who prepares the right way gives a more useful
+ * interview, which is the point of holding one.
+ *
+ * Deliberately does NOT ask why any conflict exists. Availability is a fact we
+ * may ask for; the reasons behind it are on the prohibited list in
+ * data/aemtSelection.ts, and email is the worst place to invite that answer
+ * because a reply is a written record we then have to be careful not to act on.
+ * Anything the candidate already volunteered on the intake form is
+ * acknowledged as a planning matter, never asked about again.
+ */
+function interview(d: Record<string, unknown>): { subject: string; lines: string[] } {
+  const conflicts = answerText(d.conflicts)
+  return {
+    subject: 'AEMT Program — Interview Invitation',
+    lines: [
+      `You cleared the selection exam, and I would like to invite you to the structured interview for the AMR Kansas City AEMT Program.`,
+      ``,
+      `SCHEDULING`,
+      ``,
+      `  • Reply with two or three times that work for you across ${COURSE_INFO.interviewWindow}`,
+      `  • Allow about ${COURSE_INFO.interviewMinutes} minutes`,
+      `  • ${COURSE_INFO.interviewLocation}`,
+      ``,
+      `Rescheduling costs you nothing in the scoring. If none of that window works, say so and we will find something that does.`,
+      ``,
+      `WHAT THE INTERVIEW IS`,
+      ``,
+      `Two interviewers score you independently and then confer. There are ${INTERVIEW_QUESTIONS.length} questions and there is nothing to revise for — every one asks about something you have actually done:`,
+      ``,
+      ...INTERVIEW_QUESTIONS.map((q) => `  • ${q.label}`),
+      ``,
+      `The scoring rewards specific examples over general answers. "Here is what I did, here is what changed" scores well; "I am a hard worker" does not. That is not a trick — it is the whole rubric, and you are welcome to come prepared for it.`,
+      ``,
+      ...(conflicts !== '—'
+        ? [
+            `You noted these known conflicts on your intake form: "${conflicts}". Come ready to talk about how you would plan around them. We are interested in the plan, not the reasons — a candidate who names a real pressure point and how they would handle it does better than one who says it will be fine.`,
+            ``,
+          ]
+        : [
+            `One of the questions asks how you would plan for a demanding few months. Think about it beforehand — naming a real pressure point and a real plan scores better than saying it will be fine.`,
+            ``,
+          ]),
+      `WHERE THIS SITS`,
+      ``,
+      `The interview is ${SELECTION_WEIGHTS.find((w) => w.id === 'interview')?.weight ?? 30}% of the selection score, alongside your exam result, your QA chart review and your attendance record over the trailing 12 months.`,
+      ``,
+      `Clearing the interview threshold is not the same as being offered a seat — there are a limited number, and we would rather run a smaller cohort than fill one below the bar. You will hear either way, and quickly.`,
+      ``,
+      `Reply to confirm, and bring any questions with you.`,
     ],
   }
 }
@@ -356,7 +427,13 @@ export function buildIntakeEmail(
 ): GeneratedEmail {
   const d = sub.data
   const built =
-    template === 'not-selected' ? notSelected() : template === 'accepted' ? accepted(d) : nextSteps(d)
+    template === 'not-selected'
+      ? notSelected()
+      : template === 'accepted'
+        ? accepted(d)
+        : template === 'interview'
+          ? interview(d)
+          : nextSteps(d)
 
   const body = [
     `Hi ${firstName(answerText(d.name))},`,
