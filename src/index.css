@@ -879,6 +879,34 @@ a.row:hover {
   opacity: 0.35;
 }
 
+/* Prerequisites fold away on anything far enough out to not need them yet.
+ * Native <details> so the keyboard and screen readers get it for free; the
+ * default triangle is replaced to match the app's own type. */
+.tl-prereqs { margin-top: 6px; }
+
+.tl-prereqs > summary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.tl-prereqs > summary::-webkit-details-marker { display: none; }
+
+.tl-prereqs > summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 1em;
+  font-size: 11px;
+}
+
+.tl-prereqs[open] > summary::before { content: '▾'; }
+
+.tl-prereqs ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
 /* ---------- Tables ---------- */
 .table-wrap {
   overflow-x: auto;

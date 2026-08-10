@@ -30,6 +30,15 @@ import type { AemtDeadlineRecord } from '../../types'
 /** Inside this many days, an outstanding submission is drawn as pressing. */
 const SOON_DAYS = 14
 
+/**
+ * Inside this many days, prerequisites are open on arrival; beyond it they are
+ * collapsed. They are the longest part of a node, and five outstanding filings
+ * with every list expanded is a long scroll on a phone — but they are also the
+ * part that needs lead time, so they are never hidden, only folded. Anything
+ * overdue or rejected opens regardless of its date.
+ */
+const PREREQ_OPEN_DAYS = 30
+
 const STATUSES: AemtDeadlineRecord['status'][] = ['submitted', 'accepted', 'rejected', 'corrected']
 
 const STATUS_PILL: Record<AemtDeadlineRecord['status'], string> = {
@@ -180,6 +189,11 @@ function TimelineItem({
 }) {
   const { manageAemt: manageAcademy } = useCan()
   const safety = useRecordSafety()
+  // Held in state rather than left to the DOM: recording a submission re-renders
+  // the panel, and an uncontrolled <details> would snap shut under the reader.
+  const [prereqsOpen, setPrereqsOpen] = useState(
+    d.overdue || d.rejected || d.daysOut <= PREREQ_OPEN_DAYS,
+  )
 
   return (
     <div className={`tl-item ${toneOf(d)}`}>
@@ -223,14 +237,21 @@ function TimelineItem({
           <div className="help-text">{d.deadline.note}</div>
 
           {d.deadline.prerequisites && !d.done && (
-            <div className="help-text" style={{ marginTop: 6 }}>
-              <strong>Must already be true before this can be filed:</strong>
-              <ul style={{ margin: '4px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+            <details
+              className="tl-prereqs help-text"
+              open={prereqsOpen}
+              onToggle={(e) => setPrereqsOpen(e.currentTarget.open)}
+            >
+              <summary>
+                {d.deadline.prerequisites.length} things that must already be true before this can
+                be filed
+              </summary>
+              <ul>
                 {d.deadline.prerequisites.map((p) => (
                   <li key={p}>{p}</li>
                 ))}
               </ul>
-            </div>
+            </details>
           )}
         </div>
 
