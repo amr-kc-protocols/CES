@@ -472,7 +472,7 @@ export function deleteSession(id: string): void {
   })
 }
 
-// ----- seeding the KC 16-week plan -------------------------------------------
+// ----- seeding the KC block plan ---------------------------------------------
 
 /** Next occurrence of a weekday (0=Sun) on or after an ISO date. */
 function onOrAfterWeekday(iso: string, weekday: number): string {
@@ -563,15 +563,20 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
     for (let w = 0; w < block.spanWeeks; w++) {
       const tue = addDays(firstTue, weekIndex * 7)
       const thu = addDays(tue, 2)
+      // Minutes already booked on each class day, so a day carrying both a
+      // lecture and a lab does not file two sessions that both start at 09:00.
+      const dayEnd = new Map<string, number>()
       const push = (date: string, kind: AemtSessionKind, hours: number) => {
         if (hours <= 0) return
         const h = Math.round(hours * 100) / 100
-        // The proposal runs class 09:00-13:00 Tue/Thu; end follows the hours.
+        // The proposal runs class Tue/Thu from 09:00; end follows the hours.
         // Computed in minutes: the previous form printed ':30' for any
         // fractional part, so a quarter-hour block filed a time that
         // contradicted its own hours, and anything running past midnight
         // produced '24:00', which is not a time an input will accept.
-        const startMin = 9 * 60
+        const startMin = dayEnd.get(date) ?? 9 * 60
+        const endMin = startMin + Math.round(h * 60)
+        dayEnd.set(date, endMin)
         created.push({
           id: uid('asess'),
           courseId,
@@ -580,19 +585,28 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
           kind,
           hours: h,
           startTime: formatClock(startMin),
-          endTime: formatClock(startMin + Math.round(h * 60)),
+          endTime: formatClock(endMin),
         })
       }
-      if (dPerWeek > 0 && lPerWeek > 0) {
-        push(tue, 'didactic', dPerWeek)
-        push(thu, 'lab', lPerWeek)
-      } else if (dPerWeek > 0) {
-        // Lecture-only week: split across both class days.
-        push(tue, 'didactic', dPerWeek / 2)
-        push(thu, 'didactic', dPerWeek / 2)
-      } else {
-        push(tue, 'lab', lPerWeek / 2)
-        push(thu, 'lab', lPerWeek / 2)
+
+      // Fill Tuesday to half the week's load, then Thursday — rather than
+      // putting all didactic on one day and all lab on the other. That older
+      // split made a block's real per-day load max(didactic, lab)/spanWeeks
+      // instead of the average, so the airway block filed a ten-hour Thursday
+      // beside a four-hour Tuesday. Didactic is placed first so lecture still
+      // precedes the lab that practises it; only the segment straddling the
+      // midpoint gets divided.
+      const half = (dPerWeek + lPerWeek) / 2
+      let placed = 0
+      for (const seg of [
+        { kind: 'didactic' as AemtSessionKind, hours: dPerWeek },
+        { kind: 'lab' as AemtSessionKind, hours: lPerWeek },
+      ]) {
+        if (seg.hours <= 0) continue
+        const onTue = Math.max(0, Math.min(seg.hours, half - placed))
+        push(tue, seg.kind, onTue)
+        push(thu, seg.kind, seg.hours - onTue)
+        placed += seg.hours
       }
       weekIndex++
     }
@@ -1326,7 +1340,7 @@ export interface StudentHourGap {
  * A student's hours against the course's filed commitments. This is the
  * question the Records tab could not answer before shifts existed: classroom
  * time came from attendance, clinical and field time came from nowhere, so
- * "376 hours" was an assertion rather than a total.
+ * a program total was an assertion rather than something anything added up to.
  *
  * Classroom target is didactic + lab combined — attendance is taken per
  * session, and a session is one or the other, so splitting the comparison

@@ -18,7 +18,7 @@ import {
   sessionProblems,
   parseClock,
 } from './aemtStore'
-import { ADDED_STANDARDS_SECTIONS, blockPlanTotals } from '../../data/aemt'
+import { ADDED_STANDARDS_SECTIONS, blockPlanTotals, KC_COURSE_WEEKS } from '../../data/aemt'
 import { addDays } from '../../lib/date'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
@@ -326,18 +326,21 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
   const plan = blockPlanTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
-  // The plan lays 16 weeks of Tue/Thu sessions from the first Tuesday on or
-  // after the start date. A course whose own end date falls sooner gets a
+  // The plan lays KC_COURSE_WEEKS of Tue/Thu sessions from the first Tuesday on
+  // or after the start date. A course whose own end date falls sooner gets a
   // schedule that runs past it, and every session beyond gets flagged as
   // outside the course dates — better said before building than discovered
-  // as a wall of warnings afterwards.
-  const lastSeeded = addDays(course.startDate, 15 * 7 + 9)
+  // as a wall of warnings afterwards. The span is derived: when the block plan
+  // grew from 16 weeks to 23, a hard-coded 15 here would have quietly stopped
+  // warning about the seven weeks that now overrun.
+  const lastSeeded = addDays(course.startDate, (KC_COURSE_WEEKS - 1) * 7 + 9)
   const runsPast = lastSeeded > course.endDate
 
   return (
-    <Modal title="Build the AMR KC 16-week plan" onClose={onClose}>
+    <Modal title={`Build the AMR KC ${KC_COURSE_WEEKS}-week plan`} onClose={onClose}>
       <p style={{ marginTop: 0, lineHeight: 1.55 }}>
-        Creates Tue/Thu sessions across 16 weeks from the proposal's content sequence —{' '}
+        Creates Tue/Thu sessions across {KC_COURSE_WEEKS} weeks from the course text's content
+        sequence —{' '}
         <strong>
           {plan.didactic} didactic + {plan.lab} lab
         </strong>
@@ -577,10 +580,10 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
         {manageAcademy && sessions.length === 0 && (
           <button
             className="btn"
-            title="Create Tue/Thu sessions for 16 weeks from the AMR KC proposal's content plan. Adjust for another program."
+            title={`Create Tue/Thu sessions for ${KC_COURSE_WEEKS} weeks from the AMR KC content plan. Adjust for another program.`}
             onClick={() => setSeeding(true)}
           >
-            ⚡ Build AMR KC 16-week plan
+            ⚡ Build AMR KC {KC_COURSE_WEEKS}-week plan
           </button>
         )}
         {manageAcademy && <SavedIndicator />}

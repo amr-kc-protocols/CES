@@ -110,9 +110,38 @@ check(
 const perDay = m.classDayLoad()
 check(perDay > 0 && perDay <= 6, 'mean class day is within 6 hours', `${perDay.toFixed(2)} h`)
 
+// The mean on its own is false comfort: it passed while the airway block asked
+// for a fourteen-hour week over one week and the pharmacology block asked for
+// under three. Every block has to fit its own span.
+const CAP = 5
+const overloaded = m.KC_BLOCK_PLAN.map((b) => ({
+  b,
+  perDay: (m.blockDidacticHours(b) + b.labHours) / b.spanWeeks / 2,
+}))
+  // The AHA provider courses are bought-in intensives, not paced by the
+  // calendar — PALS and ACLS run long days by design.
+  .filter((x) => x.perDay > CAP && typeof x.b.fixedDidacticHours !== 'number')
+check(
+  overloaded.length === 0,
+  `no block exceeds ${CAP} hours per class day`,
+  overloaded.map((x) => `block ${x.b.order} (${x.perDay.toFixed(2)} h)`).join(', '),
+)
+
+// Lab is an estimate, so it cannot be asserted equal to anything. What can be
+// asserted is that it stays in a sane band against the drills behind it — a
+// course budgeting 10 minutes or 2 hours per drill has had something typed into
+// it by accident.
+const labPerDrill = (t.lab * 60) / t.skillDrills
+check(
+  labPerDrill >= 25 && labPerDrill <= 75,
+  'lab hours are within 25-75 min per skill drill',
+  `${labPerDrill.toFixed(0)} min per drill across ${t.skillDrills} drills`,
+)
+
 console.log(`
-  ${t.weeks} weeks · ${t.lectureHours.toFixed(1)} h publisher lecture at ${m.DIDACTIC_DELIVERY_RATIO}x
-  didactic ${t.didactic} · lab ${t.lab} · classroom ${t.classroom} h · ${perDay.toFixed(2)} h per class day`)
+  ${t.weeks} weeks · ${t.chaptersTaught} chapters · ${t.lectureHours.toFixed(1)} h publisher lecture
+  + ${m.PER_CHAPTER_CLASSROOM_MINUTES} min/chapter classroom + ${t.examHours} h exams + 8 h AHA
+  didactic ${t.didactic} · lab ${t.lab} (${labPerDrill.toFixed(0)} min/drill) · classroom ${t.classroom} h · ${perDay.toFixed(2)} h per class day`)
 
 console.log(
   failed === 0

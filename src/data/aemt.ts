@@ -370,20 +370,42 @@ export const TEXTBOOK_CHAPTERS: TextbookChapter[] = [
 ]
 
 /**
- * Classroom hours planned per hour of publisher lecture time.
+ * Classroom minutes each chapter costs beyond its slides, itemised.
  *
- * Slides are the spine of a session, not the whole of it: the guide ships case
- * studies, practice activities, an "Assessment in Action" and a quiz for every
- * chapter, and all of them are classroom time the lecture figure excludes. 2.0
- * funds one hour of that work for every hour of slides.
+ * Slides are the spine of a session, not the whole of it. This used to be a
+ * blanket 2.0x multiplier on lecture time, which was wrong in a specific way:
+ * every non-lecture asset the instructor guide ships is ONE PER CHAPTER — one
+ * progressive case study, one Assessment in Action, one quiz — regardless of
+ * how long the chapter is. Scaling them by lecture length gave chapter 36 (225
+ * min) four and a half hours of case-study time and chapter 5 (25 min) twenty
+ * minutes, when both ship exactly one case study.
  *
- * THIS IS THE ONE NUMBER TO ARGUE ABOUT. It is the only judgement in the hour
- * calculation — everything else is the publisher's data and arithmetic. Lower
- * it to 1.5 and the course is 26 hours shorter and mostly lecture; raise it to
- * 2.25 and it gains 13 hours of discussion and practice. It is deliberately a
- * single named constant so that argument happens once, here, in review.
+ * So they are counted per chapter, and each is named separately so it can be
+ * argued with on its own terms rather than as one lump.
+ *
+ * Deliberately EXCLUDED: Practice Activities. The guide describes them as
+ * pre-selected quizzes the student works through on their own — "these quizzes
+ * provide students with an opportunity to practice what they've learned" — not
+ * something delivered in class. Counting them would be padding.
  */
-export const DIDACTIC_DELIVERY_RATIO = 2.0
+export const CHAPTER_CLASSROOM_COMPONENTS: { minutes: number; label: string }[] = [
+  {
+    minutes: 15,
+    label:
+      'You are the Provider progressive case study, run as the in-class challenge the guide offers',
+  },
+  {
+    minutes: 10,
+    label: 'Assessment in Action, worked from the guide’s classroom discussion points',
+  },
+  { minutes: 15, label: 'Chapter quiz administered and reviewed in class' },
+]
+
+/** Non-lecture classroom minutes per chapter taught. */
+export const PER_CHAPTER_CLASSROOM_MINUTES = CHAPTER_CLASSROOM_COMPONENTS.reduce(
+  (n, c) => n + c.minutes,
+  0,
+)
 
 const CHAPTER_BY_N = new Map(TEXTBOOK_CHAPTERS.map((c) => [c.n, c]))
 
@@ -401,6 +423,17 @@ export function lectureMinutesFor(chapters: number[]): number {
 
 export function skillDrillsFor(chapters: number[]): number {
   return chapters.reduce((n, c) => n + (CHAPTER_BY_N.get(c)?.skillDrills ?? 0), 0)
+}
+
+/**
+ * Chapters actually taught out of a list — carry-forward content earns neither
+ * lecture time nor the per-chapter classroom allowance, because it is not
+ * delivered.
+ */
+export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
+  return chapters
+    .map((c) => CHAPTER_BY_N.get(c))
+    .filter((c): c is TextbookChapter => !!c && !c.carryForward)
 }
 
 // ----- the course schedule (proposal §3, rebuilt from the text) --------------
@@ -426,6 +459,18 @@ export interface AemtBlock {
    * AHA sets.
    */
   fixedDidacticHours?: number
+  /**
+   * Written examination time sitting in this block — section exams and the
+   * comprehensive final. Classroom hours the chapter assets do not account for,
+   * counted as didactic. Practical testing is lab and belongs in `labHours`.
+   */
+  examHours?: number
+  /**
+   * Psychomotor lab hours. ESTIMATED, not derived — see the note above
+   * KC_BLOCK_PLAN. The instructor guide states lecture times and enumerates the
+   * skill drills; it states no lab times, so anything claiming to derive these
+   * would be invention dressed as publisher data.
+   */
   labHours: number
   /**
    * Standards sections placed into this block by hand, where the proposal's own
@@ -435,17 +480,23 @@ export interface AemtBlock {
 }
 
 /**
- * Didactic hours for a block: publisher lecture time times the delivery ratio,
- * or the stated figure for an AHA course.
+ * Didactic hours for a block: the publisher's lecture time for its chapters,
+ * plus the per-chapter classroom allowance, plus any examination time. AHA
+ * blocks state their hours outright because AHA sets them.
  *
  * Rounded to the nearest quarter hour. A schedule is built in quarter hours;
  * carrying 9.1666… into a session's `hours` field only produces figures nobody
  * can file.
  */
 export function blockDidacticHours(b: AemtBlock): number {
-  if (typeof b.fixedDidacticHours === 'number') return b.fixedDidacticHours
-  const hours = (lectureMinutesFor(b.chapters ?? []) / 60) * DIDACTIC_DELIVERY_RATIO
-  return Math.round(hours * 4) / 4
+  const chapters = b.chapters ?? []
+  const base =
+    typeof b.fixedDidacticHours === 'number'
+      ? b.fixedDidacticHours
+      : (lectureMinutesFor(chapters) +
+          taughtChaptersIn(chapters).length * PER_CHAPTER_CLASSROOM_MINUTES) /
+        60
+  return Math.round((base + (b.examHours ?? 0)) * 4) / 4
 }
 
 /** Skill drills the block's chapters carry — the psychomotor load behind its lab. */
@@ -453,41 +504,143 @@ export function blockSkillDrills(b: AemtBlock): number {
   return skillDrillsFor(b.chapters ?? [])
 }
 
+/**
+ * LAB HOURS ARE AN ESTIMATE. Read this before changing one.
+ *
+ * The instructor guide states a lecture time for every chapter and names every
+ * skill drill, but it states no lab times at all. There is nothing to derive
+ * from, so each block's figure is judgement, sized against two things:
+ *
+ *   - The drills the block carries, and how many are NEW at AEMT scope rather
+ *     than held from EMT. Forty-five of the guide's ninety-five drills are new
+ *     (chapters 10, 11, 13, 18, 22, 35, 36, 38); a new drill needs demonstration,
+ *     supervised repetition and a check-off against the sheet in
+ *     data/aemtSkills.ts, where a carried-forward one is rehearsed to currency.
+ *     Chapter 6's sixteen lifting-and-moving drills get nothing at all — the
+ *     course does not teach that chapter, so it appears in no block.
+ *   - What else the block has to fit: the AHA skills stations, extrication and
+ *     MCI scenarios, and the summative practical, none of which have a drill
+ *     behind them.
+ *
+ * The result is 86 hours over the 79 drills the schedule teaches — about 65
+ * minutes per drill, or about 51 once the AHA courses, the summative practical
+ * and the pharmacology hour are set aside as having no drill behind them.
+ * Individual blocks run from 20 minutes per drill to over 90, because those two
+ * inputs pull in different directions; the per-block comments say which is doing
+ * the work.
+ *
+ * It is applied by hand per block rather than by formula on purpose. A formula
+ * over drill counts would present this estimate as if it were the publisher's
+ * data. It is not.
+ */
 export const KC_BLOCK_PLAN: AemtBlock[] = [
-  { order: 1, weeks: 'Week 1', spanWeeks: 1, title: 'Preparatory — EMS Systems, Workforce Safety & Wellness, Medical/Legal, Communications & Documentation, Medical Terminology', chapters: [1, 2, 3, 4, 5], labHours: 0 },
-  { order: 2, weeks: 'Weeks 2-3', spanWeeks: 2, title: 'The Human Body, Pathophysiology, Life Span Development; Patient Assessment', chapters: [7, 8, 9, 10], labHours: 4.5 },
-  { order: 3, weeks: 'Week 4', spanWeeks: 1, title: 'Airway Management; Lab — airway, supraglottic, CPAP', chapters: [11], labHours: 6 },
-  { order: 4, weeks: 'Week 5', spanWeeks: 1, title: 'AHA PALS Provider Course', fixedDidacticHours: 4, labHours: 4 },
-  { order: 5, weeks: 'Week 6', spanWeeks: 1, title: 'Principles of Pharmacology', chapters: [12], labHours: 2 },
-  { order: 6, weeks: 'Week 7', spanWeeks: 1, title: 'AHA ACLS Provider Course', fixedDidacticHours: 4, labHours: 4 },
+  {
+    order: 1,
+    weeks: 'Week 1',
+    spanWeeks: 1,
+    title:
+      'Preparatory — EMS Systems, Workforce Safety & Wellness, Medical/Legal, Communications & Documentation, Medical Terminology',
+    chapters: [1, 2, 3, 4, 5],
+    // Chapter 2's three drills — handwashing, glove removal, exposure response.
+    // Carried forward from EMT, but they are the block's only psychomotor
+    // content and BSI is check-off material, so it is an hour, not zero.
+    labHours: 1,
+  },
+  {
+    order: 2,
+    weeks: 'Weeks 2-3',
+    spanWeeks: 2,
+    title: 'The Human Body, Pathophysiology, Life Span Development; Patient Assessment',
+    chapters: [7, 8, 9, 10],
+    // Chapter 10's five drills are all assessment skills, and this is where the
+    // K.A.R. 109-11-8 fifteen-assessment competency begins accumulating.
+    labHours: 6,
+  },
+  {
+    order: 3,
+    weeks: 'Weeks 4-5',
+    spanWeeks: 2,
+    title: 'Airway Management; Lab — airway, supraglottic, CPAP',
+    chapters: [11],
+    // Fourteen drills, nearly all new at AEMT scope: OPA, NPA, suction, CPAP,
+    // King LT, LMA, i-gel, and stoma ventilation. The second-largest lab in the
+    // course.
+    labHours: 10,
+    examHours: 1,
+  },
+  {
+    order: 4,
+    weeks: 'Week 6',
+    spanWeeks: 1,
+    title: 'AHA PALS Provider Course',
+    fixedDidacticHours: 4,
+    // Skills stations and megacode. No textbook drills behind it.
+    labHours: 6,
+  },
+  {
+    order: 5,
+    weeks: 'Week 7',
+    spanWeeks: 1,
+    title: 'Principles of Pharmacology',
+    chapters: [12],
+    // No drills. Drug box familiarisation and label reading; dose calculation is
+    // didactic and sits in the chapter allowance.
+    labHours: 1,
+  },
+  { order: 6, weeks: 'Week 8', spanWeeks: 1, title: 'AHA ACLS Provider Course', fixedDidacticHours: 4, labHours: 6 },
   {
     order: 7,
-    weeks: 'Weeks 8-10',
+    weeks: 'Weeks 9-11',
     spanWeeks: 3,
     title: 'Vascular Access and Medication Administration; Shock; BLS Resuscitation; Lab — IV, IO, med routes',
     chapters: [13, 14, 15],
-    // The heaviest psychomotor block in the course: chapter 13 alone carries 13
-    // skill drills, and it is where the K.A.R. 109-11-8 venipuncture, IO and
+    // The heaviest psychomotor block in the course: nineteen drills, thirteen of
+    // them new-scope, and it is where the K.A.R. 109-11-8 venipuncture, IO and
     // injection minimums are actually taught. It previously held ZERO lab hours.
-    labHours: 12,
+    labHours: 18,
+    examHours: 1,
   },
-  { order: 8, weeks: 'Weeks 11-12', spanWeeks: 2, title: 'Obstetrics and Neonatal Care; Pediatric Emergencies', chapters: [35, 36], labHours: 7.5 },
+  {
+    order: 8,
+    weeks: 'Weeks 12-13',
+    spanWeeks: 2,
+    title: 'Obstetrics and Neonatal Care; Pediatric Emergencies',
+    chapters: [35, 36],
+    // Eight drills, all new-scope: delivery, paediatric airway, paediatric IO,
+    // and paediatric immobilisation.
+    labHours: 7,
+  },
   {
     order: 9,
-    weeks: 'Week 13',
-    spanWeeks: 1,
+    weeks: 'Weeks 14-15',
+    spanWeeks: 2,
     title: 'Medical Overview; Respiratory Emergencies; Cardiovascular Emergencies / ECG; Lab — ECG acquisition',
     chapters: [16, 17, 18],
-    labHours: 3,
+    // Three drills, but one of them is cardiac monitoring, behind the eight-ECG
+    // minimum; nebuliser and CPAP integration from chapter 17 runs here too.
+    labHours: 5,
+    examHours: 1,
   },
-  { order: 10, weeks: 'Weeks 14-15', spanWeeks: 2, title: 'EMS Operations; Trauma — overview, bleeding, soft tissue, chest; Lab — scenarios', chapters: [39, 40, 41, 42, 26, 27, 28, 31], labHours: 4 },
+  {
+    order: 10,
+    weeks: 'Weeks 16-17',
+    spanWeeks: 2,
+    title: 'EMS Operations; Trauma — overview, bleeding, soft tissue, chest; Lab — scenarios',
+    chapters: [39, 40, 41, 42, 26, 27, 28, 31],
+    // Six carry-forward drills — hemorrhage control, wound packing, tourniquet,
+    // impaled object, burns — plus extrication and MCI triage scenario time.
+    labHours: 6,
+  },
   {
     order: 11,
-    weeks: 'Weeks 16-18',
+    weeks: 'Weeks 18-20',
     spanWeeks: 3,
     title: 'Trauma — face/neck, head/spine, abdominal, orthopaedic, environmental; Medicine — neurologic, GI/GU, endocrine/hematologic',
     chapters: [29, 30, 32, 33, 34, 19, 20, 21],
-    labHours: 4,
+    // Nineteen drills. All carry-forward, but SMR, the traction splints and
+    // helmet removal are equipment-dependent and decay fastest.
+    labHours: 12,
+    examHours: 1,
     // Sits with the rest of trauma. Its assessment points invert what students
     // have just been taught about shock, so it cannot be left to be picked up
     // incidentally.
@@ -497,11 +650,15 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 12,
-    weeks: 'Weeks 19-20',
-    spanWeeks: 2,
+    weeks: 'Weeks 21-23',
+    spanWeeks: 3,
     title: 'Medicine — immunologic, toxicology, psychiatric, gynecologic; Geriatrics; Patients With Special Challenges; Final exam & NREMT prep',
     chapters: [22, 23, 24, 25, 37, 38],
-    labHours: 3,
+    // Two drills (epinephrine auto-injector, tracheostomy suctioning) plus the
+    // summative practical: every AEMT-scope station tested to NREMT format.
+    labHours: 8,
+    // Comprehensive written final, plus the NREMT written review.
+    examHours: 4,
   },
 ]
 
@@ -531,13 +688,34 @@ export function blockPlanTotals(): {
   weeks: number
   /** Publisher lecture hours the didactic figure is built from. */
   lectureHours: number
+  /** Chapters taught, ignoring carry-forward content. */
+  chaptersTaught: number
+  /** Written examination hours included in the didactic figure. */
+  examHours: number
+  /** Skill drills the scheduled chapters carry, for the lab estimate. */
+  skillDrills: number
 } {
   const didactic = KC_BLOCK_PLAN.reduce((n, b) => n + blockDidacticHours(b), 0)
   const lab = KC_BLOCK_PLAN.reduce((n, b) => n + b.labHours, 0)
   const weeks = KC_BLOCK_PLAN.reduce((n, b) => n + b.spanWeeks, 0)
   const lectureHours =
     KC_BLOCK_PLAN.reduce((n, b) => n + lectureMinutesFor(b.chapters ?? []), 0) / 60
-  return { didactic, lab, classroom: didactic + lab, weeks, lectureHours }
+  const chaptersTaught = KC_BLOCK_PLAN.reduce(
+    (n, b) => n + taughtChaptersIn(b.chapters ?? []).length,
+    0,
+  )
+  const examHours = KC_BLOCK_PLAN.reduce((n, b) => n + (b.examHours ?? 0), 0)
+  const skillDrills = KC_BLOCK_PLAN.reduce((n, b) => n + blockSkillDrills(b), 0)
+  return {
+    didactic,
+    lab,
+    classroom: didactic + lab,
+    weeks,
+    lectureHours,
+    chaptersTaught,
+    examHours,
+    skillDrills,
+  }
 }
 
 /**
@@ -578,13 +756,13 @@ export const KC_HOUR_TARGETS: HourTarget[] = [
     id: 'didactic',
     label: 'Didactic',
     hours: blockPlanTotals().didactic,
-    note: `Derived: ${blockPlanTotals().lectureHours.toFixed(1)} h of publisher lecture at ${DIDACTIC_DELIVERY_RATIO}x, plus the AHA provider courses.`,
+    note: `Derived: ${blockPlanTotals().lectureHours.toFixed(1)} h of publisher lecture over ${blockPlanTotals().chaptersTaught} chapters, plus ${PER_CHAPTER_CLASSROOM_MINUTES} min per chapter of case study, Assessment in Action and quiz, plus ${blockPlanTotals().examHours} h of examinations and the AHA provider courses.`,
   },
   {
     id: 'lab',
     label: 'Lab / psychomotor',
     hours: blockPlanTotals().lab,
-    note: 'Minimum 2 instructors required on lab days.',
+    note: `Estimated against the ${blockPlanTotals().skillDrills} skill drills the scheduled chapters carry. Minimum 2 instructors required on lab days.`,
   },
   { id: 'clinical', label: 'Hospital clinical', hours: 72, note: '6 x 12-hour shifts — AdventHealth KC.' },
   { id: 'field-ift', label: 'Field — AMR KC interfacility', hours: 48, note: 'Approx. 4 x 12-hour shifts.' },
@@ -616,6 +794,17 @@ export const KC_CLASSROOM_TARGET = blockPlanTotals().classroom
 
 /** Everything the student is scheduled for: classroom, lab, clinical, field. */
 export const KC_TOTAL_TARGET = KC_CLASSROOM_TARGET + KC_CLINICAL_TARGET + KC_FIELD_TARGET
+
+/**
+ * Calendar weeks of classroom instruction, from the block plan.
+ *
+ * Derived rather than typed because this number is quoted to candidates before
+ * they commit to the course. It was hard-coded as 16 in the seeder, the Sessions
+ * tab and four places in the intake emails, and rebuilding the schedule from the
+ * text moved it — which would have left the program telling applicants a
+ * duration its own calendar no longer ran.
+ */
+export const KC_COURSE_WEEKS = blockPlanTotals().weeks
 
 // ----- course policy (proposal §5, approval doc (b2)) ------------------------
 
