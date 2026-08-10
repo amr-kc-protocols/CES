@@ -18,7 +18,7 @@ import {
   sessionProblems,
   parseClock,
 } from './aemtStore'
-import { blockPlanTotals } from '../../data/aemt'
+import { ADDED_STANDARDS_SECTIONS, blockPlanTotals } from '../../data/aemt'
 import { addDays } from '../../lib/date'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
@@ -367,6 +367,30 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
       ) : (
         <div className="banner warn">
           This course has filed no hour targets, so there is nothing to check the plan against.
+        </div>
+      )}
+
+      {ADDED_STANDARDS_SECTIONS.length > 0 && (
+        <div className="banner warn">
+          <strong>
+            {ADDED_STANDARDS_SECTIONS.length} standards section
+            {ADDED_STANDARDS_SECTIONS.length === 1 ? '' : 's'} the proposal never placed
+          </strong>{' '}
+          are folded into the blocks below. Each carries AEMT-specific content in the Kansas
+          Educational Standards and is not satisfied by EMT-level material, so a schedule built
+          without them is short against the standards KBEMS reviews the syllabus against.
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+            {ADDED_STANDARDS_SECTIONS.map((a) => (
+              <li key={a.section}>
+                <strong>{a.block}</strong> — {a.section}
+              </li>
+            ))}
+          </ul>
+          <div style={{ marginTop: 8 }}>
+            They are added <strong>without adding hours</strong>. The plan is already short of the
+            proposal's own §2 target, and this content is a natural home for part of that gap — but
+            the hours still have to be found before submission.
+          </div>
         </div>
       )}
 

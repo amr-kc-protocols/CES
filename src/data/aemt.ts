@@ -334,12 +334,31 @@ export interface AemtBlock {
   title: string
   didacticHours: number
   labHours: number
+  /**
+   * Standards sections the filed proposal never placed anywhere, added here so
+   * they are actually taught. Kept out of `title` on purpose: `title` is the
+   * proposal's own wording and has to stay quotable against the filing, while
+   * these are CES additions and have to be identifiable as such.
+   */
+  addedSections?: string[]
 }
 
 /**
  * The proposal's content sequence. Hours are transcribed exactly as filed —
  * deliberately NOT adjusted to make the totals reconcile, so the discrepancy
  * stays visible instead of being silently papered over here.
+ *
+ * Checked section by section against all 63 coded sections of the Kansas AEMT
+ * Educational Standards (Oct 2014, adopted by K.A.R. 109-10-1c). Three sections
+ * carrying AEMT-specific content appeared nowhere in the filing — MT1, ST10 and
+ * SP5 — and are placed below via `addedSections`. None of the three is on the
+ * standards' carry-forward-only list, so none is satisfied by EMT content.
+ *
+ * They are added without adding hours. That is not an assertion they take zero
+ * time: the plan already lays out 90 didactic hours against the proposal's own
+ * §2 claim of ~110, and this content is a natural home for part of that gap.
+ * The gap is reported by `blockPlanTotals()` and the Sessions tab rather than
+ * closed here, because how it gets closed is a program decision.
  */
 export const KC_BLOCK_PLAN: AemtBlock[] = [
   { order: 1, weeks: 'Weeks 1-2', spanWeeks: 2, title: 'Preparatory — EMS Systems, Research, Safety & Wellness, Documentation, Communication, Medical/Legal, Terminology', didacticHours: 16, labHours: 0 },
@@ -350,11 +369,64 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   { order: 6, weeks: 'Week 7', spanWeeks: 1, title: 'AHA ACLS Provider Course', didacticHours: 4, labHours: 4 },
   { order: 7, weeks: 'Week 8', spanWeeks: 1, title: 'Medication Administration; Shock and Resuscitation', didacticHours: 4, labHours: 0 },
   { order: 8, weeks: 'Week 9', spanWeeks: 1, title: 'Obstetrics, Neonatal Care, Pediatrics — pediatric IO, OB medication management', didacticHours: 6, labHours: 0 },
-  { order: 9, weeks: 'Week 10', spanWeeks: 1, title: 'Respiratory, Cardiovascular / ECG; Lab — ECG practice, med admin check-off', didacticHours: 4, labHours: 6 },
+  {
+    order: 9,
+    weeks: 'Week 10',
+    spanWeeks: 1,
+    title: 'Respiratory, Cardiovascular / ECG; Lab — ECG practice, med admin check-off',
+    didacticHours: 4,
+    labHours: 6,
+    // First medicine block, so the medical-patient overview belongs at its head
+    // rather than after two weeks of system-specific content.
+    addedSections: ['MT1 Medical Overview — assessment factors, SAMPLE on the unresponsive patient, OPQRST'],
+  },
   { order: 10, weeks: 'Weeks 11-12', spanWeeks: 2, title: 'EMS Operations; Trauma — overview, bleeding, chest, soft tissue, multisystem; Lab — scenarios', didacticHours: 14, labHours: 6 },
-  { order: 11, weeks: 'Weeks 13-14', spanWeeks: 2, title: 'Trauma — head/spine, nervous system, abdominal, orthopedic, environmental; Medicine — neuro, GI, GU, endocrine, heme', didacticHours: 14, labHours: 7 },
-  { order: 12, weeks: 'Weeks 15-16', spanWeeks: 2, title: 'Medicine — immunology, gynecology, toxicology, psychiatric, MSK; Geriatrics; Final exam & NREMT prep', didacticHours: 8, labHours: 11 },
+  {
+    order: 11,
+    weeks: 'Weeks 13-14',
+    spanWeeks: 2,
+    title: 'Trauma — head/spine, nervous system, abdominal, orthopedic, environmental; Medicine — neuro, GI, GU, endocrine, heme',
+    didacticHours: 14,
+    labHours: 7,
+    // Sits with the rest of trauma. Its assessment points invert what students
+    // have just been taught about shock, so it cannot be left to be picked up
+    // incidentally.
+    addedSections: [
+      'ST10 Special Considerations in Trauma — trauma in pregnancy: abruptio placenta, why a normal heart rate and a rate under 20 mislead, loss of compression landmarks in arrest',
+    ],
+  },
+  {
+    order: 12,
+    weeks: 'Weeks 15-16',
+    spanWeeks: 2,
+    title: 'Medicine — immunology, gynecology, toxicology, psychiatric, MSK; Geriatrics; Final exam & NREMT prep',
+    didacticHours: 8,
+    labHours: 11,
+    // Pairs with geriatrics, which is already here, and carries the mandatory
+    // reporting content.
+    addedSections: [
+      'SP5 Patients with Special Challenges — child and elder abuse (reporting, legal, documentation), bariatric handling, technology-dependent patients, dialysis shunts, hospice and DNR, tracheostomy care',
+    ],
+  },
 ]
+
+/**
+ * The block's full content line — the proposal's title plus any standards
+ * sections added to it. This is what a session should be titled: a schedule
+ * that omits the additions is the same schedule that lost them in the first
+ * place. Only the section codes are appended, not their full descriptions,
+ * which stay in `addedSections` for the plan view.
+ */
+export function blockContentLine(b: AemtBlock): string {
+  if (!b.addedSections?.length) return b.title
+  const codes = b.addedSections.map((s) => s.split(' — ')[0])
+  return `${b.title}; ${codes.join('; ')}`
+}
+
+/** Every section added on top of the filing, for a coverage note. */
+export const ADDED_STANDARDS_SECTIONS: { block: string; section: string }[] = KC_BLOCK_PLAN.flatMap(
+  (b) => (b.addedSections ?? []).map((section) => ({ block: b.weeks, section })),
+)
 
 /** What the block plan actually adds up to, as opposed to what §2 claims. */
 export function blockPlanTotals(): { didactic: number; lab: number; classroom: number } {
@@ -372,28 +444,63 @@ export interface KbemsDeadline {
   offsetDays: number
   anchor: 'first-session' | 'last-session'
   note: string
+  /**
+   * Where the date comes from. 'kbems' — a deadline Kansas sets, and missing it
+   * has a regulatory consequence. 'program' — CES planning lead time for work
+   * KBEMS imposes no date on. The distinction is shown in the UI: an invented
+   * date must never be read as a rule.
+   */
+  basis?: 'kbems' | 'program'
+  /**
+   * Conditions that must already hold before this can be submitted. The portal
+   * enforces these by refusing to finalize, which surfaces them on the day of
+   * filing — too late to fix the ones that need another person to act.
+   */
+  prerequisites?: string[]
 }
 
 export const KBEMS_DEADLINES: KbemsDeadline[] = [
+  {
+    id: 'instructor-setup',
+    label: 'Set up every instructor in the Licensure system',
+    offsetDays: -30,
+    anchor: 'first-session',
+    basis: 'program',
+    note: 'KBEMS sets no deadline for this — the date is a CES planning target, two weeks ahead of the approval filing. It is separate because none of it is same-day work: it depends on the instructors themselves and on whoever maintains the service roster, and the course cannot be submitted until all of it is done.',
+    prerequisites: [
+      'Every instructor has a Kansas Licensure system account of their own.',
+      'Every instructor appears on the service roster.',
+      'Every instructor is set up as Instructional Staff — a roster entry alone does not make them selectable on a course.',
+    ],
+  },
   {
     id: 'course-approval',
     label: 'Submit Request for Initial Course Approval',
     offsetDays: -15,
     anchor: 'first-session',
-    note: 'At least 15 days before the first session, through the KBEMS Licensing Portal. Requires the full syllabus and signed clinical/field agreements.',
+    basis: 'kbems',
+    note: 'At least 15 days before the first session, through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Requires the full syllabus and signed clinical/field agreements. Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
+    prerequisites: [
+      'Filed by an Instructor-Coordinator. No other role can create or finalize a course, so this cannot be delegated to whoever is free that day.',
+      'Course schedule uploaded. Finalize is blocked without it.',
+      'CV uploaded for every instructor who is not EMS-certified, including Allied Health instructors and the Medical Director. Finalize is blocked without it.',
+      'Instructor setup complete (see above) — instructors who are not Instructional Staff cannot be attached to the course.',
+    ],
   },
   {
     id: 'student-registration',
     label: 'Submit student registration forms',
     offsetDays: 20,
     anchor: 'first-session',
-    note: 'Within 20 days of the first class session, through the KBEMS Licensing Portal.',
+    basis: 'kbems',
+    note: 'Within 20 days of the first class session, through the KBEMS Licensing Portal. Students can only be enrolled once the course itself has been finalized and confirmed.',
   },
   {
     id: 'nremt-verification',
     label: 'Confirm NREMT Program Director verification pathway',
     offsetDays: 35,
     anchor: 'first-session',
+    basis: 'program',
     note: 'NREMT retired the ALS psychomotor examination on 30 June 2024 — there is no exam host to arrange. Since 1 July 2024 the Program Director verifies each candidate met the state minimum competency requirements, through the NREMT site, before the candidate sits the cognitive exam. Confirm who holds that role and that they have NREMT Program Director access.',
   },
   {
@@ -401,6 +508,7 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     label: 'Submit KBEMS student roster (passed / failed / dropped)',
     offsetDays: 10,
     anchor: 'last-session',
+    basis: 'kbems',
     note: 'Within 10 days of the last class session.',
   },
 ]

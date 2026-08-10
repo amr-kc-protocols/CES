@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Modal } from '../../components/ui'
 import { confirmAction } from '../../lib/dialog'
 import { formatDate, todayISO } from '../../lib/date'
@@ -8,18 +8,36 @@ import { useCan } from '../../lib/role'
 import type { AemtDeadlineRecord } from '../../types'
 
 // ---------------------------------------------------------------------------
-// KBEMS submission deadlines across every course. Deliberately not scoped to
-// one cohort: when two classes overlap, the coordinator's question is "what is
-// due next", which does not respect cohort boundaries. Each row names its
-// course so the answer is still unambiguous.
+// KBEMS submissions, drawn as a timeline per course.
+//
+// A timeline rather than a checklist because these filings are a sequence, not
+// a set of chores: instructor setup gates the approval filing, the approval
+// filing gates enrolling students, and the roster closes it out. Their order is
+// as much of the information as their dates, and a flat list of what is due
+// soonest hides it — it also hides the completed steps, which is exactly what
+// tells you where in the sequence you are standing.
+//
+// So the whole arc is drawn, past and future, with today marked in place. What
+// was a 45-day visibility horizon is now only emphasis: nothing is hidden, and
+// the summary line still answers "what is next" across every course at once,
+// which is the question that does not respect cohort boundaries.
 //
 // A submission carries its evidence — Kansas submissions go through the
 // Licensing Portal, so the confirmation number is the receipt. "Marked done"
 // on its own proves nothing to an auditor.
 // ---------------------------------------------------------------------------
 
-/** How far ahead a not-yet-due submission is worth surfacing. */
-const HORIZON_DAYS = 45
+/** Inside this many days, an outstanding submission is drawn as pressing. */
+const SOON_DAYS = 14
+
+/**
+ * Inside this many days, prerequisites are open on arrival; beyond it they are
+ * collapsed. They are the longest part of a node, and five outstanding filings
+ * with every list expanded is a long scroll on a phone — but they are also the
+ * part that needs lead time, so they are never hidden, only folded. Anything
+ * overdue or rejected opens regardless of its date.
+ */
+const PREREQ_OPEN_DAYS = 30
 
 const STATUSES: AemtDeadlineRecord['status'][] = ['submitted', 'accepted', 'rejected', 'corrected']
 
@@ -148,43 +166,140 @@ function SubmissionModal({ due, onClose }: { due: DueDeadline; onClose: () => vo
   )
 }
 
+/** How a node is drawn: colour follows what the reader has to do about it. */
+function toneOf(d: DueDeadline): 'tl-ok' | 'tl-warn' | 'tl-crit' | '' {
+  if (d.rejected) return 'tl-crit'
+  if (d.done) return 'tl-ok'
+  if (d.overdue) return 'tl-crit'
+  return d.daysOut <= SOON_DAYS ? 'tl-warn' : ''
+}
+
+function relativeDue(d: DueDeadline): string {
+  if (d.overdue) return `${Math.abs(d.daysOut)} day${Math.abs(d.daysOut) === 1 ? '' : 's'} overdue`
+  if (d.daysOut === 0) return 'today'
+  return `in ${d.daysOut} day${d.daysOut === 1 ? '' : 's'}`
+}
+
+function TimelineItem({
+  d,
+  onEdit,
+}: {
+  d: DueDeadline
+  onEdit: () => void
+}) {
+  const { manageAemt: manageAcademy } = useCan()
+  const safety = useRecordSafety()
+  // Held in state rather than left to the DOM: recording a submission re-renders
+  // the panel, and an uncontrolled <details> would snap shut under the reader.
+  const [prereqsOpen, setPrereqsOpen] = useState(
+    d.overdue || d.rejected || d.daysOut <= PREREQ_OPEN_DAYS,
+  )
+
+  return (
+    <div className={`tl-item ${toneOf(d)}`}>
+      <div className="tl-date">
+        {formatDate(d.dueDate)}
+        {!d.done && <> · {relativeDue(d)}</>}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="tl-title">
+            {d.deadline.label}
+            {d.deadline.basis === 'program' && (
+              <span
+                className="pill"
+                style={{ marginLeft: 8 }}
+                title="CES planning target, not a date Kansas sets. Missing it has no regulatory consequence of its own — it just leaves too little time for what depends on it."
+              >
+                planning target
+              </span>
+            )}
+            {d.record && (
+              <span className={`pill ${STATUS_PILL[d.record.status]}`} style={{ marginLeft: 8 }}>
+                {d.record.status}
+              </span>
+            )}
+          </div>
+
+          {d.record && (
+            <div className="meta">
+              {d.rejected && <strong>Rejected — needs correcting. </strong>}
+              Submitted {formatDate(d.record.submittedDate)} by {d.record.submittedBy}
+              {d.record.confirmationNumber ? (
+                <> · conf. {d.record.confirmationNumber}</>
+              ) : (
+                <span style={{ color: 'var(--warn)' }}> · no confirmation recorded</span>
+              )}
+            </div>
+          )}
+
+          <div className="help-text">{d.deadline.note}</div>
+
+          {d.deadline.prerequisites && !d.done && (
+            <details
+              className="tl-prereqs help-text"
+              open={prereqsOpen}
+              onToggle={(e) => setPrereqsOpen(e.currentTarget.open)}
+            >
+              <summary>
+                {d.deadline.prerequisites.length} things that must already be true before this can
+                be filed
+              </summary>
+              <ul>
+                {d.deadline.prerequisites.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+
+        {manageAcademy && (
+          <button
+            className={`btn sm${d.record ? '' : ' primary'}`}
+            disabled={!safety.canRecordOfficial}
+            title={safety.reason}
+            onClick={onEdit}
+          >
+            {d.record ? 'Edit' : 'Record'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function DeadlinePanel() {
   const all = useDeadlines()
-  const { manageAemt: manageAcademy } = useCan()
-  const [showDone, setShowDone] = useState(false)
   const [editing, setEditing] = useState<DueDeadline | null>(null)
   const safety = useRecordSafety()
 
   if (all.length === 0) return null
 
   const open = all.filter((d) => !d.done)
-  // A rejected filing needs correcting whatever its original due date was, so
-  // it is never subject to the horizon — it would otherwise sit invisible
-  // behind "nothing due".
   const rejected = open.filter((d) => d.rejected)
   const overdue = open.filter((d) => !d.rejected && d.overdue)
-  const soon = open.filter((d) => !d.rejected && !d.overdue && d.daysOut <= HORIZON_DAYS)
-  const done = all.filter((d) => d.done)
-  const visible = showDone ? all : [...rejected, ...overdue, ...soon]
+  // useDeadlines already returns them by date, so the first outstanding one is
+  // the next thing to do — across every course, which is the whole point of not
+  // scoping this panel to a cohort.
+  const next = open.find((d) => !d.overdue && !d.rejected)
 
-  if (visible.length === 0 && !showDone) {
-    return (
-      <>
-        <div className="section-title">KBEMS submissions</div>
-        <div className="banner ok">
-          ✓ Nothing due in the next {HORIZON_DAYS} days.
-          {done.length > 0 && (
-            <>
-              {' '}
-              <button className="link-btn" onClick={() => setShowDone(true)}>
-                Show all {all.length}
-              </button>
-            </>
-          )}
-        </div>
-      </>
-    )
+  // One spine per course: a single spine interleaving two cohorts reads as one
+  // sequence when it is two. Courses are ordered by their own next outstanding
+  // filing, so the one needing attention soonest is on top.
+  const byCourse = new Map<string, DueDeadline[]>()
+  for (const d of all) {
+    const list = byCourse.get(d.course.id)
+    if (list) list.push(d)
+    else byCourse.set(d.course.id, [d])
   }
+  const courses = [...byCourse.values()].sort((a, b) => {
+    const nextOf = (list: DueDeadline[]) => list.find((d) => !d.done)?.dueDate ?? '9999'
+    return nextOf(a).localeCompare(nextOf(b))
+  })
+
+  const today = todayISO()
 
   return (
     <>
@@ -208,77 +323,42 @@ export default function DeadlinePanel() {
         </div>
       )}
 
-      <div className="list">
-        {visible.map((d) => {
-          const key = `${d.course.id}:${d.deadline.id}`
-          const tone = d.rejected
-            ? 'acc-crit'
-            : d.done
-              ? 'acc-ok'
-              : d.overdue
-                ? 'acc-crit'
-                : d.daysOut <= 14
-                  ? 'acc-warn'
-                  : ''
-          return (
-            <div key={key} className={`row left-accent ${tone}`}>
-              <div className="grow">
-                <div className="title">
-                  {d.deadline.label}
-                  {d.record && (
-                    <span className={`pill ${STATUS_PILL[d.record.status]}`} style={{ marginLeft: 8 }}>
-                      {d.record.status}
-                    </span>
-                  )}
-                </div>
-                <div className="meta">
-                  {d.course.label}
-                  {d.course.organization && ` · ${d.course.organization}`}
-                </div>
-                <div className="meta">
-                  {d.record ? (
-                    <>
-                      {d.rejected && <strong>Rejected — needs correcting. </strong>}
-                      Submitted {formatDate(d.record.submittedDate)} by {d.record.submittedBy}
-                      {d.record.confirmationNumber ? (
-                        <> · conf. {d.record.confirmationNumber}</>
-                      ) : (
-                        <span style={{ color: 'var(--warn)' }}> · no confirmation recorded</span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      Due {formatDate(d.dueDate)} ·{' '}
-                      {d.overdue
-                        ? `${Math.abs(d.daysOut)} day${Math.abs(d.daysOut) === 1 ? '' : 's'} overdue`
-                        : d.daysOut === 0
-                          ? 'today'
-                          : `in ${d.daysOut} day${d.daysOut === 1 ? '' : 's'}`}
-                    </>
-                  )}
-                </div>
-                <div className="help-text">{d.deadline.note}</div>
-              </div>
-              {manageAcademy && (
-                <button
-                  className={`btn sm${d.record ? '' : ' primary'}`}
-                  disabled={!safety.canRecordOfficial}
-                  title={safety.reason}
-                  onClick={() => setEditing(d)}
-                >
-                  {d.record ? 'Edit' : 'Record'}
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {open.length === 0 ? (
+        <div className="banner ok">✓ Every KBEMS submission is filed.</div>
+      ) : next && overdue.length === 0 && rejected.length === 0 ? (
+        <div className="banner">
+          <strong>Next up:</strong> {next.deadline.label} — {formatDate(next.dueDate)},{' '}
+          {relativeDue(next)}
+          {courses.length > 1 && <> · {next.course.label}</>}
+        </div>
+      ) : null}
 
-      {done.length > 0 && (
-        <button className="link-btn" onClick={() => setShowDone(!showDone)}>
-          {showDone ? 'Hide completed' : `Show ${done.length} completed`}
-        </button>
-      )}
+      {courses.map((list) => {
+        const course = list[0].course
+        // Today goes in before the first thing not yet past — it is where the
+        // reader is standing, not something to do, so it is drawn as a rule
+        // across the spine rather than as another node.
+        const nowAt = list.findIndex((d) => d.dueDate > today)
+        return (
+          <div key={course.id} style={{ marginTop: 14 }}>
+            {courses.length > 1 && (
+              <div className="meta" style={{ fontWeight: 700 }}>
+                {course.label}
+                {course.organization && ` · ${course.organization}`}
+              </div>
+            )}
+            <div className="timeline">
+              {list.map((d, i) => (
+                <Fragment key={`${course.id}:${d.deadline.id}`}>
+                  {i === nowAt && <div className="tl-now">Today</div>}
+                  <TimelineItem d={d} onEdit={() => setEditing(d)} />
+                </Fragment>
+              ))}
+              {nowAt === -1 && <div className="tl-now">Today</div>}
+            </div>
+          </div>
+        )
+      })}
 
       {editing && <SubmissionModal due={editing} onClose={() => setEditing(null)} />}
     </>
