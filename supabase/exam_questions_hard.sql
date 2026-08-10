@@ -4,6 +4,9 @@
 -- exam_attempts.question_ids, so recreating rows would orphan every attempt
 -- already on record. Re-running is safe while these remain unused — it clears
 -- and reloads only the rows it owns (difficulty = 'hard').
+-- WARNING: re-running this file reverts the corrections in
+-- exam_questions_fixes.sql (a wrong Glasgow Coma Score key, several
+-- clinically outdated items). Run that file again afterwards.
 
 alter table public.exam_questions
   add column if not exists difficulty text not null default 'standard';

@@ -101,6 +101,38 @@ the admin's next push, the AEMT records currently sitting in one browser's
 local storage upload to the project — which is the point, since those carry a
 three-year retention obligation under K.A.R. 109-17-3 and had no backup at all.
 
+## Loading the exam bank
+
+Run these three in order, and **treat the order as load-bearing**:
+
+1. `exam_questions_seed.sql` — the 120-item recall tier. Re-runnable, but note
+   it `truncate`s the table, so it takes the harder tier with it.
+2. `exam_questions_hard.sql` — the 63-item application tier. Deletes and
+   re-inserts only `difficulty = 'hard'`.
+3. `exam_questions_fixes.sql` — the reviewer corrections, including a wrong
+   Glasgow Coma Score key and several clinically outdated items.
+
+**Step 3 is not optional, and re-running step 1 or 2 undoes it.** The first two
+files are generated from scripts and carry the bank as originally written;
+every correction lives in the third. Re-seed and the wrong answers come back.
+
+The fixes file is safe to run at any time and safe to run twice — it matches on
+stem text rather than row id (ids are not stable; `exam_questions_hard.sql`
+renumbers its tier on every re-run), reports anything it could not find instead
+of guessing, and prints the bank's state at the end.
+
+Retired items are set `active = false`, never deleted. `exam_attempts.question_ids`
+holds bare ids with no foreign key, so deleting a question silently orphans
+every historical attempt that served it.
+
+Stored answer positions are lopsided — 65% of the active bank keys to B — and
+that is **not** a defect to fix in the data. `ExamPage` shuffles each question's
+options per attempt, seeded on the attempt id, so no candidate sees the stored
+order. Simulated over 20,000 attempts against the current bank, delivered
+positions come out A 25.1% / B 25.0% / C 24.9% / D 25.0% across all 24
+permutations. Rebalancing the stored rows would gain nothing and would
+invalidate `exam_attempts.responses`, which records the original option index.
+
 ## How sync behaves
 
 - Every change writes locally first (instant, works in dead zones), then
