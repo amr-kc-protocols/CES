@@ -14,6 +14,12 @@ const FTO_BY_EMAIL_PREFIX: Record<string, string> = {
   'joshua.hayden': 'Joshua Hayden',
   'david.richardson': 'David Richardson',
   'jessica.sexton': 'Jessica Sexton',
+  // Wichita
+  'nathan.huyett': 'Nathan Huyett',
+  'sarah.lamm': 'Sarah Lamm',
+  'jordan.riddall': 'Jordan Riddall',
+  'alex.thomas': 'Alex Thomas',
+  'alex.white': 'Alex White',
 }
 
 /** Canonical FTO name for a signed-in account, or undefined for non-FTOs. */
@@ -33,6 +39,17 @@ const FTO_MATCHERS: Record<string, RegExp> = {
   'David Richardson': /\bdav(id|e)\b|\brichardson\b/i,
   'Jessica Sexton': /\bjess(ica)?\b|\bsexton\b/i,
   'Jordan Jones': /\bjordan\b|\bjones\b/i,
+
+  // Wichita. Surname only, deliberately: this map is shared across markets
+  // and first names collide here. Two Alexes would match each other, and
+  // "Jordan" already belongs to Jordan Jones above — so a schedule day
+  // written as "Jordan" credits him, not Riddall. Anyone writing a Wichita
+  // facilitator line should use surnames.
+  'Nathan Huyett': /\bhuyett\b/i,
+  'Sarah Lamm': /\blamm\b/i,
+  'Jordan Riddall': /\briddall\b/i,
+  'Alex Thomas': /\bthomas\b/i,
+  'Alex White': /\bwhite\b/i,
 }
 
 /** Does a free-text facilitator line name this FTO? */
