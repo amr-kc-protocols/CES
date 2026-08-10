@@ -11,7 +11,8 @@
     "icons": "node scripts/gen-icons.mjs",
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check": "npm run check:evidence && npm run check:templates"
+    "check": "npm run check:evidence && npm run check:templates && npm run check:plan",
+    "check:plan": "node scripts/check-course-plan.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

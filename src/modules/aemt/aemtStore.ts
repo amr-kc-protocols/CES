@@ -7,7 +7,10 @@ import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { listExamResults } from '../../lib/exam'
 import {
   blockContentLine,
+  blockDidacticHours,
   blockPlanTotals,
+  KC_CLINICAL_TARGET,
+  KC_FIELD_TARGET,
   CLINICAL_REQUIREMENTS,
   INSTRUCTOR_VERIFICATION_DAYS,
   KBEMS_DEADLINES,
@@ -555,7 +558,7 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
   let weekIndex = 0
 
   for (const block of KC_BLOCK_PLAN) {
-    const dPerWeek = block.didacticHours / block.spanWeeks
+    const dPerWeek = blockDidacticHours(block) / block.spanWeeks
     const lPerWeek = block.labHours / block.spanWeeks
     for (let w = 0; w < block.spanWeeks; w++) {
       const tue = addDays(firstTue, weekIndex * 7)
@@ -640,10 +643,14 @@ export function reconcileHours(
 
 /** AMR KC's filed commitments, offered as the default when creating a course. */
 export const KC_DEFAULT_TARGETS: AemtHourTargets = {
-  didactic: 110,
-  lab: 50,
-  clinical: 72,
-  field: 144,
+  // Derived from the block plan so a course created from these defaults
+  // reconciles to zero against the schedule the seeder builds. Typed figures
+  // are what made `seedShortfall` report a permanent 20-hour gap on every
+  // course: the defaults said 110 didactic and the plan laid out 90.
+  didactic: blockPlanTotals().didactic,
+  lab: blockPlanTotals().lab,
+  clinical: KC_CLINICAL_TARGET,
+  field: KC_FIELD_TARGET,
 }
 
 // ----- psychomotor skill check-offs ------------------------------------------

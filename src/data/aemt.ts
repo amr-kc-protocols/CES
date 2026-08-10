@@ -61,6 +61,22 @@ export const RULE_SETS: RuleSet[] = [
     verifiedAgainst: 'As amended 1 November 2024.',
   },
   {
+    // Recorded because the ABSENCE of a rule is as load-bearing as a rule, and
+    // is the thing everyone re-derives wrongly. Kansas approves an AEMT course
+    // on whether its schedule plausibly covers the incorporated standards and
+    // whether students can reach the 109-11-8 endpoints — not on a clock-hour
+    // count. Every hour figure in this file is therefore a PROGRAM DESIGN
+    // TARGET. None of them is a statutory minimum, and no total makes a course
+    // compliant on its own.
+    id: 'kar-no-hour-minimum',
+    citation: 'K.A.R. 109-11-4a, 109-10-1c, 109-17-3 (read together)',
+    effectiveDate: '2026-08-10',
+    scope:
+      'Kansas prescribes NO minimum clock, classroom, clinical or course-week total for an initial AEMT course. 109-11-4a requires an approved sponsor, a detailed schedule and identified laboratory hours; 109-10-1c incorporates the October 2014 Kansas AEMT Education Standards, which specify content and competencies but no hour minimum; 109-17-3 adds syllabus, clinical, documentation and outcome requirements, again with no minimum.',
+    verifiedAgainst:
+      'Checked 10 August 2026. Revisions to 109-10-1c were in process at that date and are NOT the controlling standard; re-check before relying on this.',
+  },
+  {
     id: 'kar-109-17-3',
     citation: 'K.A.R. 109-17-3',
     effectiveDate: '2024-11-01',
@@ -272,58 +288,122 @@ export const PROGRAM_COMPETENCIES: KarMinimum[] = CLINICAL_REQUIREMENTS.filter(
   (r) => r.basis === 'program',
 )
 
-// ----- program hour targets (proposal §2) ------------------------------------
+// ----- the course text -------------------------------------------------------
 
-export interface HourTarget {
-  id: string
-  label: string
-  hours: number
-  note?: string
+/**
+ * The adopted course text, and the publisher's own delivery timings.
+ *
+ * Transcribed from the Instructor Resource Guide. `lectureMinutes` is the time
+ * the guide states for delivering that chapter's slides — hard data, not an
+ * estimate of ours. `skillDrills` is how many Skill Drills the chapter carries,
+ * which is the closest thing the guide gives to a psychomotor workload.
+ *
+ * This exists so the schedule is built from what has to be taught rather than
+ * from a number somebody chose. Hours are DERIVED from it below.
+ */
+export const COURSE_TEXT = {
+  title: 'Advanced Emergency Care and Transportation of the Sick and Injured',
+  edition: '4th',
+  publisher: 'AAOS / Jones & Bartlett Learning',
+  isbn: '9781284244175',
+  source: 'Instructor Resource Guide, lecture timings table',
 }
 
-/**
- * The hour totals the proposal commits to. NOTE: the proposal's own §3 schedule
- * table sums to 90 didactic hours, not the ~110 claimed here — a 20-hour gap
- * that also drops the program total from ~376 to ~356. The Sessions tab
- * reconciles the schedule actually built against these targets so the gap is
- * visible before a KBEMS submission rather than after.
- */
-export const KC_HOUR_TARGETS: HourTarget[] = [
-  { id: 'didactic', label: 'Didactic', hours: 110, note: 'All AEMT content areas across 16 weeks.' },
-  { id: 'lab', label: 'Lab / psychomotor', hours: 50, note: 'Minimum 2 instructors required on lab days.' },
-  { id: 'clinical', label: 'Hospital clinical', hours: 72, note: '6 x 12-hour shifts — AdventHealth KC.' },
-  { id: 'field-ift', label: 'Field — AMR KC interfacility', hours: 48, note: 'Approx. 4 x 12-hour shifts.' },
-  { id: 'field-911', label: 'Field — AMR Independence 911', hours: 96, note: 'Approx. 8 x 12-hour shifts.' },
+export interface TextbookChapter {
+  n: number
+  title: string
+  /** Publisher's stated slide-delivery time. */
+  lectureMinutes: number
+  skillDrills?: number
+  /**
+   * EMT-level content an incoming AEMT student already holds, so the course
+   * does not re-teach it and it earns no didactic hours. Same judgement the
+   * skill sheets make in data/aemtSkills.ts, where the equivalent sheets are
+   * scoped 'bls'.
+   */
+  carryForward?: boolean
+}
+
+export const TEXTBOOK_CHAPTERS: TextbookChapter[] = [
+  { n: 1, title: "EMS Systems", lectureMinutes: 60 },
+  { n: 2, title: "Workforce Safety and Wellness", lectureMinutes: 60, skillDrills: 3 },
+  { n: 3, title: "Medical, Legal, and Ethical Issues", lectureMinutes: 50 },
+  { n: 4, title: "Communications and Documentation", lectureMinutes: 80 },
+  { n: 5, title: "Medical Terminology", lectureMinutes: 25 },
+  { n: 6, title: "Lifting and Moving Patients", lectureMinutes: 60, skillDrills: 16, carryForward: true },
+  { n: 7, title: "The Human Body", lectureMinutes: 145 },
+  { n: 8, title: "Pathophysiology", lectureMinutes: 65 },
+  { n: 9, title: "Life Span Development", lectureMinutes: 40 },
+  { n: 10, title: "Patient Assessment", lectureMinutes: 100, skillDrills: 5 },
+  { n: 11, title: "Airway Management", lectureMinutes: 135, skillDrills: 14 },
+  { n: 12, title: "Principles of Pharmacology", lectureMinutes: 70 },
+  { n: 13, title: "Vascular Access and Medication Administration", lectureMinutes: 125, skillDrills: 13 },
+  { n: 14, title: "Shock", lectureMinutes: 50 },
+  { n: 15, title: "BLS Resuscitation", lectureMinutes: 60, skillDrills: 6 },
+  { n: 16, title: "Medical Overview", lectureMinutes: 50 },
+  { n: 17, title: "Respiratory Emergencies", lectureMinutes: 105 },
+  { n: 18, title: "Cardiovascular Emergencies", lectureMinutes: 80, skillDrills: 3 },
+  { n: 19, title: "Neurologic Emergencies", lectureMinutes: 55 },
+  { n: 20, title: "Gastrointestinal and Urologic Emergencies", lectureMinutes: 85 },
+  { n: 21, title: "Endocrine and Hematologic Emergencies", lectureMinutes: 65 },
+  { n: 22, title: "Immunologic Emergencies", lectureMinutes: 30, skillDrills: 1 },
+  { n: 23, title: "Toxicology", lectureMinutes: 75 },
+  { n: 24, title: "Psychiatric Emergencies", lectureMinutes: 35 },
+  { n: 25, title: "Gynecologic Emergencies", lectureMinutes: 50 },
+  { n: 26, title: "Trauma Overview", lectureMinutes: 40 },
+  { n: 27, title: "Bleeding", lectureMinutes: 30, skillDrills: 4 },
+  { n: 28, title: "Soft-Tissue Injuries", lectureMinutes: 70, skillDrills: 2 },
+  { n: 29, title: "Face and Neck Injuries", lectureMinutes: 70, skillDrills: 3 },
+  { n: 30, title: "Head and Spine Injuries", lectureMinutes: 70, skillDrills: 7 },
+  { n: 31, title: "Chest Injuries", lectureMinutes: 95 },
+  { n: 32, title: "Abdominal and Genitourinary Injuries", lectureMinutes: 35 },
+  { n: 33, title: "Orthopaedic Injuries", lectureMinutes: 125, skillDrills: 7 },
+  { n: 34, title: "Environmental Emergencies", lectureMinutes: 125, skillDrills: 2 },
+  { n: 35, title: "Obstetrics and Neonatal Care", lectureMinutes: 125, skillDrills: 1 },
+  { n: 36, title: "Pediatric Emergencies", lectureMinutes: 225, skillDrills: 7 },
+  { n: 37, title: "Geriatric Emergencies", lectureMinutes: 130 },
+  { n: 38, title: "Patients With Special Challenges", lectureMinutes: 55, skillDrills: 1 },
+  { n: 39, title: "Transport Operations", lectureMinutes: 40 },
+  { n: 40, title: "Vehicle Extrication, Special Rescue, and Hazardous Materials", lectureMinutes: 60 },
+  { n: 41, title: "Incident Management", lectureMinutes: 35 },
+  { n: 42, title: "Terrorism Response and Disaster Management", lectureMinutes: 55 },
 ]
 
-export const KC_TOTAL_TARGET = 376
-
-/** Classroom time only — what the Tue/Thu sessions have to add up to. */
-export const KC_CLASSROOM_TARGET = 160
-
-// ----- course policy (proposal §5, approval doc (b2)) ------------------------
-
-/** Missing more than this many hours of scheduled class time fails the course. */
-export const MAX_ABSENT_HOURS = 8
-
-export const MIN_PASSING_PERCENT = 80
-
 /**
- * K.A.R. 109-11-8 requires the PRIMARY INSTRUCTOR to verify in writing that
- * the student completed the course, within 15 days of the final class session
- * and before the student sits the certification examination. A program manager
- * signing in their place does not satisfy it.
+ * Classroom hours planned per hour of publisher lecture time.
+ *
+ * Slides are the spine of a session, not the whole of it: the guide ships case
+ * studies, practice activities, an "Assessment in Action" and a quiz for every
+ * chapter, and all of them are classroom time the lecture figure excludes. 2.0
+ * funds one hour of that work for every hour of slides.
+ *
+ * THIS IS THE ONE NUMBER TO ARGUE ABOUT. It is the only judgement in the hour
+ * calculation — everything else is the publisher's data and arithmetic. Lower
+ * it to 1.5 and the course is 26 hours shorter and mostly lecture; raise it to
+ * 2.25 and it gains 13 hours of discussion and practice. It is deliberately a
+ * single named constant so that argument happens once, here, in review.
  */
-export const INSTRUCTOR_VERIFICATION_DAYS = 15
+export const DIDACTIC_DELIVERY_RATIO = 2.0
 
-export const GRADING = [
-  { label: 'Exams (online)', weight: '60%' },
-  { label: 'Quizzes / homework (online)', weight: '40%' },
-  { label: 'Lab skills demonstration', weight: 'Satisfactory / Unsatisfactory' },
-  { label: 'Clinical & field internship', weight: 'Satisfactory / Unsatisfactory' },
-]
+const CHAPTER_BY_N = new Map(TEXTBOOK_CHAPTERS.map((c) => [c.n, c]))
 
-// ----- 16-week block plan (proposal §3) --------------------------------------
+export function chapter(n: number): TextbookChapter | undefined {
+  return CHAPTER_BY_N.get(n)
+}
+
+/** Lecture minutes for a set of chapters, ignoring carry-forward content. */
+export function lectureMinutesFor(chapters: number[]): number {
+  return chapters.reduce((n, c) => {
+    const ch = CHAPTER_BY_N.get(c)
+    return n + (ch && !ch.carryForward ? ch.lectureMinutes : 0)
+  }, 0)
+}
+
+export function skillDrillsFor(chapters: number[]): number {
+  return chapters.reduce((n, c) => n + (CHAPTER_BY_N.get(c)?.skillDrills ?? 0), 0)
+}
+
+// ----- the course schedule (proposal §3, rebuilt from the text) --------------
 
 export interface AemtBlock {
   order: number
@@ -332,62 +412,82 @@ export interface AemtBlock {
   /** How many calendar weeks the block spans. */
   spanWeeks: number
   title: string
-  didacticHours: number
+  /**
+   * Textbook chapters this block teaches. Didactic hours are DERIVED from
+   * their publisher lecture times — see blockDidacticHours(). Typed hours were
+   * how the plan came to disagree with itself: the proposal's §2 claimed ~110
+   * didactic hours while its §3 table summed to 90, and neither was traceable
+   * to what was being taught.
+   */
+  chapters?: number[]
+  /**
+   * Didactic hours stated outright rather than derived. Only for blocks with no
+   * textbook behind them — the AHA PALS and ACLS provider courses, whose length
+   * AHA sets.
+   */
+  fixedDidacticHours?: number
   labHours: number
   /**
-   * Standards sections the filed proposal never placed anywhere, added here so
-   * they are actually taught. Kept out of `title` on purpose: `title` is the
-   * proposal's own wording and has to stay quotable against the filing, while
-   * these are CES additions and have to be identifiable as such.
+   * Standards sections placed into this block by hand, where the proposal's own
+   * content sequence omitted them.
    */
   addedSections?: string[]
 }
 
 /**
- * The proposal's content sequence. Hours are transcribed exactly as filed —
- * deliberately NOT adjusted to make the totals reconcile, so the discrepancy
- * stays visible instead of being silently papered over here.
+ * Didactic hours for a block: publisher lecture time times the delivery ratio,
+ * or the stated figure for an AHA course.
  *
- * Checked section by section against all 63 coded sections of the Kansas AEMT
- * Educational Standards (Oct 2014, adopted by K.A.R. 109-10-1c). Three sections
- * carrying AEMT-specific content appeared nowhere in the filing — MT1, ST10 and
- * SP5 — and are placed below via `addedSections`. None of the three is on the
- * standards' carry-forward-only list, so none is satisfied by EMT content.
- *
- * They are added without adding hours. That is not an assertion they take zero
- * time: the plan already lays out 90 didactic hours against the proposal's own
- * §2 claim of ~110, and this content is a natural home for part of that gap.
- * The gap is reported by `blockPlanTotals()` and the Sessions tab rather than
- * closed here, because how it gets closed is a program decision.
+ * Rounded to the nearest quarter hour. A schedule is built in quarter hours;
+ * carrying 9.1666… into a session's `hours` field only produces figures nobody
+ * can file.
  */
+export function blockDidacticHours(b: AemtBlock): number {
+  if (typeof b.fixedDidacticHours === 'number') return b.fixedDidacticHours
+  const hours = (lectureMinutesFor(b.chapters ?? []) / 60) * DIDACTIC_DELIVERY_RATIO
+  return Math.round(hours * 4) / 4
+}
+
+/** Skill drills the block's chapters carry — the psychomotor load behind its lab. */
+export function blockSkillDrills(b: AemtBlock): number {
+  return skillDrillsFor(b.chapters ?? [])
+}
+
 export const KC_BLOCK_PLAN: AemtBlock[] = [
-  { order: 1, weeks: 'Weeks 1-2', spanWeeks: 2, title: 'Preparatory — EMS Systems, Research, Safety & Wellness, Documentation, Communication, Medical/Legal, Terminology', didacticHours: 16, labHours: 0 },
-  { order: 2, weeks: 'Week 3', spanWeeks: 1, title: 'A&P, Pathophysiology, Lifespan Development; Patient Assessment', didacticHours: 8, labHours: 0 },
-  { order: 3, weeks: 'Week 4', spanWeeks: 1, title: 'Airway Management & Monitoring Devices; Lab — assessment, airway, ECG intro', didacticHours: 2, labHours: 6 },
-  { order: 4, weeks: 'Week 5', spanWeeks: 1, title: 'AHA PALS Provider Course', didacticHours: 4, labHours: 4 },
-  { order: 5, weeks: 'Week 6', spanWeeks: 1, title: 'Pharmacology, Emergency Medications, Public Health, Infectious Disease; Lab — med admin, airway check-off', didacticHours: 6, labHours: 6 },
-  { order: 6, weeks: 'Week 7', spanWeeks: 1, title: 'AHA ACLS Provider Course', didacticHours: 4, labHours: 4 },
-  { order: 7, weeks: 'Week 8', spanWeeks: 1, title: 'Medication Administration; Shock and Resuscitation', didacticHours: 4, labHours: 0 },
-  { order: 8, weeks: 'Week 9', spanWeeks: 1, title: 'Obstetrics, Neonatal Care, Pediatrics — pediatric IO, OB medication management', didacticHours: 6, labHours: 0 },
+  { order: 1, weeks: 'Week 1', spanWeeks: 1, title: 'Preparatory — EMS Systems, Workforce Safety & Wellness, Medical/Legal, Communications & Documentation, Medical Terminology', chapters: [1, 2, 3, 4, 5], labHours: 0 },
+  { order: 2, weeks: 'Weeks 2-3', spanWeeks: 2, title: 'The Human Body, Pathophysiology, Life Span Development; Patient Assessment', chapters: [7, 8, 9, 10], labHours: 4.5 },
+  { order: 3, weeks: 'Week 4', spanWeeks: 1, title: 'Airway Management; Lab — airway, supraglottic, CPAP', chapters: [11], labHours: 6 },
+  { order: 4, weeks: 'Week 5', spanWeeks: 1, title: 'AHA PALS Provider Course', fixedDidacticHours: 4, labHours: 4 },
+  { order: 5, weeks: 'Week 6', spanWeeks: 1, title: 'Principles of Pharmacology', chapters: [12], labHours: 2 },
+  { order: 6, weeks: 'Week 7', spanWeeks: 1, title: 'AHA ACLS Provider Course', fixedDidacticHours: 4, labHours: 4 },
+  {
+    order: 7,
+    weeks: 'Weeks 8-10',
+    spanWeeks: 3,
+    title: 'Vascular Access and Medication Administration; Shock; BLS Resuscitation; Lab — IV, IO, med routes',
+    chapters: [13, 14, 15],
+    // The heaviest psychomotor block in the course: chapter 13 alone carries 13
+    // skill drills, and it is where the K.A.R. 109-11-8 venipuncture, IO and
+    // injection minimums are actually taught. It previously held ZERO lab hours.
+    labHours: 12,
+  },
+  { order: 8, weeks: 'Weeks 11-12', spanWeeks: 2, title: 'Obstetrics and Neonatal Care; Pediatric Emergencies', chapters: [35, 36], labHours: 7.5 },
   {
     order: 9,
-    weeks: 'Week 10',
+    weeks: 'Week 13',
     spanWeeks: 1,
-    title: 'Respiratory, Cardiovascular / ECG; Lab — ECG practice, med admin check-off',
-    didacticHours: 4,
-    labHours: 6,
-    // First medicine block, so the medical-patient overview belongs at its head
-    // rather than after two weeks of system-specific content.
-    addedSections: ['MT1 Medical Overview — assessment factors, SAMPLE on the unresponsive patient, OPQRST'],
+    title: 'Medical Overview; Respiratory Emergencies; Cardiovascular Emergencies / ECG; Lab — ECG acquisition',
+    chapters: [16, 17, 18],
+    labHours: 3,
   },
-  { order: 10, weeks: 'Weeks 11-12', spanWeeks: 2, title: 'EMS Operations; Trauma — overview, bleeding, chest, soft tissue, multisystem; Lab — scenarios', didacticHours: 14, labHours: 6 },
+  { order: 10, weeks: 'Weeks 14-15', spanWeeks: 2, title: 'EMS Operations; Trauma — overview, bleeding, soft tissue, chest; Lab — scenarios', chapters: [39, 40, 41, 42, 26, 27, 28, 31], labHours: 4 },
   {
     order: 11,
-    weeks: 'Weeks 13-14',
-    spanWeeks: 2,
-    title: 'Trauma — head/spine, nervous system, abdominal, orthopedic, environmental; Medicine — neuro, GI, GU, endocrine, heme',
-    didacticHours: 14,
-    labHours: 7,
+    weeks: 'Weeks 16-18',
+    spanWeeks: 3,
+    title: 'Trauma — face/neck, head/spine, abdominal, orthopaedic, environmental; Medicine — neurologic, GI/GU, endocrine/hematologic',
+    chapters: [29, 30, 32, 33, 34, 19, 20, 21],
+    labHours: 4,
     // Sits with the rest of trauma. Its assessment points invert what students
     // have just been taught about shock, so it cannot be left to be picked up
     // incidentally.
@@ -397,16 +497,11 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 12,
-    weeks: 'Weeks 15-16',
+    weeks: 'Weeks 19-20',
     spanWeeks: 2,
-    title: 'Medicine — immunology, gynecology, toxicology, psychiatric, MSK; Geriatrics; Final exam & NREMT prep',
-    didacticHours: 8,
-    labHours: 11,
-    // Pairs with geriatrics, which is already here, and carries the mandatory
-    // reporting content.
-    addedSections: [
-      'SP5 Patients with Special Challenges — child and elder abuse (reporting, legal, documentation), bariatric handling, technology-dependent patients, dialysis shunts, hospice and DNR, tracheostomy care',
-    ],
+    title: 'Medicine — immunologic, toxicology, psychiatric, gynecologic; Geriatrics; Patients With Special Challenges; Final exam & NREMT prep',
+    chapters: [22, 23, 24, 25, 37, 38],
+    labHours: 3,
   },
 ]
 
@@ -429,11 +524,120 @@ export const ADDED_STANDARDS_SECTIONS: { block: string; section: string }[] = KC
 )
 
 /** What the block plan actually adds up to, as opposed to what §2 claims. */
-export function blockPlanTotals(): { didactic: number; lab: number; classroom: number } {
-  const didactic = KC_BLOCK_PLAN.reduce((s, b) => s + b.didacticHours, 0)
-  const lab = KC_BLOCK_PLAN.reduce((s, b) => s + b.labHours, 0)
-  return { didactic, lab, classroom: didactic + lab }
+export function blockPlanTotals(): {
+  didactic: number
+  lab: number
+  classroom: number
+  weeks: number
+  /** Publisher lecture hours the didactic figure is built from. */
+  lectureHours: number
+} {
+  const didactic = KC_BLOCK_PLAN.reduce((n, b) => n + blockDidacticHours(b), 0)
+  const lab = KC_BLOCK_PLAN.reduce((n, b) => n + b.labHours, 0)
+  const weeks = KC_BLOCK_PLAN.reduce((n, b) => n + b.spanWeeks, 0)
+  const lectureHours =
+    KC_BLOCK_PLAN.reduce((n, b) => n + lectureMinutesFor(b.chapters ?? []), 0) / 60
+  return { didactic, lab, classroom: didactic + lab, weeks, lectureHours }
 }
+
+/**
+ * Chapters in the text that no block teaches.
+ *
+ * Carry-forward chapters are expected here and are not a gap; anything else is
+ * content the course adopted a book for and then did not schedule.
+ */
+export function unscheduledChapters(): TextbookChapter[] {
+  const taught = new Set(KC_BLOCK_PLAN.flatMap((b) => b.chapters ?? []))
+  return TEXTBOOK_CHAPTERS.filter((c) => !taught.has(c.n) && !c.carryForward)
+}
+
+/** Hours a class day must carry for the plan to fit its own calendar. */
+export function classDayLoad(daysPerWeek = 2): number {
+  const t = blockPlanTotals()
+  return t.classroom / t.weeks / daysPerWeek
+}
+
+// ----- program hour targets (proposal §2) ------------------------------------
+
+export interface HourTarget {
+  id: string
+  label: string
+  hours: number
+  note?: string
+}
+
+/**
+ * The hour totals the proposal commits to. NOTE: the proposal's own §3 schedule
+ * table sums to 90 didactic hours, not the ~110 claimed here — a 20-hour gap
+ * that also drops the program total from ~376 to ~356. The Sessions tab
+ * reconciles the schedule actually built against these targets so the gap is
+ * visible before a KBEMS submission rather than after.
+ */
+export const KC_HOUR_TARGETS: HourTarget[] = [
+  {
+    id: 'didactic',
+    label: 'Didactic',
+    hours: blockPlanTotals().didactic,
+    note: `Derived: ${blockPlanTotals().lectureHours.toFixed(1)} h of publisher lecture at ${DIDACTIC_DELIVERY_RATIO}x, plus the AHA provider courses.`,
+  },
+  {
+    id: 'lab',
+    label: 'Lab / psychomotor',
+    hours: blockPlanTotals().lab,
+    note: 'Minimum 2 instructors required on lab days.',
+  },
+  { id: 'clinical', label: 'Hospital clinical', hours: 72, note: '6 x 12-hour shifts — AdventHealth KC.' },
+  { id: 'field-ift', label: 'Field — AMR KC interfacility', hours: 48, note: 'Approx. 4 x 12-hour shifts.' },
+  { id: 'field-911', label: 'Field — AMR Independence 911', hours: 96, note: 'Approx. 8 x 12-hour shifts.' },
+]
+
+/** Hospital clinical hours the program schedules. */
+export const KC_CLINICAL_TARGET = 72
+
+/** Field internship hours, both sites combined. */
+export const KC_FIELD_TARGET = 144
+
+/**
+ * Classroom time only — what the Tue/Thu sessions have to add up to.
+ *
+ * DERIVED from the block plan, not typed. This is the number that used to be
+ * wrong in two directions at once: the proposal's §2 claimed ~110 didactic
+ * hours, its §3 schedule table summed to 90, and the 16-week Tue/Thu calendar
+ * could hold neither. Deriving it means the plan, the target and the schedule
+ * cannot disagree — change what is taught and the target follows.
+ *
+ * A PROGRAM DESIGN TARGET, not a Kansas requirement. Kansas prescribes no
+ * minimum clock, classroom or course-week total for an initial AEMT course
+ * (see the `kar-no-hour-minimum` rule set above); approval turns on whether the
+ * submitted schedule plausibly covers the incorporated standards and whether
+ * students can reach the K.A.R. 109-11-8 endpoints.
+ */
+export const KC_CLASSROOM_TARGET = blockPlanTotals().classroom
+
+/** Everything the student is scheduled for: classroom, lab, clinical, field. */
+export const KC_TOTAL_TARGET = KC_CLASSROOM_TARGET + KC_CLINICAL_TARGET + KC_FIELD_TARGET
+
+// ----- course policy (proposal §5, approval doc (b2)) ------------------------
+
+/** Missing more than this many hours of scheduled class time fails the course. */
+export const MAX_ABSENT_HOURS = 8
+
+export const MIN_PASSING_PERCENT = 80
+
+/**
+ * K.A.R. 109-11-8 requires the PRIMARY INSTRUCTOR to verify in writing that
+ * the student completed the course, within 15 days of the final class session
+ * and before the student sits the certification examination. A program manager
+ * signing in their place does not satisfy it.
+ */
+export const INSTRUCTOR_VERIFICATION_DAYS = 15
+
+export const GRADING = [
+  { label: 'Exams (online)', weight: '60%' },
+  { label: 'Quizzes / homework (online)', weight: '40%' },
+  { label: 'Lab skills demonstration', weight: 'Satisfactory / Unsatisfactory' },
+  { label: 'Clinical & field internship', weight: 'Satisfactory / Unsatisfactory' },
+]
 
 // ----- KBEMS submission deadlines (proposal §6, §8) --------------------------
 
