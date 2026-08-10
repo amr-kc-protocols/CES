@@ -127,6 +127,14 @@ stem text rather than row id (ids are not stable; `exam_questions_hard.sql`
 renumbers its tier on every re-run), reports anything it could not find instead
 of guessing, and prints the bank's state at the end.
 
+It is written for the **Supabase SQL Editor**, which does not hold a session
+across statements. An earlier version used a temp table and failed there with
+`relation "exam_fix" does not exist` — partway through, after the retirement
+statements had already committed. It is now three self-contained statements
+with no temp table and no explicit transaction, each safe to re-run on its own,
+so a half-applied bank converges on a second attempt rather than needing
+untangling.
+
 Retired items are set `active = false`, never deleted. `exam_attempts.question_ids`
 holds bare ids with no foreign key, so deleting a question silently orphans
 every historical attempt that served it.
