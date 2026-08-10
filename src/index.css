@@ -786,6 +786,99 @@ a.row:hover {
   white-space: nowrap;
 }
 
+/* ---------- Timeline ----------
+ * A dated sequence read top to bottom, for work whose order matters as much as
+ * its dates — the KBEMS filings, where one step blocks the next. The spine and
+ * nodes are drawn with borders and backgrounds only, so both themes get them
+ * from the same tokens. */
+.timeline {
+  position: relative;
+  margin: 10px 0 0;
+  padding-left: 26px;
+}
+
+/* The spine. Stops short at both ends so it reads as a span, not an arrow. */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--border);
+}
+
+.tl-item {
+  position: relative;
+  padding-bottom: 18px;
+}
+
+.tl-item:last-child { padding-bottom: 0; }
+
+/* Node. Sits on the spine and is opaque, so the line appears to pass behind. */
+.tl-item::before {
+  content: '';
+  position: absolute;
+  left: -26px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.tl-item.tl-ok::before { border-color: var(--ok); background: var(--ok); }
+.tl-item.tl-warn::before { border-color: var(--warn); background: var(--warn); }
+.tl-item.tl-crit::before { border-color: var(--crit); background: var(--crit); }
+
+.tl-date {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tl-item.tl-crit .tl-date { color: var(--crit); }
+.tl-item.tl-warn .tl-date { color: var(--warn); }
+
+.tl-title { font-weight: 700; margin-top: 1px; }
+
+/* Where today falls in the sequence. Deliberately not a node — it is not
+ * something to do, it is where the reader is standing. */
+.tl-now {
+  position: relative;
+  padding-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tl-now::before {
+  content: '';
+  position: absolute;
+  left: -23px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+.tl-now::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--red);
+  opacity: 0.35;
+}
+
 /* ---------- Tables ---------- */
 .table-wrap {
   overflow-x: auto;
