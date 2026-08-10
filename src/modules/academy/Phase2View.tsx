@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
+import { neopSheetMeta } from '../templates/resolve'
 import { confirmAction } from '../../lib/dialog'
 import { Link } from 'react-router-dom'
 import { Modal } from '../../components/ui'
-import { SHEETS, SESSION_CHECKOFFS } from '../../data/checkoffSheets'
+import { SESSION_CHECKOFFS } from '../../data/checkoffSheets'
 import {
   PHASE2_TEMPLATE,
   WEEK_LABELS,
@@ -209,7 +210,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
         <div style={{ margin: '0 0 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {SESSION_CHECKOFFS[session.id].map((sheet) => (
             <Link key={sheet} to={`/academy/${cohortId}/checkoff/${sheet}`} className="btn sm primary">
-              {SHEETS[sheet].icon} {SHEETS[sheet].label} — whole class
+              {neopSheetMeta(sheet).icon} {neopSheetMeta(sheet).label} — whole class
             </Link>
           ))}
         </div>

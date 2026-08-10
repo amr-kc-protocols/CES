@@ -13,7 +13,7 @@ import {
   useRecordSafety,
 } from './aemtStore'
 import type { AemtFormResponse } from '../../types'
-import { AEMT_FORMS, aemtForm } from '../../data/aemtForms'
+import { useAemtForms, liveAemtForm, aemtFormAtVersion } from '../templates/resolve'
 import type { AemtFormDef, FormField } from '../../data/aemtForms'
 import { useCan } from '../../lib/role'
 import type { AemtCourse } from '../../types'
@@ -141,7 +141,8 @@ function ResolveModal({
   return (
     <Modal title={`Close out — ${studentName}`} onClose={onClose}>
       <div className="banner info" style={{ marginTop: 0 }}>
-        {aemtForm(response.formId)?.title} · {formatDate(response.date)} ·{' '}
+        {aemtFormAtVersion(response.formId, response.templateVersion).form?.title} ·{' '}
+        {formatDate(response.date)} ·{' '}
         {response.values?.remedial === true
           ? 'remedial education indicated'
           : 'behaviour conference indicated'}
@@ -292,6 +293,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
   const [filling, setFilling] = useState<string | null>(null)
   const [resolving, setResolving] = useState<AemtFormResponse | null>(null)
   const safety = useRecordSafety()
+  const FORMS = useAemtForms()
 
   if (students.length === 0) {
     return (
@@ -301,7 +303,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
     )
   }
 
-  const def = filling ? aemtForm(filling) : undefined
+  const def = filling ? liveAemtForm(filling) : undefined
   if (def) {
     return <FillForm course={course} def={def} onDone={() => setFilling(null)} />
   }
@@ -336,7 +338,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
                 <div className="grow">
                   <div className="title">{nameOf(r.studentId)}</div>
                   <div className="meta">
-                    {aemtForm(r.formId)?.title} · {formatDate(r.date)} ·{' '}
+                    {aemtFormAtVersion(r.formId, r.templateVersion).form?.title} · {formatDate(r.date)} ·{' '}
                     {r.values?.remedial === true
                       ? 'remedial education indicated'
                       : 'behaviour conference indicated'}
@@ -367,7 +369,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
                 <div className="grow">
                   <div className="title">{nameOf(r.studentId)}</div>
                   <div className="meta">
-                    {aemtForm(r.formId)?.title} · {formatDate(r.date)} · closed{' '}
+                    {aemtFormAtVersion(r.formId, r.templateVersion).form?.title} · {formatDate(r.date)} · closed{' '}
                     {formatDate(r.resolvedDate)} by {r.resolvedBy}
                   </div>
                   {r.resolutionNote && <div className="help-text">{r.resolutionNote}</div>}
@@ -380,7 +382,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
 
       <div className="section-title">Forms</div>
       <div className="list">
-        {AEMT_FORMS.map((f) => {
+        {FORMS.map((f) => {
           const count = responses.filter((r) => r.formId === f.id).length
           return (
             <div key={f.id} className="row">
@@ -421,7 +423,9 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
           {responses.slice(0, 25).map((r) => (
             <div key={r.id} className="row">
               <div className="grow">
-                <div className="title">{aemtForm(r.formId)?.title ?? r.formId}</div>
+                <div className="title">
+                  {aemtFormAtVersion(r.formId, r.templateVersion).form?.title ?? r.formId}
+                </div>
                 <div className="meta">
                   {nameOf(r.studentId)} · {formatDate(r.date)}
                 </div>
@@ -429,7 +433,7 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
               {canEdit && (
                 <button
                   className="btn sm danger"
-                  aria-label={`Delete this ${aemtForm(r.formId)?.title ?? r.formId} for ${nameOf(r.studentId)}`}
+                  aria-label={`Delete this evaluation for ${nameOf(r.studentId)}`}
                   onClick={async () => {
                     const ok = await confirmAction({
                       title: 'Delete this evaluation?',

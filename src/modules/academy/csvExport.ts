@@ -1,4 +1,4 @@
-import { SHEETS, skillsFor } from '../../data/checkoffSheets'
+import { neopSheetMeta, neopSkillsFor } from '../templates/resolve'
 import { evalAverage, attKey } from './academyStore'
 import { weekdayLabel } from './calendar'
 import { addDays, fromISODate } from '../../lib/date'
@@ -69,11 +69,11 @@ export function skillChecksCSV(trainees: Trainee[], checks: SkillCheck[]): strin
       'FTO signed', 'New hire signed', 'Comments',
     ],
     ...rows.map((c) => {
-      const meta = SHEETS[c.sheet]
+      const meta = neopSheetMeta(c.sheet)
       // RSI / ventilator scope by operation — measure against the trainee's
       // own applicable skill list, not the sheet's superset.
       const trainee = c.traineeId ? roster.get(c.traineeId) : undefined
-      const applicable = trainee ? skillsFor(c.sheet, trainee.operation) : meta?.skills ?? []
+      const applicable = trainee ? neopSkillsFor(c.sheet, trainee.operation) : meta?.skills ?? []
       const ids = new Set(applicable.map((sk) => sk.id))
       const total = applicable.length
       const entries = Object.entries(c.results ?? {}).filter(([id]) => ids.has(id))

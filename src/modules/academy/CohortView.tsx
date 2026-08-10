@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { neopSheetMeta, neopSkillsFor } from '../templates/resolve'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Empty, Modal, ProgressBar, Stat } from '../../components/ui'
 import { Tabs, tabPanelProps } from '../../components/Tabs'
@@ -36,7 +37,7 @@ import {
   useSkillCheckFor,
   useSurveyDateFor,
 } from './academyStore'
-import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
+import { clinicalSheetsFor } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
 import { HAS_FTO_AGENDA, trackById } from '../../data/ftoAgenda'
 import { HAS_FIELD_OBJECTIVES } from '../../data/ftObjectives'
@@ -404,29 +405,29 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
             </Link>
             {clinicalSheetsFor(trainee).includes('bls') && (
               <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/bls`} className="btn sm">
-                🩺 BLS · {passedOf(blsCheck)}/{skillsFor('bls', trainee.operation).length}
+                🩺 BLS · {passedOf(blsCheck)}/{neopSkillsFor('bls', trainee.operation).length}
               </Link>
             )}
             {clinicalSheetsFor(trainee).includes('linn-medic') && (
               <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/linn-medic`} className="btn sm">
-                💉 ALS · {passedOf(alsCheck)}/{skillsFor('linn-medic', trainee.operation).length}
+                💉 ALS · {passedOf(alsCheck)}/{neopSkillsFor('linn-medic', trainee.operation).length}
               </Link>
             )}
             {clinicalSheetsFor(trainee).includes('rsi') && (
               <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/rsi`} className="btn sm">
-                💨 RSI · {passedOf(rsiCheck)}/{skillsFor('rsi', trainee.operation).length}
+                💨 RSI · {passedOf(rsiCheck)}/{neopSkillsFor('rsi', trainee.operation).length}
               </Link>
             )}
             {clinicalSheetsFor(trainee).includes('vent') && (
               <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/vent`} className="btn sm">
-                🫁 Vent · {passedOf(ventCheck)}/{skillsFor('vent', trainee.operation).length}
+                🫁 Vent · {passedOf(ventCheck)}/{neopSkillsFor('vent', trainee.operation).length}
               </Link>
             )}
             <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/stretcher`} className="btn sm">
-              🛏️ Stretcher · {passedOf(stretcherCheck)}/{SHEETS.stretcher.skills.length}
+              🛏️ Stretcher · {passedOf(stretcherCheck)}/{neopSheetMeta('stretcher').skills.length}
             </Link>
             <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/evoc-track`} className="btn sm">
-              🚗 EVOC track · {passedOf(evocCheck)}/{SHEETS['evoc-track'].skills.length}
+              🚗 EVOC track · {passedOf(evocCheck)}/{neopSheetMeta('evoc-track').skills.length}
             </Link>
             {FIELD_OBJECTIVES_ENABLED && HAS_FIELD_OBJECTIVES && (
               <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">

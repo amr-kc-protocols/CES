@@ -15,19 +15,20 @@ import {
   useEvalsFor,
 } from './academyStore'
 import { useSelector } from '../../lib/store'
+import { useDailyEvalTemplate, dailyEvalTemplateAtVersion } from '../templates/resolve'
+import { dailyEvalCheck, dailyEvalText } from './dailyEvalFields'
 import type { DailyEval } from '../../types'
 
-// End-of-shift Daily Performance Evaluation — the same fields as the legacy
-// Microsoft Forms version, now living where the trainee's record lives.
-
-const CATEGORIES: { id: keyof DailyEval['scores']; label: string }[] = [
-  { id: 'professionalism', label: 'Overall professionalism' },
-  { id: 'teamwork', label: 'Teamwork & communication' },
-  { id: 'patientCare', label: 'Patient care skills' },
-  { id: 'driving', label: 'Vehicle driving' },
-  { id: 'stretcher', label: 'Patient movement (stretcher handling)' },
-  { id: 'pcr', label: 'PCR documentation' },
-]
+// End-of-shift Daily Performance Evaluation.
+//
+// The rating categories, confirmations and comment prompts used to be fixed
+// here and in the DailyEval type, so an operation wanting a different set
+// needed a code change. They come from the editable template now; the bundled
+// one is exactly the original six categories and two confirmations, which is
+// what lets every evaluation ever filed keep reading correctly.
+//
+// A filed evaluation renders against the version it was scored on, so editing
+// the template never restates what an FTO already put their initials to.
 
 function RatingRow({ label, value, onChange }: { label: string; value?: number; onChange: (n?: number) => void }) {
   return (
@@ -80,11 +81,10 @@ export default function DailyEvalView() {
   const [date, setDate] = useState(todayISO())
   // Signed-in FTOs get their own name preselected — one less tap per eval.
   const [fto, setFto] = useState(() => ftoNameForEmail(email) ?? '')
+  const template = useDailyEvalTemplate()
   const [scores, setScores] = useState<DailyEval['scores']>({})
-  const [strengths, setStrengths] = useState('')
-  const [improvements, setImprovements] = useState('')
-  const [truckWashed, setTruckWashed] = useState<boolean | undefined>()
-  const [spotter, setSpotter] = useState<boolean | undefined>()
+  const [checks, setChecks] = useState<Record<string, boolean | undefined>>({})
+  const [texts, setTexts] = useState<Record<string, string>>({})
   const [readyIndependent, setReadyIndependent] = useState<boolean | undefined>()
   const [ftoInitials, setFtoInitials] = useState<string | undefined>()
   const [saved, setSaved] = useState('')
@@ -102,22 +102,25 @@ export default function DailyEvalView() {
     if (!Object.values(scores).some((v) => typeof v === 'number')) {
       return setError('Score at least one category.')
     }
+    // The two legacy confirmations and two legacy prompts keep their original
+    // columns so historical records and these stay one shape; anything the
+    // operation has added goes in the generic maps beside them.
     addDailyEval(traineeId, {
       date,
       fto,
       scores,
-      strengths,
-      improvements,
-      truckWashed,
-      spotter,
+      checks,
+      texts,
+      strengths: texts.strengths,
+      improvements: texts.improvements,
+      truckWashed: checks.truckWashed,
+      spotter: checks.spotter,
       readyIndependent,
       ftoInitials,
     })
     setScores({})
-    setStrengths('')
-    setImprovements('')
-    setTruckWashed(undefined)
-    setSpotter(undefined)
+    setChecks({})
+    setTexts({})
     setReadyIndependent(undefined)
     setFtoInitials(undefined)
     setError('')
@@ -125,8 +128,7 @@ export default function DailyEvalView() {
     setTimeout(() => setSaved(''), 4000)
   }
 
-  const setScore = (id: keyof DailyEval['scores']) => (n?: number) =>
-    setScores((s) => ({ ...s, [id]: n }))
+  const setScore = (id: string) => (n?: number) => setScores((s) => ({ ...s, [id]: n }))
 
   return (
     <div>
@@ -175,33 +177,38 @@ export default function DailyEvalView() {
         <div className="subtle" style={{ fontWeight: 700, fontSize: 12, margin: '6px 0 2px' }}>
           Rate 1 (needs work) – 5 (excellent) · skip anything not observed today
         </div>
-        {CATEGORIES.map((c) => (
+        {template.categories.map((c) => (
           <RatingRow key={c.id} label={c.label} value={scores[c.id]} onChange={setScore(c.id)} />
         ))}
 
-        <label className="subtle" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-          Areas of strength observed today
-          <textarea
-            value={strengths}
-            onChange={(e) => setStrengths(e.target.value)}
-            rows={3}
-            style={{ display: 'block', width: '100%', marginTop: 2, padding: '8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit', resize: 'vertical' }}
-          />
-        </label>
-        <label className="subtle" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-          Areas for improvement
-          <textarea
-            value={improvements}
-            onChange={(e) => setImprovements(e.target.value)}
-            rows={3}
-            style={{ display: 'block', width: '100%', marginTop: 2, padding: '8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit', resize: 'vertical' }}
-          />
-        </label>
+        {template.texts.map((t) => (
+          <label key={t.id} className="subtle" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+            {t.label}
+            <textarea
+              value={texts[t.id] ?? ''}
+              onChange={(e) => setTexts((x) => ({ ...x, [t.id]: e.target.value }))}
+              rows={3}
+              style={{ display: 'block', width: '100%', marginTop: 2, padding: '8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit', resize: 'vertical' }}
+            />
+          </label>
+        ))}
 
         <div style={{ marginTop: 8 }}>
-          <YesNoRow label="Truck washed & patient compartment cleaned at EOS?" value={truckWashed} onChange={setTruckWashed} />
-          <YesNoRow label="Ambulance always backed with a spotter?" value={spotter} onChange={setSpotter} />
-          <YesNoRow label="Ready to work independently without an FTO?" value={readyIndependent} onChange={setReadyIndependent} />
+          {template.checks.map((c) => (
+            <YesNoRow
+              key={c.id}
+              label={c.label}
+              value={checks[c.id]}
+              onChange={(v) => setChecks((x) => ({ ...x, [c.id]: v }))}
+            />
+          ))}
+          {/* Kept apart from the confirmations above: this one drives the
+              release recommendation, not a housekeeping check. */}
+          <YesNoRow
+            label={template.readinessLabel}
+            value={readyIndependent}
+            onChange={setReadyIndependent}
+          />
         </div>
 
         {/* Quick initials, not a full signature — the eval is a daily rhythm. */}
@@ -257,12 +264,26 @@ export default function DailyEvalView() {
                   )}
                 </div>
                 <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
-                  {CATEGORIES.filter((c) => e.scores[c.id] != null)
+                  {dailyEvalTemplateAtVersion(e.templateVersion)
+                    .template.categories.filter((c) => e.scores[c.id] != null)
                     .map((c) => `${c.label.split(' ')[0]} ${e.scores[c.id]}`)
                     .join(' · ')}
                 </div>
-                {e.strengths && <div style={{ fontSize: 13, marginTop: 6 }}>💪 {e.strengths}</div>}
-                {e.improvements && <div style={{ fontSize: 13, marginTop: 4 }}>🎯 {e.improvements}</div>}
+                {dailyEvalTemplateAtVersion(e.templateVersion).template.texts.map((t) => {
+                  const v = dailyEvalText(e, t.id)
+                  return v ? (
+                    <div key={t.id} style={{ fontSize: 13, marginTop: 4 }}>
+                      {t.label}: {v}
+                    </div>
+                  ) : null
+                })}
+                {dailyEvalTemplateAtVersion(e.templateVersion)
+                  .template.checks.filter((c) => dailyEvalCheck(e, c.id) === false)
+                  .map((c) => (
+                    <div key={c.id} className="subtle" style={{ fontSize: 12, marginTop: 2, color: 'var(--warn)' }}>
+                      ✗ {c.label}
+                    </div>
+                  ))}
               </div>
             )
           })}

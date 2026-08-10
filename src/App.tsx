@@ -23,6 +23,7 @@ const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
 const SkillSheetView = lazy(() => import('./modules/academy/SkillSheetView'))
 const ClassCheckoffView = lazy(() => import('./modules/academy/ClassCheckoffView'))
 const ReviewView = lazy(() => import('./modules/review/ReviewView'))
+const TemplatesView = lazy(() => import('./modules/templates/TemplatesView'))
 const AemtList = lazy(() => import('./modules/aemt/AemtList'))
 const AemtCourseView = lazy(() => import('./modules/aemt/AemtCourseView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
@@ -68,6 +69,18 @@ function AemtOnly({ children }: { children: ReactNode }) {
     <Gated
       allowed={manageAemt}
       why="The AEMT program holds Kansas certification records and cohort selection data. Ask the Clinical Educator if you need access."
+    >
+      {children}
+    </Gated>
+  )
+}
+
+function AdminOnly({ children }: { children: ReactNode }) {
+  const { manageAcademy } = useCan()
+  return (
+    <Gated
+      allowed={manageAcademy}
+      why="Skill sheets and evaluation forms are the instruments every assessment is recorded against, so editing them is limited to administrators."
     >
       {children}
     </Gated>
@@ -199,6 +212,14 @@ export default function App() {
         <Route path="courses/view" element={<CourseViewer />} />
         <Route path="ems" element={<EmsReference />} />
         <Route path="history" element={<HistoryView />} />
+        <Route
+          path="templates"
+          element={
+            <AdminOnly>
+              <TemplatesView />
+            </AdminOnly>
+          }
+        />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />
       </Route>

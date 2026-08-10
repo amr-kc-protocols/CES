@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { confirmAction } from '../../lib/dialog'
 import { useDB, setState, exportDB, importDB, resetDB } from '../../lib/store'
 import { QA_ENABLED, CE_ENABLED } from '../../config/features'
@@ -288,6 +289,26 @@ export default function Settings() {
       </div>
 
       {saved && <div className="banner info">{saved}</div>}
+
+      {/* Not a tab: the bar is already at eight on an admin account, and at
+          375px a ninth would push every label onto two lines. This is a setup
+          task rather than a daily one, so it lives with the other setup. */}
+      {can.manageAcademy && (
+        <>
+          <div className="section-title">Sheets &amp; forms</div>
+          <div className="card">
+            <p style={{ marginTop: 0, lineHeight: 1.55 }}>
+              Edit any skill sheet or evaluation form for your operation — the AEMT psychomotor
+              sheets, the AEMT evaluation forms, the academy check-off sheets and the FTO daily
+              evaluation. Changes are versioned, so assessments already recorded keep the wording
+              they were graded against.
+            </p>
+            <Link to="/templates" className="btn primary">
+              Open sheets &amp; forms
+            </Link>
+          </div>
+        </>
+      )}
 
       {/* The Defaults card only holds QA- and CE-scoped settings; with both
           features flagged off there is nothing to show, so the whole card goes. */}

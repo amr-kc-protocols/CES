@@ -394,15 +394,25 @@ export interface DailyEval {
   date: string
   /** Canonical FTO name completing the evaluation. */
   fto?: string
-  /** 1–5 ratings; a category is absent when not scored that day. */
-  scores: {
-    professionalism?: number
-    teamwork?: number
-    patientCare?: number
-    driving?: number
-    stretcher?: number
-    pcr?: number
-  }
+  /**
+   * Which version of the daily-eval template this was scored against.
+   * Absent or 0 = the bundled default, which is what every record written
+   * before the template became editable was scored on.
+   */
+  templateVersion?: number
+  /**
+   * 1–5 ratings by category id; a category is absent when not scored that day.
+   *
+   * Was a fixed set of six keys. Widened so an operation can define its own
+   * categories — the original six are simply the bundled template's ids, so
+   * every historical record still reads correctly with no migration.
+   */
+  scores: Record<string, number | undefined>
+  /** Yes/no answers by id, for checks beyond the two legacy ones below. */
+  checks?: Record<string, boolean | undefined>
+  /** Free-text answers by id, for prompts beyond the two legacy ones below. */
+  texts?: Record<string, string | undefined>
+  /** Legacy text prompts. Read and written through dailyEvalText(). */
   strengths?: string
   improvements?: string
   /** Truck washed & patient compartment cleaned at end of shift. */
@@ -427,6 +437,12 @@ export interface SkillCheck {
   traineeName: string
   date: string
   sheet: SkillSheetId
+  /**
+   * Which version of the instrument this was assessed against. Absent or 0 =
+   * the definition bundled with the app, so records written before the
+   * instrument became editable need no migration.
+   */
+  templateVersion?: number
   /** Canonical FTO/educator name who ran the assessment. */
   evaluator?: string
   /** skillId -> outcome. Absent = not yet assessed. */
@@ -581,6 +597,12 @@ export interface AemtSkillCheck {
   courseId: string
   studentId: string
   sheetId: string
+  /**
+   * Which version of the instrument this was assessed against. Absent or 0 =
+   * the definition bundled with the app, so records written before the
+   * instrument became editable need no migration.
+   */
+  templateVersion?: number
   /** criterionId -> result. Absent = not yet assessed. */
   results: Record<string, 'pass' | 'fail'>
   /** Critical-failure items triggered, by their text. */
@@ -601,6 +623,12 @@ export interface AemtFormResponse {
   id: string
   courseId: string
   formId: string
+  /**
+   * Which version of the instrument this was assessed against. Absent or 0 =
+   * the definition bundled with the app, so records written before the
+   * instrument became editable need no migration.
+   */
+  templateVersion?: number
   /** The student the form concerns — or, for course/instructor evals, the
    *  student who filled it in. */
   studentId?: string
@@ -980,5 +1008,77 @@ export interface DBShape {
   aemtRecordDocs: AemtRecordDoc[]
   aemtAudit: AemtAuditEvent[]
   aemtCandidates: AemtCandidate[]
+  templates: TemplateVersion[]
   settings: Settings
+}
+
+// ---------------------------------------------------------------------------
+// Editable instruments.
+//
+// Skill sheets and evaluation forms ship as code in src/data, which made every
+// wording change a deploy. They are now editable in-app — but an instrument
+// that competency records point at cannot simply be mutated. A criterion
+// renamed after somebody was graded against it silently changes what their
+// assessment says they did, and for the AEMT sheets that assessment is a
+// K.A.R. 109-11-8(a)(2) record retained for three years.
+//
+// So an edit publishes a NEW VERSION. Records pin the version they were graded
+// under and always render against it. Version 0 means "the definition bundled
+// with the app, unmodified" — a record from before any edit needs no migration
+// and no stored copy, it simply resolves to the default.
+// ---------------------------------------------------------------------------
+
+/** Which registry an editable instrument belongs to. */
+export type TemplateKind =
+  /** AEMT psychomotor skill sheets (data/aemtSkills.ts). */
+  | 'aemt-skill'
+  /** AEMT evaluation forms, incl. the preceptor daily eval (data/aemtForms.ts). */
+  | 'aemt-form'
+  /** NEOP academy clinical/check-off sheets (data/skillSheets.ts). */
+  | 'neop-skill'
+  /** The NEOP FTO end-of-shift daily performance evaluation. */
+  | 'neop-daily-eval'
+
+export type TemplateStatus = 'draft' | 'published' | 'archived'
+
+/**
+ * One published (or in-progress) revision of an instrument.
+ *
+ * `body` holds the whole definition — AemtSkillSheet, AemtFormDef, NeopSkillSheet
+ * or DailyEvalTemplate depending on `kind`. Storing it whole rather than as a
+ * diff is what makes a historical record renderable years later without
+ * reconstructing anything.
+ */
+export interface TemplateVersion {
+  id: string
+  kind: TemplateKind
+  /** Stable instrument id, e.g. 'iv-start' or 'clinical-daily'. */
+  templateId: string
+  /** 1-based. Version 0 is reserved for the bundled default. */
+  version: number
+  status: TemplateStatus
+  /** The definition itself, shaped by `kind`. */
+  body: unknown
+  /** What changed and why — shown in the version history and the audit package. */
+  note?: string
+  createdAt: string
+  createdBy: string
+  publishedAt?: string
+  publishedBy?: string
+  /** Authored in-app rather than shipped with a bundled default behind it. */
+  custom?: boolean
+}
+
+/** Rating categories and prompts on the NEOP daily performance evaluation. */
+export interface DailyEvalTemplate {
+  id: string
+  title: string
+  /** 1–5 rating rows. Ids are the keys under DailyEval.scores. */
+  categories: { id: string; label: string }[]
+  /** Yes/no confirmations, e.g. truck washed, spotter used. */
+  checks: { id: string; label: string }[]
+  /** Free-text prompts, e.g. strengths / areas to improve. */
+  texts: { id: string; label: string }[]
+  /** The FTO's readiness call. Kept separate — it is not just another check. */
+  readinessLabel: string
 }

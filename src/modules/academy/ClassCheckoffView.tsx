@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
+import { liveNeopSheet, neopSheetMeta, neopSkillsFor } from '../templates/resolve'
 import { Empty, ProgressBar } from '../../components/ui'
-import { SHEETS, skillsFor, clinicalSheetsFor } from '../../data/checkoffSheets'
+import { clinicalSheetsFor } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import type { SkillSheetId } from '../../types'
 import { useCohort, useCohortTrainees } from './academyStore'
@@ -15,7 +16,8 @@ export default function ClassCheckoffView() {
   const trainees = useCohortTrainees(cohortId)
   const checks = useSelector((db) => db.skillChecks)
 
-  if (!cohort || !(sheetParam in SHEETS)) {
+  // Valid if the registry knows the id — bundled or authored in-app.
+  if (!cohort || !liveNeopSheet(sheetParam as SkillSheetId)) {
     return (
       <Empty icon="🤔" title="Check-off not found">
         <Link to="/academy" className="link-btn">Back to NEOP</Link>
@@ -23,7 +25,7 @@ export default function ClassCheckoffView() {
     )
   }
   const sheet = sheetParam as SkillSheetId
-  const meta = SHEETS[sheet]
+  const meta = neopSheetMeta(sheet)
   // Stretcher & EVOC run for everyone; the clinical sheets (BLS / ALS / RSI /
   // Vent) list only the trainees that sheet actually applies to.
   const clinical = sheet === 'bls' || sheet === 'linn-medic' || sheet === 'rsi' || sheet === 'vent'
@@ -45,7 +47,7 @@ export default function ClassCheckoffView() {
         <div className="list">
           {roster.map((t) => {
             // RSI / ventilator scope by operation, so totals differ per trainee.
-            const applicable = skillsFor(sheet, t.operation)
+            const applicable = neopSkillsFor(sheet, t.operation)
             const ids = new Set(applicable.map((sk) => sk.id))
             const total = applicable.length
             const check = checks.find((c) => c.traineeId === t.id && c.sheet === sheet)
