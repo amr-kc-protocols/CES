@@ -225,6 +225,15 @@ export default function DeadlinePanel() {
               <div className="grow">
                 <div className="title">
                   {d.deadline.label}
+                  {d.deadline.basis === 'program' && (
+                    <span
+                      className="pill"
+                      style={{ marginLeft: 8 }}
+                      title="CES planning target, not a date Kansas sets. Missing it has no regulatory consequence of its own — it just leaves too little time for what depends on it."
+                    >
+                      planning target
+                    </span>
+                  )}
                   {d.record && (
                     <span className={`pill ${STATUS_PILL[d.record.status]}`} style={{ marginLeft: 8 }}>
                       {d.record.status}
@@ -258,6 +267,16 @@ export default function DeadlinePanel() {
                   )}
                 </div>
                 <div className="help-text">{d.deadline.note}</div>
+                {d.deadline.prerequisites && !d.done && (
+                  <div className="help-text" style={{ marginTop: 6 }}>
+                    <strong>Must already be true before this can be filed:</strong>
+                    <ul style={{ margin: '4px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+                      {d.deadline.prerequisites.map((p) => (
+                        <li key={p}>{p}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               {manageAcademy && (
                 <button

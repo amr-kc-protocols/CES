@@ -6,6 +6,7 @@ import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { listExamResults } from '../../lib/exam'
 import {
+  blockContentLine,
   blockPlanTotals,
   CLINICAL_REQUIREMENTS,
   INSTRUCTOR_VERIFICATION_DAYS,
@@ -572,7 +573,7 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
           id: uid('asess'),
           courseId,
           date,
-          title: block.title,
+          title: blockContentLine(block),
           kind,
           hours: h,
           startTime: formatClock(startMin),
