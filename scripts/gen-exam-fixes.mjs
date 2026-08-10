@@ -15,6 +15,12 @@
 // ---------------------------------------------------------------------------
 
 /**
+ * retire — true when the item's CLINICAL CONTENT is arguable, not merely
+ *          imprecise. The bank has enough items that a question a candidate
+ *          could successfully challenge is worth less than the seat it costs
+ *          to defend, so these are dropped rather than reworded. The corrected
+ *          text is kept anyway: it costs nothing, and it means a future editor
+ *          restoring one gets the fixed version rather than the flawed one.
  * match  — the stem as it stands in the bank today (the lookup key)
  * stem   — replacement stem, or null to leave it
  * options/answer — full replacement, so a re-read of this file shows the item
@@ -24,6 +30,7 @@
 const FIXES = [
   // ----- substantive corrections -------------------------------------------
   {
+    retire: true,
     id: 123,
     match: 'For an adult in respiratory arrest with a pulse, deliver one breath every:',
     options: [
@@ -36,6 +43,7 @@ const FIXES = [
     why: 'Current AHA wording is one breath every 6 seconds.',
   },
   {
+    retire: true,
     id: 162,
     match: 'Adult compression depth is at least:',
     stem: 'Adult chest compression depth should be:',
@@ -49,6 +57,7 @@ const FIXES = [
     why: 'Depth has an upper bound (2.4 in / 6 cm), which "at least 2 inches" omits. Ranges keep the bound without making the key the longest option.',
   },
   {
+    retire: true,
     id: 166,
     match:
       'Before assisting a patient with prescribed nitroglycerin, a key contraindication to check is:',
@@ -62,6 +71,7 @@ const FIXES = [
     why: '"Recent erectile-dysfunction medication" is too vague — the exclusion interval differs by drug.',
   },
   {
+    retire: true,
     id: 173,
     match: 'In women, the elderly, and diabetics, an MI may present as:',
     stem: 'An MI may present without chest pain as:',
@@ -75,6 +85,7 @@ const FIXES = [
     why: 'A completely silent MI is also possible, so the old distractor D was defensible. Replaced with something clearly unrelated.',
   },
   {
+    retire: true,
     id: 176,
     match: 'Treatment for a conscious hypoglycemic patient who can swallow is:',
     stem: 'Treatment for a conscious hypoglycemic patient who can swallow and has no IV access is:',
@@ -88,6 +99,7 @@ const FIXES = [
     why: 'As written, oral glucose and IV dextrose were both defensible for an AEMT.',
   },
   {
+    retire: true,
     id: 197,
     match: 'An open ("sucking") chest wound is initially covered with:',
     stem: 'If a dressing is placed on an open ("sucking") chest wound, you should:',
@@ -101,6 +113,7 @@ const FIXES = [
     why: 'Three-sided improvised seals are no longer the preferred general answer (2024 AHA/Red Cross First Aid Guidelines).',
   },
   {
+    retire: true,
     id: 203,
     match: 'The most immediately life-threatening bleeding to control is:',
     options: [
@@ -113,6 +126,7 @@ const FIXES = [
     why: 'Dangerous bleeding must not be identified by color.',
   },
   {
+    retire: true,
     id: 204,
     match: 'A burn that is dry, white/leathery or charred, and painless is:',
     stem: 'A burn that is dry, white or leathery, and painless is classified as:',
@@ -129,14 +143,16 @@ const FIXES = [
     why: 'Ratio expressions are a recognized medication-error risk (ISMP). Metric concentration instead.',
   },
   {
+    retire: true,
     id: 228,
     match: 'Newborn resuscitation adds chest compressions if the heart rate is below:',
     stem: 'After at least 30 seconds of effective ventilation that produces chest movement, newborn chest compressions are started if the heart rate is below:',
     options: ['100 beats/min', '60 beats/min', '40 beats/min', '80 beats/min'],
     answer: 1,
-    why: 'Without the ventilation qualifier the item implies immediate compressions for any newborn HR below 60. Also retired below as a duplicate of the scenario version.',
+    why: 'Implies immediate compressions for any newborn HR below 60. Adding the ventilation qualifier fixes that but then duplicates the scenario version of the same fact, which is the better item — so this one goes.',
   },
   {
+    retire: true,
     id: 232,
     match: 'A competent adult refusing care must be informed of the risks and:',
     stem: 'A competent adult refusing care should be managed by:',
@@ -150,6 +166,7 @@ const FIXES = [
     why: 'A competent patient cannot be REQUIRED to sign. The old key made a signature the obligation.',
   },
   {
+    retire: true,
     id: 236,
     match: 'When lifting a heavy patient, you should:',
     options: [
@@ -162,6 +179,7 @@ const FIXES = [
     why: 'Technique alone does not make a heavy dependent-patient lift safe (OSHA safe patient handling).',
   },
   {
+    retire: true,
     id: 242,
     match:
       'In an intubated patient, end-tidal CO₂ suddenly drops to near zero. Your first action is to:',
@@ -175,6 +193,7 @@ const FIXES = [
     why: 'A sudden near-zero value can also reflect disconnection or equipment failure, not only tube placement.',
   },
   {
+    retire: true,
     id: 247,
     match: 'To improve bag-mask ventilation in a markedly obese patient, position them:',
     options: [
@@ -195,6 +214,7 @@ const FIXES = [
     why: 'INCORRECT KEY. E3 + V4 + M5 = 12, not 13.',
   },
   {
+    retire: true,
     id: 262,
     match:
       'A patient with an inferior STEMI becomes hypotensive after nitroglycerin. The most likely explanation is:',
@@ -209,6 +229,7 @@ const FIXES = [
     why: 'Inferior location alone does not establish clinically important RV preload dependence.',
   },
   {
+    retire: true,
     id: 267,
     match:
       'A patient in narrow-complex tachycardia at 190 is hypotensive and confused. The indicated treatment is:',
@@ -223,6 +244,7 @@ const FIXES = [
     why: 'Without a pulse qualifier, an organized narrow rhythm is PEA, not a cardioversion indication.',
   },
   {
+    retire: true,
     id: 271,
     match: 'The first priority in managing diabetic ketoacidosis in the prehospital setting is:',
     stem: 'After immediate ABC threats are addressed, the principal AEMT treatment for a dehydrated DKA patient is:',
@@ -236,6 +258,7 @@ const FIXES = [
     why: '"First priority" is airway/breathing/circulation, which made the keyed answer arguable.',
   },
   {
+    retire: true,
     id: 273,
     match: 'The adult intramuscular epinephrine dose for anaphylaxis is:',
     stem: 'Under this course protocol, the adult intramuscular epinephrine dose for anaphylaxis is:',
@@ -249,6 +272,7 @@ const FIXES = [
     why: 'A universal 0.3 mg adult answer is not defensible across guidelines; ratio notation replaced with mg/mL.',
   },
   {
+    retire: true,
     id: 278,
     match: 'Glucagon is used in beta-blocker overdose because it:',
     stem: 'Under Kansas AEMT scope, glucagon is indicated for hypoglycemia when:',
@@ -262,6 +286,7 @@ const FIXES = [
     why: 'Beta-blocker overdose treatment is high-dose IV therapy, outside AEMT scope. Kansas authorizes glucagon IM/IN for hypoglycemia.',
   },
   {
+    retire: true,
     id: 279,
     match:
       'A patient with a GI bleed is pale, tachycardic and hypotensive. The immediate priority is:',
@@ -275,6 +300,7 @@ const FIXES = [
     why: 'Avoid implying routine oxygen regardless of saturation.',
   },
   {
+    retire: true,
     id: 281,
     match: 'Permissive hypotension in uncontrolled hemorrhage aims to:',
     stem: 'In an adult without suspected TBI, and where protocol allows it, permissive hypotension in uncontrolled hemorrhage aims to:',
@@ -288,6 +314,7 @@ const FIXES = [
     why: 'Permissive hypotension is not a universal hemorrhage target.',
   },
   {
+    retire: true,
     id: 282,
     match:
       'An adult with a heart rate of 130, respirations of 32, and confusion has lost approximately:',
@@ -624,7 +651,7 @@ const FIXES = [
 ]
 
 /**
- * Items retired rather than corrected. `active = false`, never DELETE:
+ * Retired for a reason other than arguable content. `active = false`, never DELETE:
  * exam_attempts.question_ids holds bare ids with no foreign key, so deleting a
  * row silently orphans every historical attempt that served it. Deactivating
  * removes it from future draws (exam_start selects `where active`) and leaves
@@ -635,12 +662,6 @@ const RETIRE = [
     id: 288,
     match: 'Needle decompression for tension pneumothorax is performed at the:',
     why: 'Needle decompression is not a Kansas AEMT-authorized activity (K.S.A. 65-6120), and item 196 already tests recognition of tension pneumothorax.',
-  },
-  {
-    id: 228,
-    match:
-      'After at least 30 seconds of effective ventilation that produces chest movement, newborn chest compressions are started if the heart rate is below:',
-    why: 'Corrected above, then retired: with the qualifier added it duplicates the scenario version of the same fact, which is the better-constructed item.',
   },
 ]
 
@@ -675,9 +696,12 @@ function measure(fixes) {
 const q = (s) => `'${s.replace(/'/g, "''")}'`
 const arr = (opts) => `array[${opts.map(q).join(',')}]`
 
-const stats = measure(FIXES)
+const CORRECTED = FIXES.filter((f) => !f.retire)
+const RETIRED = [...FIXES.filter((f) => f.retire), ...RETIRE]
+
+const stats = measure(CORRECTED)
 console.error(
-  `${stats.n} corrections · mean key-vs-distractor length ${stats.meanDelta > 0 ? '+' : ''}${stats.meanDelta} chars · ${stats.longestBy6} longest by >=6 chars${stats.offenders.length ? ` (${stats.offenders.join(', ')})` : ''}`,
+  `${RETIRED.length} retired · ${stats.n} corrections · mean key-vs-distractor length ${stats.meanDelta > 0 ? '+' : ''}${stats.meanDelta} chars · ${stats.longestBy6} longest by >=6 chars${stats.offenders.length ? ` (${stats.offenders.join(', ')})` : ''}`,
 )
 
 const out = []
@@ -711,7 +735,7 @@ create temp table exam_fix (
 
 insert into exam_fix (ref, old_stem, new_stem, new_options, new_answer) values`)
 
-const rows = FIXES.map(
+const rows = CORRECTED.map(
   (f) =>
     `  -- ${f.id}: ${f.why}\n  (${f.id}, ${q(f.match)}, ${q(f.stem ?? f.match)}, ${arr(f.options)}, ${f.answer})`,
 )
@@ -741,7 +765,9 @@ update public.exam_questions e
 -- foreign key, so a delete silently orphans every historical attempt that
 -- served the item. Deactivating drops it from future draws instead.`)
 
-for (const r of RETIRE) {
+for (const r of RETIRED) {
+  // Match on the ORIGINAL stem: retired items are never rewritten, so the bank
+  // still holds the text they were flagged under.
   out.push(`-- ${r.id}: ${r.why}
 update public.exam_questions set active = false where stem = ${q(r.match)};`)
 }

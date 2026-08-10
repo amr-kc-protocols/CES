@@ -109,12 +109,18 @@ Run these three in order, and **treat the order as load-bearing**:
    it `truncate`s the table, so it takes the harder tier with it.
 2. `exam_questions_hard.sql` — the 63-item application tier. Deletes and
    re-inserts only `difficulty = 'hard'`.
-3. `exam_questions_fixes.sql` — the reviewer corrections, including a wrong
-   Glasgow Coma Score key and several clinically outdated items.
+3. `exam_questions_fixes.sql` — the reviewer pass: 29 corrections and 22
+   retirements. It fixes a wrong Glasgow Coma Score key and retires every item
+   whose clinical content a candidate could argue.
 
 **Step 3 is not optional, and re-running step 1 or 2 undoes it.** The first two
 files are generated from scripts and carry the bank as originally written;
-every correction lives in the third. Re-seed and the wrong answers come back.
+every correction and retirement lives in the third. Re-seed without it and the
+wrong answers come back, along with 22 contestable items.
+
+The bank runs 161 active against a 50-question draw. Retiring more than about
+another 30 starts to make repeat sittings recognizable, so anything further
+should come with replacements.
 
 The fixes file is safe to run at any time and safe to run twice — it matches on
 stem text rather than row id (ids are not stable; `exam_questions_hard.sql`
@@ -125,11 +131,11 @@ Retired items are set `active = false`, never deleted. `exam_attempts.question_i
 holds bare ids with no foreign key, so deleting a question silently orphans
 every historical attempt that served it.
 
-Stored answer positions are lopsided — 65% of the active bank keys to B — and
+Stored answer positions are lopsided — 67% of the active bank keys to B — and
 that is **not** a defect to fix in the data. `ExamPage` shuffles each question's
 options per attempt, seeded on the attempt id, so no candidate sees the stored
 order. Simulated over 20,000 attempts against the current bank, delivered
-positions come out A 25.1% / B 25.0% / C 24.9% / D 25.0% across all 24
+positions come out A 25.1% / B 25.0% / C 25.0% / D 25.0% across all 24
 permutations. Rebalancing the stored rows would gain nothing and would
 invalidate `exam_attempts.responses`, which records the original option index.
 

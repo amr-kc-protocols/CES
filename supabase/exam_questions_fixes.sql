@@ -27,52 +27,10 @@ create temp table exam_fix (
 ) on commit drop;
 
 insert into exam_fix (ref, old_stem, new_stem, new_options, new_answer) values
-  -- 123: Current AHA wording is one breath every 6 seconds.
-  (123, 'For an adult in respiratory arrest with a pulse, deliver one breath every:', 'For an adult in respiratory arrest with a pulse, deliver one breath every:', array['3 seconds (20 breaths/min)','6 seconds (10 breaths/min)','10 seconds (6 breaths/min)','15 seconds (4 breaths/min)'], 1),
-  -- 162: Depth has an upper bound (2.4 in / 6 cm), which "at least 2 inches" omits. Ranges keep the bound without making the key the longest option.
-  (162, 'Adult compression depth is at least:', 'Adult chest compression depth should be:', array['1 to 1.5 in (2.5 to 4 cm)','1.5 to 2 in (4 to 5 cm)','2 to 2.4 in (5 to 6 cm)','2.5 to 3 in (6.5 to 7.5 cm)'], 2),
-  -- 166: "Recent erectile-dysfunction medication" is too vague — the exclusion interval differs by drug.
-  (166, 'Before assisting a patient with prescribed nitroglycerin, a key contraindication to check is:', 'Before assisting a patient with prescribed nitroglycerin, a key contraindication to check is:', array['a resting heart rate above 60 beats/min','PDE-5 inhibitor use within its exclusion interval','a documented history of chronic hypertension','a prior myocardial infarction over a year ago'], 1),
-  -- 173: A completely silent MI is also possible, so the old distractor D was defensible. Replaced with something clearly unrelated.
-  (173, 'In women, the elderly, and diabetics, an MI may present as:', 'An MI may present without chest pain as:', array['crushing substernal pain in every case','fatigue and dyspnea without chest pain','leg pain as the only presenting symptom','localized itching with a spreading rash'], 1),
-  -- 176: As written, oral glucose and IV dextrose were both defensible for an AEMT.
-  (176, 'Treatment for a conscious hypoglycemic patient who can swallow is:', 'Treatment for a conscious hypoglycemic patient who can swallow and has no IV access is:', array['intravenous dextrose','oral glucose','intramuscular glucagon','withholding all sugar'], 1),
-  -- 197: Three-sided improvised seals are no longer the preferred general answer (2024 AHA/Red Cross First Aid Guidelines).
-  (197, 'An open ("sucking") chest wound is initially covered with:', 'If a dressing is placed on an open ("sucking") chest wound, you should:', array['seal it on four sides and leave it undisturbed','use a vented chest seal and reassess breathing','pack the wound with gauze and apply pressure','cover it loosely and leave the site open to air'], 1),
-  -- 203: Dangerous bleeding must not be identified by color.
-  (203, 'The most immediately life-threatening bleeding to control is:', 'The most immediately life-threatening bleeding to control is:', array['slow oozing that stops with light pressure','rapid bleeding that continues despite pressure','a shallow surface scrape with minor seepage','an older bruise that is still discolored'], 1),
-  -- 204: The keyed option merely repeated the stem.
-  (204, 'A burn that is dry, white/leathery or charred, and painless is:', 'A burn that is dry, white or leathery, and painless is classified as:', array['superficial','partial-thickness','full-thickness','chemical'], 2),
   -- 217: Ratio expressions are a recognized medication-error risk (ISMP). Metric concentration instead.
   (217, 'Order: give 1 mg. On hand: 1 mg in 10 mL (1:10,000). You administer:', 'Order: 1 mg. On hand: epinephrine 0.1 mg/mL. How many mL do you give?', array['1 mL','10 mL','0.1 mL','100 mL'], 1),
-  -- 228: Without the ventilation qualifier the item implies immediate compressions for any newborn HR below 60. Also retired below as a duplicate of the scenario version.
-  (228, 'Newborn resuscitation adds chest compressions if the heart rate is below:', 'After at least 30 seconds of effective ventilation that produces chest movement, newborn chest compressions are started if the heart rate is below:', array['100 beats/min','60 beats/min','40 beats/min','80 beats/min'], 1),
-  -- 232: A competent patient cannot be REQUIRED to sign. The old key made a signature the obligation.
-  (232, 'A competent adult refusing care must be informed of the risks and:', 'A competent adult refusing care should be managed by:', array['transporting them against their clearly stated wishes','assessing capacity, explaining risks, documenting refusal','restraining them until a family member arrives','leaving without a report once they decline care'], 1),
-  -- 236: Technique alone does not make a heavy dependent-patient lift safe (OSHA safe patient handling).
-  (236, 'When lifting a heavy patient, you should:', 'When lifting a heavy patient, you should:', array['bend at the waist and reach across to the patient','use weight-rated equipment and enough trained help','twist at the torso while lifting the load up','hold the weight well away from your own body'], 1),
-  -- 242: A sudden near-zero value can also reflect disconnection or equipment failure, not only tube placement.
-  (242, 'In an intubated patient, end-tidal CO₂ suddenly drops to near zero. Your first action is to:', 'In an intubated patient, end-tidal CO₂ suddenly drops to near zero. Your first action is to:', array['increase the ventilation rate and continue on','assess the patient and circuit, including the tube','suction the airway and then continue ventilating','add supplemental oxygen and recheck in a minute'], 1),
-  -- 247: "Ear level to the sternum" is anatomically imprecise.
-  (247, 'To improve bag-mask ventilation in a markedly obese patient, position them:', 'To improve bag-mask ventilation in a markedly obese patient, position them:', array['head-down with the head turned to the left','prone with the head turned toward one shoulder','supine and flat with the head kept fully neutral','ramped, ear canal level with the sternal notch'], 3),
   -- 252: INCORRECT KEY. E3 + V4 + M5 = 12, not 13.
   (252, 'A patient opens their eyes to voice, is confused, and localizes pain. Their Glasgow Coma Score is:', 'A patient opens their eyes to voice, is confused, and localizes pain. Their Glasgow Coma Score is:', array['12','15','9','11'], 0),
-  -- 262: Inferior location alone does not establish clinically important RV preload dependence.
-  (262, 'A patient with an inferior STEMI becomes hypotensive after nitroglycerin. The most likely explanation is:', 'A patient with an inferior STEMI with right-ventricular involvement becomes hypotensive after nitroglycerin. The most likely explanation is:', array['a coincidental new arrhythmia','an allergic reaction to the drug','right ventricular preload dependence','a dose that was set too low'], 2),
-  -- 267: Without a pulse qualifier, an organized narrow rhythm is PEA, not a cardioversion indication.
-  (267, 'A patient in narrow-complex tachycardia at 190 is hypotensive and confused. The indicated treatment is:', 'A patient in narrow-complex tachycardia at 190 beats/min with a palpable pulse is hypotensive and confused. The indicated treatment is:', array['synchronized cardioversion','oral aspirin and observation','watchful waiting and reassessment','a fluid challenge on its own'], 0),
-  -- 271: "First priority" is airway/breathing/circulation, which made the keyed answer arguable.
-  (271, 'The first priority in managing diabetic ketoacidosis in the prehospital setting is:', 'After immediate ABC threats are addressed, the principal AEMT treatment for a dehydrated DKA patient is:', array['oral glucose','bicarbonate infusion','rapid insulin administration','isotonic fluid resuscitation'], 3),
-  -- 273: A universal 0.3 mg adult answer is not defensible across guidelines; ratio notation replaced with mg/mL.
-  (273, 'The adult intramuscular epinephrine dose for anaphylaxis is:', 'Under this course protocol, the adult intramuscular epinephrine dose for anaphylaxis is:', array['1 mg of 0.1 mg/mL','0.5 mg of 0.01 mg/mL','0.1 mg of 0.1 mg/mL','0.3 mg of 1 mg/mL'], 3),
-  -- 278: Beta-blocker overdose treatment is high-dose IV therapy, outside AEMT scope. Kansas authorizes glucagon IM/IN for hypoglycemia.
-  (278, 'Glucagon is used in beta-blocker overdose because it:', 'Under Kansas AEMT scope, glucagon is indicated for hypoglycemia when:', array['the patient is alert and able to drink safely','the patient cannot swallow and has no IV access','oral glucose has already corrected the reading','the blood glucose is well above the normal range'], 1),
-  -- 279: Avoid implying routine oxygen regardless of saturation.
-  (279, 'A patient with a GI bleed is pale, tachycardic and hypotensive. The immediate priority is:', 'A patient with a GI bleed is pale, tachycardic and hypotensive. The immediate priority is:', array['oral fluids to replace the volume lost','sitting the patient fully upright throughout','a complete history taken before treatment','ABCs, warmth, IV access, oxygen if hypoxemic'], 3),
-  -- 281: Permissive hypotension is not a universal hemorrhage target.
-  (281, 'Permissive hypotension in uncontrolled hemorrhage aims to:', 'In an adult without suspected TBI, and where protocol allows it, permissive hypotension in uncontrolled hemorrhage aims to:', array['perfuse without dislodging clot','withhold fluid altogether','bring the heart rate down','restore a normal pressure quickly'], 0),
-  -- 282: Vital signs cannot reliably determine an individual patient’s exact percentage of blood loss.
-  (282, 'An adult with a heart rate of 130, respirations of 32, and confusion has lost approximately:', 'Using the traditional hemorrhagic-shock classification, an adult with a heart rate of 130 beats/min, respirations of 32 breaths/min, and confusion has lost approximately:', array['30 to 40% of blood volume','5% of blood volume','no measurable volume','under 15% of blood volume'], 0),
   -- 291: Ratio expressions are a recognized medication-error risk (ISMP).
   (291, 'A 1:10,000 epinephrine concentration contains:', 'Epinephrine 0.1 mg/mL contains:', array['1 mg in 1 mL','1 mg in 10 mL','10 mg in 1 mL','1 mg in 100 mL'], 1),
   -- 293: The old arithmetic was right but 1,000 gtt/min is not a countable rate.
@@ -150,10 +108,50 @@ update public.exam_questions e
 -- Retire, never delete: exam_attempts.question_ids holds bare ids with no
 -- foreign key, so a delete silently orphans every historical attempt that
 -- served the item. Deactivating drops it from future draws instead.
+-- 123: Current AHA wording is one breath every 6 seconds.
+update public.exam_questions set active = false where stem = 'For an adult in respiratory arrest with a pulse, deliver one breath every:';
+-- 162: Depth has an upper bound (2.4 in / 6 cm), which "at least 2 inches" omits. Ranges keep the bound without making the key the longest option.
+update public.exam_questions set active = false where stem = 'Adult compression depth is at least:';
+-- 166: "Recent erectile-dysfunction medication" is too vague — the exclusion interval differs by drug.
+update public.exam_questions set active = false where stem = 'Before assisting a patient with prescribed nitroglycerin, a key contraindication to check is:';
+-- 173: A completely silent MI is also possible, so the old distractor D was defensible. Replaced with something clearly unrelated.
+update public.exam_questions set active = false where stem = 'In women, the elderly, and diabetics, an MI may present as:';
+-- 176: As written, oral glucose and IV dextrose were both defensible for an AEMT.
+update public.exam_questions set active = false where stem = 'Treatment for a conscious hypoglycemic patient who can swallow is:';
+-- 197: Three-sided improvised seals are no longer the preferred general answer (2024 AHA/Red Cross First Aid Guidelines).
+update public.exam_questions set active = false where stem = 'An open ("sucking") chest wound is initially covered with:';
+-- 203: Dangerous bleeding must not be identified by color.
+update public.exam_questions set active = false where stem = 'The most immediately life-threatening bleeding to control is:';
+-- 204: The keyed option merely repeated the stem.
+update public.exam_questions set active = false where stem = 'A burn that is dry, white/leathery or charred, and painless is:';
+-- 228: Implies immediate compressions for any newborn HR below 60. Adding the ventilation qualifier fixes that but then duplicates the scenario version of the same fact, which is the better item — so this one goes.
+update public.exam_questions set active = false where stem = 'Newborn resuscitation adds chest compressions if the heart rate is below:';
+-- 232: A competent patient cannot be REQUIRED to sign. The old key made a signature the obligation.
+update public.exam_questions set active = false where stem = 'A competent adult refusing care must be informed of the risks and:';
+-- 236: Technique alone does not make a heavy dependent-patient lift safe (OSHA safe patient handling).
+update public.exam_questions set active = false where stem = 'When lifting a heavy patient, you should:';
+-- 242: A sudden near-zero value can also reflect disconnection or equipment failure, not only tube placement.
+update public.exam_questions set active = false where stem = 'In an intubated patient, end-tidal CO₂ suddenly drops to near zero. Your first action is to:';
+-- 247: "Ear level to the sternum" is anatomically imprecise.
+update public.exam_questions set active = false where stem = 'To improve bag-mask ventilation in a markedly obese patient, position them:';
+-- 262: Inferior location alone does not establish clinically important RV preload dependence.
+update public.exam_questions set active = false where stem = 'A patient with an inferior STEMI becomes hypotensive after nitroglycerin. The most likely explanation is:';
+-- 267: Without a pulse qualifier, an organized narrow rhythm is PEA, not a cardioversion indication.
+update public.exam_questions set active = false where stem = 'A patient in narrow-complex tachycardia at 190 is hypotensive and confused. The indicated treatment is:';
+-- 271: "First priority" is airway/breathing/circulation, which made the keyed answer arguable.
+update public.exam_questions set active = false where stem = 'The first priority in managing diabetic ketoacidosis in the prehospital setting is:';
+-- 273: A universal 0.3 mg adult answer is not defensible across guidelines; ratio notation replaced with mg/mL.
+update public.exam_questions set active = false where stem = 'The adult intramuscular epinephrine dose for anaphylaxis is:';
+-- 278: Beta-blocker overdose treatment is high-dose IV therapy, outside AEMT scope. Kansas authorizes glucagon IM/IN for hypoglycemia.
+update public.exam_questions set active = false where stem = 'Glucagon is used in beta-blocker overdose because it:';
+-- 279: Avoid implying routine oxygen regardless of saturation.
+update public.exam_questions set active = false where stem = 'A patient with a GI bleed is pale, tachycardic and hypotensive. The immediate priority is:';
+-- 281: Permissive hypotension is not a universal hemorrhage target.
+update public.exam_questions set active = false where stem = 'Permissive hypotension in uncontrolled hemorrhage aims to:';
+-- 282: Vital signs cannot reliably determine an individual patient’s exact percentage of blood loss.
+update public.exam_questions set active = false where stem = 'An adult with a heart rate of 130, respirations of 32, and confusion has lost approximately:';
 -- 288: Needle decompression is not a Kansas AEMT-authorized activity (K.S.A. 65-6120), and item 196 already tests recognition of tension pneumothorax.
 update public.exam_questions set active = false where stem = 'Needle decompression for tension pneumothorax is performed at the:';
--- 228: Corrected above, then retired: with the qualifier added it duplicates the scenario version of the same fact, which is the better-constructed item.
-update public.exam_questions set active = false where stem = 'After at least 30 seconds of effective ventilation that produces chest movement, newborn chest compressions are started if the heart rate is below:';
 
 -- ----- verification --------------------------------------------------------
 
