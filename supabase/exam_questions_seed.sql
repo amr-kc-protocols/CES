@@ -1,5 +1,8 @@
 -- AEMT exam question bank seed (120 items). Generated — do not hand-edit.
 -- Re-runnable: clears the bank and reloads it.
+-- WARNING: re-running this file reverts the corrections in
+-- exam_questions_fixes.sql (a wrong Glasgow Coma Score key, several
+-- clinically outdated items). Run that file again afterwards.
 truncate table public.exam_questions;
 insert into public.exam_questions (domain, stem, options, answer) values
 ('Airway', 'The primary function of the upper airway is to:', array['carry oxygen down to the alveoli','warm, filter, and humidify air','remove carbon dioxide from blood','drive the primary cough reflex'], 1),
