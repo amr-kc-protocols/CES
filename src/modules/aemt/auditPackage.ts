@@ -14,7 +14,6 @@ import {
   agreementStatus,
   docStatus,
 } from '../../data/aemtRecords'
-import { sheetsForCourse } from '../../data/aemtSkills'
 import {
   attestationIsEvidence,
   encounterCounts,
@@ -22,6 +21,7 @@ import {
   skillSignoffIsEvidence,
   standingFor,
 } from './aemtStore'
+import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   AemtAuditEvent,
   AemtClinicalShift,
@@ -106,11 +106,17 @@ export interface AuditPackageInput {
 export function auditPackageHTML(
   d: AuditPackageInput,
   provenance?: { hash: string | null; actor: string; manifest: { record: string; count: number }[] },
+  /**
+   * The sheets this course checks off on, resolved to the version in force.
+   * Passed in so the packet lists the same sheets the Skills tab does — a
+   * bundled lookup would miss anything the operation authored or hid.
+   */
+  sheets: AemtSkillSheet[] = [],
 ): string {
   const { course } = d
   const cred = (c?: string) => (c ? PRECEPTOR_LABELS[c as PreceptorCredential] ?? c : '—')
   const nameOf = (id?: string) => d.students.find((s) => s.id === id)?.name ?? '—'
-  const sheets = sheetsForCourse(course.monitorSheetId)
+
   const generated = new Date().toISOString().replace('T', ' ').slice(0, 16)
 
   const rows = (arr: string[]) => arr.join('')
@@ -291,9 +297,14 @@ export function auditPackageHTML(
             return `<td class="warn">${esc(formatDate(c.passedDate))}<div class="warn">UNATTRIBUTED — no signer recorded</div></td>`
           }
           const a = c.attestation!
+          // The version signed against, not the version in force — an edited
+          // sheet must not restate what an evaluator already put a name to.
+          const v = c.templateVersion
           return `<td class="ok">${esc(formatDate(c.passedDate))}<div class="muted">${esc(a.by)} (${esc(
             cred(a.credential),
-          )}${a.certNumber ? ` #${esc(a.certNumber)}` : ''})</div></td>`
+          )}${a.certNumber ? ` #${esc(a.certNumber)}` : ''})</div><div class="muted">sheet ${
+            v ? `v${num(v)}` : 'as shipped'
+          }</div></td>`
         })
         .join('')
       return `<tr><td>${esc(st.name)}</td>${cells}</tr>`
@@ -489,7 +500,9 @@ ${shifts || '<tr><td colspan="7" class="muted">No shifts recorded</td></tr>'}</t
 ${skills || '<tr><td class="muted">No students</td></tr>'}</table>
 <div class="note">A sheet counts toward K.A.R. 109-11-8(a)(2) only where an identified evaluator
 signed it, with a credential and licence number, and the recorded criteria still support that
-signature. Sheets marked UNATTRIBUTED or CONTRADICTED are shown and do not count.${
+signature. Sheets marked UNATTRIBUTED or CONTRADICTED are shown and do not count. Each sign-off
+names the sheet version it was made against; an instrument edited later publishes a new version and
+leaves these untouched.${
     course.monitorSheetId
       ? ''
       : ' <span class="crit">This course names no cardiac monitor, so no monitor sheet is required of any student — the column is absent above rather than unmet.</span>'

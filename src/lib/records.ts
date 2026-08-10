@@ -93,6 +93,17 @@ const SLICES: SliceDef[] = [
   },
   { collection: 'aemtAudit', slice: 'aemtAudit', idOf: id as SliceDef['idOf'] },
   { collection: 'aemtCandidates', slice: 'aemtCandidates', idOf: id as SliceDef['idOf'] },
+
+  // ----- editable instruments ------------------------------------------------
+  // Skill sheets and evaluation forms edited in the app. These MUST sync: an
+  // instrument that only exists on the admin's device would leave every FTO and
+  // instructor assessing against the version shipped with the app, while the
+  // records they wrote claimed a version nobody else can resolve.
+  //
+  // Versions are append-only in practice — publishing adds a row rather than
+  // editing one — so this collection only ever grows, and a device that has
+  // pulled a version can always render a record pinned to it.
+  { collection: 'templates', slice: 'templates', idOf: id as SliceDef['idOf'] },
 ]
 
 const SETTINGS_COLLECTION = 'settings'

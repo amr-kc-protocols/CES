@@ -16,7 +16,7 @@ import {
 } from '../../data/aemt'
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
-import { sheetsForCourse } from '../../data/aemtSkills'
+import { versionToPin } from '../templates/resolve'
 import {
   SELECTION_WEIGHTS,
   BONUS_TIERS,
@@ -662,7 +662,18 @@ function upsertCheck(
       (c) => c.courseId === courseId && c.studentId === studentId && c.sheetId === sheetId,
     )
     const base: AemtSkillCheck =
-      idx >= 0 ? db.aemtSkillChecks[idx] : { courseId, studentId, sheetId, results: {} }
+      idx >= 0
+        ? db.aemtSkillChecks[idx]
+        : {
+            courseId,
+            studentId,
+            sheetId,
+            // Pinned when the record is created, so a sheet edited mid-course
+            // does not retroactively change what a part-graded student was
+            // assessed against.
+            templateVersion: versionToPin('aemt-skill', sheetId),
+            results: {},
+          }
     const next = fn(base)
     const list = [...db.aemtSkillChecks]
     if (idx >= 0) list[idx] = next
@@ -816,8 +827,13 @@ export function signSkillSheet(
 ): void {
   const at = new Date().toISOString()
   const full: Attestation = { ...attestation, at, statement: SKILL_STATEMENT }
+  // Pin the sheet version at the moment of signing. The evaluator attested to
+  // the criteria as they read today; a later edit publishes a new version and
+  // this record keeps rendering against the one that was signed.
+  const templateVersion = versionToPin('aemt-skill', sheetId)
   upsertCheck(courseId, studentId, sheetId, (c) => ({
     ...c,
+    templateVersion: c.templateVersion ?? templateVersion,
     evaluator: full.by,
     passedDate: at.slice(0, 10),
     attestation: full,
@@ -945,6 +961,7 @@ export function addFormResponse(
     id: uid('aform'),
     courseId,
     formId,
+    templateVersion: versionToPin('aemt-form', formId),
     studentId: input.studentId,
     date: input.date,
     values: input.values,
@@ -2025,6 +2042,13 @@ export function openConcerns(responses: AemtFormResponse[]): AemtFormResponse[] 
 export function useStudentReadiness(
   courseId: string | undefined,
   monitorSheetId: string | undefined,
+  /**
+   * The sheets this course checks off on, already resolved to the version in
+   * force. Passed in rather than resolved here so the readiness gate counts the
+   * same sheets the Skills tab shows — including any an operation authored or
+   * hid, which a bundled lookup would miss.
+   */
+  sheets: AemtSkillSheet[],
 ): StudentReadiness[] {
   const students = useStudents(courseId)
   const hours = useStudentHours(courseId)
@@ -2035,7 +2059,6 @@ export function useStudentReadiness(
   const targets = useCourse(courseId)?.targets
 
   return useMemo(() => {
-    const sheets = sheetsForCourse(monitorSheetId)
     return students.map((student) => {
       const h = hours.find((x) => x.student.id === student.id)
       const c = clinical.find((x) => x.student.id === student.id)
@@ -2132,7 +2155,7 @@ export function useStudentReadiness(
         completion: completions.find((x) => x.studentId === student.id),
       }
     })
-  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets])
+  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets])
 }
 
 /**

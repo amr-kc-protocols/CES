@@ -3,10 +3,11 @@ import { Empty, ProgressBar } from '../../components/ui'
 import SignaturePad from '../../components/SignaturePad'
 import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
-import { SHEETS, skillsFor, sheetsForTrainee } from '../../data/checkoffSheets'
+import { sheetsForTrainee } from '../../data/checkoffSheets'
 import { useSelector } from '../../lib/store'
 import { useCan } from '../../lib/role'
 import { printDoc, downloadDoc, checkoffSheetHTML, safeFilename } from './docGen'
+import { liveNeopSheet, neopSheetMeta, neopSheetAtVersion, neopSkillsFor } from '../templates/resolve'
 import type { SkillSheetId } from '../../types'
 import {
   useCohort,
@@ -28,8 +29,9 @@ export default function SkillSheetView() {
   const { cohortId = '', traineeId = '', sheet: sheetParam } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useSelector((db) => db.trainees.find((t) => t.id === traineeId))
+  // Any id the registry knows is valid, bundled or authored in-app.
   const sheet: SkillSheetId =
-    sheetParam && sheetParam in SHEETS ? (sheetParam as SkillSheetId) : 'bls'
+    sheetParam && liveNeopSheet(sheetParam as SkillSheetId) ? (sheetParam as SkillSheetId) : 'bls'
   const check = useSkillCheckFor(traineeId, sheet)
   // New hires can review their sheet (and print it) but not mark or sign it.
   const readOnly = !useCan().editRideWork
@@ -49,17 +51,25 @@ export default function SkillSheetView() {
   if (!sheetsForTrainee(trainee).includes(sheet)) {
     return (
       <Empty icon="📋" title="Not part of this programme">
-        {SHEETS[sheet].label} is not one of the check-off sheets {trainee.name}
+        {liveNeopSheet(sheet)?.label} is not one of the check-off sheets {trainee.name}
         &rsquo;s operation runs.{' '}
         <Link to={`/academy/${cohortId}`} className="link-btn">Back to the roster</Link>
       </Empty>
     )
   }
 
-  const meta = SHEETS[sheet]
+  // A signed sheet renders against the version it was signed on; an unsigned
+  // one against the version in force.
+  const pinned = neopSheetAtVersion(sheet, check?.templateVersion)
+  const meta =
+    (check?.evaluatorSignedAt ? pinned.sheet : liveNeopSheet(sheet)) ?? neopSheetMeta(sheet)
   // RSI is Linn-only, ventilator management KC/Cass-only — show each trainee
   // only the skills their operation performs.
-  const skills = skillsFor(sheet, trainee.operation)
+  const skills = neopSkillsFor(
+    sheet,
+    trainee.operation,
+    check?.evaluatorSignedAt ? check?.templateVersion : undefined,
+  )
   const stepStyle = skills.some((s) => s.steps?.length)
   const results = check?.results ?? {}
   const passed = skills.filter((s) => results[s.id] === 'pass').length

@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { initSync, onPullComplete, getSyncStatus, getCloudConfig } from './lib/sync'
 import { initPWA } from './lib/pwa'
+// Side-effect import: registers the bundled skill sheets and evaluation forms
+// as version 0 of each editable instrument. Must run before anything resolves
+// a template, so it sits at the entry point rather than inside a lazy chunk.
+import './data/templateRegistry'
 import './index.css'
 
 // Register the service worker and keep it auto-updating to the latest deploy.

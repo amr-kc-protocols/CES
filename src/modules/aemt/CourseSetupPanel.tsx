@@ -7,7 +7,7 @@ import { pushUndo } from '../../lib/undo'
 import { updateCourse, deleteCourse, useCourseFootprint } from './aemtStore'
 import { PRECEPTOR_LABELS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
-import { MONITOR_SHEETS } from '../../data/aemtSkills'
+import { useMonitorSheets } from '../templates/resolve'
 import { agreementStatus } from '../../data/aemtRecords'
 import type { AemtCourse, AemtSite, PreceptorCredentialId } from '../../types'
 
@@ -58,6 +58,7 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
   // created without one silently dropped the monitor sheet from every student's
   // psychomotor requirement, with no way to correct it afterwards.
   const [monitor, setMonitor] = useState(course.monitorSheetId ?? '')
+  const MONITOR_SHEETS = useMonitorSheets()
   // Hour commitments are editable here because they are rarely all known at
   // once — a clinical affiliation is often still being negotiated when the
   // classroom hours are already fixed.

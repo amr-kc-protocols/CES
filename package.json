@@ -9,7 +9,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "icons": "node scripts/gen-icons.mjs",
-    "check:evidence": "node scripts/check-evidence-hash.mjs"
+    "check:evidence": "node scripts/check-evidence-hash.mjs",
+    "check:templates": "node scripts/check-templates.mjs",
+    "check": "npm run check:evidence && npm run check:templates"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

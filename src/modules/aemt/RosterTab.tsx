@@ -12,6 +12,7 @@ import {
 } from './aemtStore'
 import CompletionPanel from './CompletionPanel'
 import CourseSetupPanel from './CourseSetupPanel'
+import { useSheetsForCourse } from '../templates/resolve'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtStudent, AemtStudentStatus } from '../../types'
 
@@ -162,7 +163,8 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const { manageAemt: manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
-  const readiness = useStudentReadiness(course.id, course.monitorSheetId)
+  const sheets = useSheetsForCourse(course.monitorSheetId)
+  const readiness = useStudentReadiness(course.id, course.monitorSheetId, sheets)
   const completions = useCompletions(course.id)
 
   return (

@@ -18,7 +18,12 @@ import {
   useRecordSafety,
   SKILL_STATEMENT,
 } from './aemtStore'
-import { sheetsForCourse, sheetsByScope, skillSheet } from '../../data/aemtSkills'
+import {
+  useSheetsForCourse,
+  useSheetsByScope,
+  liveSkillSheet,
+  skillSheetAtVersion,
+} from '../templates/resolve'
 import { PRECEPTOR_LABELS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import { useCan } from '../../lib/role'
@@ -104,9 +109,6 @@ function SignModal({
   )
 }
 
-const BLS_SHEETS = sheetsByScope('bls')
-const MEDIC_SHEETS = sheetsByScope('paramedic')
-
 function SheetDetail({
   course,
   studentId,
@@ -125,7 +127,12 @@ function SheetDetail({
   const safety = useRecordSafety()
   const [signing, setSigning] = useState(false)
   const [revoking, setRevoking] = useState(false)
-  const sheet = skillSheet(sheetId)
+  // A signed sheet renders against the version it was signed on; an unsigned
+  // one against the version in force. Otherwise editing a sheet would silently
+  // restate what an evaluator already put their name to.
+  const existing = checks.find((c) => c.studentId === studentId && c.sheetId === sheetId)
+  const pinned = skillSheetAtVersion(sheetId, existing?.templateVersion)
+  const sheet = existing?.passedDate ? pinned.sheet : liveSkillSheet(sheetId)
   if (!sheet) return null
 
   const standing = standingFor(checks, studentId, [sheet])[0]
@@ -413,7 +420,9 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
   const [selectedId, setSelected] = useState<string | null>(null)
   const [openSheet, setOpenSheet] = useState<string | null>(null)
   const [showExcluded, setShowExcluded] = useState(false)
-  const SHEETS = sheetsForCourse(course.monitorSheetId)
+  const SHEETS = useSheetsForCourse(course.monitorSheetId)
+  const BLS_SHEETS = useSheetsByScope('bls')
+  const MEDIC_SHEETS = useSheetsByScope('paramedic')
 
   if (students.length === 0) {
     return (

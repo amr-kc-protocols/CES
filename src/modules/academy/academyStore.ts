@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
+import { versionToPin } from '../templates/resolve'
+import { NEOP_DAILY_EVAL_ID } from '../../data/templateRegistry'
 import { pushUndo } from '../../lib/undo'
 import { addDays, formatDate, todayISO, fromISODate, toISODate, monthKey } from '../../lib/date'
 import {
@@ -396,6 +398,9 @@ export interface DailyEvalInput {
   spotter?: boolean
   readyIndependent?: boolean
   ftoInitials?: string
+  /** Answers to template fields beyond the four with their own columns. */
+  checks?: Record<string, boolean | undefined>
+  texts?: Record<string, string | undefined>
 }
 
 export function addDailyEval(traineeId: string, input: DailyEvalInput): DailyEval {
@@ -405,6 +410,10 @@ export function addDailyEval(traineeId: string, input: DailyEvalInput): DailyEva
     traineeId,
     traineeName: trainee?.name ?? '?',
     ...input,
+    // The template version this shift was scored on. An operation editing its
+    // categories later publishes a new version; this evaluation keeps rendering
+    // the rows the FTO actually filled in.
+    templateVersion: versionToPin('neop-daily-eval', NEOP_DAILY_EVAL_ID),
     fto: input.fto?.trim() || undefined,
     strengths: input.strengths?.trim() || undefined,
     improvements: input.improvements?.trim() || undefined,
@@ -470,6 +479,9 @@ function patchSkillCheck(traineeId: string, sheet: SkillSheetId, patch: (s: Skil
       traineeName: trainee.name,
       date: todayISO(),
       sheet,
+      // Pinned on first touch, so a sheet edited mid-academy does not change
+      // what a part-assessed trainee was checked off against.
+      templateVersion: versionToPin('neop-skill', sheet),
       results: {},
     }
     const next = { ...patch({ ...base, results: { ...base.results } }), date: todayISO() }

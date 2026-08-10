@@ -27,6 +27,7 @@ import { buildEvidenceBundle, bundleHash, formatHash, downloadJSON } from './evi
 import { recordAuditEvent } from './aemtStore'
 import { notifyUser } from '../../lib/dialog'
 import { printDoc, downloadDoc, safeFilename } from '../academy/docGen'
+import { useSheetsForCourse } from '../templates/resolve'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtRecordDoc } from '../../types'
 
@@ -154,6 +155,7 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
   const { manageAemt: manageAcademy } = useCan()
   const [editing, setEditing] = useState<RequiredRecord | null>(null)
   const safety = useRecordSafety()
+  const sheets = useSheetsForCourse(course.monitorSheetId)
 
   const input = {
     course,
@@ -189,7 +191,7 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
         .join(' ')}`,
     )
     return {
-      html: auditPackageHTML(input, { hash, actor: safety.actor, manifest: bundle.manifest }),
+      html: auditPackageHTML(input, { hash, actor: safety.actor, manifest: bundle.manifest }, sheets),
       bundle,
       hash,
     }

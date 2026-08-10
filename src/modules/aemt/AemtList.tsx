@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Empty, Modal } from '../../components/ui'
 import { formatDate, todayISO } from '../../lib/date'
 import { useCourses, useCourseTotals, createCourse, byStartDesc, KC_DEFAULT_TARGETS } from './aemtStore'
-import { MONITOR_SHEETS } from '../../data/aemtSkills'
+import { useMonitorSheets } from '../templates/resolve'
 import DeadlinePanel from './DeadlinePanel'
 import { useCan } from '../../lib/role'
 import type { AemtCourse } from '../../types'
@@ -47,6 +47,7 @@ function NewCourseForm({ onClose }: { onClose: () => void }) {
   const [coordinator, setCoordinator] = useState('')
   const [organization, setOrg] = useState('')
   const [monitor, setMonitor] = useState('')
+  const MONITOR_SHEETS = useMonitorSheets()
   const [didactic, setDidactic] = useState('')
   const [lab, setLab] = useState('')
   const [clinical, setClinical] = useState('')
