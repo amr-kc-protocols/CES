@@ -18,7 +18,14 @@ import {
   sessionProblems,
   parseClock,
 } from './aemtStore'
-import { ADDED_STANDARDS_SECTIONS, blockPlanTotals } from '../../data/aemt'
+import {
+  ADDED_STANDARDS_SECTIONS,
+  blockPlanTotals,
+  CLASS_HOURS_PER_WEEK,
+  KC_CLASS_PATTERN,
+  KC_COURSE_WEEKS,
+} from '../../data/aemt'
+import ScheduleCalendar from './ScheduleCalendar'
 import { addDays } from '../../lib/date'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
@@ -326,22 +333,32 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
   const plan = blockPlanTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
-  // The plan lays 16 weeks of Tue/Thu sessions from the first Tuesday on or
-  // after the start date. A course whose own end date falls sooner gets a
+  // The plan lays KC_COURSE_WEEKS of Tue/Thu sessions from the first Tuesday on
+  // or after the start date. A course whose own end date falls sooner gets a
   // schedule that runs past it, and every session beyond gets flagged as
   // outside the course dates — better said before building than discovered
-  // as a wall of warnings afterwards.
-  const lastSeeded = addDays(course.startDate, 15 * 7 + 9)
+  // as a wall of warnings afterwards. The span is derived: when the block plan
+  // grew from 16 weeks to 23, a hard-coded 15 here would have quietly stopped
+  // warning about the seven weeks that now overrun.
+  const lastSeeded = addDays(course.startDate, (KC_COURSE_WEEKS - 1) * 7 + 9)
   const runsPast = lastSeeded > course.endDate
 
   return (
-    <Modal title="Build the AMR KC 16-week plan" onClose={onClose}>
+    <Modal title={`Build the AMR KC ${KC_COURSE_WEEKS}-week plan`} onClose={onClose}>
       <p style={{ marginTop: 0, lineHeight: 1.55 }}>
-        Creates Tue/Thu sessions across 16 weeks from the proposal's content sequence —{' '}
+        Lays {KC_COURSE_WEEKS} weeks of class from the course text's content sequence —{' '}
         <strong>
           {plan.didactic} didactic + {plan.lab} lab
         </strong>
         , {plan.classroom} classroom hours in total.
+      </p>
+      <p style={{ lineHeight: 1.55 }} className="subtle">
+        {KC_CLASS_PATTERN.days.length} classes a week of {KC_CLASS_PATTERN.hoursPerDay} hours (
+        {CLASS_HOURS_PER_WEEK} h a week), from{' '}
+        {String(Math.floor(KC_CLASS_PATTERN.startMinute / 60)).padStart(2, '0')}:
+        {String(KC_CLASS_PATTERN.startMinute % 60).padStart(2, '0')}. Didactic and lab run in
+        separate weeks — lab is banked and released as a dedicated lab week once every block it
+        practises has been taught.
       </p>
 
       {course.targets ? (
@@ -396,7 +413,7 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
 
       {runsPast && (
         <div className="banner warn">
-          <strong>This runs past the course's end date.</strong> Sixteen weeks from{' '}
+          <strong>This runs past the course's end date.</strong> {KC_COURSE_WEEKS} weeks from{' '}
           {formatDate(course.startDate)} reaches {formatDate(lastSeeded)}, but the course is recorded
           as ending {formatDate(course.endDate)}. The sessions will still be created — every one past
           the end date will be flagged until the course dates are corrected in Course setup.
@@ -457,6 +474,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
   const { manageAemt: manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [view, setView] = useState<'calendar' | 'list'>('calendar')
   const totals = courseHourTotals(sessions)
   const recon = reconcileHours(sessions, course.targets)
   const problems = sessionProblems(sessions, course)
@@ -574,13 +592,29 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
           {totals.byKind.clinical} clinical · {totals.byKind.exam} exam
         </span>
         <div className="spacer" />
+        {sessions.length > 0 && (
+          <div className="btn-row" role="group" aria-label="Schedule view">
+            <button
+              className={`btn sm${view === 'calendar' ? ' primary' : ''}`}
+              onClick={() => setView('calendar')}
+            >
+              🗓️ Calendar
+            </button>
+            <button
+              className={`btn sm${view === 'list' ? ' primary' : ''}`}
+              onClick={() => setView('list')}
+            >
+              ☰ List
+            </button>
+          </div>
+        )}
         {manageAcademy && sessions.length === 0 && (
           <button
             className="btn"
-            title="Create Tue/Thu sessions for 16 weeks from the AMR KC proposal's content plan. Adjust for another program."
+            title={`Create Tue/Thu sessions for ${KC_COURSE_WEEKS} weeks from the AMR KC content plan. Adjust for another program.`}
             onClick={() => setSeeding(true)}
           >
-            ⚡ Build AMR KC 16-week plan
+            ⚡ Build AMR KC {KC_COURSE_WEEKS}-week plan
           </button>
         )}
         {manageAcademy && <SavedIndicator />}
@@ -597,6 +631,8 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
             ? 'Add the class meetings and the hours each is worth.'
             : 'The Clinical Educator lays out the course schedule.'}
         </Empty>
+      ) : view === 'calendar' ? (
+        <ScheduleCalendar course={course} sessions={sessions} />
       ) : (
         <div
           className={manageAcademy ? undefined : 'list'}

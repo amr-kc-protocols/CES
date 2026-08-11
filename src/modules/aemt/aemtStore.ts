@@ -6,12 +6,14 @@ import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { listExamResults } from '../../lib/exam'
 import {
-  blockContentLine,
+  buildClassPlan,
   blockPlanTotals,
+  KC_CLASS_PATTERN,
+  KC_CLINICAL_TARGET,
+  KC_FIELD_TARGET,
   CLINICAL_REQUIREMENTS,
   INSTRUCTOR_VERIFICATION_DAYS,
   KBEMS_DEADLINES,
-  KC_BLOCK_PLAN,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from '../../data/aemt'
@@ -469,7 +471,7 @@ export function deleteSession(id: string): void {
   })
 }
 
-// ----- seeding the KC 16-week plan -------------------------------------------
+// ----- seeding the KC block plan ---------------------------------------------
 
 /** Next occurrence of a weekday (0=Sun) on or after an ISO date. */
 function onOrAfterWeekday(iso: string, weekday: number): string {
@@ -550,49 +552,38 @@ export function addPlaceholderSessions(
 }
 
 export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
-  const firstTue = onOrAfterWeekday(startISO, 2)
   const created: AemtSession[] = []
-  let weekIndex = 0
+  const pattern = KC_CLASS_PATTERN
+  // The first class day on or after the start date anchors the calendar; every
+  // other session is offset from it, so the pattern's weekdays are honoured
+  // whatever day of the week the course happens to begin.
+  const firstDay = onOrAfterWeekday(startISO, pattern.days[0])
 
-  for (const block of KC_BLOCK_PLAN) {
-    const dPerWeek = block.didacticHours / block.spanWeeks
-    const lPerWeek = block.labHours / block.spanWeeks
-    for (let w = 0; w < block.spanWeeks; w++) {
-      const tue = addDays(firstTue, weekIndex * 7)
-      const thu = addDays(tue, 2)
-      const push = (date: string, kind: AemtSessionKind, hours: number) => {
-        if (hours <= 0) return
-        const h = Math.round(hours * 100) / 100
-        // The proposal runs class 09:00-13:00 Tue/Thu; end follows the hours.
-        // Computed in minutes: the previous form printed ':30' for any
-        // fractional part, so a quarter-hour block filed a time that
-        // contradicted its own hours, and anything running past midnight
-        // produced '24:00', which is not a time an input will accept.
-        const startMin = 9 * 60
-        created.push({
-          id: uid('asess'),
-          courseId,
-          date,
-          title: blockContentLine(block),
-          kind,
-          hours: h,
-          startTime: formatClock(startMin),
-          endTime: formatClock(startMin + Math.round(h * 60)),
-        })
-      }
-      if (dPerWeek > 0 && lPerWeek > 0) {
-        push(tue, 'didactic', dPerWeek)
-        push(thu, 'lab', lPerWeek)
-      } else if (dPerWeek > 0) {
-        // Lecture-only week: split across both class days.
-        push(tue, 'didactic', dPerWeek / 2)
-        push(thu, 'didactic', dPerWeek / 2)
-      } else {
-        push(tue, 'lab', lPerWeek / 2)
-        push(thu, 'lab', lPerWeek / 2)
-      }
-      weekIndex++
-    }
+  // Minutes already booked on each date. A class day normally carries one
+  // session, but where a block's hours run out mid-day the next block starts on
+  // the same day and has to begin when the first one ends — not at 09:00 again.
+  const dayEnd = new Map<string, number>()
+
+  for (const s of buildClassPlan(pattern)) {
+    const offset = pattern.days[s.dayIndex] - pattern.days[0]
+    const date = addDays(firstDay, s.week * 7 + offset)
+    const startMin = dayEnd.get(date) ?? pattern.startMinute
+    // Computed in minutes: an earlier form printed ':30' for any fractional
+    // part, so a quarter-hour session filed a time that contradicted its own
+    // hours, and anything running past midnight produced '24:00', which is not
+    // a time an input will accept.
+    const endMin = startMin + Math.round(s.hours * 60)
+    dayEnd.set(date, endMin)
+    created.push({
+      id: uid('asess'),
+      courseId,
+      date,
+      title: s.title,
+      kind: s.kind,
+      hours: s.hours,
+      startTime: formatClock(startMin),
+      endTime: formatClock(endMin),
+    })
   }
 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
@@ -640,10 +631,14 @@ export function reconcileHours(
 
 /** AMR KC's filed commitments, offered as the default when creating a course. */
 export const KC_DEFAULT_TARGETS: AemtHourTargets = {
-  didactic: 110,
-  lab: 50,
-  clinical: 72,
-  field: 144,
+  // Derived from the block plan so a course created from these defaults
+  // reconciles to zero against the schedule the seeder builds. Typed figures
+  // are what made `seedShortfall` report a permanent 20-hour gap on every
+  // course: the defaults said 110 didactic and the plan laid out 90.
+  didactic: blockPlanTotals().didactic,
+  lab: blockPlanTotals().lab,
+  clinical: KC_CLINICAL_TARGET,
+  field: KC_FIELD_TARGET,
 }
 
 // ----- psychomotor skill check-offs ------------------------------------------
@@ -1319,7 +1314,7 @@ export interface StudentHourGap {
  * A student's hours against the course's filed commitments. This is the
  * question the Records tab could not answer before shifts existed: classroom
  * time came from attendance, clinical and field time came from nowhere, so
- * "376 hours" was an assertion rather than a total.
+ * a program total was an assertion rather than something anything added up to.
  *
  * Classroom target is didactic + lab combined — attendance is taken per
  * session, and a session is one or the other, so splitting the comparison

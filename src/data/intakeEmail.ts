@@ -4,19 +4,24 @@
 // Three templates cover the selection process end to end: the next step (take
 // the exam), the decline, and the offer of a seat.
 //
-// DELIBERATELY VAGUE ABOUT HOURS. The program's own data carries a known
-// discrepancy — the proposal claims ~110 didactic hours while its schedule
-// table sums to 90, moving the total between ~356 and ~376 — and a number
-// quoted to a candidate in writing is a number they will hold us to. These
-// emails describe the shape of the program (16 weeks, where it happens) and
-// leave the hour accounting to the KBEMS submission, where it belongs.
+// DELIBERATELY VAGUE ABOUT HOURS. A number quoted to a candidate in writing is
+// a number they will hold us to, and the hour figures are program-design
+// targets that move whenever the schedule is rebuilt against the course text.
+// These emails describe the shape of the program — how long it runs, where it
+// happens — and leave the hour accounting to the KBEMS submission, where it
+// belongs.
+//
+// The duration IS quoted, because a candidate cannot decide without it. It is
+// imported as KC_COURSE_WEEKS rather than typed: it read '16 weeks' in four
+// places here while the block plan ran 23, which is the exact kind of drift
+// that turns a recruiting email into a broken promise.
 //
 // The policy figures that ARE quoted — the pass mark, the absence limit, the
 // K.A.R. clinical minimums — are imported from data/aemt.ts rather than
 // retyped, so they cannot drift from the course they describe.
 // ---------------------------------------------------------------------------
 
-import { CLINICAL_REQUIREMENTS, MAX_ABSENT_HOURS, MIN_PASSING_PERCENT } from './aemt'
+import { CLINICAL_REQUIREMENTS, KC_COURSE_WEEKS, MAX_ABSENT_HOURS, MIN_PASSING_PERCENT } from './aemt'
 import { INTERVIEW_QUESTIONS, SELECTION_WEIGHTS } from './aemtSelection'
 import { EXAM_DEADLINE, EXAM_LIMIT_MINUTES } from '../lib/exam'
 import { answerText, type IntakeSubmission, type IntakeStatus } from '../lib/intake'
@@ -61,7 +66,7 @@ export const EXAM_URL = 'https://ces-nu.vercel.app/exam'
 
 /** The shape of the program, without committing to an hour count. */
 const PROGRAM_SHAPE = [
-  `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for 16 weeks.`,
+  `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for ${KC_COURSE_WEEKS} weeks.`,
   `Classroom and lab sessions are held at AMR Kansas City headquarters. Hospital clinical and field internship hours are completed at partner sites in the Kansas City area.`,
 ].join(' ')
 
@@ -143,7 +148,7 @@ function tailoredNotes(d: Record<string, unknown>, forOffer: boolean): string[] 
 
   if (!forOffer && answerText(d.canCommit) === 'Not sure yet') {
     out.push(
-      `On the intake form you said you were not yet sure whether you could commit the time. That is a fair answer, and it is exactly what the detail below is for — read it, then decide. Nobody is served by starting a 16-week course that cannot be finished.`,
+      `On the intake form you said you were not yet sure whether you could commit the time. That is a fair answer, and it is exactly what the detail below is for — read it, then decide. Nobody is served by starting a ${KC_COURSE_WEEKS}-week course that cannot be finished.`,
     )
   }
 
@@ -335,7 +340,7 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       ``,
       `  • Confirm your seat by replying to this email`,
       `  • Make sure your certification and required credentials are current in Ninth Brain`,
-      `  • Talk to your supervisor about your schedule for the next 16 weeks`,
+      `  • Talk to your supervisor about your schedule for the next ${KC_COURSE_WEEKS} weeks`,
       ``,
       `Congratulations again. Reply with any questions.`,
     ],
@@ -396,7 +401,7 @@ export function buildSupervisorEmail(rows: IntakeSubmission[]): GeneratedEmail {
     `  1. Any active or recent corrective action, or any disciplinary matter I should know about.`,
     `  2. Any attendance concerns over the last 12 months.`,
     `  3. Any performance or clinical concerns.`,
-    `  4. Anything that would make a 16-week commitment difficult from your side — staffing, schedule, or otherwise.`,
+    `  4. Anything that would make a ${KC_COURSE_WEEKS}-week commitment difficult from your side — staffing, schedule, or otherwise.`,
     `  5. Anything positive worth weighting: FTO, preceptor, CE instructor or peer-mentor work, or someone you would particularly like to see in this course.`,
     ``,
     `"Nothing to report" is a complete and useful answer — please send it rather than leaving a name unanswered, so I know the list has been reviewed.`,
