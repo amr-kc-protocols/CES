@@ -7,6 +7,7 @@ import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { listExamResults } from '../../lib/exam'
 import {
   buildClassPlan,
+  KC_SCHEDULE,
   scheduleTotals,
   KC_CLASS_PATTERN,
   KC_CLINICAL_TARGET,
@@ -544,6 +545,106 @@ export function addPlaceholderSessions(
   return created.length
 }
 
+export interface RebuildPreview {
+  /** Sessions that would be removed — seeded, never touched, no attendance. */
+  removable: AemtSession[]
+  /** Sessions kept because attendance has been taken against them. */
+  attended: AemtSession[]
+  /**
+   * Sessions matching neither the seeder's mark nor any filed title. Either
+   * genuinely hand-added, or seeded under a plan whose titles have since
+   * changed — which is indistinguishable from the outside, so the caller is
+   * asked rather than guessed at.
+   */
+  manual: AemtSession[]
+}
+
+/**
+ * What rebuilding this course's schedule would do, before it does it.
+ *
+ * Reseeding used to be impossible once a course had any sessions: the build
+ * button is hidden when the list is non-empty, and the only way to clear it was
+ * to delete every session by hand. So a course seeded under an older plan kept
+ * that plan forever, which is exactly what happened when the schedule moved to
+ * the Wichita template.
+ *
+ * Two things are never removed. A session with attendance recorded against it
+ * is a record of who was in a room, not a plan — deleting it destroys evidence.
+ * A session whose title matches no row of the filed plan was added or renamed
+ * by hand, and a rebuild is not licence to discard someone's work.
+ */
+export function rebuildPreview(courseId: string): RebuildPreview {
+  const db = getState()
+  const sessions = db.aemtSessions.filter((s) => s.courseId === courseId)
+  const filedTitles = new Set(KC_SCHEDULE.map((r) => r.title))
+  const attendedIds = new Set(db.aemtAttendance.map((a) => a.sessionId))
+
+  const isSeeded = (s: AemtSession) => s.seeded === true || filedTitles.has(s.title)
+
+  return {
+    removable: sessions.filter((s) => isSeeded(s) && !attendedIds.has(s.id)),
+    attended: sessions.filter((s) => attendedIds.has(s.id)),
+    manual: sessions.filter((s) => !isSeeded(s) && !attendedIds.has(s.id)),
+  }
+}
+
+/**
+ * Replace the seeded schedule with the current filed plan.
+ *
+ * Undoable in one step: the removed sessions go back if the coordinator
+ * realises they meant to keep them.
+ */
+export function rebuildKcSchedule(
+  courseId: string,
+  startISO: string,
+  /**
+   * Also clear sessions that match neither the seeder's mark nor a filed title.
+   * Needed when the plan itself changed: the previous seed's titles are gone
+   * from the plan, so they read as hand-added. Off by default — this is the
+   * only path that can discard someone's own work.
+   */
+  alsoClearUnmatched = false,
+): SeedOutcome {
+  const preview = rebuildPreview(courseId)
+  const removable = alsoClearUnmatched
+    ? [...preview.removable, ...preview.manual]
+    : preview.removable
+  const removedIds = new Set(removable.map((s) => s.id))
+
+  // Drop the old plan, then lay the new one. Order matters: the ids of what was
+  // created are only knowable after seeding, and undo has to remove those as
+  // well as put the old ones back. Restoring the old set alone would leave both
+  // schedules in place — two sessions for every class day.
+  if (removable.length > 0) {
+    setState((db) => ({
+      ...db,
+      aemtSessions: db.aemtSessions.filter((s) => !removedIds.has(s.id)),
+    }))
+  }
+
+  const before = new Set(
+    getState()
+      .aemtSessions.filter((s) => s.courseId === courseId)
+      .map((s) => s.id),
+  )
+  const outcome = seedKcSchedule(courseId, startISO)
+  const createdIds = new Set(
+    getState()
+      .aemtSessions.filter((s) => s.courseId === courseId && !before.has(s.id))
+      .map((s) => s.id),
+  )
+
+  if (removable.length > 0) {
+    pushUndo(`Rebuilt the schedule — ${removable.length} session(s) replaced`, () =>
+      setState((cur) => ({
+        ...cur,
+        aemtSessions: [...cur.aemtSessions.filter((s) => !createdIds.has(s.id)), ...removable],
+      })),
+    )
+  }
+  return outcome
+}
+
 /**
  * Write the filed schedule out as dated sessions.
  *
@@ -561,6 +662,7 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
     kind: s.kind,
     hours: s.hours,
     delivery: s.delivery,
+    seeded: true,
     startTime: s.startTime,
     endTime: s.endTime,
   }))
