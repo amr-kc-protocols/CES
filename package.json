@@ -12,7 +12,8 @@
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
     "check": "npm run check:evidence && npm run check:templates && npm run check:plan",
-    "check:plan": "node scripts/check-course-plan.mjs"
+    "check:plan": "node scripts/check-course-plan.mjs",
+    "doc:application": "node scripts/build-application.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
@@ -24,6 +25,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
+    "docx": "^9.7.1",
     "typescript": "^5.6.2",
     "vite": "^5.4.8",
     "vite-plugin-pwa": "^0.20.5"
