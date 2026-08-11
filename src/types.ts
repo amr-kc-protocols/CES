@@ -762,6 +762,18 @@ export interface AemtSession {
    */
   startTime?: string
   endTime?: string
+  /**
+   * How the session reaches the student.
+   *
+   * 'f2f'        — instructor-led, in the room. Costs instructor and room time,
+   *                and is what the eight-hour weekly cap governs.
+   * 'assignment' — Navigate chapter materials, quizzes and AHA pre-course work
+   *                the student completes on their own.
+   *
+   * Absent means face-to-face, so sessions written before this field existed
+   * keep counting as class time rather than silently leaving the room.
+   */
+  delivery?: 'f2f' | 'assignment'
   instructor?: string
   /** Instructor's qualification for this subject, per K.A.R. 109-17-1. */
   instructorCredential?: PreceptorCredentialId

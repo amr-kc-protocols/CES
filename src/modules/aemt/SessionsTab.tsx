@@ -19,11 +19,13 @@ import {
   parseClock,
 } from './aemtStore'
 import {
-  ADDED_STANDARDS_SECTIONS,
-  blockPlanTotals,
   CLASS_HOURS_PER_WEEK,
+  duplicatedChapters,
+  holidayShifts,
+  KC_CALENDAR_WEEKS,
   KC_CLASS_PATTERN,
   KC_COURSE_WEEKS,
+  scheduleTotals,
 } from '../../data/aemt'
 import ScheduleCalendar from './ScheduleCalendar'
 import { addDays } from '../../lib/date'
@@ -330,7 +332,7 @@ function AddSessionModal({ course, onClose }: { course: AemtCourse; onClose: () 
  * a reconciliation table, or not at all.
  */
 function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
-  const plan = blockPlanTotals()
+  const plan = scheduleTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
   // The plan lays KC_COURSE_WEEKS of Tue/Thu sessions from the first Tuesday on
@@ -346,19 +348,22 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
   return (
     <Modal title={`Build the AMR KC ${KC_COURSE_WEEKS}-week plan`} onClose={onClose}>
       <p style={{ marginTop: 0, lineHeight: 1.55 }}>
-        Lays {KC_COURSE_WEEKS} weeks of class from the course text's content sequence —{' '}
+        Lays the {KC_COURSE_WEEKS}-week schedule filed for Wichita, which Kansas City runs as the
+        same template —{' '}
         <strong>
           {plan.didactic} didactic + {plan.lab} lab
         </strong>
-        , {plan.classroom} classroom hours in total.
+        , {plan.classroom} hours in total.
       </p>
       <p style={{ lineHeight: 1.55 }} className="subtle">
+        <strong>{plan.f2f} h of that is face-to-face</strong>, across {plan.f2fWeeks} class weeks —{' '}
         {KC_CLASS_PATTERN.days.length} classes a week of {KC_CLASS_PATTERN.hoursPerDay} hours (
-        {CLASS_HOURS_PER_WEEK} h a week), from{' '}
+        {CLASS_HOURS_PER_WEEK} h a week) from{' '}
         {String(Math.floor(KC_CLASS_PATTERN.startMinute / 60)).padStart(2, '0')}:
-        {String(KC_CLASS_PATTERN.startMinute % 60).padStart(2, '0')}. Didactic and lab run in
-        separate weeks — lab is banked and released as a dedicated lab week once every block it
-        practises has been taught.
+        {String(KC_CLASS_PATTERN.startMinute % 60).padStart(2, '0')}. The other {plan.assignment} h
+        is Navigate chapter work, quizzes and AHA pre-course reading the student completes on their
+        own, so it costs no class time. Runs {KC_CALENDAR_WEEKS} calendar weeks once holidays are
+        allowed for.
       </p>
 
       {course.targets ? (
@@ -372,8 +377,8 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
               {short.didactic > 0 && short.lab > 0 && ' and '}
               {short.lab > 0 && `${short.lab} h lab`}
             </strong>{' '}
-            unaccounted for. The proposal's own §2 and §3 tables disagree by this amount — it is a
-            defect in the source document, not a rounding error, and it has to be closed before a
+            unaccounted for. This course's filed targets do not match the schedule template — it is
+            a defect in the source document, not a rounding error, and it has to be closed before a
             KBEMS submission.
           </div>
         ) : (
@@ -387,27 +392,43 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
         </div>
       )}
 
-      {ADDED_STANDARDS_SECTIONS.length > 0 && (
+      <div className="banner info">
+        <strong>Two things carried over from the Wichita filing.</strong>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+          <li>
+            Its summary line files <strong>110 didactic hours</strong>, but its own 26 schedule rows
+            sum to <strong>116</strong>. Kansas City files 116 — the schedule is what KBEMS reviews
+            against, so a summary that disagrees with it is the thing that is wrong.
+          </li>
+          {duplicatedChapters().length > 0 && (
+            <li>
+              Chapter{duplicatedChapters().length === 1 ? ' ' : 's '}
+              {duplicatedChapters().join(' and ')}{' '}
+              {duplicatedChapters().length === 1 ? 'is' : 'are'} assigned twice. Reproduced as filed
+              rather than deduplicated, because removing the repeat would change the hours this
+              template exists to match.
+            </li>
+          )}
+        </ul>
+      </div>
+
+      {holidayShifts().length > 0 && (
         <div className="banner warn">
           <strong>
-            {ADDED_STANDARDS_SECTIONS.length} standards section
-            {ADDED_STANDARDS_SECTIONS.length === 1 ? '' : 's'} the proposal never placed
+            {holidayShifts().length} week{holidayShifts().length === 1 ? '' : 's'} pushed by a
+            holiday.
           </strong>{' '}
-          are folded into the blocks below. Each carries AEMT-specific content in the Kansas
-          Educational Standards and is not satisfied by EMT-level material, so a schedule built
-          without them is short against the standards KBEMS reviews the syllabus against.
+          Class weeks landing on a holiday move to the next clear week, which is why the course runs{' '}
+          {KC_CALENDAR_WEEKS} calendar weeks for {KC_COURSE_WEEKS} course weeks. Assignment weeks are
+          not moved — they cost no class time.
           <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
-            {ADDED_STANDARDS_SECTIONS.map((a) => (
-              <li key={a.section}>
-                <strong>{a.block}</strong> — {a.section}
+            {holidayShifts().map((h) => (
+              <li key={h.week}>
+                <strong>Week {h.week}</strong> — moved clear of {h.holiday}, now starting{' '}
+                {formatDate(h.date)}
               </li>
             ))}
           </ul>
-          <div style={{ marginTop: 8 }}>
-            They are added <strong>without adding hours</strong>. The plan is already short of the
-            proposal's own §2 target, and this content is a natural home for part of that gap — but
-            the hours still have to be found before submission.
-          </div>
         </div>
       )}
 
@@ -479,6 +500,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
   const recon = reconcileHours(sessions, course.targets)
   const problems = sessionProblems(sessions, course)
   const shortRows = recon.filter((r) => r.delta < 0)
+  const missingTime = sessions.filter((s) => s.delivery !== 'assignment' && !s.startTime)
 
   return (
     <div>
@@ -578,11 +600,14 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
         </div>
       )}
 
-      {sessions.length > 0 && sessions.some((s) => !s.startTime) && (
+      {/* Assignment rows are excluded on purpose. K.A.R. 109-11-1a(b3) wants the
+          time of each CLASS session; Navigate chapter work has no sitting to put
+          a clock time on, and flagging it made this warning fire on sixteen
+          sessions that were correct. */}
+      {sessions.length > 0 && missingTime.length > 0 && (
         <div className="banner warn" style={{ marginTop: 12 }}>
-          {sessions.filter((s) => !s.startTime).length} session
-          {sessions.filter((s) => !s.startTime).length === 1 ? ' has' : 's have'} no start time. The
-          filed schedule has to show the time of each session, not only its length.
+          {missingTime.length} class session{missingTime.length === 1 ? ' has' : 's have'} no start
+          time. The filed schedule has to show the time of each session, not only its length.
         </div>
       )}
 

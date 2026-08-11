@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from 'react'
 import { formatDate, fromISODate, monthKey, monthLabel, todayISO, toISODate } from '../../lib/date'
-import { BLOCK_SHORT_BY_TITLE } from '../../data/aemt'
+import { BLOCK_SHORT_BY_TITLE, holidayOn } from '../../data/aemt'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -51,17 +51,21 @@ function monthGrid(key: string): string[] {
 
 function DayChip({ session }: { session: AemtSession }) {
   const meta = KIND_META[session.kind]
+  // Assignment work is not class time. It carries hours and it counts toward
+  // the filed didactic total, but nobody is in a room for it — so it reads as
+  // an outline rather than a filled block, and carries no clock time.
+  const assignment = session.delivery === 'assignment'
   // Seeded sessions are titled with the block's full content line, which is
   // right on a filed schedule and far too long for a grid cell. The hover title
   // still carries the whole thing.
   const label = BLOCK_SHORT_BY_TITLE[session.title] ?? session.title ?? meta.label
   return (
     <div
-      className={`cal-chip ${meta.cls}`}
-      title={`${meta.label} · ${session.hours} h${session.title ? ` — ${session.title}` : ''}`}
+      className={`cal-chip ${meta.cls}${assignment ? ' assignment' : ''}`}
+      title={`${assignment ? 'Assignment' : meta.label} · ${session.hours} h${session.title ? ` — ${session.title}` : ''}`}
     >
       <span className="cal-chip-time">
-        {session.startTime ?? meta.label} · {session.hours} h
+        {assignment ? 'Assignment' : (session.startTime ?? meta.label)} · {session.hours} h
       </span>
       <span className="cal-chip-title">{label || meta.label}</span>
     </div>
@@ -101,19 +105,22 @@ export default function ScheduleCalendar({
 
   // Totals for the month on screen, not the whole course — the figure that
   // answers "what does this month cost", which is what a month view is for.
+  // Split by delivery, because only the class hours cost anything.
   const monthTotals = useMemo(() => {
     const out = new Map<AemtSessionKind, number>()
+    let assignment = 0
     for (const iso of grid) {
       if (monthKey(iso) !== month) continue
       for (const s of byDate.get(iso) ?? []) {
-        out.set(s.kind, (out.get(s.kind) ?? 0) + s.hours)
+        if (s.delivery === 'assignment') assignment += s.hours
+        else out.set(s.kind, (out.get(s.kind) ?? 0) + s.hours)
       }
     }
-    return out
+    return { byKind: out, assignment }
   }, [grid, byDate, month])
 
   const unplaced = sessions.filter((s) => !s.date)
-  const monthHours = [...monthTotals.values()].reduce((n, h) => n + h, 0)
+  const classHours = [...monthTotals.byKind.values()].reduce((n, h) => n + h, 0)
 
   return (
     <div className="cal">
@@ -136,7 +143,7 @@ export default function ScheduleCalendar({
 
       <div className="cal-legend">
         {(Object.keys(KIND_META) as AemtSessionKind[]).map((k) => {
-          const hours = monthTotals.get(k) ?? 0
+          const hours = monthTotals.byKind.get(k) ?? 0
           if (hours === 0) return null
           return (
             <span key={k} className={`cal-key ${KIND_META[k].cls}`}>
@@ -144,10 +151,17 @@ export default function ScheduleCalendar({
             </span>
           )
         })}
-        {monthHours === 0 ? (
+        {monthTotals.assignment > 0 && (
+          <span className="cal-key assignment">
+            <i /> Assignment · {Math.round(monthTotals.assignment * 100) / 100} h
+          </span>
+        )}
+        {classHours === 0 && monthTotals.assignment === 0 ? (
           <span className="subtle">No sessions this month.</span>
         ) : (
-          <span className="subtle">{Math.round(monthHours * 100) / 100} h scheduled this month</span>
+          <span className="subtle">
+            {Math.round(classHours * 100) / 100} h in class this month
+          </span>
         )}
       </div>
 
@@ -165,7 +179,10 @@ export default function ScheduleCalendar({
           // block hanging off the end reads very differently from one stray day.
           const outside =
             !!course.startDate && !!course.endDate && (iso < course.startDate || iso > course.endDate)
-          const hours = day.reduce((n, s) => n + s.hours, 0)
+          const holiday = inMonth ? holidayOn(iso) : undefined
+          // The day badge counts class time only — an assignment logged against
+          // this date is not four more hours in the room.
+          const hours = day.reduce((n, s) => n + (s.delivery === 'assignment' ? 0 : s.hours), 0)
           return (
             <div
               key={iso}
@@ -175,6 +192,7 @@ export default function ScheduleCalendar({
                 inMonth ? '' : 'other-month',
                 iso === today ? 'is-today' : '',
                 day.length > 0 && outside ? 'is-outside' : '',
+                holiday ? 'is-holiday' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -183,6 +201,10 @@ export default function ScheduleCalendar({
                 <span>{fromISODate(iso).getDate()}</span>
                 {hours > 0 && <span className="cal-dayhours">{Math.round(hours * 100) / 100} h</span>}
               </div>
+              {/* Named on the day itself. A three-week gap in January is
+                  otherwise an unexplained hole, and the first question anyone
+                  asks about a schedule is why nothing is happening. */}
+              {holiday && <div className="cal-holiday">{holiday}</div>}
               {day.map((s) => (
                 <DayChip key={s.id} session={s} />
               ))}

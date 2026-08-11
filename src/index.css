@@ -1878,3 +1878,33 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   .cal-dow { padding: 5px 2px; font-size: 10px; letter-spacing: 0.03em; }
   .cal-month { font-size: 18px; min-width: 7.5rem; }
 }
+
+/* Assignment work: hours the student owes, but not time in a room. Outlined
+   rather than filled, so a glance down a week separates what costs instructor
+   time from what does not. */
+.cal-chip.assignment {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-left: 3px dashed var(--text-muted);
+  color: var(--text-muted);
+}
+.cal-key.assignment i {
+  background: transparent;
+  border: 1px dashed var(--text-muted);
+}
+
+/* A holiday the program does not meet on. Named on the day rather than listed
+   elsewhere: the gap it creates in the grid is the thing people ask about. */
+.cal-day.is-holiday { background: var(--muted-bg); }
+.cal-holiday {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 1px 2px;
+  line-height: 1.2;
+}
+@media (max-width: 620px) {
+  .cal-holiday { font-size: 8.5px; }
+}
