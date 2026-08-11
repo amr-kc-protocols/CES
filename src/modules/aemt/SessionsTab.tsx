@@ -13,6 +13,8 @@ import {
   courseHourTotals,
   reconcileHours,
   seedKcSchedule,
+  rebuildKcSchedule,
+  rebuildPreview,
   seedShortfall,
   addPlaceholderSessions,
   sessionProblems,
@@ -331,7 +333,17 @@ function AddSessionModal({ course, onClose }: { course: AemtCourse; onClose: () 
  * the previous button did it silently — leaving the gap to be discovered from
  * a reconciliation table, or not at all.
  */
-function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+function SeedModal({
+  course,
+  onClose,
+  rebuild = false,
+}: {
+  course: AemtCourse
+  onClose: () => void
+  rebuild?: boolean
+}) {
+  const preview = rebuild ? rebuildPreview(course.id) : undefined
+  const [clearUnmatched, setClearUnmatched] = useState(false)
   const plan = scheduleTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
@@ -346,7 +358,53 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
   const runsPast = lastSeeded > course.endDate
 
   return (
-    <Modal title={`Build the AMR KC ${KC_COURSE_WEEKS}-week plan`} onClose={onClose}>
+    <Modal
+      title={rebuild ? 'Rebuild the schedule from the filed plan' : `Build the AMR KC ${KC_COURSE_WEEKS}-week plan`}
+      onClose={onClose}
+    >
+      {preview && (
+        <div className={preview.attended.length + preview.manual.length > 0 ? 'banner warn' : 'banner info'}>
+          <strong>
+            {preview.removable.length} session{preview.removable.length === 1 ? '' : 's'} will be
+            replaced.
+          </strong>{' '}
+          Two kinds are kept instead.
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+            <li>
+              <strong>{preview.attended.length}</strong> with attendance recorded against{' '}
+              {preview.attended.length === 1 ? 'it' : 'them'} — that is a record of who was in a
+              room, not a plan, and rebuilding must not destroy it.
+            </li>
+            <li>
+              <strong>{preview.manual.length}</strong> matching neither the seeder's mark nor any
+              title in the filed plan.
+            </li>
+          </ul>
+          {preview.manual.length > 0 && (
+            <>
+              <div style={{ marginTop: 8 }}>
+                That second group is ambiguous. A session added by hand looks exactly like one
+                seeded under an <em>older</em> plan, because changing the plan renames the titles
+                a rebuild matches on. If this course was built before the schedule moved to the
+                Wichita template, these are stale and should go.
+              </div>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={clearUnmatched}
+                  onChange={(e) => setClearUnmatched(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Also replace those {preview.manual.length}. Leave unchecked to keep them and
+                  remove any duplicates by hand.
+                </span>
+              </label>
+            </>
+          )}
+          <div style={{ marginTop: 8 }}>This is undoable for a few seconds after it runs.</div>
+        </div>
+      )}
       <p style={{ marginTop: 0, lineHeight: 1.55 }}>
         Lays the {KC_COURSE_WEEKS}-week schedule filed for Wichita, which Kansas City runs as the
         same template —{' '}
@@ -464,7 +522,9 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
         <button
           className="btn primary"
           onClick={() => {
-            const out = seedKcSchedule(course.id, course.startDate)
+            const out = rebuild
+              ? rebuildKcSchedule(course.id, course.startDate, clearUnmatched)
+              : seedKcSchedule(course.id, course.startDate)
             let extra = 0
             if (alsoPlace && short.didactic > 0) {
               extra += addPlaceholderSessions(course.id, 'didactic', short.didactic, course.startDate)
@@ -480,7 +540,7 @@ function SeedModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
             onClose()
           }}
         >
-          Build schedule
+          {rebuild ? 'Rebuild schedule' : 'Build schedule'}
         </button>
         <button className="btn" onClick={onClose}>
           Cancel
@@ -495,6 +555,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
   const { manageAemt: manageAcademy } = useCan()
   const [adding, setAdding] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
   const [view, setView] = useState<'calendar' | 'list'>('calendar')
   const totals = courseHourTotals(sessions)
   const recon = reconcileHours(sessions, course.targets)
@@ -642,6 +703,18 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
             ⚡ Build AMR KC {KC_COURSE_WEEKS}-week plan
           </button>
         )}
+        {/* A course seeded under an older plan would otherwise keep it forever:
+            the build button hides once sessions exist, and clearing them meant
+            deleting sixty-odd rows one at a time. */}
+        {manageAcademy && sessions.length > 0 && (
+          <button
+            className="btn"
+            title="Replace the seeded sessions with the current filed plan. Sessions with attendance, and any added by hand, are kept."
+            onClick={() => setRebuilding(true)}
+          >
+            ↻ Rebuild from filed plan
+          </button>
+        )}
         {manageAcademy && <SavedIndicator />}
         {manageAcademy && (
           <button className="btn primary" onClick={() => setAdding(true)}>
@@ -676,6 +749,9 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
 
       {adding && <AddSessionModal course={course} onClose={() => setAdding(false)} />}
       {seeding && <SeedModal course={course} onClose={() => setSeeding(false)} />}
+      {rebuilding && (
+        <SeedModal course={course} rebuild onClose={() => setRebuilding(false)} />
+      )}
     </div>
   )
 }

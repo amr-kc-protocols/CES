@@ -774,6 +774,15 @@ export interface AemtSession {
    * keep counting as class time rather than silently leaving the room.
    */
   delivery?: 'f2f' | 'assignment'
+  /**
+   * Written by the schedule seeder rather than by hand.
+   *
+   * Lets a rebuild tell its own output from a coordinator's. Sessions seeded
+   * before this field existed do not carry it, so a rebuild also matches on
+   * title against the filed plan — and offers to clear the remainder
+   * explicitly, since a plan change renames the very titles it would match on.
+   */
+  seeded?: boolean
   instructor?: string
   /** Instructor's qualification for this subject, per K.A.R. 109-17-1. */
   instructorCredential?: PreceptorCredentialId
