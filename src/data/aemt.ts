@@ -440,11 +440,14 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
 
 export interface AemtBlock {
   order: number
-  /** Label as it appears in the proposal, e.g. 'Weeks 1-2'. */
-  weeks: string
-  /** How many calendar weeks the block spans. */
-  spanWeeks: number
   title: string
+  /**
+   * Two or three words for a calendar chip. The full title is a content line
+   * running to a dozen words — correct on a filed schedule, useless in a grid
+   * cell, where it truncates to 'Preparatory — EMS Systems,...' and tells the
+   * reader nothing the colour did not.
+   */
+  short: string
   /**
    * Textbook chapters this block teaches. Didactic hours are DERIVED from
    * their publisher lecture times — see blockDidacticHours(). Typed hours were
@@ -472,6 +475,22 @@ export interface AemtBlock {
    * would be invention dressed as publisher data.
    */
   labHours: number
+  /**
+   * Deliver this block without a lab week interrupting it.
+   *
+   * For the AHA provider courses, which are bought-in certifications with their
+   * own fixed agenda. A four-hour block that straddles two class days is
+   * ordinary; the same block straddling two class days three calendar weeks
+   * apart is not, and that is what the interleave did to PALS before this —
+   * 3.5 hours in week 3 and the last half hour in week 6, because two lab weeks
+   * were released into the gap.
+   *
+   * It constrains only where lab weeks may be inserted. Class days stay exactly
+   * the pattern's length; making an atomic block start on a fresh day instead
+   * was tried and is worse, since it either files a half-hour class day or
+   * merges one into a five-and-three-quarter-hour day.
+   */
+  atomic?: boolean
   /**
    * Standards sections placed into this block by hand, where the proposal's own
    * content sequence omitted them.
@@ -536,8 +555,7 @@ export function blockSkillDrills(b: AemtBlock): number {
 export const KC_BLOCK_PLAN: AemtBlock[] = [
   {
     order: 1,
-    weeks: 'Week 1',
-    spanWeeks: 1,
+    short: 'Preparatory',
     title:
       'Preparatory — EMS Systems, Workforce Safety & Wellness, Medical/Legal, Communications & Documentation, Medical Terminology',
     chapters: [1, 2, 3, 4, 5],
@@ -548,8 +566,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 2,
-    weeks: 'Weeks 2-3',
-    spanWeeks: 2,
+    short: 'Anatomy & Assessment',
     title: 'The Human Body, Pathophysiology, Life Span Development; Patient Assessment',
     chapters: [7, 8, 9, 10],
     // Chapter 10's five drills are all assessment skills, and this is where the
@@ -558,8 +575,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 3,
-    weeks: 'Weeks 4-5',
-    spanWeeks: 2,
+    short: 'Airway',
     title: 'Airway Management; Lab — airway, supraglottic, CPAP',
     chapters: [11],
     // Fourteen drills, nearly all new at AEMT scope: OPA, NPA, suction, CPAP,
@@ -570,28 +586,26 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 4,
-    weeks: 'Week 6',
-    spanWeeks: 1,
+    short: 'AHA PALS',
     title: 'AHA PALS Provider Course',
     fixedDidacticHours: 4,
+    atomic: true,
     // Skills stations and megacode. No textbook drills behind it.
     labHours: 6,
   },
   {
     order: 5,
-    weeks: 'Week 7',
-    spanWeeks: 1,
+    short: 'Pharmacology',
     title: 'Principles of Pharmacology',
     chapters: [12],
     // No drills. Drug box familiarisation and label reading; dose calculation is
     // didactic and sits in the chapter allowance.
     labHours: 1,
   },
-  { order: 6, weeks: 'Week 8', spanWeeks: 1, title: 'AHA ACLS Provider Course', fixedDidacticHours: 4, labHours: 6 },
+  { order: 6, short: 'AHA ACLS', title: 'AHA ACLS Provider Course', fixedDidacticHours: 4, atomic: true, labHours: 6 },
   {
     order: 7,
-    weeks: 'Weeks 9-11',
-    spanWeeks: 3,
+    short: 'Vascular Access & Meds',
     title: 'Vascular Access and Medication Administration; Shock; BLS Resuscitation; Lab — IV, IO, med routes',
     chapters: [13, 14, 15],
     // The heaviest psychomotor block in the course: nineteen drills, thirteen of
@@ -602,8 +616,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 8,
-    weeks: 'Weeks 12-13',
-    spanWeeks: 2,
+    short: 'OB & Pediatrics',
     title: 'Obstetrics and Neonatal Care; Pediatric Emergencies',
     chapters: [35, 36],
     // Eight drills, all new-scope: delivery, paediatric airway, paediatric IO,
@@ -612,8 +625,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 9,
-    weeks: 'Weeks 14-15',
-    spanWeeks: 2,
+    short: 'Respiratory & Cardiac',
     title: 'Medical Overview; Respiratory Emergencies; Cardiovascular Emergencies / ECG; Lab — ECG acquisition',
     chapters: [16, 17, 18],
     // Three drills, but one of them is cardiac monitoring, behind the eight-ECG
@@ -623,8 +635,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 10,
-    weeks: 'Weeks 16-17',
-    spanWeeks: 2,
+    short: 'Operations & Trauma I',
     title: 'EMS Operations; Trauma — overview, bleeding, soft tissue, chest; Lab — scenarios',
     chapters: [39, 40, 41, 42, 26, 27, 28, 31],
     // Six carry-forward drills — hemorrhage control, wound packing, tourniquet,
@@ -633,8 +644,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 11,
-    weeks: 'Weeks 18-20',
-    spanWeeks: 3,
+    short: 'Trauma II & Medical',
     title: 'Trauma — face/neck, head/spine, abdominal, orthopaedic, environmental; Medicine — neurologic, GI/GU, endocrine/hematologic',
     chapters: [29, 30, 32, 33, 34, 19, 20, 21],
     // Nineteen drills. All carry-forward, but SMR, the traction splints and
@@ -650,8 +660,7 @@ export const KC_BLOCK_PLAN: AemtBlock[] = [
   },
   {
     order: 12,
-    weeks: 'Weeks 21-23',
-    spanWeeks: 3,
+    short: 'Medical & Final',
     title: 'Medicine — immunologic, toxicology, psychiatric, gynecologic; Geriatrics; Patients With Special Challenges; Final exam & NREMT prep',
     chapters: [22, 23, 24, 25, 37, 38],
     // Two drills (epinephrine auto-injector, tracheostomy suctioning) plus the
@@ -675,9 +684,220 @@ export function blockContentLine(b: AemtBlock): string {
   return `${b.title}; ${codes.join('; ')}`
 }
 
+// ----- laying the blocks onto class days -------------------------------------
+
+/**
+ * The shape of a class week.
+ *
+ * Everything about the calendar comes from here. Block spans used to be typed
+ * per block ('Weeks 2-3', spanWeeks: 2) alongside the hours, which meant the
+ * two could disagree — and did, until the didactic figures were derived and the
+ * spans were not.
+ */
+export interface ClassPattern {
+  /** Weekdays carrying class, 0 = Sunday. */
+  days: number[]
+  /** Length of one class day, in hours. */
+  hoursPerDay: number
+  /** Start of the class day, minutes from midnight. */
+  startMinute: number
+}
+
+/** Two four-hour classes a week, Tuesday and Thursday, 09:00-13:00. */
+export const KC_CLASS_PATTERN: ClassPattern = {
+  days: [2, 4],
+  hoursPerDay: 4,
+  startMinute: 9 * 60,
+}
+
+export const CLASS_HOURS_PER_WEEK =
+  KC_CLASS_PATTERN.days.length * KC_CLASS_PATTERN.hoursPerDay
+
+export interface PlannedSession {
+  /** 0-based week from the first class week. */
+  week: number
+  /** Index into the pattern's days: 0 = the first class day of the week. */
+  dayIndex: number
+  kind: 'didactic' | 'lab'
+  hours: number
+  blockOrder: number
+  title: string
+}
+
+interface PackedStream {
+  sessions: { day: number; blockOrder: number; hours: number }[]
+  /** Flat day index in which each block's last hour of this kind lands. */
+  lastDayOf: Map<number, number>
+  days: number
+}
+
+/**
+ * Fill fixed-length class days from a queue of block segments.
+ *
+ * A day may carry the tail of one block and the head of the next — that is what
+ * keeps every day exactly four hours instead of leaving a half-hour stub
+ * whenever a block's hours are not a multiple of the class day. Each piece stays
+ * its own session, so the schedule still says which block it belongs to.
+ */
+function packStream(
+  segments: { blockOrder: number; hours: number }[],
+  hoursPerDay: number,
+): PackedStream {
+  const sessions: { day: number; blockOrder: number; hours: number }[] = []
+  const lastDayOf = new Map<number, number>()
+  let day = 0
+  let used = 0
+  for (const seg of segments) {
+    let left = seg.hours
+    while (left > 1e-9) {
+      const take = Math.min(hoursPerDay - used, left)
+      sessions.push({ day, blockOrder: seg.blockOrder, hours: Math.round(take * 100) / 100 })
+      lastDayOf.set(seg.blockOrder, day)
+      used += take
+      left -= take
+      if (used >= hoursPerDay - 1e-9) {
+        day++
+        used = 0
+      }
+    }
+  }
+  return { sessions, lastDayOf, days: used > 1e-9 ? day + 1 : day }
+}
+
+/**
+ * The whole course as dated-by-week class sessions.
+ *
+ * Didactic and lab run in SEPARATE weeks. A week is one or the other, never
+ * both: didactic weeks deliver two four-hour classes, and lab is banked and
+ * released as dedicated lab weeks of the same shape.
+ *
+ * A lab week is placed as soon as every block it practises has finished being
+ * taught, which is the only ordering constraint that matters — you cannot run
+ * the IV lab before the vascular access lectures. Within that constraint lab
+ * lands as early as it can, so skills are current when the student reaches the
+ * clinical rotations that consume them.
+ */
+export function buildClassPlan(pattern: ClassPattern = KC_CLASS_PATTERN): PlannedSession[] {
+  const perWeek = pattern.days.length
+  const byOrder = new Map(KC_BLOCK_PLAN.map((b) => [b.order, b]))
+
+  const didactic = packStream(
+    KC_BLOCK_PLAN.map((b) => ({ blockOrder: b.order, hours: blockDidacticHours(b) })).filter(
+      (s) => s.hours > 0,
+    ),
+    pattern.hoursPerDay,
+  )
+  const lab = packStream(
+    KC_BLOCK_PLAN.map((b) => ({ blockOrder: b.order, hours: b.labHours })).filter(
+      (s) => s.hours > 0,
+    ),
+    pattern.hoursPerDay,
+  )
+
+  const didacticWeeks = Math.ceil(didactic.days / perWeek)
+  const labWeeks = Math.ceil(lab.days / perWeek)
+
+  /** The didactic week in which each block finishes being taught. */
+  const taughtBy = new Map<number, number>()
+  for (const [order, day] of didactic.lastDayOf) taughtBy.set(order, Math.floor(day / perWeek))
+
+  /** The earliest didactic week after which each lab week may run. */
+  const readyAfter: number[] = []
+  for (let w = 0; w < labWeeks; w++) {
+    const blocks = new Set(
+      lab.sessions.filter((s) => Math.floor(s.day / perWeek) === w).map((s) => s.blockOrder),
+    )
+    let ready = 0
+    for (const b of blocks) ready = Math.max(ready, taughtBy.get(b) ?? 0)
+    readyAfter.push(ready)
+  }
+
+  /**
+   * Didactic weeks that must be followed immediately by the next didactic week,
+   * because an atomic block straddles the two.
+   */
+  const welded = new Set<number>()
+  for (const b of KC_BLOCK_PLAN) {
+    if (!b.atomic) continue
+    const weeks = didactic.sessions
+      .filter((s) => s.blockOrder === b.order)
+      .map((s) => Math.floor(s.day / perWeek))
+    for (let w = Math.min(...weeks); w < Math.max(...weeks); w++) welded.add(w)
+  }
+
+  // Interleave: run each didactic week, then release every lab week whose
+  // content has been taught by that point — unless an atomic block is still
+  // mid-delivery, in which case the lab waits a week.
+  const order: { kind: 'didactic' | 'lab'; index: number }[] = []
+  let nextLab = 0
+  for (let w = 0; w < didacticWeeks; w++) {
+    order.push({ kind: 'didactic', index: w })
+    if (welded.has(w)) continue
+    while (nextLab < labWeeks && readyAfter[nextLab] <= w) {
+      order.push({ kind: 'lab', index: nextLab })
+      nextLab++
+    }
+  }
+  while (nextLab < labWeeks) {
+    order.push({ kind: 'lab', index: nextLab })
+    nextLab++
+  }
+
+  const out: PlannedSession[] = []
+  order.forEach((slot, week) => {
+    const stream = slot.kind === 'didactic' ? didactic : lab
+    for (const s of stream.sessions) {
+      if (Math.floor(s.day / perWeek) !== slot.index) continue
+      const block = byOrder.get(s.blockOrder)
+      out.push({
+        week,
+        dayIndex: s.day % perWeek,
+        kind: slot.kind,
+        hours: s.hours,
+        blockOrder: s.blockOrder,
+        title: block ? blockContentLine(block) : `Block ${s.blockOrder}`,
+      })
+    }
+  })
+  return out
+}
+
+/** The plan, built once — nothing about it varies at runtime. */
+const CLASS_PLAN = buildClassPlan()
+
+/** Calendar weeks of classroom instruction, derived from the laid-out plan. */
+export const KC_COURSE_WEEKS = CLASS_PLAN.reduce((n, s) => Math.max(n, s.week + 1), 0)
+
+/**
+ * The weeks a block occupies, 1-based and inclusive, or undefined if it has no
+ * class time at all. Derived, so it cannot drift from the schedule the way the
+ * hand-typed 'Weeks 2-3' labels did.
+ */
+export function blockWeekRange(order: number): { first: number; last: number } | undefined {
+  const weeks = CLASS_PLAN.filter((s) => s.blockOrder === order).map((s) => s.week)
+  if (weeks.length === 0) return undefined
+  return { first: Math.min(...weeks) + 1, last: Math.max(...weeks) + 1 }
+}
+
+/**
+ * Short calendar labels keyed by the content line a seeded session is titled
+ * with. A calendar chip has room for two or three words; a hand-added session
+ * is not in here and keeps its own title.
+ */
+export const BLOCK_SHORT_BY_TITLE: Record<string, string> = Object.fromEntries(
+  KC_BLOCK_PLAN.map((b) => [blockContentLine(b), b.short]),
+)
+
+/** 'Week 4' or 'Weeks 4-6' for display. */
+export function blockWeeksLabel(order: number): string {
+  const r = blockWeekRange(order)
+  if (!r) return 'Unscheduled'
+  return r.first === r.last ? `Week ${r.first}` : `Weeks ${r.first}-${r.last}`
+}
+
 /** Every section added on top of the filing, for a coverage note. */
 export const ADDED_STANDARDS_SECTIONS: { block: string; section: string }[] = KC_BLOCK_PLAN.flatMap(
-  (b) => (b.addedSections ?? []).map((section) => ({ block: b.weeks, section })),
+  (b) => (b.addedSections ?? []).map((section) => ({ block: blockWeeksLabel(b.order), section })),
 )
 
 /** What the block plan actually adds up to, as opposed to what §2 claims. */
@@ -697,7 +917,7 @@ export function blockPlanTotals(): {
 } {
   const didactic = KC_BLOCK_PLAN.reduce((n, b) => n + blockDidacticHours(b), 0)
   const lab = KC_BLOCK_PLAN.reduce((n, b) => n + b.labHours, 0)
-  const weeks = KC_BLOCK_PLAN.reduce((n, b) => n + b.spanWeeks, 0)
+  const weeks = KC_COURSE_WEEKS
   const lectureHours =
     KC_BLOCK_PLAN.reduce((n, b) => n + lectureMinutesFor(b.chapters ?? []), 0) / 60
   const chaptersTaught = KC_BLOCK_PLAN.reduce(
@@ -730,9 +950,13 @@ export function unscheduledChapters(): TextbookChapter[] {
 }
 
 /** Hours a class day must carry for the plan to fit its own calendar. */
-export function classDayLoad(daysPerWeek = 2): number {
-  const t = blockPlanTotals()
-  return t.classroom / t.weeks / daysPerWeek
+export function classDayLoad(): number {
+  const byDay = new Map<string, number>()
+  for (const s of CLASS_PLAN) {
+    const key = `${s.week}:${s.dayIndex}`
+    byDay.set(key, (byDay.get(key) ?? 0) + s.hours)
+  }
+  return Math.max(...byDay.values())
 }
 
 // ----- program hour targets (proposal §2) ------------------------------------
@@ -795,16 +1019,6 @@ export const KC_CLASSROOM_TARGET = blockPlanTotals().classroom
 /** Everything the student is scheduled for: classroom, lab, clinical, field. */
 export const KC_TOTAL_TARGET = KC_CLASSROOM_TARGET + KC_CLINICAL_TARGET + KC_FIELD_TARGET
 
-/**
- * Calendar weeks of classroom instruction, from the block plan.
- *
- * Derived rather than typed because this number is quoted to candidates before
- * they commit to the course. It was hard-coded as 16 in the seeder, the Sessions
- * tab and four places in the intake emails, and rebuilding the schedule from the
- * text moved it — which would have left the program telling applicants a
- * duration its own calendar no longer ran.
- */
-export const KC_COURSE_WEEKS = blockPlanTotals().weeks
 
 // ----- course policy (proposal §5, approval doc (b2)) ------------------------
 

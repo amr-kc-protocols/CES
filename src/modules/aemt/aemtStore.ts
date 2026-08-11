@@ -6,15 +6,14 @@ import { pushUndo } from '../../lib/undo'
 import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { listExamResults } from '../../lib/exam'
 import {
-  blockContentLine,
-  blockDidacticHours,
+  buildClassPlan,
   blockPlanTotals,
+  KC_CLASS_PATTERN,
   KC_CLINICAL_TARGET,
   KC_FIELD_TARGET,
   CLINICAL_REQUIREMENTS,
   INSTRUCTOR_VERIFICATION_DAYS,
   KBEMS_DEADLINES,
-  KC_BLOCK_PLAN,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from '../../data/aemt'
@@ -553,63 +552,38 @@ export function addPlaceholderSessions(
 }
 
 export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
-  const firstTue = onOrAfterWeekday(startISO, 2)
   const created: AemtSession[] = []
-  let weekIndex = 0
+  const pattern = KC_CLASS_PATTERN
+  // The first class day on or after the start date anchors the calendar; every
+  // other session is offset from it, so the pattern's weekdays are honoured
+  // whatever day of the week the course happens to begin.
+  const firstDay = onOrAfterWeekday(startISO, pattern.days[0])
 
-  for (const block of KC_BLOCK_PLAN) {
-    const dPerWeek = blockDidacticHours(block) / block.spanWeeks
-    const lPerWeek = block.labHours / block.spanWeeks
-    for (let w = 0; w < block.spanWeeks; w++) {
-      const tue = addDays(firstTue, weekIndex * 7)
-      const thu = addDays(tue, 2)
-      // Minutes already booked on each class day, so a day carrying both a
-      // lecture and a lab does not file two sessions that both start at 09:00.
-      const dayEnd = new Map<string, number>()
-      const push = (date: string, kind: AemtSessionKind, hours: number) => {
-        if (hours <= 0) return
-        const h = Math.round(hours * 100) / 100
-        // The proposal runs class Tue/Thu from 09:00; end follows the hours.
-        // Computed in minutes: the previous form printed ':30' for any
-        // fractional part, so a quarter-hour block filed a time that
-        // contradicted its own hours, and anything running past midnight
-        // produced '24:00', which is not a time an input will accept.
-        const startMin = dayEnd.get(date) ?? 9 * 60
-        const endMin = startMin + Math.round(h * 60)
-        dayEnd.set(date, endMin)
-        created.push({
-          id: uid('asess'),
-          courseId,
-          date,
-          title: blockContentLine(block),
-          kind,
-          hours: h,
-          startTime: formatClock(startMin),
-          endTime: formatClock(endMin),
-        })
-      }
+  // Minutes already booked on each date. A class day normally carries one
+  // session, but where a block's hours run out mid-day the next block starts on
+  // the same day and has to begin when the first one ends — not at 09:00 again.
+  const dayEnd = new Map<string, number>()
 
-      // Fill Tuesday to half the week's load, then Thursday — rather than
-      // putting all didactic on one day and all lab on the other. That older
-      // split made a block's real per-day load max(didactic, lab)/spanWeeks
-      // instead of the average, so the airway block filed a ten-hour Thursday
-      // beside a four-hour Tuesday. Didactic is placed first so lecture still
-      // precedes the lab that practises it; only the segment straddling the
-      // midpoint gets divided.
-      const half = (dPerWeek + lPerWeek) / 2
-      let placed = 0
-      for (const seg of [
-        { kind: 'didactic' as AemtSessionKind, hours: dPerWeek },
-        { kind: 'lab' as AemtSessionKind, hours: lPerWeek },
-      ]) {
-        if (seg.hours <= 0) continue
-        const onTue = Math.max(0, Math.min(seg.hours, half - placed))
-        push(tue, seg.kind, onTue)
-        push(thu, seg.kind, seg.hours - onTue)
-        placed += seg.hours
-      }
-      weekIndex++
-    }
+  for (const s of buildClassPlan(pattern)) {
+    const offset = pattern.days[s.dayIndex] - pattern.days[0]
+    const date = addDays(firstDay, s.week * 7 + offset)
+    const startMin = dayEnd.get(date) ?? pattern.startMinute
+    // Computed in minutes: an earlier form printed ':30' for any fractional
+    // part, so a quarter-hour session filed a time that contradicted its own
+    // hours, and anything running past midnight produced '24:00', which is not
+    // a time an input will accept.
+    const endMin = startMin + Math.round(s.hours * 60)
+    dayEnd.set(date, endMin)
+    created.push({
+      id: uid('asess'),
+      courseId,
+      date,
+      title: s.title,
+      kind: s.kind,
+      hours: s.hours,
+      startTime: formatClock(startMin),
+      endTime: formatClock(endMin),
+    })
   }
 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))

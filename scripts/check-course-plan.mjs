@@ -108,23 +108,79 @@ check(
 
 // The calendar has to be able to hold the content at a plausible class day.
 const perDay = m.classDayLoad()
-check(perDay > 0 && perDay <= 6, 'mean class day is within 6 hours', `${perDay.toFixed(2)} h`)
+check(perDay > 0 && perDay <= 6, 'longest class day is within 6 hours', `${perDay.toFixed(2)} h`)
 
-// The mean on its own is false comfort: it passed while the airway block asked
-// for a fourteen-hour week over one week and the pharmacology block asked for
-// under three. Every block has to fit its own span.
-const CAP = 5
-const overloaded = m.KC_BLOCK_PLAN.map((b) => ({
-  b,
-  perDay: (m.blockDidacticHours(b) + b.labHours) / b.spanWeeks / 2,
-}))
-  // The AHA provider courses are bought-in intensives, not paced by the
-  // calendar — PALS and ACLS run long days by design.
-  .filter((x) => x.perDay > CAP && typeof x.b.fixedDidacticHours !== 'number')
+// Every class day is exactly the pattern's length. Blocks used to carry their
+// own hand-typed spans beside their derived hours, so the two could disagree —
+// and did: the airway block asked for fourteen hours in a single week while the
+// pharmacology block asked for under three. Spans are derived from the plan now,
+// which is what makes this assertion possible at all.
+const plan = m.buildClassPlan()
+const byDay = new Map()
+for (const s of plan) {
+  const k = `${s.week}:${s.dayIndex}`
+  byDay.set(k, (byDay.get(k) ?? 0) + s.hours)
+}
+const cap = m.KC_CLASS_PATTERN.hoursPerDay
+const overlong = [...byDay].filter(([, h]) => h > cap + 1e-9)
 check(
-  overloaded.length === 0,
-  `no block exceeds ${CAP} hours per class day`,
-  overloaded.map((x) => `block ${x.b.order} (${x.perDay.toFixed(2)} h)`).join(', '),
+  overlong.length === 0,
+  `no class day exceeds the pattern's ${cap} hours`,
+  overlong.map(([k, h]) => `${k} = ${h} h`).join(', '),
+)
+
+// A week is didactic or lab, never both. That is what 'dedicated lab weeks'
+// means, and it is the whole reason the plan interleaves rather than mixing.
+const kindsPerWeek = new Map()
+for (const s of plan) {
+  if (!kindsPerWeek.has(s.week)) kindsPerWeek.set(s.week, new Set())
+  kindsPerWeek.get(s.week).add(s.kind)
+}
+const mixed = [...kindsPerWeek].filter(([, k]) => k.size > 1)
+check(
+  mixed.length === 0,
+  'no week mixes didactic and lab',
+  mixed.map(([w]) => `week ${w + 1}`).join(', '),
+)
+
+// A lab week may never run before the blocks it practises have been taught.
+const taughtBy = new Map()
+for (const s of plan) {
+  if (s.kind !== 'didactic') continue
+  taughtBy.set(s.blockOrder, Math.max(taughtBy.get(s.blockOrder) ?? 0, s.week))
+}
+const early = plan.filter(
+  (s) => s.kind === 'lab' && taughtBy.has(s.blockOrder) && s.week < taughtBy.get(s.blockOrder),
+)
+check(
+  early.length === 0,
+  'no lab runs before the block it practises is taught',
+  early.map((s) => `block ${s.blockOrder} lab in week ${s.week + 1}`).join(', '),
+)
+
+// An AHA provider course may span two class days, but never with a lab week in
+// between: the interleave used to file the PALS didactic as 3.5 hours in week 3
+// and the last half hour in week 6.
+const atomicSpread = m.KC_BLOCK_PLAN.filter((b) => b.atomic).flatMap((b) => {
+  const weeks = plan.filter((s) => s.blockOrder === b.order && s.kind === 'didactic').map((s) => s.week)
+  if (weeks.length === 0) return []
+  const span = Math.max(...weeks) - Math.min(...weeks)
+  return span > 1 ? [`block ${b.order} spans ${span + 1} weeks`] : []
+})
+check(
+  atomicSpread.length === 0,
+  'no AHA provider course is interrupted by a lab week',
+  atomicSpread.join(', '),
+)
+
+// The laid-out plan must carry exactly the hours the block plan says. Packing
+// splits blocks across days; a rounding slip there silently loses class time.
+const laidDidactic = plan.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0)
+const laidLab = plan.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0)
+check(
+  Math.abs(laidDidactic - t.didactic) < 0.01 && Math.abs(laidLab - t.lab) < 0.01,
+  'the laid-out calendar carries the block plan hours exactly',
+  `laid ${laidDidactic}/${laidLab}, plan ${t.didactic}/${t.lab}`,
 )
 
 // Lab is an estimate, so it cannot be asserted equal to anything. What can be
@@ -141,7 +197,8 @@ check(
 console.log(`
   ${t.weeks} weeks · ${t.chaptersTaught} chapters · ${t.lectureHours.toFixed(1)} h publisher lecture
   + ${m.PER_CHAPTER_CLASSROOM_MINUTES} min/chapter classroom + ${t.examHours} h exams + 8 h AHA
-  didactic ${t.didactic} · lab ${t.lab} (${labPerDrill.toFixed(0)} min/drill) · classroom ${t.classroom} h · ${perDay.toFixed(2)} h per class day`)
+  didactic ${t.didactic} · lab ${t.lab} (${labPerDrill.toFixed(0)} min/drill) · classroom ${t.classroom} h
+  ${t.weeks} calendar weeks · ${m.KC_CLASS_PATTERN.days.length} x ${m.KC_CLASS_PATTERN.hoursPerDay} h class days · ${plan.length} sessions`)
 
 console.log(
   failed === 0
