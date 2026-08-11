@@ -31,3 +31,6 @@ dev-dist
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Generated submission documents (npm run doc:application)
+build

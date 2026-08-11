@@ -7,7 +7,7 @@ import { addDays, fromISODate, todayISO } from '../../lib/date'
 import { listExamResults } from '../../lib/exam'
 import {
   buildClassPlan,
-  blockPlanTotals,
+  scheduleTotals,
   KC_CLASS_PATTERN,
   KC_CLINICAL_TARGET,
   KC_FIELD_TARGET,
@@ -471,14 +471,7 @@ export function deleteSession(id: string): void {
   })
 }
 
-// ----- seeding the KC block plan ---------------------------------------------
-
-/** Next occurrence of a weekday (0=Sun) on or after an ISO date. */
-function onOrAfterWeekday(iso: string, weekday: number): string {
-  const d = fromISODate(iso)
-  const delta = (weekday - d.getDay() + 7) % 7
-  return addDays(iso, delta)
-}
+// ----- seeding the filed schedule --------------------------------------------
 
 /**
  * Lay the proposal's 12-block content plan onto real Tuesday/Thursday dates,
@@ -513,7 +506,7 @@ export function seedShortfall(targets: AemtHourTargets | undefined): {
   lab: number
   total: number
 } {
-  const plan = blockPlanTotals()
+  const plan = scheduleTotals()
   if (!targets) return { didactic: 0, lab: 0, total: 0 }
   const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
   const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
@@ -551,40 +544,26 @@ export function addPlaceholderSessions(
   return created.length
 }
 
+/**
+ * Write the filed schedule out as dated sessions.
+ *
+ * buildClassPlan does the calendar work — the pattern's weekdays, the clock
+ * times, and pushing a face-to-face week clear of a holiday. This only turns
+ * what it returns into records, so the dates a coordinator sees in the app are
+ * the same ones the KBEMS application was built from.
+ */
 export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
-  const created: AemtSession[] = []
-  const pattern = KC_CLASS_PATTERN
-  // The first class day on or after the start date anchors the calendar; every
-  // other session is offset from it, so the pattern's weekdays are honoured
-  // whatever day of the week the course happens to begin.
-  const firstDay = onOrAfterWeekday(startISO, pattern.days[0])
-
-  // Minutes already booked on each date. A class day normally carries one
-  // session, but where a block's hours run out mid-day the next block starts on
-  // the same day and has to begin when the first one ends — not at 09:00 again.
-  const dayEnd = new Map<string, number>()
-
-  for (const s of buildClassPlan(pattern)) {
-    const offset = pattern.days[s.dayIndex] - pattern.days[0]
-    const date = addDays(firstDay, s.week * 7 + offset)
-    const startMin = dayEnd.get(date) ?? pattern.startMinute
-    // Computed in minutes: an earlier form printed ':30' for any fractional
-    // part, so a quarter-hour session filed a time that contradicted its own
-    // hours, and anything running past midnight produced '24:00', which is not
-    // a time an input will accept.
-    const endMin = startMin + Math.round(s.hours * 60)
-    dayEnd.set(date, endMin)
-    created.push({
-      id: uid('asess'),
-      courseId,
-      date,
-      title: s.title,
-      kind: s.kind,
-      hours: s.hours,
-      startTime: formatClock(startMin),
-      endTime: formatClock(endMin),
-    })
-  }
+  const created: AemtSession[] = buildClassPlan(startISO, KC_CLASS_PATTERN).map((s) => ({
+    id: uid('asess'),
+    courseId,
+    date: s.date,
+    title: s.title,
+    kind: s.kind,
+    hours: s.hours,
+    delivery: s.delivery,
+    startTime: s.startTime,
+    endTime: s.endTime,
+  }))
 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
   return {
@@ -635,8 +614,8 @@ export const KC_DEFAULT_TARGETS: AemtHourTargets = {
   // reconciles to zero against the schedule the seeder builds. Typed figures
   // are what made `seedShortfall` report a permanent 20-hour gap on every
   // course: the defaults said 110 didactic and the plan laid out 90.
-  didactic: blockPlanTotals().didactic,
-  lab: blockPlanTotals().lab,
+  didactic: scheduleTotals().didactic,
+  lab: scheduleTotals().lab,
   clinical: KC_CLINICAL_TARGET,
   field: KC_FIELD_TARGET,
 }

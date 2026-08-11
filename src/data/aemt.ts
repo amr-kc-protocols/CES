@@ -244,7 +244,7 @@ export const CLINICAL_REQUIREMENTS: KarMinimum[] = [
     minimum: 15,
     allowedSettings: ['hospital', 'field'],
     fieldMinimum: 10,
-    site: 'AMR KC interfacility / AMR Independence 911 (10+), AdventHealth (up to 5)',
+    site: 'AMR Independence / AMR Linn County (10+), AdventHealth (up to 5)',
     note: 'The 10-in-field component cannot be substituted with simulation or hospital encounters.',
   },
   {
@@ -257,7 +257,7 @@ export const CLINICAL_REQUIREMENTS: KarMinimum[] = [
     // Named explicitly by K.A.R. 109-11-8 — note LPN and PA are NOT on this
     // list even though an LPN may precept a hospital clinical shift.
     eligibleSupervisors: ['aemt', 'paramedic', 'physician', 'aprn', 'rn'],
-    site: 'AMR Independence 911 (primary), AMR KC interfacility (supplement)',
+    site: 'AMR Independence (urban 911), AMR Linn County (rural)',
     note: 'Must be directly supervised by an AEMT, Paramedic, physician, APRN or RN.',
   },
   {
@@ -298,16 +298,61 @@ export const PROGRAM_COMPETENCIES: KarMinimum[] = CLINICAL_REQUIREMENTS.filter(
  * estimate of ours. `skillDrills` is how many Skill Drills the chapter carries,
  * which is the closest thing the guide gives to a psychomotor workload.
  *
- * This exists so the schedule is built from what has to be taught rather than
- * from a number somebody chose. Hours are DERIVED from it below.
+ * THE SCHEDULE IS NO LONGER BUILT FROM THIS. Hours come from the Wichita course
+ * approval, which Kansas City runs as its template; see KC_SCHEDULE below. The
+ * guide's timings are kept as a cross-check that check-course-plan.mjs reports,
+ * so the distance between what the publisher allots and what the filing allots
+ * stays visible instead of being rediscovered later.
+ *
+ * ISBN NOTE: the Wichita filing cites 978-1-284-22640-9 and a 2019 date beside
+ * a 4th-edition title, which cannot both be right — the 4th edition is 2023.
+ * Kansas City uses the 4th edition, 2023, and the ISBN below is the one on the
+ * Instructor Resource Guide actually in hand. Worth confirming against what the
+ * bookstore ships before the application goes in.
  */
 export const COURSE_TEXT = {
   title: 'Advanced Emergency Care and Transportation of the Sick and Injured',
   edition: '4th',
+  copyright: 2023,
   publisher: 'AAOS / Jones & Bartlett Learning',
   isbn: '9781284244175',
+  /** As the Wichita filing cites it; retained because the two disagree. */
+  filedIsbn: '9781284226409',
   source: 'Instructor Resource Guide, lecture timings table',
 }
+
+/**
+ * Course staff and sites of record for the Kansas City filing.
+ *
+ * Wichita's equivalents (Cassandra Powell; Butler County EMS and Sedgwick
+ * County EMS; Ascension Via Christi St Francis) are replaced wholesale — these
+ * are the only parts of the template that do not carry over.
+ */
+export const KC_COURSE_STAFF = {
+  primaryInstructor: 'Jordan Jones',
+  credential: 'Paramedic',
+  email: 'jordan.jones@gmr.net',
+  officeHours:
+    'Available by text anytime; allow a maximum of 12 hours for a reply, though most are much sooner. Teams meetings arranged as needed. Available Monday-Friday 0800-1600.',
+}
+
+export const KC_SITES: { name: string; kind: 'clinical' | 'field'; note: string }[] = [
+  {
+    name: 'AdventHealth, Kansas City area',
+    kind: 'clinical',
+    note: 'Six 12-hour shifts (72 h) of supervised patient skills.',
+  },
+  {
+    name: 'AMR Independence',
+    kind: 'field',
+    note: 'Urban 911 response. Part of the 144 h field internship.',
+  },
+  {
+    name: 'AMR Linn County',
+    kind: 'field',
+    note: 'Rural response. Part of the 144 h field internship — the rural/urban split Wichita met with Butler and Sedgwick counties.',
+  },
+]
 
 export interface TextbookChapter {
   n: number
@@ -436,263 +481,430 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
     .filter((c): c is TextbookChapter => !!c && !c.carryForward)
 }
 
-// ----- the course schedule (proposal §3, rebuilt from the text) --------------
+// ----- the course schedule (Wichita template, adapted for Kansas City) -------
 
-export interface AemtBlock {
+/**
+ * THE WICHITA FILING IS THE MEASURE, NOT THE INSTRUCTOR GUIDE.
+ *
+ * These rows are transcribed from the AEMT Initial Instruction Course Approval
+ * EagleMed filed for Wichita (course dates 1 Apr - 31 Jul 2025), which Kansas
+ * City is running as the same template. Topics, hours and their dispersion are
+ * copied from it; only the dates, sites and instructor change.
+ *
+ * That replaces a schedule derived from the publisher's Instructor Resource
+ * Guide lecture timings. Where the two disagree the filing wins, by decision —
+ * so the guide's chapter timings survive in TEXTBOOK_CHAPTERS above as a
+ * cross-check reported by scripts/check-course-plan.mjs, and are no longer what
+ * the hours are built from.
+ *
+ * TWO DEFECTS CARRIED OVER FROM THE SOURCE, both deliberate:
+ *
+ *   1. The filing's summary line reads "Didactic 110", but its own 26 schedule
+ *      rows sum to 116. Lab matches at 50. Kansas City files 116 — the schedule
+ *      is what KBEMS reviews against, so a summary disagreeing with it is the
+ *      thing that is wrong. Decided 11 Aug 2026.
+ *
+ *   2. Chapters 17 and 18 are assigned twice — once in week 5 with chapter 12
+ *      and 16, and again in week 9. Reproduced as filed rather than silently
+ *      deduplicated, because removing them would change the week 9 hours and
+ *      the whole point of this table is that it matches Wichita's.
+ */
+
+/**
+ * How a session reaches the student.
+ *
+ * This distinction is what makes the eight-hour weekly cap meaningful. Only
+ * `f2f` rows cost instructor time and room time; `assignment` rows are Navigate
+ * chapter materials, quizzes and the AHA pre-course reading, which the student
+ * works through on their own. Every one of the filing's ten f2f rows is exactly
+ * eight hours — one Tuesday/Thursday pair at four hours each.
+ */
+export type Delivery = 'f2f' | 'assignment'
+
+export interface ScheduleRow {
   order: number
-  title: string
-  /**
-   * Two or three words for a calendar chip. The full title is a content line
-   * running to a dozen words — correct on a filed schedule, useless in a grid
-   * cell, where it truncates to 'Preparatory — EMS Systems,...' and tells the
-   * reader nothing the colour did not.
-   */
+  /** Course week, 1-based, numbered as the filing numbers them. */
+  week: number
+  /** Row label as the filing writes it. */
+  label: string
+  /** Two or three words, for a calendar chip. */
   short: string
-  /**
-   * Textbook chapters this block teaches. Didactic hours are DERIVED from
-   * their publisher lecture times — see blockDidacticHours(). Typed hours were
-   * how the plan came to disagree with itself: the proposal's §2 claimed ~110
-   * didactic hours while its §3 table summed to 90, and neither was traceable
-   * to what was being taught.
-   */
-  chapters?: number[]
-  /**
-   * Didactic hours stated outright rather than derived. Only for blocks with no
-   * textbook behind them — the AHA PALS and ACLS provider courses, whose length
-   * AHA sets.
-   */
-  fixedDidacticHours?: number
-  /**
-   * Written examination time sitting in this block — section exams and the
-   * comprehensive final. Classroom hours the chapter assets do not account for,
-   * counted as didactic. Practical testing is lab and belongs in `labHours`.
-   */
-  examHours?: number
-  /**
-   * Psychomotor lab hours. ESTIMATED, not derived — see the note above
-   * KC_BLOCK_PLAN. The instructor guide states lecture times and enumerates the
-   * skill drills; it states no lab times, so anything claiming to derive these
-   * would be invention dressed as publisher data.
-   */
+  /** Topic list, as filed. */
+  title: string
+  delivery: Delivery
+  didacticHours: number
   labHours: number
-  /**
-   * Deliver this block without a lab week interrupting it.
-   *
-   * For the AHA provider courses, which are bought-in certifications with their
-   * own fixed agenda. A four-hour block that straddles two class days is
-   * ordinary; the same block straddling two class days three calendar weeks
-   * apart is not, and that is what the interleave did to PALS before this —
-   * 3.5 hours in week 3 and the last half hour in week 6, because two lab weeks
-   * were released into the gap.
-   *
-   * It constrains only where lab weeks may be inserted. Class days stay exactly
-   * the pattern's length; making an atomic block start on a fresh day instead
-   * was tried and is worse, since it either files a half-hour class day or
-   * merges one into a five-and-three-quarter-hour day.
-   */
-  atomic?: boolean
-  /**
-   * Standards sections placed into this block by hand, where the proposal's own
-   * content sequence omitted them.
-   */
-  addedSections?: string[]
+  /** Textbook chapters the row assigns. */
+  chapters?: number[]
+  /** Kansas AEMT Education Standards codes the row names. */
+  sections?: string[]
 }
 
-/**
- * Didactic hours for a block: the publisher's lecture time for its chapters,
- * plus the per-chapter classroom allowance, plus any examination time. AHA
- * blocks state their hours outright because AHA sets them.
- *
- * Rounded to the nearest quarter hour. A schedule is built in quarter hours;
- * carrying 9.1666… into a session's `hours` field only produces figures nobody
- * can file.
- */
-export function blockDidacticHours(b: AemtBlock): number {
-  const chapters = b.chapters ?? []
-  const base =
-    typeof b.fixedDidacticHours === 'number'
-      ? b.fixedDidacticHours
-      : (lectureMinutesFor(chapters) +
-          taughtChaptersIn(chapters).length * PER_CHAPTER_CLASSROOM_MINUTES) /
-        60
-  return Math.round((base + (b.examHours ?? 0)) * 4) / 4
-}
-
-/** Skill drills the block's chapters carry — the psychomotor load behind its lab. */
-export function blockSkillDrills(b: AemtBlock): number {
-  return skillDrillsFor(b.chapters ?? [])
-}
-
-/**
- * LAB HOURS ARE AN ESTIMATE. Read this before changing one.
- *
- * The instructor guide states a lecture time for every chapter and names every
- * skill drill, but it states no lab times at all. There is nothing to derive
- * from, so each block's figure is judgement, sized against two things:
- *
- *   - The drills the block carries, and how many are NEW at AEMT scope rather
- *     than held from EMT. Forty-five of the guide's ninety-five drills are new
- *     (chapters 10, 11, 13, 18, 22, 35, 36, 38); a new drill needs demonstration,
- *     supervised repetition and a check-off against the sheet in
- *     data/aemtSkills.ts, where a carried-forward one is rehearsed to currency.
- *     Chapter 6's sixteen lifting-and-moving drills get nothing at all — the
- *     course does not teach that chapter, so it appears in no block.
- *   - What else the block has to fit: the AHA skills stations, extrication and
- *     MCI scenarios, and the summative practical, none of which have a drill
- *     behind them.
- *
- * The result is 86 hours over the 79 drills the schedule teaches — about 65
- * minutes per drill, or about 51 once the AHA courses, the summative practical
- * and the pharmacology hour are set aside as having no drill behind them.
- * Individual blocks run from 20 minutes per drill to over 90, because those two
- * inputs pull in different directions; the per-block comments say which is doing
- * the work.
- *
- * It is applied by hand per block rather than by formula on purpose. A formula
- * over drill counts would present this estimate as if it were the publisher's
- * data. It is not.
- */
-export const KC_BLOCK_PLAN: AemtBlock[] = [
+export const KC_SCHEDULE: ScheduleRow[] = [
   {
     order: 1,
-    short: 'Preparatory',
+    week: 1,
+    label: 'Week 1 Class',
+    short: 'Orientation & Preparatory',
     title:
-      'Preparatory — EMS Systems, Workforce Safety & Wellness, Medical/Legal, Communications & Documentation, Medical Terminology',
-    chapters: [1, 2, 3, 4, 5],
-    // Chapter 2's three drills — handwashing, glove removal, exposure response.
-    // Carried forward from EMT, but they are the block's only psychomotor
-    // content and BSI is check-off material, so it is an hour, not zero.
-    labHours: 1,
+      'Introduction & Orientation; Course Syllabus/Schedule; EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal Ethical (PR7); Medical Terminology (PR9)',
+    delivery: 'f2f',
+    didacticHours: 8,
+    labHours: 0,
+    sections: ['PR1', 'PR2', 'PR3', 'PR4', 'PR5', 'PR6', 'PR7', 'PR9'],
   },
   {
     order: 2,
-    short: 'Anatomy & Assessment',
-    title: 'The Human Body, Pathophysiology, Life Span Development; Patient Assessment',
-    chapters: [7, 8, 9, 10],
-    // Chapter 10's five drills are all assessment skills, and this is where the
-    // K.A.R. 109-11-8 fifteen-assessment competency begins accumulating.
-    labHours: 6,
+    week: 1,
+    label: 'Week 1 Assignments',
+    short: 'Ch 1-6',
+    title: 'Chapters 1-6; chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 4,
+    labHours: 0,
+    chapters: [1, 2, 3, 4, 5, 6],
   },
   {
     order: 3,
-    short: 'Airway',
-    title: 'Airway Management; Lab — airway, supraglottic, CPAP',
-    chapters: [11],
-    // Fourteen drills, nearly all new at AEMT scope: OPA, NPA, suction, CPAP,
-    // King LT, LMA, i-gel, and stoma ventilation. The second-largest lab in the
-    // course.
-    labHours: 10,
-    examHours: 1,
+    week: 2,
+    label: 'Week 2 Assignments',
+    short: 'Ch 7-10',
+    title:
+      'Chapters 7-10; Anatomy & Physiology (PR8); Pathophysiology (PR10); Life Span Development (PR11); Scene Size-Up (PA1); Primary Assessment (PA2); Secondary Assessment (PA4); Reassessment (PA6); chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 8,
+    labHours: 0,
+    chapters: [7, 8, 9, 10],
+    sections: ['PR8', 'PR10', 'PR11', 'PA1', 'PA2', 'PA4', 'PA6'],
   },
   {
     order: 4,
-    short: 'AHA PALS',
-    title: 'AHA PALS Provider Course',
-    fixedDidacticHours: 4,
-    atomic: true,
-    // Skills stations and megacode. No textbook drills behind it.
-    labHours: 6,
+    week: 3,
+    label: 'Week 3 Assignments',
+    short: 'Ch 11 Airway',
+    title:
+      'Chapter 11; Airway Management (AM1); Respiration (AM2); Artificial Ventilation (AM3); review previous assignments; chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 2,
+    labHours: 0,
+    chapters: [11],
+    sections: ['AM1', 'AM2', 'AM3'],
   },
   {
     order: 5,
-    short: 'Pharmacology',
-    title: 'Principles of Pharmacology',
-    chapters: [12],
-    // No drills. Drug box familiarisation and label reading; dose calculation is
-    // didactic and sits in the chapter allowance.
-    labHours: 1,
+    week: 3,
+    label: 'Week 3 Class',
+    short: 'Assessment & Airway Lab',
+    title:
+      'A&P/Pathophysiology review; Patient Assessment skills; Monitoring Devices (PA5); Airway Management skills; Medication Administration skills; Intro to ECG monitoring',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 4,
+    sections: ['PA5'],
   },
-  { order: 6, short: 'AHA ACLS', title: 'AHA ACLS Provider Course', fixedDidacticHours: 4, atomic: true, labHours: 6 },
+  {
+    order: 6,
+    week: 4,
+    label: 'Week 4 Assignments',
+    short: 'PALS pre-course',
+    title: 'PALS pre-course requirements; study and prepare for PALS; AHA PALS Provider Book',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+  },
   {
     order: 7,
-    short: 'Vascular Access & Meds',
-    title: 'Vascular Access and Medication Administration; Shock; BLS Resuscitation; Lab — IV, IO, med routes',
-    chapters: [13, 14, 15],
-    // The heaviest psychomotor block in the course: nineteen drills, thirteen of
-    // them new-scope, and it is where the K.A.R. 109-11-8 venipuncture, IO and
-    // injection minimums are actually taught. It previously held ZERO lab hours.
-    labHours: 18,
-    examHours: 1,
+    week: 4,
+    label: 'PALS class',
+    short: 'AHA PALS',
+    title: 'AHA PALS Provider Course',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 4,
   },
   {
     order: 8,
-    short: 'OB & Pediatrics',
-    title: 'Obstetrics and Neonatal Care; Pediatric Emergencies',
-    chapters: [35, 36],
-    // Eight drills, all new-scope: delivery, paediatric airway, paediatric IO,
-    // and paediatric immobilisation.
-    labHours: 7,
+    week: 5,
+    label: 'Week 5 Assignments',
+    short: 'Ch 12, 16-18',
+    title:
+      'Chapters 12, 16-18; Principles of Pharmacology (PR13); Emergency Medications (PR15); Public Health (PR12); Medical Overview (MT1); Infectious Disease (MT5); chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [12, 16, 17, 18],
+    sections: ['PR13', 'PR15', 'PR12', 'MT1', 'MT5'],
   },
   {
     order: 9,
-    short: 'Respiratory & Cardiac',
-    title: 'Medical Overview; Respiratory Emergencies; Cardiovascular Emergencies / ECG; Lab — ECG acquisition',
-    chapters: [16, 17, 18],
-    // Three drills, but one of them is cardiac monitoring, behind the eight-ECG
-    // minimum; nebuliser and CPAP integration from chapter 17 runs here too.
-    labHours: 5,
-    examHours: 1,
-  },
-  {
-    order: 10,
-    short: 'Operations & Trauma I',
-    title: 'EMS Operations; Trauma — overview, bleeding, soft tissue, chest; Lab — scenarios',
-    chapters: [39, 40, 41, 42, 26, 27, 28, 31],
-    // Six carry-forward drills — hemorrhage control, wound packing, tourniquet,
-    // impaled object, burns — plus extrication and MCI triage scenario time.
+    week: 5,
+    label: 'Week 5 Class',
+    short: 'Meds & ECG Lab',
+    title:
+      'Review previous assignments; Medication Administration skills; ECG monitoring; Airway skills checkoff',
+    delivery: 'f2f',
+    didacticHours: 2,
     labHours: 6,
   },
   {
+    order: 10,
+    week: 6,
+    label: 'Week 6 Assignments',
+    short: 'ACLS pre-course',
+    title: 'ACLS pre-course requirements; study and prepare for ACLS; AHA ACLS Provider Book',
+    delivery: 'assignment',
+    didacticHours: 4,
+    labHours: 0,
+  },
+  {
     order: 11,
-    short: 'Trauma II & Medical',
-    title: 'Trauma — face/neck, head/spine, abdominal, orthopaedic, environmental; Medicine — neurologic, GI/GU, endocrine/hematologic',
-    chapters: [29, 30, 32, 33, 34, 19, 20, 21],
-    // Nineteen drills. All carry-forward, but SMR, the traction splints and
-    // helmet removal are equipment-dependent and decay fastest.
-    labHours: 12,
-    examHours: 1,
-    // Sits with the rest of trauma. Its assessment points invert what students
-    // have just been taught about shock, so it cannot be left to be picked up
-    // incidentally.
-    addedSections: [
-      'ST10 Special Considerations in Trauma — trauma in pregnancy: abruptio placenta, why a normal heart rate and a rate under 20 mislead, loss of compression landmarks in arrest',
-    ],
+    week: 6,
+    label: 'ACLS class',
+    short: 'AHA ACLS',
+    title: 'AHA ACLS Provider Course',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 4,
   },
   {
     order: 12,
-    short: 'Medical & Final',
-    title: 'Medicine — immunologic, toxicology, psychiatric, gynecologic; Geriatrics; Patients With Special Challenges; Final exam & NREMT prep',
-    chapters: [22, 23, 24, 25, 37, 38],
-    // Two drills (epinephrine auto-injector, tracheostomy suctioning) plus the
-    // summative practical: every AEMT-scope station tested to NREMT format.
-    labHours: 8,
-    // Comprehensive written final, plus the NREMT written review.
-    examHours: 4,
+    week: 7,
+    label: 'Week 7 Assignments',
+    short: 'Ch 13-15',
+    title:
+      'Chapters 13-15; Medication Administration (PR14); Shock and Resuscitation (ST1); chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 4,
+    labHours: 0,
+    chapters: [13, 14, 15],
+    sections: ['PR14', 'ST1'],
+  },
+  {
+    order: 13,
+    week: 8,
+    label: 'Week 8 Assignments',
+    short: 'Ch 35-36 OB & Peds',
+    title: 'Chapters 35, 36; Obstetrics (SP1); Neonatal Care (SP2); Pediatrics (SP3)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [35, 36],
+    sections: ['SP1', 'SP2', 'SP3'],
+  },
+  {
+    order: 14,
+    week: 9,
+    label: 'Week 9 Assignments',
+    short: 'Ch 17-18 Resp & Cardiac',
+    title:
+      'Chapters 17, 18; Respiratory (MT10); Cardiovascular (MT8); chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 4,
+    labHours: 0,
+    chapters: [17, 18],
+    sections: ['MT10', 'MT8'],
+  },
+  {
+    order: 15,
+    week: 9,
+    label: 'Week 9 Class',
+    short: 'ECG & Meds Checkoff',
+    title: 'Review previous assignments; ECG practice; Medication Administration skills checkoff',
+    delivery: 'f2f',
+    didacticHours: 2,
+    labHours: 6,
+  },
+  {
+    order: 16,
+    week: 10,
+    label: 'Week 10 Assignments',
+    short: 'Ch 39-42 Operations',
+    title:
+      'Chapters 39-42; Principles of Safely Operating a Ground Ambulance (OP1); Incident Management (OP2); Multiple Casualty Incidents (OP3); Air Medical (OP4); Vehicle Extrication (OP5); Haz-Mat Awareness (OP6); Terrorism & Disaster (OP7); chapter materials, quizzes & exams',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [39, 40, 41, 42],
+    sections: ['OP1', 'OP2', 'OP3', 'OP4', 'OP5', 'OP6', 'OP7'],
+  },
+  {
+    order: 17,
+    week: 11,
+    label: 'Week 11 Class',
+    short: 'Scenario Skills',
+    title: 'Review previous materials; scenario skills',
+    delivery: 'f2f',
+    didacticHours: 2,
+    labHours: 6,
+  },
+  {
+    order: 18,
+    week: 11,
+    label: 'Week 11 Assignments',
+    short: 'Ch 26-28 Trauma',
+    title:
+      'Chapters 26-28; Trauma Overview (ST2); Special Considerations in Trauma (ST10); Multisystem Trauma (ST12); Bleeding (ST3); Soft Tissue (ST7)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [26, 27, 28],
+    sections: ['ST2', 'ST10', 'ST12', 'ST3', 'ST7'],
+  },
+  {
+    order: 19,
+    week: 12,
+    label: 'Week 12 Assignments',
+    short: 'Ch 29-31 Trauma',
+    title:
+      'Chapters 29-31; Head, Face, Neck & Spine (ST8); Chest Trauma (ST4); Nervous System Trauma (ST9)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [29, 30, 31],
+    sections: ['ST8', 'ST4', 'ST9'],
+  },
+  {
+    order: 20,
+    week: 13,
+    label: 'Week 13 Class',
+    short: 'NR Practice',
+    title: 'Review previous materials; National Registry practice',
+    delivery: 'f2f',
+    didacticHours: 2,
+    labHours: 6,
+  },
+  {
+    order: 21,
+    week: 13,
+    label: 'Week 13 Assignments',
+    short: 'Ch 32-34 Trauma',
+    title:
+      'Chapters 32-34; Abdominal & Genitourinary Trauma (ST5); Orthopedic Trauma (ST6); Environmental Emergencies (ST11)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [32, 33, 34],
+    sections: ['ST5', 'ST6', 'ST11'],
+  },
+  {
+    order: 22,
+    week: 14,
+    label: 'Week 14 Assignments',
+    short: 'Ch 19-21 Medical',
+    title:
+      'Chapters 19-21; Neurology (MT2); Abdominal & GI Disorders (MT3); Genitourinary/Renal (MT12); Endocrine (MT6); Hematology (MT11)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [19, 20, 21],
+    sections: ['MT2', 'MT3', 'MT12', 'MT6', 'MT11'],
+  },
+  {
+    order: 23,
+    week: 15,
+    label: 'Week 15 Class',
+    short: 'NR Practice',
+    title: 'Review previous materials; National Registry practice',
+    delivery: 'f2f',
+    didacticHours: 1,
+    labHours: 7,
+  },
+  {
+    order: 24,
+    week: 15,
+    label: 'Week 15 Assignments',
+    short: 'Ch 22, 25, 37',
+    title:
+      'Chapters 22, 25 & 37; Immunology (MT4); Gynecology (MT13); Geriatrics (SP4); Special Challenges (SP5)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [22, 25, 37],
+    sections: ['MT4', 'MT13', 'SP4', 'SP5'],
+  },
+  {
+    order: 25,
+    week: 16,
+    label: 'Week 16 Assignments',
+    short: 'Ch 23, 24, 38',
+    title:
+      'Chapters 23, 24 & 38; Toxicology (MT9); Psychiatric (MT7); Non-Traumatic Musculoskeletal Disorders (MT14)',
+    delivery: 'assignment',
+    didacticHours: 6,
+    labHours: 0,
+    chapters: [23, 24, 38],
+    sections: ['MT9', 'MT7', 'MT14'],
+  },
+  {
+    order: 26,
+    week: 16,
+    label: 'Week 16 Class',
+    short: 'Final Exam & NR Prep',
+    title: 'Final exam; National Registry board prep',
+    delivery: 'f2f',
+    didacticHours: 1,
+    labHours: 7,
   },
 ]
 
-/**
- * The block's full content line — the proposal's title plus any standards
- * sections added to it. This is what a session should be titled: a schedule
- * that omits the additions is the same schedule that lost them in the first
- * place. Only the section codes are appended, not their full descriptions,
- * which stay in `addedSections` for the plan view.
- */
-export function blockContentLine(b: AemtBlock): string {
-  if (!b.addedSections?.length) return b.title
-  const codes = b.addedSections.map((s) => s.split(' — ')[0])
-  return `${b.title}; ${codes.join('; ')}`
+/** Course weeks the filing runs. */
+export const KC_COURSE_WEEKS = KC_SCHEDULE.reduce((n, r) => Math.max(n, r.week), 0)
+
+/** The row's hours, whichever way it is delivered. */
+export function rowHours(r: ScheduleRow): number {
+  return r.didacticHours + r.labHours
 }
 
-// ----- laying the blocks onto class days -------------------------------------
+export function scheduleTotals(): {
+  didactic: number
+  lab: number
+  classroom: number
+  weeks: number
+  /** Instructor-led hours — what the weekly cap and the budget are about. */
+  f2f: number
+  /** Student self-study hours: Navigate materials, quizzes, AHA pre-course. */
+  assignment: number
+  f2fWeeks: number
+} {
+  const sum = (f: (r: ScheduleRow) => number) => KC_SCHEDULE.reduce((n, r) => n + f(r), 0)
+  const f2f = sum((r) => (r.delivery === 'f2f' ? rowHours(r) : 0))
+  return {
+    didactic: sum((r) => r.didacticHours),
+    lab: sum((r) => r.labHours),
+    classroom: sum(rowHours),
+    weeks: KC_COURSE_WEEKS,
+    f2f,
+    assignment: sum((r) => (r.delivery === 'assignment' ? rowHours(r) : 0)),
+    f2fWeeks: new Set(KC_SCHEDULE.filter((r) => r.delivery === 'f2f').map((r) => r.week)).size,
+  }
+}
+
+/** Kept for the standards-coverage note; every section the filing names. */
+export const SCHEDULE_SECTIONS: string[] = [
+  ...new Set(KC_SCHEDULE.flatMap((r) => r.sections ?? [])),
+]
+
+/** Chapters the filing never assigns — a gap against the adopted text. */
+export function unscheduledChapters(): TextbookChapter[] {
+  const taught = new Set(KC_SCHEDULE.flatMap((r) => r.chapters ?? []))
+  return TEXTBOOK_CHAPTERS.filter((c) => !taught.has(c.n))
+}
+
+/** Chapters the filing assigns more than once. Wichita duplicates 17 and 18. */
+export function duplicatedChapters(): number[] {
+  const seen = new Map<number, number>()
+  for (const r of KC_SCHEDULE) for (const c of r.chapters ?? []) seen.set(c, (seen.get(c) ?? 0) + 1)
+  return [...seen].filter(([, n]) => n > 1).map(([c]) => c).sort((a, b) => a - b)
+}
+
+// ----- laying the schedule onto dates ----------------------------------------
 
 /**
  * The shape of a class week.
  *
- * Everything about the calendar comes from here. Block spans used to be typed
- * per block ('Weeks 2-3', spanWeeks: 2) alongside the hours, which meant the
- * two could disagree — and did, until the didactic figures were derived and the
- * spans were not.
+ * Wichita ran face-to-face Tuesday and Thursday, 09:00-13:00, and Kansas City
+ * keeps that. Eight instructor-led hours a week is a budget constraint, not a
+ * preference — the planner will extend the course rather than exceed it.
  */
 export interface ClassPattern {
   /** Weekdays carrying class, 0 = Sunday. */
@@ -703,261 +915,218 @@ export interface ClassPattern {
   startMinute: number
 }
 
-/** Two four-hour classes a week, Tuesday and Thursday, 09:00-13:00. */
 export const KC_CLASS_PATTERN: ClassPattern = {
   days: [2, 4],
   hoursPerDay: 4,
   startMinute: 9 * 60,
 }
 
-export const CLASS_HOURS_PER_WEEK =
-  KC_CLASS_PATTERN.days.length * KC_CLASS_PATTERN.hoursPerDay
+export const CLASS_HOURS_PER_WEEK = KC_CLASS_PATTERN.days.length * KC_CLASS_PATTERN.hoursPerDay
+
+/** First class session: Tuesday 6 October 2026. */
+export const KC_START_DATE = '2026-10-06'
+
+/**
+ * Days the program does not meet.
+ *
+ * Only dates falling on a class weekday matter, but the whole holiday is listed
+ * so the reason is legible when someone asks why week 13 moved. A face-to-face
+ * week that would land on any of these is pushed a week later and the course
+ * extends — the filing's content is fixed, so the calendar is what gives.
+ *
+ * Assignment weeks are NOT pushed. They cost no instructor time and the student
+ * works through them on their own schedule, so a holiday inside one changes
+ * nothing about what the program owes.
+ */
+export const KC_HOLIDAYS: { date: string; name: string }[] = [
+  { date: '2026-11-26', name: 'Thanksgiving Day' },
+  { date: '2026-11-27', name: 'Day after Thanksgiving' },
+  { date: '2026-12-24', name: 'Christmas Eve' },
+  { date: '2026-12-25', name: 'Christmas Day' },
+  { date: '2026-12-31', name: "New Year's Eve" },
+  { date: '2027-01-01', name: "New Year's Day" },
+  { date: '2027-01-18', name: 'Martin Luther King Jr. Day' },
+  { date: '2027-02-15', name: "Presidents' Day" },
+]
+
+const HOLIDAY_BY_DATE = new Map(KC_HOLIDAYS.map((h) => [h.date, h.name]))
+
+export function holidayOn(iso: string): string | undefined {
+  return HOLIDAY_BY_DATE.get(iso)
+}
 
 export interface PlannedSession {
-  /** 0-based week from the first class week. */
+  /** ISO date. */
+  date: string
+  /** Course week, as the filing numbers it. */
   week: number
-  /** Index into the pattern's days: 0 = the first class day of the week. */
-  dayIndex: number
+  /** Calendar week from the first class date, 1-based. Differs from `week` once a holiday pushes something. */
+  calendarWeek: number
   kind: 'didactic' | 'lab'
+  delivery: Delivery
   hours: number
-  blockOrder: number
+  rowOrder: number
   title: string
+  short: string
+  /** Only face-to-face rows carry clock times; assignments are not sat in a room. */
+  startTime?: string
+  endTime?: string
 }
 
-interface PackedStream {
-  sessions: { day: number; blockOrder: number; hours: number }[]
-  /** Flat day index in which each block's last hour of this kind lands. */
-  lastDayOf: Map<number, number>
-  days: number
+function addDaysISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + days)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`
+}
+
+function clock(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  return `${String(h).padStart(2, '0')}:${String(Math.round(minutes % 60)).padStart(2, '0')}`
 }
 
 /**
- * Fill fixed-length class days from a queue of block segments.
+ * The whole course as dated sessions.
  *
- * A day may carry the tail of one block and the head of the next — that is what
- * keeps every day exactly four hours instead of leaving a half-hour stub
- * whenever a block's hours are not a multiple of the class day. Each piece stays
- * its own session, so the schedule still says which block it belongs to.
+ * One course week per calendar week, except that a face-to-face week landing on
+ * a holiday is pushed to the next clear week — which is what extends the course
+ * past sixteen calendar weeks.
+ *
+ * A face-to-face row is split across the pattern's class days: eight hours
+ * becomes 4 + 4, and where a week mixes didactic and lab the didactic is placed
+ * first so the lecture precedes the lab practising it.
  */
-function packStream(
-  segments: { blockOrder: number; hours: number }[],
-  hoursPerDay: number,
-): PackedStream {
-  const sessions: { day: number; blockOrder: number; hours: number }[] = []
-  const lastDayOf = new Map<number, number>()
-  let day = 0
-  let used = 0
-  for (const seg of segments) {
-    let left = seg.hours
-    while (left > 1e-9) {
-      const take = Math.min(hoursPerDay - used, left)
-      sessions.push({ day, blockOrder: seg.blockOrder, hours: Math.round(take * 100) / 100 })
-      lastDayOf.set(seg.blockOrder, day)
-      used += take
-      left -= take
-      if (used >= hoursPerDay - 1e-9) {
-        day++
-        used = 0
+export function buildClassPlan(
+  startISO: string = KC_START_DATE,
+  pattern: ClassPattern = KC_CLASS_PATTERN,
+): PlannedSession[] {
+  const out: PlannedSession[] = []
+  const perWeek = pattern.days.length
+  // Anchor on the first class weekday on or after the start date.
+  let anchor = startISO
+  for (let i = 0; i < 7; i++) {
+    const [y, m, d] = anchor.split('-').map(Number)
+    if (new Date(y, m - 1, d).getDay() === pattern.days[0]) break
+    anchor = addDaysISO(anchor, 1)
+  }
+
+  let calendarWeek = 0
+  for (let week = 1; week <= KC_COURSE_WEEKS; week++) {
+    const rows = KC_SCHEDULE.filter((r) => r.week === week)
+    const f2f = rows.filter((r) => r.delivery === 'f2f')
+
+    // Push past any week whose class days collide with a holiday.
+    if (f2f.length > 0) {
+      for (;;) {
+        const dates = pattern.days.map((d) =>
+          addDaysISO(anchor, calendarWeek * 7 + (d - pattern.days[0])),
+        )
+        if (!dates.some((iso) => HOLIDAY_BY_DATE.has(iso))) break
+        calendarWeek++
       }
     }
-  }
-  return { sessions, lastDayOf, days: used > 1e-9 ? day + 1 : day }
-}
 
-/**
- * The whole course as dated-by-week class sessions.
- *
- * Didactic and lab run in SEPARATE weeks. A week is one or the other, never
- * both: didactic weeks deliver two four-hour classes, and lab is banked and
- * released as dedicated lab weeks of the same shape.
- *
- * A lab week is placed as soon as every block it practises has finished being
- * taught, which is the only ordering constraint that matters — you cannot run
- * the IV lab before the vascular access lectures. Within that constraint lab
- * lands as early as it can, so skills are current when the student reaches the
- * clinical rotations that consume them.
- */
-export function buildClassPlan(pattern: ClassPattern = KC_CLASS_PATTERN): PlannedSession[] {
-  const perWeek = pattern.days.length
-  const byOrder = new Map(KC_BLOCK_PLAN.map((b) => [b.order, b]))
+    const dateFor = (dayIndex: number) =>
+      addDaysISO(anchor, calendarWeek * 7 + (pattern.days[dayIndex] - pattern.days[0]))
 
-  const didactic = packStream(
-    KC_BLOCK_PLAN.map((b) => ({ blockOrder: b.order, hours: blockDidacticHours(b) })).filter(
-      (s) => s.hours > 0,
-    ),
-    pattern.hoursPerDay,
-  )
-  const lab = packStream(
-    KC_BLOCK_PLAN.map((b) => ({ blockOrder: b.order, hours: b.labHours })).filter(
-      (s) => s.hours > 0,
-    ),
-    pattern.hoursPerDay,
-  )
-
-  const didacticWeeks = Math.ceil(didactic.days / perWeek)
-  const labWeeks = Math.ceil(lab.days / perWeek)
-
-  /** The didactic week in which each block finishes being taught. */
-  const taughtBy = new Map<number, number>()
-  for (const [order, day] of didactic.lastDayOf) taughtBy.set(order, Math.floor(day / perWeek))
-
-  /** The earliest didactic week after which each lab week may run. */
-  const readyAfter: number[] = []
-  for (let w = 0; w < labWeeks; w++) {
-    const blocks = new Set(
-      lab.sessions.filter((s) => Math.floor(s.day / perWeek) === w).map((s) => s.blockOrder),
-    )
-    let ready = 0
-    for (const b of blocks) ready = Math.max(ready, taughtBy.get(b) ?? 0)
-    readyAfter.push(ready)
-  }
-
-  /**
-   * Didactic weeks that must be followed immediately by the next didactic week,
-   * because an atomic block straddles the two.
-   */
-  const welded = new Set<number>()
-  for (const b of KC_BLOCK_PLAN) {
-    if (!b.atomic) continue
-    const weeks = didactic.sessions
-      .filter((s) => s.blockOrder === b.order)
-      .map((s) => Math.floor(s.day / perWeek))
-    for (let w = Math.min(...weeks); w < Math.max(...weeks); w++) welded.add(w)
-  }
-
-  // Interleave: run each didactic week, then release every lab week whose
-  // content has been taught by that point — unless an atomic block is still
-  // mid-delivery, in which case the lab waits a week.
-  const order: { kind: 'didactic' | 'lab'; index: number }[] = []
-  let nextLab = 0
-  for (let w = 0; w < didacticWeeks; w++) {
-    order.push({ kind: 'didactic', index: w })
-    if (welded.has(w)) continue
-    while (nextLab < labWeeks && readyAfter[nextLab] <= w) {
-      order.push({ kind: 'lab', index: nextLab })
-      nextLab++
-    }
-  }
-  while (nextLab < labWeeks) {
-    order.push({ kind: 'lab', index: nextLab })
-    nextLab++
-  }
-
-  const out: PlannedSession[] = []
-  order.forEach((slot, week) => {
-    const stream = slot.kind === 'didactic' ? didactic : lab
-    for (const s of stream.sessions) {
-      if (Math.floor(s.day / perWeek) !== slot.index) continue
-      const block = byOrder.get(s.blockOrder)
+    // Assignments are logged against the week's first class day: they are what
+    // the student is told to go away and do, and that is when they are told.
+    for (const r of rows.filter((x) => x.delivery === 'assignment')) {
       out.push({
+        date: dateFor(0),
         week,
-        dayIndex: s.day % perWeek,
-        kind: slot.kind,
-        hours: s.hours,
-        blockOrder: s.blockOrder,
-        title: block ? blockContentLine(block) : `Block ${s.blockOrder}`,
+        calendarWeek: calendarWeek + 1,
+        kind: 'didactic',
+        delivery: 'assignment',
+        hours: r.didacticHours,
+        rowOrder: r.order,
+        title: r.title,
+        short: r.short,
       })
     }
-  })
+
+    // Face-to-face: fill each class day to the pattern's length, didactic first.
+    let dayIndex = 0
+    let used = 0
+    for (const r of f2f) {
+      for (const seg of [
+        { kind: 'didactic' as const, hours: r.didacticHours },
+        { kind: 'lab' as const, hours: r.labHours },
+      ]) {
+        let left = seg.hours
+        while (left > 1e-9 && dayIndex < perWeek) {
+          const take = Math.min(pattern.hoursPerDay - used, left)
+          const startMin = pattern.startMinute + Math.round(used * 60)
+          const endMin = startMin + Math.round(take * 60)
+          out.push({
+            date: dateFor(dayIndex),
+            week,
+            calendarWeek: calendarWeek + 1,
+            kind: seg.kind,
+            delivery: 'f2f',
+            hours: Math.round(take * 100) / 100,
+            rowOrder: r.order,
+            title: r.title,
+            short: r.short,
+            startTime: clock(startMin),
+            endTime: clock(endMin),
+          })
+          used += take
+          left -= take
+          if (used >= pattern.hoursPerDay - 1e-9) {
+            dayIndex++
+            used = 0
+          }
+        }
+      }
+    }
+    calendarWeek++
+  }
   return out
 }
 
-/** The plan, built once — nothing about it varies at runtime. */
 const CLASS_PLAN = buildClassPlan()
 
-/** Calendar weeks of classroom instruction, derived from the laid-out plan. */
-export const KC_COURSE_WEEKS = CLASS_PLAN.reduce((n, s) => Math.max(n, s.week + 1), 0)
+/** Calendar weeks the course occupies once holidays have pushed it. */
+export const KC_CALENDAR_WEEKS = CLASS_PLAN.reduce((n, s) => Math.max(n, s.calendarWeek), 0)
+
+/** Last dated session, for the course end date. */
+export const KC_END_DATE = CLASS_PLAN.reduce((d, s) => (s.date > d ? s.date : d), KC_START_DATE)
 
 /**
- * The weeks a block occupies, 1-based and inclusive, or undefined if it has no
- * class time at all. Derived, so it cannot drift from the schedule the way the
- * hand-typed 'Weeks 2-3' labels did.
- */
-export function blockWeekRange(order: number): { first: number; last: number } | undefined {
-  const weeks = CLASS_PLAN.filter((s) => s.blockOrder === order).map((s) => s.week)
-  if (weeks.length === 0) return undefined
-  return { first: Math.min(...weeks) + 1, last: Math.max(...weeks) + 1 }
-}
-
-/**
- * Short calendar labels keyed by the content line a seeded session is titled
- * with. A calendar chip has room for two or three words; a hand-added session
- * is not in here and keeps its own title.
- */
-export const BLOCK_SHORT_BY_TITLE: Record<string, string> = Object.fromEntries(
-  KC_BLOCK_PLAN.map((b) => [blockContentLine(b), b.short]),
-)
-
-/** 'Week 4' or 'Weeks 4-6' for display. */
-export function blockWeeksLabel(order: number): string {
-  const r = blockWeekRange(order)
-  if (!r) return 'Unscheduled'
-  return r.first === r.last ? `Week ${r.first}` : `Weeks ${r.first}-${r.last}`
-}
-
-/** Every section added on top of the filing, for a coverage note. */
-export const ADDED_STANDARDS_SECTIONS: { block: string; section: string }[] = KC_BLOCK_PLAN.flatMap(
-  (b) => (b.addedSections ?? []).map((section) => ({ block: blockWeeksLabel(b.order), section })),
-)
-
-/** What the block plan actually adds up to, as opposed to what §2 claims. */
-export function blockPlanTotals(): {
-  didactic: number
-  lab: number
-  classroom: number
-  weeks: number
-  /** Publisher lecture hours the didactic figure is built from. */
-  lectureHours: number
-  /** Chapters taught, ignoring carry-forward content. */
-  chaptersTaught: number
-  /** Written examination hours included in the didactic figure. */
-  examHours: number
-  /** Skill drills the scheduled chapters carry, for the lab estimate. */
-  skillDrills: number
-} {
-  const didactic = KC_BLOCK_PLAN.reduce((n, b) => n + blockDidacticHours(b), 0)
-  const lab = KC_BLOCK_PLAN.reduce((n, b) => n + b.labHours, 0)
-  const weeks = KC_COURSE_WEEKS
-  const lectureHours =
-    KC_BLOCK_PLAN.reduce((n, b) => n + lectureMinutesFor(b.chapters ?? []), 0) / 60
-  const chaptersTaught = KC_BLOCK_PLAN.reduce(
-    (n, b) => n + taughtChaptersIn(b.chapters ?? []).length,
-    0,
-  )
-  const examHours = KC_BLOCK_PLAN.reduce((n, b) => n + (b.examHours ?? 0), 0)
-  const skillDrills = KC_BLOCK_PLAN.reduce((n, b) => n + blockSkillDrills(b), 0)
-  return {
-    didactic,
-    lab,
-    classroom: didactic + lab,
-    weeks,
-    lectureHours,
-    chaptersTaught,
-    examHours,
-    skillDrills,
-  }
-}
-
-/**
- * Chapters in the text that no block teaches.
+ * Weeks a holiday actually displaced.
  *
- * Carry-forward chapters are expected here and are not a gap; anything else is
- * content the course adopted a book for and then did not schedule.
+ * Detected as a JUMP in calendar week, not as calendarWeek !== week. Once one
+ * week is pushed every later week is offset too, and comparing the two numbers
+ * directly reported all of them as displaced — four weeks, when only one had
+ * collided with anything.
  */
-export function unscheduledChapters(): TextbookChapter[] {
-  const taught = new Set(KC_BLOCK_PLAN.flatMap((b) => b.chapters ?? []))
-  return TEXTBOOK_CHAPTERS.filter((c) => !taught.has(c.n) && !c.carryForward)
+export function holidayShifts(): { week: number; holiday: string; date: string }[] {
+  const out: { week: number; holiday: string; date: string }[] = []
+  const firstOf = new Map<number, PlannedSession>()
+  for (const s of CLASS_PLAN) if (!firstOf.has(s.week)) firstOf.set(s.week, s)
+
+  let previous = 0
+  for (let week = 1; week <= KC_COURSE_WEEKS; week++) {
+    const s = firstOf.get(week)
+    if (!s) continue
+    if (previous > 0 && s.calendarWeek - previous > 1) {
+      // The collision sits in the week this one skipped over.
+      const skipped = KC_CLASS_PATTERN.days
+        .map((d) => addDaysISO(s.date, -7 + (d - KC_CLASS_PATTERN.days[0])))
+        .map((iso) => HOLIDAY_BY_DATE.get(iso))
+        .find(Boolean)
+      out.push({ week, holiday: skipped ?? 'a holiday', date: s.date })
+    }
+    previous = s.calendarWeek
+  }
+  return out
 }
 
-/** Hours a class day must carry for the plan to fit its own calendar. */
-export function classDayLoad(): number {
-  const byDay = new Map<string, number>()
-  for (const s of CLASS_PLAN) {
-    const key = `${s.week}:${s.dayIndex}`
-    byDay.set(key, (byDay.get(key) ?? 0) + s.hours)
-  }
-  return Math.max(...byDay.values())
-}
+/** Short calendar labels keyed by the title a seeded session carries. */
+export const BLOCK_SHORT_BY_TITLE: Record<string, string> = Object.fromEntries(
+  KC_SCHEDULE.map((r) => [r.title, r.short]),
+)
 
 // ----- program hour targets (proposal §2) ------------------------------------
 
@@ -969,44 +1138,57 @@ export interface HourTarget {
 }
 
 /**
- * The hour totals the proposal commits to. NOTE: the proposal's own §3 schedule
- * table sums to 90 didactic hours, not the ~110 claimed here — a 20-hour gap
- * that also drops the program total from ~376 to ~356. The Sessions tab
- * reconciles the schedule actually built against these targets so the gap is
- * visible before a KBEMS submission rather than after.
+ * The hour totals Kansas City files, taken from the Wichita schedule table.
+ *
+ * Didactic is 116, the sum of the filing's own rows — NOT the 110 its summary
+ * line states. Lab is 50, where the two agree. The decision and its reasoning
+ * are recorded above KC_SCHEDULE.
+ *
+ * Derived from the schedule rather than typed, so the filed target and the
+ * schedule built from it cannot disagree. That is the failure this replaced:
+ * the earlier KC proposal claimed ~110 didactic in one section while its own
+ * table summed to 90.
  */
 export const KC_HOUR_TARGETS: HourTarget[] = [
   {
     id: 'didactic',
     label: 'Didactic',
-    hours: blockPlanTotals().didactic,
-    note: `Derived: ${blockPlanTotals().lectureHours.toFixed(1)} h of publisher lecture over ${blockPlanTotals().chaptersTaught} chapters, plus ${PER_CHAPTER_CLASSROOM_MINUTES} min per chapter of case study, Assessment in Action and quiz, plus ${blockPlanTotals().examHours} h of examinations and the AHA provider courses.`,
+    hours: scheduleTotals().didactic,
+    note: `${scheduleTotals().f2f - scheduleTotals().lab} h face-to-face plus ${scheduleTotals().assignment} h of Navigate chapter materials, quizzes and AHA pre-course work.`,
   },
   {
     id: 'lab',
     label: 'Lab / psychomotor',
-    hours: blockPlanTotals().lab,
-    note: `Estimated against the ${blockPlanTotals().skillDrills} skill drills the scheduled chapters carry. Minimum 2 instructors required on lab days.`,
+    hours: scheduleTotals().lab,
+    note: 'All face-to-face. Minimum 2 instructors required on lab days.',
   },
-  { id: 'clinical', label: 'Hospital clinical', hours: 72, note: '6 x 12-hour shifts — AdventHealth KC.' },
-  { id: 'field-ift', label: 'Field — AMR KC interfacility', hours: 48, note: 'Approx. 4 x 12-hour shifts.' },
-  { id: 'field-911', label: 'Field — AMR Independence 911', hours: 96, note: 'Approx. 8 x 12-hour shifts.' },
+  {
+    id: 'clinical',
+    label: 'Hospital clinical',
+    hours: 72,
+    note: '6 x 12-hour shifts — AdventHealth, Kansas City area.',
+  },
+  {
+    id: 'field',
+    label: 'Field internship',
+    hours: 144,
+    note: 'AMR Independence and AMR Linn County, to cover both urban 911 and rural response.',
+  },
 ]
 
 /** Hospital clinical hours the program schedules. */
 export const KC_CLINICAL_TARGET = 72
 
-/** Field internship hours, both sites combined. */
+/** Field internship hours, both ambulance services combined. */
 export const KC_FIELD_TARGET = 144
 
 /**
- * Classroom time only — what the Tue/Thu sessions have to add up to.
+ * Classroom time — didactic plus lab, as the filing counts it.
  *
- * DERIVED from the block plan, not typed. This is the number that used to be
- * wrong in two directions at once: the proposal's §2 claimed ~110 didactic
- * hours, its §3 schedule table summed to 90, and the 16-week Tue/Thu calendar
- * could hold neither. Deriving it means the plan, the target and the schedule
- * cannot disagree — change what is taught and the target follows.
+ * Includes the assignment hours: the filing's "Didactic 110/116" figure counts
+ * Navigate chapter work alongside classroom time, and Kansas City is filing the
+ * same template. Instructor-led time is the smaller `scheduleTotals().f2f`, and
+ * that is the number the eight-hour weekly cap applies to.
  *
  * A PROGRAM DESIGN TARGET, not a Kansas requirement. Kansas prescribes no
  * minimum clock, classroom or course-week total for an initial AEMT course
@@ -1014,7 +1196,7 @@ export const KC_FIELD_TARGET = 144
  * submitted schedule plausibly covers the incorporated standards and whether
  * students can reach the K.A.R. 109-11-8 endpoints.
  */
-export const KC_CLASSROOM_TARGET = blockPlanTotals().classroom
+export const KC_CLASSROOM_TARGET = scheduleTotals().classroom
 
 /** Everything the student is scheduled for: classroom, lab, clinical, field. */
 export const KC_TOTAL_TARGET = KC_CLASSROOM_TARGET + KC_CLINICAL_TARGET + KC_FIELD_TARGET
