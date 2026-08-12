@@ -4,6 +4,36 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    // pptxgenjs has a Node-only branch that reads an image from disk or a URL
+    // (`await import('node:fs' | 'node:https')`). Nothing in this app can
+    // reach it — every image the deck embeds is already a base64 data URL —
+    // but esbuild still has to resolve the specifiers to pre-bundle the
+    // library, and cannot for a browser target. Left alone, that failure takes
+    // down the dev server's whole dependency scan, not just this screen.
+    //
+    // So the two specifiers are answered with an empty module. Pre-bundling
+    // itself must stay ON: pptxgenjs imports jszip as CommonJS, and served
+    // un-bundled the browser rejects it for having no default export.
+    include: ['pptxgenjs'],
+    esbuildOptions: {
+      plugins: [
+        {
+          name: 'cqmp-stub-node-builtins',
+          setup(build) {
+            build.onResolve({ filter: /^node:(fs|https)$/ }, () => ({
+              path: 'cqmp-node-stub',
+              namespace: 'cqmp-node-stub',
+            }))
+            build.onLoad({ filter: /.*/, namespace: 'cqmp-node-stub' }, () => ({
+              contents: 'export default {}',
+              loader: 'js',
+            }))
+          },
+        },
+      ],
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -88,6 +118,12 @@ export default defineConfig({
         // returning users to re-download React/router across deploys.
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // The PowerPoint writer, in a chunk of its own. Only the CQMP deck
+          // imports it, and only when Generate is pressed, so it stays out of
+          // every other screen's payload. It IS precached with the rest of the
+          // app (~120 KB gzipped) so an administrator can still build the
+          // month's deck with no network — which is the point of a PWA.
+          'pptx-vendor': ['pptxgenjs'],
         },
       },
     },
