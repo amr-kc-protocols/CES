@@ -1908,3 +1908,83 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 @media (max-width: 620px) {
   .cal-holiday { font-size: 8.5px; }
 }
+
+/* ---------------------------------------------------------------------------
+ * CQMP — the monthly KPI review.
+ *
+ * A measure card is a small form plus its evidence. The dashboard captures sit
+ * as a thumbnail strip under the fields rather than in a gallery of their own:
+ * the number and the chart it was read off belong next to each other, which is
+ * the whole argument the deck makes.
+ * ------------------------------------------------------------------------ */
+.metric-card {
+  padding: 14px;
+  margin-top: 10px;
+  /* Focusable so a paste has somewhere to land — but the outline only shows
+     for keyboard users, since clicking the card to paste is the common case. */
+  outline: none;
+}
+.metric-card:focus-visible {
+  border-color: var(--navy-600);
+  box-shadow: 0 0 0 3px var(--pale);
+}
+/* The drop target has to be unmistakable while a file is over it: a dashboard
+   screenshot dropped one card too low is a wrong slide, not a missing one. */
+.metric-card.dropping {
+  border-color: var(--navy-600);
+  background: var(--pale);
+}
+
+.metric-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.metric-head .title { font-weight: 700; }
+
+.shots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.shot {
+  margin: 0;
+  width: 150px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: 86px;
+  object-fit: cover;
+  object-position: top left;
+  background: #fff;
+}
+.shot-missing {
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 8px;
+}
+.shot figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+.shot figcaption .truncate { max-width: 84px; }

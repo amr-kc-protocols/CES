@@ -34,6 +34,8 @@ export default function DebouncedInput({
   title?: string
   className?: string
   style?: CSSProperties
+  /** Phone keyboard hint. `decimal` for percentages, `numeric` for counts. */
+  inputMode?: 'text' | 'decimal' | 'numeric'
   'aria-label'?: string
 }) {
   const [draft, setDraft] = useState(value)

@@ -41,6 +41,10 @@ const TABS = [
   { ...TAB, to: '/ems', label: 'Regs', icon: '⚖️', end: false },
   // History carries unredacted survey feedback about FTOs — admin eyes only.
   { ...TAB, to: '/history', label: 'History', icon: '📊', end: false, admin: true },
+  // The monthly KPI review deck. Administrator-only: it is what clinical
+  // leadership is shown, and a half-filled month leaving this tab as a
+  // finished-looking deck helps nobody.
+  { ...TAB, to: '/cqmp', label: 'CQMP', icon: '📈', end: false, admin: true },
   { ...TAB, to: '/settings', label: 'Settings', icon: '⚙️', end: false },
 ].filter((t) => (QA_ENABLED || !t.qa) && (CE_ENABLED || !t.ce))
 

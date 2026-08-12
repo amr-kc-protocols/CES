@@ -1001,6 +1001,88 @@ export interface AemtEncounter {
   voidReason?: string
 }
 
+// ---------------------------------------------------------------------------
+// CQMP — the monthly KPI review deck.
+//
+// One report per month per market. The numbers come off the GMR Clinical
+// Analytics dashboards by hand: the KPI is read from the chart, the chart is
+// screenshotted, and the pair is what leadership is shown. Both halves are
+// captured here so the deck can be rebuilt months later without going back to
+// a dashboard whose rolling window has since moved on.
+//
+// Which operations and measures a report covers comes from data/cqmp.ts, not
+// from here — see that file for why the two operation lists are separate.
+// ---------------------------------------------------------------------------
+
+/**
+ * A dashboard screenshot attached to a measure.
+ *
+ * The image itself is NOT in this record. Screenshots run to hundreds of
+ * kilobytes each even after downscaling, and this record syncs — a year of
+ * decks would be tens of megabytes of base64 in localStorage and in the
+ * `records` table, which is a mirror of the whole database on every device.
+ * The bytes live in IndexedDB (modules/cqmp/images.ts) under `key`, on the
+ * device that captured them; everything else about the month syncs normally.
+ *
+ * The visible consequence: open last month's report on a second device and
+ * the numbers, notes and targets are all there, but the screenshots are not.
+ * The generated deck says so rather than silently dropping a chart.
+ */
+export interface CqmpImageRef {
+  /** Key into the IndexedDB image store. */
+  key: string
+  /** Original file name, so a missing image can still be identified. */
+  name: string
+  /** Pixel size after downscaling — the deck needs it to place the image. */
+  width: number
+  height: number
+  /** Bytes stored, for the storage read-out on the report screen. */
+  size: number
+  addedAt: string
+}
+
+/** One measure, for one operation, in one month. */
+export interface CqmpMetric {
+  /** Operation id from data/cqmp.ts. */
+  opId: string
+  /** Measure id from data/cqmp.ts. */
+  kpiId: string
+  /**
+   * The headline percentage, 0–100. Null until it is entered — a measure with
+   * no result is reported as "not reported" rather than as a zero, because a
+   * dashboard that returned no qualifying patients and a month nobody pulled
+   * are very different things to put in front of leadership.
+   */
+  value: number | null
+  /** Optional case counts. When both are present, `value` is derived from them. */
+  numerator?: number | null
+  denominator?: number | null
+  /**
+   * Target for this measure, this month. Carried forward from the previous
+   * report when a new month is opened. Null means no target is asserted, and
+   * the deck then shows the result without a met/not-met call — the strategic
+   * plan's numbers are not hard-coded here, because a wrong target on a
+   * leadership slide is worse than no target at all.
+   */
+  target: number | null
+  /** Why the number is what it is. Printed on the slide under the result. */
+  notes?: string
+  images: CqmpImageRef[]
+}
+
+export interface CqmpReport {
+  id: string
+  /** The month being reported, 'YYYY-MM'. One report per month per market. */
+  month: string
+  /** Who is presenting. Printed on the title slide. */
+  presenter?: string
+  /** Month-level narrative — printed on the closing slide of the deck. */
+  summary?: string
+  metrics: CqmpMetric[]
+  createdAt: string
+  updatedAt: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -1030,6 +1112,7 @@ export interface DBShape {
   aemtAudit: AemtAuditEvent[]
   aemtCandidates: AemtCandidate[]
   templates: TemplateVersion[]
+  cqmpReports: CqmpReport[]
   settings: Settings
 }
 

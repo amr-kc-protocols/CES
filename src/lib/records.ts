@@ -104,6 +104,16 @@ const SLICES: SliceDef[] = [
   // editing one — so this collection only ever grows, and a device that has
   // pulled a version can always render a record pinned to it.
   { collection: 'templates', slice: 'templates', idOf: id as SliceDef['idOf'] },
+
+  // ----- CQMP monthly KPI review ---------------------------------------------
+  // Needs no migration: the read policy gives an admin their whole market and
+  // names every collection the other roles may see, so a collection added here
+  // is admin-only in both directions by construction.
+  //
+  // What syncs is the month's numbers, targets and notes. The dashboard
+  // screenshots do not — they are IndexedDB blobs referenced by key, for the
+  // reasons set out on CqmpImageRef in types.ts.
+  { collection: 'cqmpReports', slice: 'cqmpReports', idOf: id as SliceDef['idOf'] },
 ]
 
 const SETTINGS_COLLECTION = 'settings'

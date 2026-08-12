@@ -48,6 +48,7 @@ function emptyDB(): DBShape {
     aemtAudit: [],
     aemtCandidates: [],
     templates: [],
+    cqmpReports: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }

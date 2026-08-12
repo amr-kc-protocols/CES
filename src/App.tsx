@@ -35,6 +35,8 @@ const IntakeResults = lazy(() => import('./modules/intake/IntakeResults'))
 const ExamPage = lazy(() => import('./modules/exam/ExamPage'))
 const ExamResults = lazy(() => import('./modules/exam/ExamResults'))
 const BankReview = lazy(() => import('./modules/exam/BankReview'))
+const CqmpView = lazy(() => import('./modules/cqmp/CqmpView'))
+const CqmpReportView = lazy(() => import('./modules/cqmp/CqmpReportView'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
@@ -80,7 +82,7 @@ function AdminOnly({ children }: { children: ReactNode }) {
   return (
     <Gated
       allowed={manageAcademy}
-      why="Skill sheets and evaluation forms are the instruments every assessment is recorded against, so editing them is limited to administrators."
+      why="Editable instruments and the CQMP KPI review are limited to administrators — one is what every assessment is recorded against, the other is what clinical leadership is shown."
     >
       {children}
     </Gated>
@@ -206,6 +208,24 @@ export default function App() {
             <ReviewOnly>
               <ReviewView />
             </ReviewOnly>
+          }
+        />
+        {/* The CQMP deck is leadership-facing reporting on operations, not
+            training records. Same administrator gate as the instruments. */}
+        <Route
+          path="cqmp"
+          element={
+            <AdminOnly>
+              <CqmpView />
+            </AdminOnly>
+          }
+        />
+        <Route
+          path="cqmp/:reportId"
+          element={
+            <AdminOnly>
+              <CqmpReportView />
+            </AdminOnly>
           }
         />
         <Route path="courses" element={<LearningView />} />

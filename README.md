@@ -27,6 +27,14 @@ Hunter's head:
   (content data: `src/data/ftObjectives.ts`, `src/data/academyTemplate.ts`,
   `src/modules/academy/complianceDocs.ts`, `src/modules/academy/calendar.ts`).
 - **Module E — Dashboard:** one glance at what's at risk right now.
+- **Module F — CQMP KPI review (administrators only):** the monthly Clinical
+  Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics
+  dashboards, attach the dashboard screenshot (file picker, drag-and-drop, or
+  Ctrl+V straight from the Snipping Tool), add the notes that explain the
+  number, and generate a **PowerPoint** — title slide, a summary table of every
+  measure against target and last month, one slide per measure with its capture
+  and notes, and a closing summary. Which operations report which measures is
+  `src/data/cqmp.ts`; the deck is built in `src/modules/cqmp/deck.ts`.
 
 Built from the role map & build spec. Remaining phase-2 module: PODS intake
 log (Module C).
@@ -65,6 +73,7 @@ src/
     dashboard/    Module E — Today / at-risk view
     qa/           Module A — periods, CSV import, sampling, rubric review
     ce/           Module B — CE deadline tracker
+    cqmp/         Module F — monthly KPI review + PowerPoint generator
     academy/      Module D — cohorts, curriculum checklist, FTO release
     settings/     reviewer/sample defaults, data backup, about
 ```
@@ -115,3 +124,16 @@ export. Details and payload schema: `docs/bot-bridge.md`.
   that many charts at random (Fisher–Yates) from the imported pool into the
   review queue. Chart state: unreviewed → in-progress → scored. Providers with
   repeat low scores surface for coaching follow-up.
+- **CQMP measures** are set per operation in `src/data/cqmp.ts`. Kansas City,
+  Wichita and Winfield are interfacility and report blood glucose verification
+  and advanced airway verification; Linn County is the Rule 901 ground
+  operation and adds stroke and STEMI bundle compliance. Targets are entered,
+  not hard-coded — they carry forward from the previous month, and a measure
+  with no target prints its result with no met/not-met call rather than being
+  judged against a number nobody set. A measure with no result prints "Not
+  reported", never a zero.
+- **CQMP screenshots** are downscaled to 1600px JPEG and kept in their own
+  IndexedDB store (`src/modules/cqmp/images.ts`), NOT in the synced record.
+  Numbers, targets and notes sync between administrator devices; the images
+  stay on the machine that captured them, so build the deck there. Screenshots
+  of reports that were deleted are swept the next time the CQMP list opens.
