@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
-import { confirmAction } from '../../lib/dialog'
+import { confirmAction, notifyUser } from '../../lib/dialog'
 import SavedIndicator from '../../components/SavedIndicator'
 import {
   useCandidates,
@@ -8,6 +8,9 @@ import {
   updateCandidate,
   deleteCandidate,
   pullExamResults,
+  listExamSittings,
+  addCandidatesFromExam,
+  type ExamSitting,
   recordInterview,
   scoreCandidate,
   interviewDisagreements,
@@ -339,6 +342,127 @@ function InterviewModal({
   )
 }
 
+/**
+ * Add candidates from the people who have actually sat the selection exam.
+ *
+ * The tab previously only worked the other way round — type a candidate, then
+ * pull their score by email — and "Pull exam results" is disabled with an empty
+ * list, so a coordinator whose candidates had all taken the test but had never
+ * been typed in had no way to start.
+ */
+function ExamImportModal({ course, onClose }: { course: AemtCourse; onClose: () => void }) {
+  const [rows, setRows] = useState<ExamSitting[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    let live = true
+    listExamSittings(course.id).then((r) => {
+      if (!live) return
+      if (r.error) setError(r.error)
+      else {
+        setRows(r.rows ?? [])
+        // Everyone not already on the list is worth adding by default; that is
+        // the whole reason for opening this.
+        setPicked(new Set((r.rows ?? []).filter((s) => !s.alreadyAdded).map((s) => s.email)))
+      }
+    })
+    return () => {
+      live = false
+    }
+  }, [course.id])
+
+  const toggle = (email: string) =>
+    setPicked((cur) => {
+      const next = new Set(cur)
+      if (next.has(email)) next.delete(email)
+      else next.add(email)
+      return next
+    })
+
+  const available = (rows ?? []).filter((s) => !s.alreadyAdded)
+
+  return (
+    <Modal title="Add candidates from exam attempts" onClose={onClose}>
+      {error && <div className="banner crit">{error}</div>}
+      {!rows && !error && <p className="subtle">Loading attempts…</p>}
+
+      {rows && rows.length === 0 && (
+        <div className="banner warn">
+          No submitted exam attempts found. An attempt only appears here once the candidate has
+          submitted it — one still in progress will not.
+        </div>
+      )}
+
+      {rows && rows.length > 0 && (
+        <>
+          <p style={{ marginTop: 0, lineHeight: 1.55 }}>
+            Name and email come straight from the attempt, so a candidate added here matches their
+            own result by construction. That is the failure hand-entry has: one typo in an address
+            and the score never attaches.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 32 }}></th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th style={{ textAlign: 'right' }}>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s) => (
+                  <tr key={s.email}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Add ${s.name}`}
+                        disabled={s.alreadyAdded}
+                        checked={picked.has(s.email)}
+                        onChange={() => toggle(s.email)}
+                      />
+                    </td>
+                    <td>{s.name}</td>
+                    <td className="subtle">{s.email}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {s.alreadyAdded ? (
+                        <span className="pill muted">already added</span>
+                      ) : s.percent == null ? (
+                        <span className="pill warn">no score</span>
+                      ) : (
+                        <strong>{s.percent}%</strong>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 14 }}>
+        <button
+          className="btn primary"
+          disabled={picked.size === 0}
+          onClick={() => {
+            const add = available.filter((s) => picked.has(s.email))
+            const n = addCandidatesFromExam(course.id, add)
+            notifyUser(`Added ${n} candidate${n === 1 ? '' : 's'} with their exam results.`, 'info')
+            onClose()
+          }}
+        >
+          Add {picked.size} candidate{picked.size === 1 ? '' : 's'}
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function SelectionTab({ course }: { course: AemtCourse }) {
   const candidates = useCandidates(course.id)
   const { manageAemt: canEdit } = useCan()
@@ -348,6 +472,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
   const [empNo, setEmpNo] = useState('')
   const [email, setEmail] = useState('')
   const [pulling, setPulling] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [pullNote, setPullNote] = useState<string | null>(null)
   const [scoring, setScoring] = useState<AemtCandidate | null>(null)
   const [interviewing, setInterviewing] = useState<AemtCandidate | null>(null)
@@ -380,6 +505,11 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
         <div className="spacer" />
         {canEdit && <SavedIndicator />}
         {canEdit && (
+          <button className="btn" onClick={() => setImporting(true)} title="List everyone who has sat the selection exam and add them as candidates">
+            👥 Add from exam
+          </button>
+        )}
+        {canEdit && (
           <button
             className="btn"
             disabled={pulling || candidates.length === 0}
@@ -397,7 +527,11 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
               if (r.noEmail.length) bits.push(`no exam email on ${r.noEmail.join(', ')}`)
               setPullNote(bits.join(' · '))
             }}
-            title="Match candidates to their selection-exam attempts by email"
+            title={
+              candidates.length === 0
+                ? 'Nothing to match yet — add candidates first, or use “Add from exam”'
+                : 'Refresh scores for candidates already on the list, matched by email'
+            }
           >
             {pulling ? 'Pulling…' : '⬇ Pull exam results'}
           </button>
@@ -533,6 +667,8 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
         the course audit package. Keep the scoring for every candidate, selected or not — that is
         what demonstrates the procedure was applied consistently.
       </div>
+
+      {importing && <ExamImportModal course={course} onClose={() => setImporting(false)} />}
 
       {adding && (
         <Modal title="Add candidate" onClose={() => setAdding(false)}>
