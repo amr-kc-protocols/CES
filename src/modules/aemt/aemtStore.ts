@@ -2458,6 +2458,83 @@ export function addCandidate(
   return candidate
 }
 
+export interface ExamSitting {
+  name: string
+  email: string
+  percent: number | null
+  submittedAt: string | null
+  /** Already on this course's candidate list, matched by email. */
+  alreadyAdded: boolean
+}
+
+/**
+ * Everyone who has sat the selection exam, and whether they are on the list.
+ *
+ * The Selection tab could only ever go one way: type a candidate in by hand,
+ * then pull their score by email. With no candidates typed, "Pull exam results"
+ * was disabled — so a coordinator with nine people who had taken the test and
+ * an empty list had no way in at all, which is not a state anybody would guess
+ * was intentional.
+ *
+ * This is the other direction. Name and email come straight off the attempt, so
+ * a candidate added this way matches its own result by construction, which is
+ * also the failure mode of hand-entry: one typo in an address and the score
+ * silently never attaches.
+ */
+export async function listExamSittings(
+  courseId: string,
+): Promise<{ rows?: ExamSitting[]; error?: string }> {
+  const { rows, error } = await listExamResults()
+  if (error) return { error }
+
+  const taken = new Set(
+    getState()
+      .aemtCandidates.filter((c) => c.courseId === courseId && c.email)
+      .map((c) => c.email!.trim().toLowerCase()),
+  )
+
+  // Best attempt per address, same rule as pullExamResults: whoever sat it
+  // twice is judged on the better score, not on row order.
+  const byEmail = new Map<string, ExamSitting>()
+  for (const r of rows ?? []) {
+    const email = typeof r?.email === 'string' ? r.email.trim().toLowerCase() : ''
+    if (!email) continue
+    const percent = typeof r.percent === 'number' ? r.percent : null
+    const prev = byEmail.get(email)
+    if (!prev || prev.percent == null || (percent != null && percent > prev.percent)) {
+      byEmail.set(email, {
+        name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : email,
+        email,
+        percent,
+        submittedAt: r.submitted_at ?? null,
+        alreadyAdded: taken.has(email),
+      })
+    }
+  }
+
+  return {
+    rows: [...byEmail.values()].sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1)),
+  }
+}
+
+/** Add candidates straight from their exam sittings, score already attached. */
+export function addCandidatesFromExam(courseId: string, sittings: ExamSitting[]): number {
+  const now = todayISO()
+  const created = sittings.map((s) => ({
+    id: uid('acand'),
+    courseId,
+    name: s.name,
+    email: s.email,
+    gates: {},
+    examPercent: s.percent ?? undefined,
+    examPulledAt: s.percent == null ? undefined : now,
+    createdAt: new Date().toISOString(),
+  }))
+  if (created.length === 0) return 0
+  setState((db) => ({ ...db, aemtCandidates: [...db.aemtCandidates, ...created] }))
+  return created.length
+}
+
 /**
  * Attach selection-exam results to candidates, matched by email.
  *
