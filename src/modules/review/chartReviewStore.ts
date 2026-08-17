@@ -5,6 +5,7 @@ import { todayISO } from '../../lib/date'
 import {
   ALL_QUESTIONS,
   isCompliant,
+  isScored,
   question,
   REVIEW_SECTIONS,
   visibleQuestions,
@@ -114,7 +115,7 @@ export function tally(reviews: ChartReviewEntry[]): QuestionTally[] {
     // Flags are counted but never scored — see the Scoring type. A percentage
     // on "does this need escalation" would read as a failure rate for doing the
     // job correctly.
-    if (row.question.scoring !== 'flag' && row.answered > 0) {
+    if (isScored(row.question) && row.answered > 0) {
       row.percent = Math.round((row.compliant / row.answered) * 1000) / 10
     }
   }
@@ -256,7 +257,7 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
       row.answered,
       row.yes,
       row.no,
-      row.question.scoring === 'flag' ? '' : row.compliant,
+      isScored(row.question) ? row.compliant : '',
       row.percent ?? '',
     ]),
   ]

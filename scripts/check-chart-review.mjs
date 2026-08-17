@@ -74,7 +74,8 @@ const unscored = m.ALL_QUESTIONS.filter((q) => q.kind === 'yesno' && !q.scoring)
 check(unscored.length === 0, 'every yes/no question declares its scoring', unscored.map((q) => q.id).join(', '))
 
 // The inverted pair, pinned by id. Getting either wrong reports a near miss as
-// a pass.
+// a pass. Everything else is a documentation question — a No is a charting gap
+// — so the compliant answer is Yes.
 const inverted = m.ALL_QUESTIONS.filter((q) => q.scoring === 'no-good').map((q) => q.id).sort()
 check(
   inverted.join(',') === 'ovr.nearMiss,ovr.safetyConcerns',
@@ -131,6 +132,33 @@ check(
 )
 const withAms = m.visibleQuestions(['cqm'], ['Altered Mental Status']).map((q) => q.id)
 check(withAms.includes('ams.glucose'), 'ticking a category reveals its block')
+
+// Every transcribed block, spot-checked by one id each, so a block dropped in a
+// later paste shows up here rather than as a quietly shorter form.
+const BLOCK_IDS = {
+  'Altered Mental Status': 'ams.glucose',
+  'Advanced Airway': 'aw.capnography',
+  'Overdose Management': 'od.vitals',
+  Stroke: 'str.lastKnownWell',
+  'Cardiac Arrest': 'ca.bystanderCpr',
+  'Lights and Sirens': 'ls.transport',
+  STEMI: 'stemi.twelveLead',
+}
+const blockMisses = Object.entries(BLOCK_IDS).filter(
+  ([cat, qid]) => !m.visibleQuestions(['cqm'], [cat]).some((q) => q.id === qid),
+)
+check(
+  blockMisses.length === 0,
+  `all ${Object.keys(BLOCK_IDS).length} transcribed category blocks reveal their questions`,
+  blockMisses.map(([c]) => c).join(', '),
+)
+
+// Ticking two categories brings both blocks, and neither drags the other in.
+const two = m.visibleQuestions(['cqm'], ['Stroke', 'STEMI']).map((q) => q.id)
+check(
+  two.includes('str.lastKnownWell') && two.includes('stemi.twelveLead') && !two.includes('ca.rosc'),
+  'two categories bring exactly their own two blocks',
+)
 // Categories are meaningless without CQM: a stale category left on a review
 // switched back to new-hire only must not drag its block along.
 const staleCategory = m.visibleQuestions(['newhire'], ['Altered Mental Status']).map((q) => q.id)

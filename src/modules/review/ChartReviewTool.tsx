@@ -369,8 +369,9 @@ export default function ChartReviewTool() {
     <div className="cr-tool">
       <div className="banner info">
         The Ninth Brain chart review questionnaire, kept here so every review counts toward a
-        running tally. <strong>No patient identifiers</strong> — the run number links back to
-        ImageTrend.
+        running tally. This measures <strong>documentation</strong> — whether the chart records
+        what happened, not whether the care was right. <strong>No patient identifiers</strong>: the
+        run number links back to ImageTrend.
       </div>
 
       <div className="stat-grid" style={{ marginTop: 12 }}>
@@ -380,7 +381,7 @@ export default function ChartReviewTool() {
         </div>
         <div className="stat">
           <div className="value">{stats.percent === undefined ? '—' : `${stats.percent}%`}</div>
-          <div className="label">Compliant answers</div>
+          <div className="label">Documentation compliant</div>
         </div>
         <div className="stat">
           <div className="value">{stats.escalated}</div>
@@ -422,7 +423,7 @@ export default function ChartReviewTool() {
       {rows.length > 0 && (
         <div className="card" style={{ padding: 12, marginTop: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-            Where reviews fail most
+            Where documentation falls short
           </div>
           <div className="table-wrap">
             <table>
@@ -447,7 +448,7 @@ export default function ChartReviewTool() {
                     </td>
                     <td style={{ textAlign: 'right' }}>{t.answered}</td>
                     <td style={{ textAlign: 'right' }}>
-                      {t.question.scoring === 'flag' ? `${t.yes} yes` : t.compliant}
+                      {t.percent === undefined ? `${t.yes} yes` : t.compliant}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {t.percent === undefined ? (
@@ -465,7 +466,8 @@ export default function ChartReviewTool() {
           </div>
           <div className="help-text">
             Sorted worst first, across {stats.reviews} completed review
-            {stats.reviews === 1 ? '' : 's'}. A question is only counted where it was in scope.
+            {stats.reviews === 1 ? '' : 's'}. A question is only counted where it was in scope — a
+            category block is not held against a review that was never asked it.
           </div>
         </div>
       )}

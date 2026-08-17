@@ -6,9 +6,20 @@
 // form in Ninth Brain grows a section at a time as review categories are added,
 // and every one of those is an edit to this file and nothing else.
 //
-// SCORING IS NOT UNIFORM, and this is the part a spreadsheet built by hand gets
-// wrong. Most questions are compliant when answered Yes, but three at the end
-// of the Overall Evaluation are not:
+// THIS IS A DOCUMENTATION REVIEW, not a care-quality audit. Every question asks
+// whether the chart records something — "Blood Glucose Measurement Documented"
+// is worded that way on purpose and the rest read the same way. A No is a
+// charting gap, so the compliance percentage measures how completely the crew
+// documented, which is the thing a reviewer reading a PCR can actually judge.
+//
+// That is why the cardiac arrest and lights-and-sirens blocks score like
+// everything else. Read as care questions they look unfair — a crew cannot
+// cause bystander CPR to have happened — but the reviewer is not asking whether
+// it happened, they are asking whether the chart says.
+//
+// SCORING IS STILL NOT UNIFORM, and this is the part a spreadsheet built by hand
+// gets wrong. Most questions are compliant when answered Yes, but three at the
+// end of the Overall Evaluation are not:
 //
 //   - a near miss and a safety concern INVERT. Yes is the failure, and counting
 //     those Yes answers as compliance would report a crew's worst charts as
@@ -27,10 +38,10 @@ export type Scoring =
   /** No is the compliant answer — the question asks whether something is wrong. */
   | 'no-good'
   /**
-   * Neither. Counted and reported, never scored. "Does this chart need further
-   * review by clinical leadership?" is a routing decision, not a failure: a
-   * reviewer escalating appropriately is doing the job, and folding it into a
-   * percentage punishes them for it.
+   * A finding or a routing decision. Counted and reported, never scored.
+   * "Does this chart need further review by clinical leadership?" is not a
+   * failure: a reviewer escalating appropriately is doing the job, and folding
+   * it into a percentage punishes them for it.
    */
   | 'flag'
 
@@ -106,14 +117,7 @@ export const REVIEW_CATEGORIES = [
  *
  * Each is removed from this list as its block arrives.
  */
-export const CATEGORIES_WITHOUT_SECTIONS: string[] = [
-  'Overdose Management',
-  'Trauma',
-  'Stroke',
-  'Cardiac Arrest',
-  'Lights and Sirens',
-  'STEMI',
-]
+export const CATEGORIES_WITHOUT_SECTIONS: string[] = ['Trauma']
 
 const yn = (
   id: string,
@@ -305,6 +309,77 @@ const CATEGORY_SECTIONS: ReviewSection[] = [
       yn('aw.restraints', 'Were soft wrist restraints placed on patient with advanced airway?'),
     ],
   },
+  {
+    id: 'cat.overdose',
+    title: 'Overdose Management Review',
+    when: { category: 'Overdose Management' },
+    questions: [
+      yn('od.alert', 'Is patient alert after Narcan Dose?'),
+      yn('od.vitals', 'Were vitals done after administration of narcan?'),
+    ],
+  },
+  {
+    id: 'cat.stroke',
+    title: 'Stroke Review',
+    when: { category: 'Stroke' },
+    questions: [
+      yn('str.notification', 'Was a prehospital notification done?'),
+      yn('str.glucose', 'Was a blood glucose measured?'),
+      yn('str.assessment', 'Was an appropriate prehospital stroke assessment done?'),
+      yn('str.destination', 'Was the patient transported to the appropriate hospital/stroke designation?'),
+      yn('str.lastKnownWell', 'Was a Last Known Well time documented?'),
+    ],
+  },
+  {
+    id: 'cat.arrest',
+    title: 'Cardiac Arrest Review',
+    when: { category: 'Cardiac Arrest' },
+    // The Utstein fields. Scored like the rest because the reviewer is judging
+    // whether the chart captured them, not whether they happened.
+    questions: [
+      yn('ca.bystanderCpr', 'Did the patient receive bystander CPR?'),
+      yn('ca.aedPrior', 'Was an AED used prior to EMS arrival?'),
+      yn('ca.rosc', 'Did the patient get a sustained ROSC?'),
+      yn('ca.calledInField', 'Was the patient called in the field?'),
+      {
+        // The only question on the whole form without an asterisk in Ninth
+        // Brain — it is about the dispatcher, and the reviewer may not be able
+        // to tell from the PCR.
+        id: 'ca.dispatcherCpr',
+        prompt: 'Were dispatcher CPR instructions given?',
+        kind: 'yesno',
+        scoring: 'yes-good',
+        required: false,
+      },
+      yn('ca.itd', 'Was an ITD used?'),
+      yn('ca.advancedAirway', 'Was an advanced airway placed?'),
+      yn('ca.compressionDevice', 'Was an automatic compression device used?'),
+    ],
+  },
+  {
+    id: 'cat.lightsSirens',
+    title: 'Lights and Sirens Review',
+    when: { category: 'Lights and Sirens' },
+    // Whether the chart records the response and transport mode. Lights-and-
+    // sirens use carries crash risk and is reported on; an unrecorded mode is
+    // the gap, not the mode itself.
+    questions: [
+      yn('ls.respond', 'Did the crew respond to the call Lights and Sirens?'),
+      yn('ls.transport', 'Did the crew transport Lights and Sirens?'),
+    ],
+  },
+  {
+    id: 'cat.stemi',
+    // Titled without "Review" in Ninth Brain, unlike every other block.
+    title: 'STEMI',
+    when: { category: 'STEMI' },
+    questions: [
+      yn('stemi.twelveLead', 'Was a 12 Lead done?'),
+      yn('stemi.notification', 'Was there a prehospital notification?'),
+      yn('stemi.destination', 'Did patient go to a STEMI receiving facility?'),
+      yn('stemi.painScale', 'Were pain scales/scores documented appropriately?'),
+    ],
+  },
 ]
 
 /** Every section, in the order the form presents them. */
@@ -360,4 +435,9 @@ export function isCompliant(q: ReviewQuestion, answer: unknown): boolean | undef
   if (q.kind !== 'yesno' || typeof answer !== 'boolean') return undefined
   if (q.scoring === 'flag') return undefined
   return q.scoring === 'no-good' ? answer === false : answer === true
+}
+
+/** Whether a question contributes to the compliance percentage at all. */
+export function isScored(q: ReviewQuestion): boolean {
+  return q.kind === 'yesno' && q.scoring !== 'flag'
 }
