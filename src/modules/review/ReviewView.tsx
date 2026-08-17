@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
+import ChartReviewTool from './ChartReviewTool'
 import { NavLink, useLocation } from 'react-router-dom'
 
 // ---------------------------------------------------------------------------
 // Host for the chart review tools.
 //
-// Each tool is a self-contained static app vendored under public/ — its own
-// DOM, its own IndexedDB, no network code path. This component does not
-// reimplement any of them; it frames them and gets out of the way. See
-// public/review/UPSTREAM.md and public/necessity/README.md.
+// Two of the three are self-contained static apps vendored under public/ — own
+// DOM, own IndexedDB, no network code path. This component does not reimplement
+// them; it frames them and gets out of the way. See public/review/UPSTREAM.md
+// and public/necessity/README.md.
 //
-// The two tools sit behind one tab rather than two. They are the same category
-// of work for the same person, and an eighth entry does not fit the bottom bar
-// on a phone — at 375px the labels start clipping. Emergent stays the default
-// so the tool that was here first costs no extra tap.
+// The third, Chart review, is native React on the app's own store. It keeps
+// records, tallies them and exports a workbook, none of which a vendored tool
+// with its own private IndexedDB can do.
+//
+// All three sit behind one tab rather than three. They are the same category of
+// work for the same person, and further entries do not fit the bottom bar on a
+// phone — at 375px the labels start clipping. Emergent stays the default so the
+// tool that was here first costs no extra tap.
 //
 // Paths are spelled with the .html extension on purpose. Both the Vercel
 // rewrite and the service worker's navigateFallback treat extensionless paths
@@ -27,6 +32,15 @@ const TOOLS = [
     url: '/review/index.html',
     title: 'EMS Transport Review',
   },
+  // Native, not an iframe: this one keeps records, tallies them and exports a
+  // workbook, none of which a vendored static tool with its own IndexedDB can
+  // do. `url` is unused for it — see the branch in the render.
+  {
+    path: '/review/charts',
+    label: 'Chart review',
+    url: '',
+    title: 'Chart Review',
+  },
   {
     path: '/review/necessity',
     label: 'Medical necessity',
@@ -38,6 +52,7 @@ const TOOLS = [
 export default function ReviewView() {
   const { pathname } = useLocation()
   const tool = TOOLS.find((t) => t.path === pathname) ?? TOOLS[0]
+  const native = tool.url === ''
 
   const frame = useRef<HTMLIFrameElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading')
@@ -50,10 +65,10 @@ export default function ReviewView() {
   // blank: a stale deploy serves the CES shell inside the frame, so the tab
   // renders the whole app inside itself. Check what actually loaded.
   useEffect(() => {
-    if (state !== 'loading') return
+    if (native || state !== 'loading') return
     const timer = setTimeout(() => setState((s) => (s === 'loading' ? 'failed' : s)), 12000)
     return () => clearTimeout(timer)
-  }, [state])
+  }, [state, native])
 
   function onLoad() {
     // Same-origin, so this read is allowed. If the fallback served the CES
@@ -77,7 +92,13 @@ export default function ReviewView() {
         ))}
       </nav>
 
-      {state === 'failed' ? (
+      {native ? (
+        <div className="review-native">
+          <ChartReviewTool />
+        </div>
+      ) : null}
+
+      {!native && state === 'failed' ? (
         <div className="review-fallback">
           <h2>{tool.title} did not load</h2>
           <p>
@@ -96,6 +117,7 @@ export default function ReviewView() {
         </div>
       ) : null}
 
+      {!native && (
       <iframe
         // Keyed so switching tools remounts rather than reusing a frame whose
         // history would otherwise let the browser Back button walk between the
@@ -114,6 +136,7 @@ export default function ReviewView() {
         // first-party code from this repository, not third-party content.
         allow="clipboard-write"
       />
+      )}
     </div>
   )
 }

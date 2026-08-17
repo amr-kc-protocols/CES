@@ -903,6 +903,52 @@ export type PreceptorCredentialId =
  * clock. Kept in the same store so scoring is consistent and the records
  * survive, but reported separately wherever retention is displayed.
  */
+// ---------------------------------------------------------------------------
+// Chart review — the Ninth Brain Suite questionnaire, run in CES.
+//
+// NOT the `ChartReview` above. That belongs to the QA sampling queue, which is
+// switched off (QA_ENABLED = false) and scores charts against weighted criteria
+// tied to a monthly sample. This is the Ninth Brain form: a fixed questionnaire
+// whose sections appear according to the review type and the CQM categories
+// ticked. The two are left separate rather than merged — one is dormant, and
+// folding a live instrument into a disabled feature to save a name is how a
+// rename ends up rewriting records nobody meant to touch.
+//
+// NO PATIENT IDENTIFIERS. A review carries the run number, the date of service
+// and who was on the truck. Everything a reviewer needs to read about the
+// patient stays in ImageTrend, which is the system of record and the one with
+// the access controls that go with it.
+// ---------------------------------------------------------------------------
+
+export type ChartReviewStatus = 'draft' | 'complete'
+
+export interface ChartReviewEntry {
+  id: string
+  /** 'newhire' and/or 'cqm', as selected at the top of the form. */
+  types: string[]
+  /** CQM review categories ticked. Each appends its own question block. */
+  categories: string[]
+  /** Free text when 'Other' is among the categories. */
+  categoryOther?: string
+  /** PCR / incident number in ImageTrend. The join back to the chart. */
+  incidentNumber: string
+  /** Date of service — what a monthly or quarterly tally groups on. */
+  serviceDate?: string
+  /** Crew whose care is under review. Drives the per-employee tally. */
+  crew: string[]
+  reviewer: string
+  /** ISO date the review was completed. */
+  reviewedAt: string
+  /**
+   * Answers keyed by question id from data/chartReview.ts. Yes/No questions
+   * store booleans; selects store their option string; multi-selects an array.
+   */
+  answers: Record<string, boolean | string | string[]>
+  notes?: string
+  status: ChartReviewStatus
+  updatedAt: string
+}
+
 export interface AemtCandidate {
   id: string
   courseId: string
@@ -1111,6 +1157,7 @@ export interface DBShape {
   aemtRecordDocs: AemtRecordDoc[]
   aemtAudit: AemtAuditEvent[]
   aemtCandidates: AemtCandidate[]
+  chartReviews: ChartReviewEntry[]
   templates: TemplateVersion[]
   cqmpReports: CqmpReport[]
   settings: Settings

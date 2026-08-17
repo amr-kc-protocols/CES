@@ -203,6 +203,14 @@ export default function App() {
           }
         />
         <Route
+          path="review/charts"
+          element={
+            <ReviewOnly>
+              <ReviewView />
+            </ReviewOnly>
+          }
+        />
+        <Route
           path="review/necessity"
           element={
             <ReviewOnly>

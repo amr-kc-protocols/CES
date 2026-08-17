@@ -1988,3 +1988,68 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   border-top: 1px solid var(--border);
 }
 .shot figcaption .truncate { max-width: 84px; }
+
+/* ---------- Chart review questionnaire ----------
+ *
+ * Twenty-one questions before any category block, so the rows have to stay
+ * scannable at length: a prompt, an optional grey helper line, and the control
+ * directly beneath it. Ruled between rather than boxed, because twenty-one
+ * boxes read as twenty-one separate things to decide rather than one form.
+ */
+.cr-q {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.cr-q:first-of-type { border-top: 0; }
+.cr-q-prompt {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-strong);
+}
+.cr-req {
+  color: var(--red);
+  font-weight: 800;
+  margin-right: 4px;
+}
+
+/* Multi-selects as chips. The Ninth Brain form uses a row of checkboxes with
+   the label to the right; at eight categories that wraps badly on a phone, and
+   a tappable chip is a bigger target than a 13px box. */
+.cr-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text);
+  user-select: none;
+}
+.cr-chip:hover { border-color: var(--navy-600); }
+.cr-chip.on {
+  background: var(--info-bg);
+  border-color: var(--navy-600);
+  color: var(--navy-600);
+}
+.cr-chip input { width: 15px; height: 15px; margin: 0; flex: none; }
+
+@media (max-width: 620px) {
+  .cr-q-prompt { font-size: 13.5px; }
+  .cr-chip { font-size: 12.5px; padding: 5px 9px; }
+}
+
+/* The native tool sits where the iframe would, but is ordinary page content:
+   it scrolls with the page rather than inside a fixed frame. */
+.review-native {
+  padding: 12px 0 24px;
+}
