@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { notifyUser } from '../../lib/dialog'
 import { todayISO } from '../../lib/date'
-import { addChartReview, allReviews } from './chartReviewStore'
+import { addChartReview, allReviews, saveNarrative } from './chartReviewStore'
 import { autoReview, type AutoReview } from './autoAnswer'
 import { REVIEW_TYPES } from '../../data/chartReview'
 import { parseCharts, looksLikePcr } from './pcrParse'
@@ -124,7 +124,11 @@ export default function PcrImport({
         // agreed with it.
         status: r.clear ? 'complete' : 'draft',
       }
-      addChartReview(entry)
+      const created = addChartReview(entry)
+      // The narrative goes to the device-local store, never onto the review.
+      // A reviewer cannot judge a chart without reading it; a server does not
+      // need it at all.
+      if (r.narrative) saveNarrative(created.id, created.incidentNumber, r.narrative)
       count++
     }
     setImported(true)
@@ -254,6 +258,7 @@ export default function PcrImport({
                     )}
                     <span className="subtle">
                       {r.serviceDate ?? '—'} · {r.crew.join(', ') || 'crew not read'}
+                      {r.otherCrew.length > 0 && ` (with ${r.otherCrew.join(', ')})`}
                     </span>
                   </div>
                   <ul className="cr-import-flags">
@@ -265,6 +270,12 @@ export default function PcrImport({
                       </li>
                     ))}
                   </ul>
+                  {r.narrative && (
+                    <details className="cr-narrative">
+                      <summary>Read the narrative</summary>
+                      <p>{r.narrative}</p>
+                    </details>
+                  )}
                 </div>
               ))}
             </div>

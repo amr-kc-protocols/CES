@@ -100,7 +100,7 @@ export interface ReviewSection {
   questions: ReviewQuestion[]
 }
 
-export type ReviewType = 'newhire' | 'cqm' | 'nopatient'
+export type ReviewType = 'newhire' | 'cqm' | 'nopatient' | 'nonpatient'
 
 export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = [
   { id: 'newhire', label: 'New Hire' },
@@ -109,6 +109,11 @@ export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = 
     id: 'nopatient',
     label: 'No Patient Contact',
     note: 'A call cleared without a patient — cancelled, no patient found, refusal before assessment.',
+  },
+  {
+    id: 'nonpatient',
+    label: 'Non-Patient Transport',
+    note: 'A transport with nobody to assess — a flight crew returned to the airport, an organ, a standby. It ran, it has a destination and it has mileage.',
   },
 ]
 
@@ -297,6 +302,50 @@ const NO_PATIENT: ReviewSection = {
   ],
 }
 
+/**
+ * A transport with nobody to assess.
+ *
+ * Written for AMR Kansas City rather than transcribed — Ninth Brain has no
+ * block for these, and running them through either of the others reports a
+ * fault on every one. They are not No Patient Contact calls: that section is
+ * for a run that ended on scene, and it asks why no care was provided. These
+ * ran. A flight crew was carried back to the airport, an organ was moved, a
+ * unit stood by at an event. There is a destination, there is mileage, there
+ * is a bill — and there is no patient, so no vital signs, no exam and no
+ * impression were ever going to be recorded.
+ *
+ * So what is actually reviewable is whether the run itself is documented: does
+ * the chart say what was carried and why, do the ends of the trip match the
+ * narrative, and are the numbers a claim depends on present.
+ */
+const NON_PATIENT: ReviewSection = {
+  id: 'nonpatient',
+  title: 'Non-Patient Transport Review',
+  when: { reviewType: 'nonpatient' },
+  authored: true,
+  intro:
+    'A transport with nobody to assess — a flight crew returned to base, an organ, a standby. The patient-care questions are not asked, because there was no patient: answering them Yes to get through the form is how a tally stops meaning anything.',
+  questions: [
+    yn('npt.purpose', 'Does the narrative say what was transported and why?', {
+      help: 'Flight crew returning to base, organ or tissue, equipment, a standby assignment. This is the only place the reason for the trip is recorded.',
+    }),
+    yn('npt.disposition', 'Is the disposition recorded as a non-patient transport?', {
+      help: 'Rather than left as a patient transport or a cancellation, either of which sends the chart to the wrong place downstream.',
+    }),
+    yn('npt.locations', 'Are the origin and destination both recorded correctly and specifically?'),
+    yn('npt.mileage', 'Are the odometer readings and loaded miles recorded?', {
+      help: 'A non-patient transport still bills on mileage, and there is no patient record to reconstruct it from afterwards.',
+    }),
+    yn('npt.times', 'Are the unit times complete — dispatch through back in service?'),
+    yn('npt.signatures', 'Did all crew members sign the PCR?'),
+    yn('npt.noPatientFields', 'Is the chart free of patient care documented in error?', {
+      // The failure worth catching on these: a template or a copied chart that
+      // leaves vitals or an impression on a run that had no patient.
+      help: 'No vitals, assessments or impressions carried over from another chart. If there is nothing of the kind, select Yes.',
+    }),
+  ],
+}
+
 const OVERALL: ReviewSection = {
   id: 'overall',
   title: 'Overall Evaluation',
@@ -480,6 +529,7 @@ export const REVIEW_SECTIONS: ReviewSection[] = [
   NEW_HIRE,
   CQM,
   NO_PATIENT,
+  NON_PATIENT,
   DEMOGRAPHICS,
   ASSESSMENT,
   TREATMENT,

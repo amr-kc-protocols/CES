@@ -18,6 +18,9 @@ import {
   addChartReview,
   allReviews,
   blankReview,
+  clearNarratives,
+  useNarrative,
+  useNarrativeCount,
   crewTally,
   deleteChartReview,
   inRange,
@@ -215,6 +218,7 @@ function ReviewForm({
 }) {
   const [draft, setDraft] = useState<Draft>(initial)
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
+  const narrative = useNarrative(draft.id)
 
   // The categories question lives inside the CQM section, so what the form
   // shows depends on an answer the form itself collects. Read it back out
@@ -305,6 +309,26 @@ function ReviewForm({
       </div>
 
       {/*
+        The crew's own account of the call.
+        
+        Half the questions on this form — does the exam support the reason for
+        transport, does the narrative match the treatments, was the mode
+        appropriate — cannot honestly be answered without it, and a reviewer
+        should not have to open the PDF again beside the form.
+        
+        Open by default, because it is what the decisions are made from.
+      */}
+      {narrative && (
+        <details className="card cr-narrative-panel" open>
+          <summary>
+            <span>Narrative</span>
+            <span className="subtle">on this device only · not synced, not exported</span>
+          </summary>
+          <p>{narrative.text}</p>
+        </details>
+      )}
+
+      {/*
         What the import wants looked at, put where the reviewer lands rather
         than left for them to find. An imported chart that raised nothing shows
         nothing here — the point is that those cost no attention at all.
@@ -312,7 +336,7 @@ function ReviewForm({
       {draft.flags && draft.flags.length > 0 && (
         <div className="card cr-flags" style={{ padding: 12, marginBottom: 12 }}>
           <div className="section-title" style={{ marginTop: 0 }}>
-            Read from the chart — {draft.flags.length} to check
+            Flagged on import — {draft.flags.length} to check
           </div>
           <ul className="cr-import-flags">
             {draft.flags.map((f, i) => (
@@ -508,6 +532,7 @@ export default function ChartReviewTool() {
   const { email } = useSyncStatus()
   const [editing, setEditing] = useState<Draft | null>(null)
   const [importing, setImporting] = useState(false)
+  const narratives = useNarrativeCount()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
@@ -568,6 +593,33 @@ export default function ChartReviewTool() {
         what happened, not whether the care was right. <strong>No patient identifiers</strong>: the
         run number links back to ImageTrend.
       </div>
+
+      {narratives > 0 && (
+        <div className="banner info" style={{ marginTop: 12 }}>
+          <strong>
+            {narratives} chart narrative{narratives === 1 ? '' : 's'} stored on this device.
+          </strong>{' '}
+          Kept so a review can be finished later — never synced, never exported, and gone when the
+          review is deleted.{' '}
+          <button
+            className="btn sm"
+            style={{ marginLeft: 6 }}
+            onClick={async () => {
+              const ok = await confirmAction({
+                title: `Clear ${narratives} narrative${narratives === 1 ? '' : 's'}?`,
+                body: 'The reviews and the tally are untouched. Only the crew narratives held on this device are removed, and the charts would have to be imported again to read them.',
+                confirmLabel: 'Clear narratives',
+                danger: true,
+              })
+              if (!ok) return
+              clearNarratives()
+              notifyUser('Narratives cleared from this device.', 'info')
+            }}
+          >
+            Clear them
+          </button>
+        </div>
+      )}
 
       {duplicates.length > 0 && (
         <div className="banner warn" style={{ marginTop: 12 }}>

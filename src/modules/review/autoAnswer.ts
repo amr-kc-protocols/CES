@@ -25,7 +25,14 @@
 // carried forty miles — that is a finding, not an unknown.
 // ---------------------------------------------------------------------------
 
-import { compliantAnswer, question, visibleQuestions, type ReviewAnswers, type ReviewType } from '../../data/chartReview'
+import {
+  compliantAnswer,
+  PATIENT_CARE_TYPES,
+  question,
+  visibleQuestions,
+  type ReviewAnswers,
+  type ReviewType,
+} from '../../data/chartReview'
 import { DRUG_ALIASES, DRUG_UNITS, KNOWN_DRUGS, type PcrChart } from './pcrParse'
 
 export type Confidence = 'read' | 'inferred' | 'assumed'
@@ -48,7 +55,25 @@ export interface ChartFlag {
 export interface AutoReview {
   incidentNumber: string
   serviceDate?: string
+  /**
+   * Who the review counts against: the crew member who wrote the report.
+   *
+   * Not everyone on the truck. A chart is one provider's work, and crediting
+   * both means a driver carries their partner's documentation score and a
+   * medic's own figure is diluted by charts they never wrote. ImageTrend names
+   * the author in "Crew Member Completing this Report" and that is the person
+   * a chart review is about.
+   */
   crew: string[]
+  /** Everyone else on the crew, for context. Not counted, not stored. */
+  otherCrew: string[]
+  /**
+   * The crew's narrative, passed through for the reviewer to read.
+   *
+   * Deliberately NOT part of the answers or anything that syncs — the import
+   * screen files this in the device-local narrative store instead.
+   */
+  narrative?: string
   types: ReviewType[]
   categories: string[]
   answers: ReviewAnswers
@@ -156,8 +181,20 @@ export function proceduresInNarrative(narrative: string): string[] {
  * patient comes in as CQM.
  */
 function reviewTypes(chart: PcrChart): ReviewType[] {
-  // Unit Disposition and Patient Evaluation/Care are the fields that decide
-  // this. Crew Disposition is not: "Back in Service, No Care/Support Services
+  // A transport with nobody to assess, checked FIRST because these otherwise
+  // land in one of the other two and are marked down for every patient-care
+  // field they were never going to have. NEMSIS carries "Non-Patient Transport
+  // (Not Otherwise Listed)" as a value of both Unit Disposition and Transport
+  // Disposition, and Type of Service Requested names the standing cases.
+  if (
+    said(chart.unitDisposition, 'non-patient transport', 'non patient transport') ||
+    said(chart.transportDisposition, 'non-patient transport', 'non patient transport') ||
+    said(chart.serviceRequested, 'standby', 'organ', 'mortuary', 'public assistance') ||
+    said(chart.natureOfCall, 'standby', 'organ procurement', 'transfer of flight crew')
+  ) return ['nonpatient']
+
+  // Unit Disposition and Patient Evaluation/Care are the fields that decide the
+  // rest. Crew Disposition is not: "Back in Service, No Care/Support Services
   // Required" is what a crew records after a cancelled-on-scene call, and it
   // reads as "no patient" while sometimes describing one.
   const noPatient =
@@ -208,6 +245,20 @@ function categoriesFor(chart: PcrChart): string[] {
   return out
 }
 
+/**
+ * Split the crew into the report's author and everyone else.
+ *
+ * Falls back to the whole crew when the export does not name an author, which
+ * is better than crediting nobody — but it is a fallback, and the reason it is
+ * one is that the per-crew tally is what a new hire is judged on.
+ */
+function primaryAndRest(chart: PcrChart): { crew: string[]; otherCrew: string[] } {
+  const names = chart.crew.map((c) => personName(c.name))
+  if (!chart.reportBy) return { crew: names, otherCrew: [] }
+  const author = personName(chart.reportBy)
+  return { crew: [author], otherCrew: names.filter((n) => n !== author) }
+}
+
 /** True when this chart records a patient being carried somewhere. */
 function wasTransported(chart: PcrChart): boolean {
   return said(chart.transportDisposition, 'transport by this ems unit', 'transport by another')
@@ -219,7 +270,7 @@ export function autoReview(chart: PcrChart): AutoReview {
   const flags: ChartFlag[] = []
 
   const types = reviewTypes(chart)
-  const categories = types.includes('nopatient') ? [] : categoriesFor(chart)
+  const categories = types.includes('cqm') ? categoriesFor(chart) : []
   const transported = wasTransported(chart)
   const narrative = chart.narrative ?? ''
 
@@ -303,6 +354,75 @@ export function autoReview(chart: PcrChart): AutoReview {
     if (narrative.length < 60) flag('look', 'Narrative is very short', `Only ${narrative.length} characters explaining why no care was given.`, 'np.narrative')
   }
 
+  // ----- non-patient transports ---------------------------------------------
+
+  if (types.includes('nonpatient')) {
+    const purposeStated = narrative.length >= 40
+    say('npt.purpose', purposeStated, 'read',
+      purposeStated
+        ? `Narrative is ${narrative.length} characters.`
+        : `Narrative is ${narrative.length} characters — too short to say what was carried or why.`)
+    if (!purposeStated) {
+      flag('stop', 'Nothing says what this trip was for',
+        'A non-patient transport has no impression and no exam to explain it, so the narrative is the only record of what was carried and why.',
+        'npt.purpose')
+    }
+
+    const dispoNamed = said(chart.unitDisposition, 'non-patient', 'non patient')
+      || said(chart.transportDisposition, 'non-patient', 'non patient')
+    say('npt.disposition', dispoNamed, 'read',
+      dispoNamed
+        ? `Disposition: ${chart.unitDisposition || chart.transportDisposition}.`
+        : `Read as a non-patient transport from the service type, but the disposition says "${chart.unitDisposition || chart.transportDisposition || 'nothing'}".`)
+
+    const locations = has(chart.incidentAddress) && has(chart.destinationName)
+    say('npt.locations', locations, 'read',
+      locations ? 'Origin and destination are both recorded.'
+        : !has(chart.incidentAddress) ? 'Incident Address is blank.' : 'Destination Name is blank.')
+    if (!has(chart.destinationName)) {
+      flag('stop', 'No destination on a transport',
+        'The run was carried out and billed on the trip, but Destination Name is blank.', 'npt.locations')
+    }
+
+    // Mileage is the whole claim on one of these, and there is no patient
+    // record to reconstruct it from later.
+    const mileage = has(chart.loadedMiles) || (has(chart.odometerStart) && has(chart.odometerEnd))
+    say('npt.mileage', mileage, 'read',
+      mileage
+        ? `Mileage recorded: ${[chart.loadedMiles && `${chart.loadedMiles} loaded`, chart.odometerEnd && `odometer to ${chart.odometerEnd}`].filter(Boolean).join(', ')}.`
+        : 'Neither loaded miles nor a pair of odometer readings is recorded.')
+    if (!mileage) {
+      flag('stop', 'No mileage on a non-patient transport',
+        'These bill on mileage and there is no patient record to reconstruct it from afterwards.',
+        'npt.mileage')
+    }
+
+    const times = [chart.timeDispatched, chart.timeEnRoute, chart.timeArrivedScene, chart.timeBackInService]
+    const timesComplete = times.every(has)
+    say('npt.times', timesComplete, 'read',
+      timesComplete ? 'Dispatch through back in service are all recorded.'
+        : `${times.filter((t) => !has(t)).length} of the four unit times is missing.`)
+
+    say('npt.signatures', signaturesOk, 'read', signatureBecause)
+
+    // The failure worth catching here: a template or a copied chart leaving
+    // patient care on a run that never had a patient.
+    const strayCare = chart.vitalsCount > 0 || has(chart.primaryImpression) || chart.medications.length > 0
+    say('npt.noPatientFields', !strayCare, 'read',
+      strayCare
+        ? `Patient care is documented on a run with no patient: ${[
+            chart.vitalsCount > 0 && `${chart.vitalsCount} set(s) of vitals`,
+            has(chart.primaryImpression) && `impression "${chart.primaryImpression}"`,
+            chart.medications.length > 0 && `${chart.medications.length} medication(s)`,
+          ].filter(Boolean).join(', ')}.`
+        : 'No vitals, impression or medications, as expected.')
+    if (strayCare) {
+      flag('stop', 'Patient care on a non-patient transport',
+        'This chart records care on a run that had no patient — either it is not a non-patient transport, or documentation has carried over from another chart.',
+        'npt.noPatientFields')
+    }
+  }
+
   // ----- CQM header ---------------------------------------------------------
 
   if (types.includes('cqm')) {
@@ -319,7 +439,12 @@ export function autoReview(chart: PcrChart): AutoReview {
 
   // ----- the patient-care backbone ------------------------------------------
 
-  if (!types.includes('nopatient')) {
+  // Gated on the types that review patient care, NOT on "anything but a
+  // no-contact call". Written the second way this raised "no narrative" and "no
+  // vital signs on a transport" against a flight-crew return — flags for
+  // patient-care fields on a run that never had a patient, which is the exact
+  // false alarm the non-patient block exists to prevent.
+  if (types.some((t) => PATIENT_CARE_TYPES.includes(t))) {
     // Demographics
     const destOk = !transported || has(chart.destinationName)
     say('dem.locations', has(chart.incidentAddress) && destOk, 'read',
@@ -442,7 +567,8 @@ export function autoReview(chart: PcrChart): AutoReview {
   return {
     incidentNumber: chart.incidentNumber ?? '',
     serviceDate: chart.serviceDateISO,
-    crew: chart.crew.map((c) => personName(c.name)),
+    ...primaryAndRest(chart),
+    narrative: chart.narrative,
     types,
     categories,
     answers,

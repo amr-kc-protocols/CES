@@ -2288,3 +2288,62 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   }
   .cr-shortfall table { min-width: 0; }
 }
+
+/* ---------- The crew's narrative ----------
+ *
+ * Held on this device only, so it is styled as something borrowed rather than
+ * something the app owns: a quiet panel, monospaced-ish measure, and a label
+ * that says where it lives. Half the questions on the form cannot be answered
+ * honestly without it.
+ */
+.cr-narrative-panel {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-left: 3px solid var(--navy-600);
+}
+.cr-narrative-panel > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-strong);
+  list-style: none;
+}
+.cr-narrative-panel > summary::-webkit-details-marker { display: none; }
+/* The provenance line beside the title is a caveat, not a heading — it must not
+   inherit the summary's weight and colour. */
+.cr-narrative-panel > summary .subtle {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.cr-narrative-panel > summary::before {
+  content: '▾';
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cr-narrative-panel:not([open]) > summary::before { content: '▸'; }
+.cr-narrative-panel > p,
+.cr-narrative > p {
+  margin: 8px 0 0;
+  /* A narrative is unpunctuated lowercase prose typed at 3am. Generous line
+     height and a capped measure are what make it readable at all. */
+  max-width: 78ch;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* On a flagged row in the import list, folded away until asked for. */
+.cr-narrative { margin-top: 8px; }
+.cr-narrative > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--navy-600);
+}

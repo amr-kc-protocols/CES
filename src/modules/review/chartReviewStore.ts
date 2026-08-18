@@ -13,7 +13,7 @@ import {
   type ReviewType,
 } from '../../data/chartReview'
 import { buildXlsx, type Sheet } from '../../lib/xlsx'
-import type { ChartReviewEntry } from '../../types'
+import type { ChartNarrative, ChartReviewEntry } from '../../types'
 
 // ---------------------------------------------------------------------------
 // Chart review records, the running tally, and the workbook export.
@@ -46,12 +46,63 @@ export function updateChartReview(id: string, patch: Partial<ChartReviewEntry>):
 export function deleteChartReview(id: string): void {
   setState((db) => {
     const gone = db.chartReviews.find((r) => r.id === id)
+    const goneNarrative = db.chartNarratives.find((n) => n.reviewId === id)
     if (gone) {
+      // The narrative goes back with the review, or an undo would restore a
+      // review whose narrative had been quietly dropped.
       pushUndo(`Deleted review of ${gone.incidentNumber || 'chart'}`, () =>
-        setState((cur) => ({ ...cur, chartReviews: [...cur.chartReviews, gone] })),
+        setState((cur) => ({
+          ...cur,
+          chartReviews: [...cur.chartReviews, gone],
+          chartNarratives: goneNarrative ? [...cur.chartNarratives, goneNarrative] : cur.chartNarratives,
+        })),
       )
     }
-    return { ...db, chartReviews: db.chartReviews.filter((r) => r.id !== id) }
+    return {
+      ...db,
+      chartReviews: db.chartReviews.filter((r) => r.id !== id),
+      chartNarratives: db.chartNarratives.filter((n) => n.reviewId !== id),
+    }
+  })
+}
+
+// ----- narratives, device-local ----------------------------------------------
+//
+// Held apart from the review itself because a review syncs and a narrative must
+// not: it is free text about a patient. See ChartNarrative in types.ts.
+
+export function useNarrative(reviewId: string | undefined): ChartNarrative | undefined {
+  return useSelector((db) => db.chartNarratives.find((n) => n.reviewId === reviewId))
+}
+
+export function useNarrativeCount(): number {
+  return useSelector((db) => db.chartNarratives.length)
+}
+
+export function saveNarrative(reviewId: string, incidentNumber: string, text: string): void {
+  if (!text.trim()) return
+  const entry: ChartNarrative = {
+    reviewId,
+    incidentNumber,
+    text,
+    savedAt: new Date().toISOString(),
+  }
+  setState((db) => ({
+    ...db,
+    chartNarratives: [...db.chartNarratives.filter((n) => n.reviewId !== reviewId), entry],
+  }))
+}
+
+/** Drop every stored narrative. The reviews and the tally are untouched. */
+export function clearNarratives(): void {
+  setState((db) => {
+    const gone = db.chartNarratives
+    if (gone.length) {
+      pushUndo(`Cleared ${gone.length} narrative${gone.length === 1 ? '' : 's'}`, () =>
+        setState((cur) => ({ ...cur, chartNarratives: gone })),
+      )
+    }
+    return { ...db, chartNarratives: [] }
   })
 }
 

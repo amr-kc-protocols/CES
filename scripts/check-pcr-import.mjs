@@ -19,7 +19,7 @@
 //     dangerous: "Paramedic Protocol" contains "cpr".
 //
 // Run: node scripts/check-pcr-import.mjs
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -56,7 +56,19 @@ try {
 } catch (err) {
   console.log('FAIL  the PCR import modules throw on load')
   console.log(`      ${err.message}`)
-  rmSync(OUT, { force: true })
+  // The narrative slice is device-local ONLY because it is absent from the sync
+// list. That is one line in another file and nothing else enforces it, so it is
+// asserted here rather than left to a comment.
+{
+  const records = readFileSync(join(SRC, 'lib/records.ts'), 'utf8')
+  check(
+    !/chartNarratives/.test(records),
+    'narratives are not in the sync slices, so they never leave the device',
+    'lib/records.ts mentions chartNarratives — a narrative would sync to the server',
+  )
+}
+
+rmSync(OUT, { force: true })
   process.exit(1)
 }
 
@@ -382,11 +394,44 @@ check(npReview.types.join() === 'nopatient', 'a call with no patient found is a 
   npReview.types.join())
 check(npReview.categories.length === 0, 'a no-patient review gets no category blocks')
 check(
-  review.crew.join(' | ') === 'Robin Vance | Sam Okafor',
+  review.crew.join(' | ') === 'Robin Vance',
+  'the review counts against the crew member who wrote the report, not the whole crew',
+  // A chart is one provider's work. Crediting both means a driver carries their
+  // partner's documentation score and the author's own figure is diluted.
+  review.crew.join(' | '),
+)
+check(
+  review.otherCrew.join(' | ') === 'Sam Okafor',
+  'the rest of the crew is kept for context, separately',
+  review.otherCrew.join(' | '),
+)
+check(
+  !review.crew.some((n) => n.includes(',')),
   'crew names are stored the way a person types them, with no comma inside a name',
   // The crew field is one comma-separated line in the form, so "Vance, Robin"
   // would split into two people the first time anyone opened and saved this.
   review.crew.join(' | '),
+)
+
+// Without an author named, crediting nobody would be worse than crediting all.
+{
+  const anonymous = m.parseChart(
+    m.buildPcrDoc([...p1, ...p2].filter((it) => !it.str.startsWith('Crew Member Completing'))),
+    1,
+    2,
+  )
+  const r = m.autoReview(anonymous)
+  check(
+    r.crew.length === 2 && r.otherCrew.length === 0,
+    'a chart that never names an author falls back to the whole crew',
+    `${r.crew.join(' | ')} / ${r.otherCrew.join(' | ')}`,
+  )
+}
+
+check(
+  review.narrative?.includes(NARRATIVE_HEAD),
+  'the narrative is handed to the reviewer to read',
+  `${review.narrative?.length ?? 0} characters`,
 )
 check(
   review.serviceDate === '2026-08-16',
@@ -441,10 +486,114 @@ check(
   m.describePdfFailure(new Error('undefined is not a function')),
 )
 
-// ----- what the import stores ------------------------------------------------
+// ----- a transport with nobody to assess -------------------------------------
 //
-// The whole design rests on nothing patient-identifying leaving this screen, so
-// assert it rather than trusting the review that wrote it.
+// A flight crew carried back to base, an organ, a standby. These are NOT
+// cancelled calls: the run happened, it has a destination and it has mileage.
+// Read as an ordinary transport they fail every patient-care question they were
+// never going to be able to answer, which is exactly the false alarm the import
+// exists to avoid.
+
+function nonPatientChart(over = {}) {
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', over.run ?? '99000004')
+    .field('Date of Service:', '08/16/2026 09:10:00')
+    .field('Type of Service Requested', over.service ?? 'Standby')
+    .field('Nature of Call', over.nature ?? 'Transfer of Flight Crew')
+    .field('Incident Address', '9 AIRPORT RD')
+    .field('Unit Disposition', over.unitDisposition ?? 'Non-Patient Transport (Not Otherwise Listed)')
+    .field('Destination Name', over.destination ?? 'EXAMPLE REGIONAL AIRPORT')
+    .field('Transport Disposition', over.transportDisposition ?? 'Non-Patient Transport (Not Otherwise Listed)')
+    .field('Unit Notified by Dispatch', '08/16/2026 09:10:00')
+    .field('Unit En Route', '08/16/2026 09:12:00')
+    .field('Unit Arrived on Scene', '08/16/2026 09:31:00')
+    .field('Unit Left Scene', '08/16/2026 09:40:00')
+    .field('Unit Back in Service', '08/16/2026 10:15:00')
+    .field('Beginning Odometer Reading', '0')
+    .field('Ending Odometer Reading', over.odometerEnd ?? '31.4')
+    .field('Total Loaded Miles', over.loadedMiles ?? '22.8')
+    .field('Narrative Patient Care Report Narrative',
+      over.narrative
+        ?? 'unit dispatched to return the flight crew to the airport following a completed transport. '
+           + 'no patient on board. crew and equipment carried to the hangar without incident. unit back in service.')
+  if (over.vitals) {
+    b.table(
+      'Vital Signs Vitals Date/Time HR SBP/DBP (MAP) Resp. Rate SpO2 Pain',
+      '08/16/2026 09:35:00 || PTA = No Vance, Robin (10101) 70 120 / 80 ( 93 ) 16 Normal',
+    )
+  }
+  b.table('Crew Member Crew Member Response Role Crew Member ID Crew Member Level',
+    'Driver/Pilot-Response Vance, Robin (10101) Paramedic')
+    .field('Crew Member Completing this Report', 'Vance, Robin (10101)')
+    .field('Signatures Type of Person Signing', 'Crew Member')
+    .field('Printed Name', 'Robin Vance')
+    .footer()
+  return m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+}
+
+{
+  const r = m.autoReview(nonPatientChart())
+  check(r.types.join() === 'nonpatient', 'a flight-crew return is a non-patient transport, not a cancelled call',
+    r.types.join())
+  check(r.categories.length === 0, 'a non-patient transport gets no CQM category blocks')
+  const asked = m.visibleQuestions(r.types, r.categories).map((q) => q.id)
+  check(
+    asked.includes('npt.mileage') && !asked.includes('asm.monitoring') && !asked.includes('np.narrative'),
+    'it is asked its own questions, not the patient-care ones and not the no-contact ones',
+    asked.join(', '),
+  )
+  check(r.clear === true, 'a properly documented one is cleared without a human',
+    JSON.stringify(r.flags.map((f) => f.title)))
+  check(
+    m.visibleQuestions(r.types, r.categories)
+      .filter((q) => q.kind === 'yesno')
+      .every((q) => typeof r.answers[q.id] === 'boolean'),
+    'every question on the block is answered',
+  )
+}
+
+// Mileage is the whole claim on one of these and cannot be reconstructed later.
+{
+  const r = m.autoReview(nonPatientChart({ loadedMiles: '', odometerEnd: '' }))
+  check(
+    r.answers['npt.mileage'] === false && r.flags.some((f) => /mileage/i.test(f.title)),
+    'no mileage on a non-patient transport stops the chart',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+}
+
+// Patient care on a run with no patient means a template or a copied chart.
+{
+  const r = m.autoReview(nonPatientChart({ vitals: true }))
+  check(
+    r.answers['npt.noPatientFields'] === false && r.flags.some((f) => /patient care/i.test(f.title)),
+    'vitals on a run with no patient are flagged, not ignored',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+}
+
+// The service type alone is enough, for an operation that files the disposition
+// as an ordinary transport.
+{
+  const r = m.autoReview(nonPatientChart({
+    unitDisposition: 'Patient Contact Made',
+    transportDisposition: 'Transport by This EMS Unit (This Crew Only)',
+    service: 'Organ Procurement Transport',
+    nature: 'Organ Transport',
+  }))
+  check(r.types.join() === 'nonpatient', 'an organ transport is recognised from the service type',
+    r.types.join())
+  check(r.answers['npt.disposition'] === false,
+    'and its disposition is reported as not saying so')
+}
+
+// ----- what the SYNCED review carries ----------------------------------------
+//
+// The narrative is shown to the reviewer and kept on their device, but it must
+// never ride along on the review record — that is what syncs to the server and
+// what the workbook exports. These are the fields the import writes onto a
+// ChartReviewEntry; nothing patient-identifying may appear among them.
 const stored = JSON.stringify({
   incidentNumber: review.incidentNumber,
   serviceDate: review.serviceDate,
@@ -456,6 +605,18 @@ const stored = JSON.stringify({
 check(!stored.includes('1 EXAMPLE ST'), 'the incident address is not carried into the stored review')
 check(!stored.includes('555-0100'), 'the phone number is not carried into the stored review')
 check(!stored.includes(NARRATIVE_HEAD), 'the narrative is not carried into the stored review')
+
+// The narrative slice is device-local ONLY because it is absent from the sync
+// list. That is one line in another file and nothing else enforces it, so it is
+// asserted here rather than left to a comment.
+{
+  const records = readFileSync(join(SRC, 'lib/records.ts'), 'utf8')
+  check(
+    !/chartNarratives/.test(records),
+    'narratives are not in the sync slices, so they never leave the device',
+    'lib/records.ts mentions chartNarratives — a narrative would sync to the server',
+  )
+}
 
 rmSync(OUT, { force: true })
 
