@@ -315,6 +315,18 @@ if (leaked.length)
   )
 else pass('no comment in the installer carries a quote character')
 
+// ----- the installer contains no double-quote character at all --------------
+// Belt and braces, and it earns its place: a double quote is how Postgres
+// writes an identifier, so any " that reaches the server outside a string
+// literal turns into an error naming one of our own words as a missing table.
+// Hunter spent an afternoon on `relation "Kansas" does not exist` — an error
+// this file could not have produced, which took proving. With no " in the file
+// at all, that whole class of confusion is off the table: an identifier error
+// from a paste of this script means the paste was not this script.
+const dq = buildInstallSql().split('"').length - 1
+if (dq) fail(`the installer contains ${dq} double-quote character(s)`, 'use typographic quotes in item text')
+else pass('the installer contains no double-quote character')
+
 // ----- the honesty ledger --------------------------------------------------
 const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)
 if (stale.length) fail(`NEEDS_CONFIRMATION names sections that no longer exist: ${stale.join(', ')}`)

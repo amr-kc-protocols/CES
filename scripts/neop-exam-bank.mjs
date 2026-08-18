@@ -624,12 +624,17 @@ export const OPERATIONS = [
   {
     code: 'ops-what-could-change',
     ref: 'not-911',
-    stem: 'The briefing says the question on this job is usually not "What am I walking into?" but:',
+    // Typographic quotes, not ASCII ones. They read better, and they keep the
+    // generated installer free of double-quote characters entirely — which
+    // matters because a stray " in a script is what turns a confusing paste
+    // into a Postgres error naming a word out of our own prose as a missing
+    // table. See the check in scripts/check-neop-exam.mjs.
+    stem: 'The briefing says the question on this job is usually not “What am I walking into?” but:',
     options: [
-      '"How quickly can we clear?"',
-      '"What could change during this trip, and am I prepared for it?"',
-      '"Who is going to write this chart?"',
-      '"Is this transport really necessary?"',
+      '“How quickly can we clear?”',
+      '“What could change during this trip, and am I prepared for it?”',
+      '“Who is going to write this chart?”',
+      '“Is this transport really necessary?”',
     ],
     answer: 1,
   },
