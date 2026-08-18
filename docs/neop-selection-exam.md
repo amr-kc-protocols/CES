@@ -40,7 +40,7 @@ So the instrument does two things a knowledge test alone would not:
 | Section | Items served | Scored | What it measures |
 |---|---|---|---|
 | Patient care | 12 of 26 | Yes | Can they look after a patient. **EMT scope on purpose** — EMT and paramedic applicants sit the same section, and paramedic-only content would mark an EMT down for the certification they hold rather than the work they would do. |
-| Our operation | 16 of 33 | Yes | Did they read, and understand, the briefing. Every item keys to a section of it. |
+| Our operation | 16 of 35 | Yes | Did they read, and understand, the briefing. Every item keys to a section of it. |
 | What you want | all 11 | **No** | What they are actually after. Recorded, surfaced to the interviewer, given no marks at all. |
 
 28 scored items, 30 minutes, drawn per section so every candidate sits the same
@@ -173,18 +173,29 @@ they get checked rather than quietly published:
 
 1. **The call mix** — that discharges, dialysis and behavioral-health transfers
    all feature alongside ICU and emergency-department transfers.
-2. **No scene calls at all**, rather than very few.
+2. **The standby and mutual-aid exceptions** — that event coverage and
+   mutual-aid response are occasional rather than a regular part of the rota,
+   and that neither is a route onto a 911 operation.
 3. **Balloon pump / Impella / ECMO patients travel with their own specialist
    teams** rather than being managed by our crew alone.
-4. **Long-distance transfers of a few hours each way** being normal rather than
-   rare.
+4. **How long a long-distance transfer actually runs.** That they happen is in
+   the operation's own service list; "hours each way" is the briefing's wording
+   for it.
 5. **No internal transfer path** from Kansas City into the Linn County or Cass
    County operations short of applying to a posting.
 
 If one of them is wrong, correct the briefing and then check whether an exam
-item keys to it: items 2, 3 and 5 are each asked directly
-(`ops-scene-calls`, `ops-mcs-teams`, `ops-not-a-queue`), and item 4 is
+item keys to it: items 2, 3 and 5 are each asked directly (`ops-scene-calls`
+and `ops-standby-aid`, `ops-mcs-teams`, `ops-not-a-queue`), and item 4 is
 (`ops-long-transports`).
+
+**Why that list is worth working through**, with a worked example: the briefing
+first said this operation responds to no scenes at all, and `ops-scene-calls`
+keyed to it. The operation's own public service list includes event standby at
+the Kansas Speedway and mutual-aid response — so a candidate who had read our
+website would have been marked wrong for knowing it, and told on the way in
+that we do not know our own operation. The claim is now the narrower true one
+and there is a second item on the exceptions.
 
 Everything else in the briefing is drawn from what this repository already
 records about the operations — `src/data/operations.ts`, `src/data/academy.ts`,

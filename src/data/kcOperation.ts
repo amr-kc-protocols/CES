@@ -20,7 +20,15 @@
 // whether a candidate read it; it is a test of whether they already worked
 // here, which is the opposite of what this instrument is for.
 //
-// SOURCES. The operational facts are drawn from what this repository already
+// SOURCES. Standby coverage at large events, mutual-aid response, bariatric
+// transport and long-distance moves come from the operation's own public
+// description of its services, by way of a search summary — which is to say a
+// generated one. It is good enough to correct a statement that was flatly
+// wrong (this briefing used to say the operation responds to no scenes at all)
+// and not good enough to be the last word on the shape of the work, so those
+// claims are in NEEDS_CONFIRMATION below.
+//
+// The rest is drawn from what this repository already
 // states about the operations: src/data/operations.ts (Kansas City is the
 // interfacility critical-care operation at roughly a thousand transports a
 // month; Linn County is rural 911 with two 24/7 trucks; Cass County runs a
@@ -63,6 +71,7 @@ export const KC_BRIEFING: BriefingSection[] = [
           'Discharges — a patient going home, or to a nursing facility, rehabilitation, long-term acute care or hospice.',
           'Scheduled and recurring transports — dialysis, treatment appointments, procedures.',
           'Behavioral health transfers, and patients under a hold.',
+          'Bariatric transports, and long-distance moves that run well outside the metro.',
         ],
       },
       'The patient is already someone else’s patient when you arrive. They have been assessed, diagnosed, and started on a plan by a physician you will probably never meet. Your job is to carry that plan intact — and the patient with it — from one bed to another.',
@@ -72,7 +81,8 @@ export const KC_BRIEFING: BriefingSection[] = [
     ref: 'not-911',
     title: 'What it is not',
     blocks: [
-      'We are not a 911 service. Kansas City does not respond to scenes. You will not be dispatched to a wreck, a shooting, or a house where nobody has told you what is waiting inside.',
+      'We are not a 911 service. You will not spend your shift being dispatched to 911 calls — to a wreck, a shooting, or a house where nobody has told you what is waiting inside.',
+      'There are two exceptions and it is worth naming them, because you will see them from outside and draw the wrong conclusion. We provide standby medical coverage at large events — races at the Kansas Speedway, big regional gatherings — and we respond on mutual aid when a neighboring 911 system asks for help. Both are real. Neither is what a shift is made of, and neither is a side door onto a 911 operation.',
       'Almost every time, you know exactly what you are getting before you touch the truck: a name, a diagnosis, what is infusing, what is attached, and where it is going. The uncertainty that defines scene work is mostly absent here, and so is the adrenaline that comes with it.',
       'Lights and sirens are the exception, not the rhythm of the job. Most transports are made at ordinary road speed, because the patient is stable and the aim is to keep them that way.',
       'The risk in this job is different rather than smaller. It is not "what will I find." It is "I have a complicated, already-sick patient, alone in the back of a moving truck, for the next forty-five minutes, with the equipment I chose to bring." Nobody is going to arrive to help you at minute twenty.',
@@ -183,7 +193,8 @@ export const NEEDS_CONFIRMATION: { ref: string; claim: string }[] = [
   },
   {
     ref: 'not-911',
-    claim: 'That Kansas City takes no scene calls at all, rather than very few.',
+    claim:
+      'The standby and mutual-aid exceptions — that they are occasional rather than a regular part of the rota, and that neither is a route onto a 911 operation. Two exam items turn on this.',
   },
   {
     ref: 'patients',
@@ -193,7 +204,7 @@ export const NEEDS_CONFIRMATION: { ref: string; claim: string }[] = [
   {
     ref: 'shift',
     claim:
-      'That long-distance transfers of a few hours each way are a normal part of the schedule rather than a rarity.',
+      'How long a long-distance transfer actually runs. That they happen is stated in the operation\'s own service list; "hours each way" is this briefing\'s wording for it.',
   },
   {
     ref: 'growth',

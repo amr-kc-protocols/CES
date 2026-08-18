@@ -347,6 +347,18 @@ export const OPERATIONS = [
     answer: 1,
   },
   {
+    code: 'ops-transport-kinds',
+    ref: 'what-we-do',
+    stem: 'Alongside hospital-to-hospital work, this operation is also called on for:',
+    options: [
+      'search and rescue',
+      'bariatric transports and long-distance moves well outside the metro',
+      'air ambulance transfers',
+      'home health visits',
+    ],
+    answer: 1,
+  },
+  {
     code: 'ops-normal-call',
     ref: 'what-we-do',
     stem: 'Which of these is a normal call for this operation?',
@@ -392,14 +404,31 @@ export const OPERATIONS = [
   {
     code: 'ops-scene-calls',
     ref: 'not-911',
-    stem: 'How often will you be dispatched to a scene — a wreck, a shooting, a house call?',
+    stem: 'Day to day, 911 scene calls on this operation are:',
     options: [
-      'roughly half the time',
-      'a few times a shift',
-      'this operation does not respond to scenes',
-      'only when the 911 service asks for help',
+      'the majority of the work',
+      'a few every shift, mixed in among the transfers',
+      'not what the job is made of — the exceptions are event standby and mutual aid when a neighboring 911 system asks',
+      'given to crews once they have been released from field training',
     ],
     answer: 2,
+  },
+  {
+    // Added after the operation's public service list turned up standby and
+    // mutual-aid work. The briefing used to claim no scene response at all,
+    // which would have marked a candidate who had read our own web page wrong
+    // — and told them, on the way in, that we do not know our own operation.
+    code: 'ops-standby-aid',
+    ref: 'not-911',
+    stem:
+      'Standby coverage at the Kansas Speedway, and responding on mutual aid when a neighboring 911 system asks for help:',
+    options: [
+      'are the main work of this operation',
+      'both happen, and both are the exception rather than what a shift is made of',
+      'are handled by a different company',
+      'are how crews transfer onto a 911 operation',
+    ],
+    answer: 1,
   },
   {
     code: 'ops-lights-sirens',
