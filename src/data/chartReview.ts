@@ -190,10 +190,12 @@ const CQM: ReviewSection = {
     },
     {
       id: 'cqm.careLevel',
+      // Two values only, by decision. The dropdown came through empty in the
+      // Ninth Brain PDF export, so the earlier list here was a guess that also
+      // carried Critical Care and Other.
       prompt: 'Responding Unit Care Level',
       kind: 'select',
-      options: ['BLS', 'ALS', 'Critical Care', 'Other'],
-      otherOption: 'Other',
+      options: ['BLS', 'ALS'],
     },
   ],
 }
