@@ -15,9 +15,9 @@
 // THE THREE SECTIONS ARE DIFFERENT KINDS OF QUESTION — see the reasoning in
 // src/data/neopSelection.ts.
 //
-//   clinical    EMT scope on purpose. EMT and paramedic applicants sit the
-//               same section, and a paramedic-only item would mark an EMT down
-//               for the certification they hold rather than the work they'd do.
+//   clinical    NEWLY-QUALIFIED EMT scope, and nothing above it or beside it:
+//               no paramedic content, and nothing specific to interfacility
+//               work. It is a floor, not a ranking.
 //
 //   operations  Every item names the briefing section it comes from. That
 //               `ref` is enforced: an operations item whose answer is not in
@@ -29,44 +29,73 @@
 //               exam_submit skips it. There is no arrangement of edits to this
 //               file that quietly turns a preference item into a graded one.
 //
-// House rules for items, learned from the AEMT bank's reviewer pass:
+// House rules for SCORED items, learned from the AEMT bank's reviewer pass:
 //   - Exactly four options. One defensible answer, three plainly wrong ones.
 //   - No "all of the above", no negatives ("which is NOT"), no trick stems.
 //   - Nothing whose correct answer depends on a protocol that can change.
 //   - `code` is stable and unique. Corrections key on it; never reuse one.
+//
+// AND THE RULE THAT IS EASY TO GET WRONG: reword a stem or an option freely
+// under the same code — that is what the upsert is for, and it corrects the
+// item in place without orphaning an attempt that served it. But if you REORDER
+// the options, or change what an option MEANS, give the item a NEW code.
+// exam_attempts.responses stores the option INDEX, and the preference signals
+// are positional: the same stored 0 would quietly become a different answer,
+// and an interviewer would read a candidate's file wrong with nothing to see.
+// fit-paperwork became fit-charts for exactly this reason.
+//
+// The preference items invert the first rule on purpose — FOUR defensible
+// answers and no key at all. Their rules are in the block above them.
 // ---------------------------------------------------------------------------
 
-/** EMT-scope patient care. Draw: 12. */
+/**
+ * Patient care at NEWLY-QUALIFIED EMT level, and nothing beyond it.
+ *
+ * Two constraints, and they are both narrower than they look.
+ *
+ * NOT ABOVE EMT SCHOOL. Every item here is something a candidate was taught
+ * and tested on to get the card in their wallet. No paramedic content, no
+ * 12-leads, no drips, no ventilators — an applicant may hold either
+ * certification and both sit the same section, so paramedic material would
+ * mark an EMT down for the certificate they hold rather than the person they
+ * are. It would also measure the wrong thing: this section is a floor, not a
+ * ranking. We are asking whether somebody who just qualified still knows what
+ * they were taught, because that is what we can fairly expect of an applicant
+ * and everything else is what orientation and field training are for.
+ *
+ * NOTHING SPECIFIC TO OUR OPERATION. Interfacility content is out — no lines
+ * and drains to check before a move, no report taken from an ICU nurse, no
+ * oxygen planned for a two-hour leg. Those were unfair in a way that was easy
+ * to miss: they look clinical, so a candidate who missed them reads as weak on
+ * patient care when what they actually lacked was a job they have not been
+ * given yet. What we want to know about our operation, we ask in the
+ * operations section, from a briefing we handed them first.
+ *
+ * Draw: 12.
+ */
 export const CLINICAL = [
   {
-    code: 'clin-deteriorates',
-    domain: 'Transport care',
-    stem: 'Twenty minutes into a transport your patient becomes unresponsive. Your first action is to:',
+    code: 'clin-scene-safety',
+    domain: 'Assessment',
+    stem: 'You arrive to find a scene that may not be safe. Your first priority is:',
     options: [
-      'call the receiving facility for instructions',
-      'check the airway and breathing',
-      'note the time in your report',
-      'ask your partner to drive faster',
+      'reaching the patient quickly',
+      'your own safety and your partner’s',
+      'a set of vital signs',
+      'a report to dispatch',
     ],
     answer: 1,
   },
   {
-    code: 'clin-trend',
+    code: 'clin-bsi',
     domain: 'Assessment',
-    stem: "Over three sets of vitals your patient's systolic blood pressure has fallen from 130 to 118 to 104, and the pulse has risen each time. The right reading of this is:",
+    stem: 'Standard precautions — gloves and other personal protective equipment — are used:',
     options: [
-      'nothing to act on until a reading is actually abnormal',
-      'a trend that matters now, and is worth acting on and reporting early',
-      'a normal response to the movement of the vehicle',
-      'evidence that the cuff size is wrong',
+      'on every patient contact',
+      'only where an infection is known about',
+      'only where there is visible blood',
+      'at the crew member’s discretion',
     ],
-    answer: 1,
-  },
-  {
-    code: 'clin-unstable-reassess',
-    domain: 'Assessment',
-    stem: 'An unstable patient should be reassessed at least every:',
-    options: ['5 minutes', '15 minutes', '30 minutes', 'once on arrival'],
     answer: 0,
   },
   {
@@ -82,8 +111,34 @@ export const CLINICAL = [
     answer: 1,
   },
   {
-    code: 'clin-early-shock',
+    code: 'clin-adult-hr',
     domain: 'Assessment',
+    stem: 'A normal resting heart rate for an adult is:',
+    options: ['40 to 60', '60 to 100', '100 to 120', '120 to 140'],
+    answer: 1,
+  },
+  {
+    code: 'clin-unstable-reassess',
+    domain: 'Assessment',
+    stem: 'An unstable patient should be reassessed at least every:',
+    options: ['5 minutes', '15 minutes', '30 minutes', 'once on arrival'],
+    answer: 0,
+  },
+  {
+    code: 'clin-trend',
+    domain: 'Assessment',
+    stem: 'Across three sets of vitals your patient’s systolic blood pressure has fallen from 130 to 118 to 104, and the pulse has risen each time. This is:',
+    options: [
+      'nothing to act on until a reading is actually abnormal',
+      'a trend worth acting on and reporting now',
+      'an expected response to being moved',
+      'a sign the cuff is the wrong size',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-early-shock',
+    domain: 'Bleeding & shock',
     stem: 'Early (compensated) shock in an adult typically presents as:',
     options: [
       'a low blood pressure with a slow pulse',
@@ -94,15 +149,94 @@ export const CLINICAL = [
     answer: 1,
   },
   {
-    code: 'clin-position-resp',
-    domain: 'Airway',
-    stem: 'A conscious patient in respiratory distress, with no trauma, is best transported:',
-    options: ['flat on their back', 'head-down', 'sitting upright', 'face-down'],
+    code: 'clin-bleeding-first',
+    domain: 'Bleeding & shock',
+    stem: 'The first action for severe bleeding from an arm or a leg is:',
+    options: [
+      'elevate the limb',
+      'firm direct pressure on the wound',
+      'a pressure point above the wound',
+      'a cold pack over the dressing',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-tourniquet',
+    domain: 'Bleeding & shock',
+    stem: 'A tourniquet on a limb is indicated when:',
+    options: [
+      'any bleeding is seen',
+      'direct pressure has failed to control the bleeding',
+      'thirty minutes of pressure have passed',
+      'the patient is on a blood thinner',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-airway-first',
+    domain: 'Airway & breathing',
+    stem: 'Your patient becomes unresponsive. Your first action is to:',
+    options: [
+      'call for orders',
+      'check the airway and breathing',
+      'note the time',
+      'get a blood pressure',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-opa-gag',
+    domain: 'Airway & breathing',
+    stem: 'An oropharyngeal airway (OPA) should not be used in a patient who:',
+    options: [
+      'is apneic',
+      'still has a gag reflex',
+      'is deeply unresponsive',
+      'has an oxygen saturation below 90%',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-npa-size',
+    domain: 'Airway & breathing',
+    stem: 'A nasopharyngeal airway is sized by measuring from the:',
+    options: [
+      'corner of the mouth to the earlobe',
+      'nostril to the earlobe',
+      'nose to the sternal notch',
+      'lips to the chin',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-vent-rate',
+    domain: 'Airway & breathing',
+    stem: 'An adult who is not breathing but has a pulse should be ventilated at about one breath every:',
+    options: ['3 seconds', '5 to 6 seconds', '10 seconds', '15 seconds'],
+    answer: 1,
+  },
+  {
+    code: 'clin-chest-rise',
+    domain: 'Airway & breathing',
+    stem: 'The best sign that your ventilations are adequate is:',
+    options: [
+      'air escaping around the mask',
+      'visible chest rise with each breath',
+      'the stomach rising with each breath',
+      'increasing resistance to each breath',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-nrb-flow',
+    domain: 'Airway & breathing',
+    stem: 'A non-rebreather mask should be run at a flow rate of:',
+    options: ['2 L/min', '4 to 6 L/min', '12 to 15 L/min', '25 L/min'],
     answer: 2,
   },
   {
     code: 'clin-hypoxia',
-    domain: 'Airway',
+    domain: 'Airway & breathing',
     stem: 'Hypoxia is best defined as:',
     options: [
       'too much carbon dioxide in the blood',
@@ -113,15 +247,20 @@ export const CLINICAL = [
     answer: 1,
   },
   {
-    code: 'clin-nrb-flow',
-    domain: 'Airway',
-    stem: 'A non-rebreather mask should be run at a flow rate of:',
-    options: ['2 L/min', '4 to 6 L/min', '12 to 15 L/min', '25 L/min'],
-    answer: 2,
+    code: 'clin-copd-oxygen',
+    domain: 'Airway & breathing',
+    stem: 'A patient with a long history of COPD is clearly hypoxic. You should:',
+    options: [
+      'withhold oxygen because of the COPD',
+      'give oxygen and titrate it to their saturation',
+      'give oxygen only if they ask for it',
+      'leave the decision to the hospital',
+    ],
+    answer: 1,
   },
   {
     code: 'clin-pulseox-co',
-    domain: 'Airway',
+    domain: 'Airway & breathing',
     stem: 'A pulse oximeter can read falsely high in a patient who has:',
     options: [
       'a fever',
@@ -132,153 +271,234 @@ export const CLINICAL = [
     answer: 1,
   },
   {
-    code: 'clin-copd-oxygen',
-    domain: 'Airway',
-    stem: 'A patient with a long history of COPD is clearly hypoxic. You should:',
-    options: [
-      'withhold oxygen because of the COPD history',
-      'give oxygen and titrate it to their oxygen saturation',
-      'give oxygen only if they ask for it',
-      'wait until arrival and let the receiving facility decide',
-    ],
-    answer: 1,
+    code: 'clin-position-resp',
+    domain: 'Airway & breathing',
+    stem: 'A conscious patient in respiratory distress, with no trauma, is best positioned:',
+    options: ['flat on their back', 'head down', 'sitting upright', 'face down'],
+    answer: 2,
   },
   {
     code: 'clin-suction',
-    domain: 'Airway',
-    stem: 'A patient on your cot vomits and is unable to clear it. Your first action is to:',
+    domain: 'Airway & breathing',
+    stem: 'A patient vomits and cannot clear it themselves. Your first action is to:',
     options: [
-      'raise the head of the cot and continue',
+      'raise the head of the cot and carry on',
       'clear the airway with suction and position the patient to protect it',
-      'give oxygen by non-rebreather',
-      'document the time and notify the receiving nurse',
+      'apply a non-rebreather mask',
+      'note the time and tell the receiving nurse',
     ],
     answer: 1,
   },
   {
-    code: 'clin-glucose',
+    code: 'clin-recovery-position',
+    domain: 'Airway & breathing',
+    stem: 'An unresponsive adult is breathing adequately and has no sign of injury. They are best placed:',
+    options: [
+      'flat on their back',
+      'on their side, in the recovery position',
+      'sitting fully upright',
+      'face down',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-peds-airway',
+    domain: 'Airway & breathing',
+    stem: 'Compared with an adult, a small child’s airway has:',
+    options: [
+      'a smaller tongue and a wider airway',
+      'a larger tongue and a narrower airway',
+      'a stiffer epiglottis',
+      'a longer, more rigid trachea',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-cpr-rate',
+    domain: 'Cardiac arrest',
+    stem: 'Adult chest compressions are delivered at a rate of:',
+    options: [
+      '60 to 80 per minute',
+      '80 to 100 per minute',
+      '100 to 120 per minute',
+      '140 to 160 per minute',
+    ],
+    answer: 2,
+  },
+  {
+    code: 'clin-cpr-depth',
+    domain: 'Cardiac arrest',
+    stem: 'Adult chest compressions should be at least:',
+    options: ['1 inch deep', '1.5 inches deep', '2 inches deep', '3 inches deep'],
+    answer: 2,
+  },
+  {
+    code: 'clin-aed',
+    domain: 'Cardiac arrest',
+    stem: 'An AED should be applied to a patient who is:',
+    options: [
+      'unresponsive with no pulse',
+      'unresponsive with a pulse',
+      'responsive with chest pain',
+      'having a seizure',
+    ],
+    answer: 0,
+  },
+  {
+    code: 'clin-cpr-quality',
+    domain: 'Cardiac arrest',
+    stem: 'High-quality CPR depends most on:',
+    options: [
+      'frequent pauses to check for a pulse',
+      'full chest recoil and few interruptions',
+      'shallow, very fast compressions',
+      'breaths given before compressions',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-glucose-check',
     domain: 'Medical',
-    stem: 'A patient becomes confused and sweaty during a transport. The most rapidly correctable cause to check for is:',
-    options: ['a stroke', 'a low blood glucose', 'a brain tumour', 'a migraine'],
+    stem: 'A patient becomes confused and sweaty. The most rapidly correctable cause to check for is:',
+    options: ['a stroke', 'a low blood glucose', 'a brain tumor', 'a migraine'],
+    answer: 1,
+  },
+  {
+    code: 'clin-oral-glucose',
+    domain: 'Medical',
+    stem: 'A hypoglycemic patient is awake and able to swallow. The appropriate treatment is:',
+    options: [
+      'nothing by mouth',
+      'oral glucose',
+      'a large drink of water',
+      'waiting for the hospital',
+    ],
     answer: 1,
   },
   {
     code: 'clin-anaphylaxis',
     domain: 'Medical',
-    stem: 'Hives, wheezing and a falling blood pressure shortly after a medication is given indicate:',
-    options: [
-      'an anxiety attack',
-      'anaphylaxis',
-      'a fainting episode',
-      'a normal reaction to a first dose',
-    ],
+    stem: 'Hives, wheezing and a falling blood pressure shortly after a bee sting indicate:',
+    options: ['an anxiety attack', 'anaphylaxis', 'a fainting episode', 'a local reaction'],
     answer: 1,
   },
   {
     code: 'clin-stroke-lkw',
     domain: 'Medical',
-    stem: 'For a stroke patient being transferred for treatment, the single time the receiving team most needs from you is:',
+    stem: 'For a patient with stroke signs, the single most important time to establish is:',
     options: [
-      'when the transfer was requested',
+      'when the family called',
       'when the patient was last known well',
-      'when you arrived at the sending facility',
-      'when the vital signs were last taken',
+      'when you arrived',
+      'when the vital signs were taken',
     ],
     answer: 1,
   },
   {
-    code: 'clin-lines-before-move',
-    domain: 'Moving patients',
-    stem: 'Before moving a patient from a hospital bed onto your cot, you should:',
+    code: 'clin-seizure-status',
+    domain: 'Medical',
+    stem: 'A seizure lasting more than five minutes, or repeated seizures without recovery in between, is:',
     options: [
-      'disconnect every line so nothing can catch',
-      'check that every line, tube and drain is free and long enough for the move',
-      'move first and sort the lines out once the patient is across',
-      'ask the patient to hold their own lines',
+      'a normal febrile seizure',
+      'status epilepticus, and an emergency',
+      'a fainting episode',
+      'expected in anybody with epilepsy',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-aspirin-why',
+    domain: 'Medical',
+    stem: 'Aspirin is given in suspected cardiac chest pain in order to:',
+    options: [
+      'relieve the pain',
+      'reduce clumping of platelets',
+      'slow the heart rate',
+      'raise the blood pressure',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-nitro-check',
+    domain: 'Medical',
+    stem: 'Before assisting a patient with their own prescribed nitroglycerin, an important thing to ask about is:',
+    options: [
+      'any recent erectile-dysfunction medication',
+      'whether they have eaten today',
+      'their family history',
+      'their tetanus status',
+    ],
+    answer: 0,
+  },
+  {
+    code: 'clin-spine',
+    domain: 'Trauma',
+    stem: 'A patient has fallen and reports neck pain. While you assess them you should:',
+    options: [
+      'have them turn their head to test the movement',
+      'limit movement of the head and neck',
+      'sit them straight up',
+      'walk them to the cot',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'clin-refusal',
+    domain: 'Patient care',
+    stem: 'An alert, oriented adult refuses transport. You should:',
+    options: [
+      'transport them anyway, for their own good',
+      'explain the risks, document the refusal, and respect their decision',
+      'leave without saying anything further',
+      'have a family member sign for them',
     ],
     answer: 1,
   },
   {
     code: 'clin-heavy-lift',
-    domain: 'Moving patients',
-    stem: 'A patient is heavier than the two of you can move safely. The right thing to do is:',
+    domain: 'Lifting & moving',
+    stem: 'A patient is heavier than the two of you can move safely. You should:',
     options: [
-      'move quickly with the two of you to limit the strain',
-      'get more hands and the right transfer equipment, even though it delays departure',
-      'ask the patient to take their own weight',
-      'drag the patient across on the bed sheet',
+      'move fast, to keep the strain brief',
+      'get more hands and the right equipment, even though it takes longer',
+      'have the patient take their own weight',
+      'drag them across on the bed sheet',
     ],
     answer: 1,
   },
   {
     code: 'clin-straps',
-    domain: 'Moving patients',
-    stem: 'A patient is being transported on the cot. The cot straps should be:',
+    domain: 'Lifting & moving',
+    stem: 'A patient is on the cot for transport. The straps should be:',
     options: [
-      'all fastened, including the shoulder straps, for the whole transport',
-      'fastened only across the waist so the patient can sit up',
-      'left loose for a short trip',
+      'all fastened, including the shoulder straps',
+      'across the waist only, so they can sit up',
+      'left loose on a short trip',
       'fastened only if the patient is unresponsive',
     ],
     answer: 0,
   },
   {
-    code: 'clin-confused-cot',
-    domain: 'Moving patients',
-    stem: 'You are moving a confused patient from a nursing facility. The most important safety measure is:',
+    code: 'clin-confused-safety',
+    domain: 'Lifting & moving',
+    stem: 'You are moving a confused patient. The most important safety measure is:',
     options: [
-      'to keep the patient restrained at the wrists',
-      'to keep the rails up, the straps secured, and the patient never left unattended',
-      'to transport with a family member at the head of the cot',
-      'to sedate the patient before departure',
+      'restraining their wrists',
+      'rails up, straps secured, and never leaving them unattended',
+      'a family member at the head of the cot',
+      'sedation before you move',
     ],
     answer: 1,
   },
   {
-    code: 'clin-precautions',
-    domain: 'Infection control',
-    stem: 'A patient is on contact precautions at the sending facility. During and after the transport you should:',
+    code: 'clin-handover',
+    domain: 'Patient care',
+    stem: 'Your verbal report at the hospital should always include:',
     options: [
-      'use the same precautions the facility uses, and disinfect the cot and equipment afterwards',
-      'treat the transport normally, since precautions apply only in the building',
-      'use a mask alone',
-      'ask the facility to send the patient without any precautions',
-    ],
-    answer: 0,
-  },
-  {
-    code: 'clin-report-received',
-    domain: 'Handover',
-    stem: 'You are taking report from the sending nurse on an ICU patient. The most useful question you can add is:',
-    options: [
-      'how long the patient has been in the hospital',
-      'what has changed in the last hour, and what they are worried about',
-      'who the admitting physician was',
-      'whether the family has been notified',
-    ],
-    answer: 1,
-  },
-  {
-    code: 'clin-handover-give',
-    domain: 'Handover',
-    stem: 'At the receiving facility, your verbal handover should always include:',
-    options: [
-      'only what has changed since the sending facility called',
-      'the patient, why they were transferred, and anything that changed during the transport',
-      'the route you took and the transport time',
+      'the route you took',
+      'the patient, the problem, and anything that changed while they were with you',
+      'only what the family told you',
       'nothing — the written report covers it',
-    ],
-    answer: 1,
-  },
-  {
-    code: 'clin-dnr-paperwork',
-    domain: 'Documentation',
-    stem: 'A patient with a valid do-not-resuscitate order is being transferred. Before leaving the sending facility you should make sure that:',
-    options: [
-      'the order is left at the sending facility',
-      'the original order travels with the patient',
-      'the order is void once the patient is in your care',
-      'the family carries the order separately',
     ],
     answer: 1,
   },
@@ -287,36 +507,24 @@ export const CLINICAL = [
     domain: 'Documentation',
     stem: 'The best time to write your patient care report is:',
     options: [
-      'at the end of the shift, when all the calls can be written together',
-      'as soon as practical after the transport, while the detail is accurate',
+      'at the end of the shift, all together',
+      'as soon as practical, while the detail is accurate',
       'only if something went wrong',
-      'before the transport, so it is ready',
+      'before the call, so it is ready',
     ],
     answer: 1,
   },
   {
     code: 'clin-chart-honest',
     domain: 'Documentation',
-    stem: 'You realize on arrival that you missed a set of vital signs during a long transport. Your report should:',
+    stem: 'You realize you missed a set of vital signs. Your report should:',
     options: [
       'record what was actually done, including the gap',
       'estimate the missing set from the readings either side',
       'leave the section blank with no comment',
-      'record the set taken on arrival at the earlier time',
+      'record the later set at the earlier time',
     ],
     answer: 0,
-  },
-  {
-    code: 'clin-oxygen-supply',
-    domain: 'Equipment',
-    stem: 'Before setting off on a two-hour transport with a patient on oxygen, you should confirm that:',
-    options: [
-      'the cylinder is above half full',
-      'there is enough oxygen for the expected journey plus a reserve for delays',
-      'a spare mask is on board',
-      'the receiving facility has oxygen available',
-    ],
-    answer: 1,
   },
   {
     code: 'clin-equipment-check',
@@ -325,8 +533,8 @@ export const CLINICAL = [
     options: [
       'at the start of every shift, before it is needed',
       'when a call comes in for a patient who needs it',
-      'weekly, by the crew assigned to the truck',
-      'only after it has been used',
+      'weekly',
+      'after it has been used',
     ],
     answer: 0,
   },
@@ -385,8 +593,8 @@ export const OPERATIONS = [
   {
     code: 'ops-volume',
     ref: 'what-we-do',
-    stem: 'The operation runs roughly how many transports a month?',
-    options: ['about a hundred', 'about a thousand', 'about ten thousand', 'it varies too much to say'],
+    stem: 'The operation completes roughly how many transports each month?',
+    options: ['about 100', 'about 1,000', 'about 10,000', 'it varies too much to say'],
     answer: 1,
   },
   {
@@ -394,12 +602,36 @@ export const OPERATIONS = [
     ref: 'what-we-do',
     stem: 'When you arrive at the sending facility, the patient has usually already been:',
     options: [
-      'assessed and diagnosed, and started on a plan by a physician you will not meet',
+      'assessed, diagnosed, and started on a treatment plan',
       'discharged from the care of the sending facility',
       'assessed by the crew who transported them in',
       'left for you to work up from the beginning',
     ],
     answer: 0,
+  },
+  {
+    code: 'ops-our-responsibility',
+    ref: 'what-we-do',
+    stem: 'The briefing describes our responsibility for a patient already on a treatment plan as:',
+    options: [
+      'driving them safely to the address on the paperwork',
+      'to understand that plan, continue it safely, recognize when something changes, and hand the patient over accurately',
+      'starting our own treatment plan once the doors close',
+      'waiting for the receiving facility to tell us what to do',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'ops-what-could-change',
+    ref: 'not-911',
+    stem: 'The briefing says the question on this job is usually not "What am I walking into?" but:',
+    options: [
+      '"How quickly can we clear?"',
+      '"What could change during this trip, and am I prepared for it?"',
+      '"Who is going to write this chart?"',
+      '"Is this transport really necessary?"',
+    ],
+    answer: 1,
   },
   {
     code: 'ops-scene-calls',
@@ -448,7 +680,7 @@ export const OPERATIONS = [
     stem: 'Before you touch the truck, you will usually know:',
     options: [
       'nothing beyond an address',
-      'the diagnosis, what is infusing or attached, and where the patient is going',
+      'their name, diagnosis, medications, medical devices and destination',
       'the patient name only',
       'whichever details the family has given dispatch',
     ],
@@ -460,7 +692,7 @@ export const OPERATIONS = [
     stem: 'The briefing describes the main risk of this job as:',
     options: [
       'not knowing what you will find when you arrive',
-      'being solely responsible for an already-sick, complicated patient in a moving truck, with no help arriving',
+      'being responsible for a medically complex patient for 45 minutes or longer, with more help not immediately available',
       'the number of miles driven each shift',
       'exposure to violence at the roadside',
     ],
@@ -479,24 +711,28 @@ export const OPERATIONS = [
     answer: 1,
   },
   {
-    code: 'ops-mcs-teams',
+    // Was ops-mcs-teams, which keyed to the claim that these patients travel
+    // with their own specialist teams. The operation's own briefing does not
+    // say that, so the item asks what the briefing does say. New code, because
+    // the meaning of the keyed option changed — see the house rule above.
+    code: 'ops-mcs-patients',
     ref: 'patients',
-    stem: 'Patients on mechanical circulatory support — a balloon pump, Impella or ECMO:',
+    stem: 'Patients receiving mechanical circulatory support — an intra-aortic balloon pump, Impella or ECMO — are:',
     options: [
-      'are managed by our crew alone once the doors close',
-      'are familiar to our crews and travel with their own specialist teams',
-      'are never moved by ground ambulance',
-      'are the most common patient we transport',
+      'never moved by ground ambulance',
+      'among the patients this operation may transport',
+      'the most common patient we transport',
+      'transported only by a different company',
     ],
     answer: 1,
   },
   {
     code: 'ops-stable-majority',
     ref: 'patients',
-    stem: 'Stable patients — the ones who need a safe ride and decent manners and nothing else — are:',
+    stem: 'The briefing describes the stable transports — the patient who needs no intervention — as:',
     options: [
-      'a small share of the work',
-      'most of the work',
+      'filler between the calls that matter',
+      'a major part of the job, and something that matters to the person on the stretcher',
       'handled by a separate wheelchair service',
       'transported only on weekends',
     ],
@@ -513,6 +749,18 @@ export const OPERATIONS = [
       'switch every vented patient to a bag-valve mask for the trip',
     ],
     answer: 0,
+  },
+  {
+    code: 'ops-bring-not-train',
+    ref: 'skills',
+    stem: 'The briefing says we can train people on our equipment and processes. What it asks them to bring is:',
+    options: [
+      'previous critical-care transport experience',
+      'reliability, sound judgment, intellectual honesty, and a willingness to ask when they do not know',
+      'a paramedic certification',
+      'a fixed number of years in EMS',
+    ],
+    answer: 1,
   },
   {
     code: 'ops-injury-source',
@@ -558,14 +806,18 @@ export const OPERATIONS = [
     answer: 1,
   },
   {
-    code: 'ops-paperwork-warning',
+    // Was ops-paperwork-warning, keyed to "you are looking at the wrong
+    // operation". The operation's own wording is narrower and better, and a
+    // candidate who read it carefully would have been marked wrong by the old
+    // item. New code: the keyed option no longer means what it meant.
+    code: 'ops-paperwork-serious',
     ref: 'skills',
-    stem: 'The briefing says that an applicant who dislikes paperwork:',
+    stem: 'On documentation, the briefing asks that:',
     options: [
-      'will get used to it within a few months',
-      'is looking at the wrong operation, because here documentation is part of the clinical work',
-      'can have charts written by their partner',
-      'should apply as an EMT rather than a paramedic',
+      'you enjoy paperwork',
+      'you take it seriously, whether or not you enjoy it, because here it is part of the clinical work',
+      'you keep it brief so the crew stays available',
+      'you leave it to whichever partner is faster at it',
     ],
     answer: 1,
   },
@@ -587,7 +839,7 @@ export const OPERATIONS = [
     stem: 'Transport distances on this operation:',
     options: [
       'are all short trips across the metro',
-      'range from twenty minutes across town to journeys of hours each way',
+      'some take 20 minutes, others several hours each way',
       'are capped at one hour by policy',
       'are always within a single county',
     ],
@@ -599,9 +851,21 @@ export const OPERATIONS = [
     stem: 'You finish a shift having moved several patients well and having used none of your emergency skills. The briefing describes that as:',
     options: [
       'a slow day that should be reported to a supervisor',
-      'a normal day, and a genuinely useful one',
+      'doing the job well — and something that takes discipline and sustained attention',
       'a sign you were assigned the wrong truck',
       'unusual on this operation',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'ops-only-emergencies',
+    ref: 'shift',
+    stem: 'On somebody for whom a shift only feels worthwhile when they use emergency procedures, the briefing says:',
+    options: [
+      'they will adjust within a few months',
+      'this role will probably not be a good fit',
+      'they should apply as a paramedic rather than an EMT',
+      'they will be given the busier trucks',
     ],
     answer: 1,
   },
@@ -611,7 +875,7 @@ export const OPERATIONS = [
     stem: 'On most calls in this operation, in someone else’s ICU or nursing facility, you are:',
     options: [
       'in charge of the scene, as on a 911 call',
-      'a guest in their building',
+      'a guest in someone else’s workplace',
       'responsible for the unit until you leave',
       'there only to collect paperwork',
     ],
@@ -630,12 +894,24 @@ export const OPERATIONS = [
     answer: 1,
   },
   {
+    code: 'ops-no-supervisor',
+    ref: 'facilities',
+    stem: 'Most of the time on this operation, no supervisor is standing beside you. The briefing says what follows from that is:',
+    options: [
+      'crews are checked on by radio instead',
+      'we have to be able to trust how you treat patients, families and facility staff when nobody from AMR is in the room',
+      'decisions can wait until a supervisor is reached',
+      'new employees are paired with a supervisor for their first year',
+    ],
+    answer: 1,
+  },
+  {
     code: 'ops-hallway-sjt',
     ref: 'facilities',
     stem: 'An ICU nurse keeps you waiting forty minutes and is short with you when she finally gives report. The response that fits this operation is to:',
     options: [
       'match her tone so it does not happen again',
-      'stay courteous, get the report you need for the patient, and raise any real problem afterwards through your supervisor',
+      'stay courteous and get the report the patient needs — courtesy here supports patient care and is part of the job',
       'say nothing at the time and leave the incident out of the record',
       'call dispatch from the hallway to have the transport reassigned',
     ],
@@ -650,6 +926,18 @@ export const OPERATIONS = [
       'critical care, field training, education and quality review',
       'dispatch and communications',
       'hospital employment',
+    ],
+    answer: 1,
+  },
+  {
+    code: 'ops-advancement',
+    ref: 'growth',
+    stem: 'Field training officer, preceptor, instructor and quality-review roles here are earned through:',
+    options: [
+      'time in the position',
+      'clinical performance, dependable work, strong documentation, and the trust of the people working beside you',
+      'a written examination',
+      'seniority within the company',
     ],
     answer: 1,
   },
@@ -671,7 +959,7 @@ export const OPERATIONS = [
     stem: 'Taking a seat here in order to move across to a 911 operation later is:',
     options: [
       'the usual route people take, and it works',
-      'not how it works — those are separate operations with their own postings, and nobody moves across by waiting',
+      'not how it works — those are separate operations with their own positions and hiring, and this job is not a waiting list for a 911 opening',
       'possible after twelve months of service',
       'decided by seniority each January',
     ],
@@ -702,12 +990,24 @@ export const OPERATIONS = [
     answer: 0,
   },
   {
+    code: 'ops-routine-attention',
+    ref: 'expect',
+    stem: 'The attention this operation expects on a routine transport is:',
+    options: [
+      'proportionate — less than on a critical one',
+      'the same level you bring to a critical one',
+      'whatever the schedule allows that day',
+      'set by the sending facility',
+    ],
+    answer: 1,
+  },
+  {
     code: 'ops-honest-chart',
     ref: 'expect',
     stem: 'The standard the briefing sets for your documentation is that it is:',
     options: [
       'complete enough to satisfy billing',
-      'honest, including the parts that do not flatter you',
+      'accurate and honest, including your own mistakes',
       'brief, so the crew stays available',
       'written to match what the sending facility recorded',
     ],
@@ -743,7 +1043,7 @@ export const OPERATIONS = [
     stem: 'You are released to work as a crew member:',
     options: [
       'on a fixed date at the end of orientation',
-      'after roughly twenty to thirty patient contacts, when your field training officer signs you off',
+      'after roughly 20 to 30 patient contacts, and only once you have shown you can do the work safely and consistently',
       'once you have completed ninety days',
       'as soon as the classroom week finishes',
     ],
@@ -754,77 +1054,163 @@ export const OPERATIONS = [
 /**
  * Preference items. `answer: null` — unscored, permanently.
  *
+ * WHAT THESE ARE FOR, precisely: whether the applicant is heading for a 911 or
+ * a fire operation and using this seat to wait. Not "are they enthusiastic",
+ * not "will they be nice about it" — that one thing.
+ *
+ * AND THE ANSWERS MUST NOT GIVE THE GAME AWAY. The first version of this
+ * section asked things like "six months in, a 911 position opens at the same
+ * pay — you take it or stay?" Every option was labelled with its own verdict.
+ * That is not a question, it is a prompt sheet: it tells a candidate exactly
+ * what we are afraid of and exactly which box to tick, and the ones most
+ * willing to tell us what we want to hear tick it fastest. It selected for
+ * compliance and against candor, which is the opposite of the intent.
+ *
+ * So these are built to four rules:
+ *
+ *   1. EVERY OPTION IS A VIABLE ANSWER — and the test is sharper than it
+ *      sounds: would a candidate say this one out loud, to your face, without
+ *      embarrassment? An option that reads as an admission ("nothing, I never
+ *      bothered") is not a fourth answer, it is a decoy; and a candidate who
+ *      can see it is a decoy can see the shape of the whole item, which is the
+ *      thing this section is built to avoid. Six options failed that test on
+ *      the first pass and were rewritten to say the same thing without the
+ *      flinch. If an option is weak, rewrite the option — never the key.
+ *   2. EVIDENCE BEATS INTENTION. What somebody has already spent their own
+ *      weekends and their own money on is a fact about them; what they intend
+ *      is a fact about this conversation. Several items ask what they have
+ *      DONE.
+ *   3. FORCED CHOICE BETWEEN TWO GOODS. The signal is what they are willing to
+ *      give up, which is much harder to fake than what they claim to want.
+ *   4. NO ITEM DECIDES ANYTHING. One answer is noise. The interviewer is shown
+ *      a tally across the whole section and told to treat it as a pattern, not
+ *      a finding.
+ *
+ * THE ONE THING THAT STILL TELLS THEM: the briefing. It says plainly that this
+ * is not 911 work and that nobody moves onto a scene operation by waiting, so
+ * an applicant reads that before answering any of this. That is a deliberate
+ * trade and not an oversight — the briefing's job is to let people withdraw
+ * before we both spend the day, which is worth more than a clean measurement.
+ * It is also exactly why these items lean on what a candidate has already
+ * done: that half cannot be re-decided after reading a web page.
+ *
  * Every candidate is served all of them (no draw), because an interviewer
- * comparing two candidates needs them to have been asked the same questions.
- * The interview probe and the reading of each option live in
- * src/data/neopSelection.ts, positionally by option order — if you reorder the
- * options here, reorder the signals there. check-neop-exam.mjs enforces the
- * count but cannot know your intent about the order.
+ * comparing two candidates needs them to have answered the same questions.
+ * Option display order is shuffled per attempt by ExamPage, so position carries
+ * nothing either way.
+ *
+ * The probe and the reading of each option live in src/data/neopSelection.ts,
+ * positionally by option order — if you reorder the options here, reorder the
+ * signals there. check-neop-exam.mjs enforces the count, not your intent.
  */
 export const FIT = [
   {
-    code: 'fit-future',
-    stem: 'Three years from now, the job you would most want to be doing is:',
+    code: 'fit-own-time',
+    stem: 'Which of these have you done in the last two years, on your own time or at your own expense?',
     options: [
-      'interfacility and critical-care transport — the work described above',
-      '911 scene response, at a fire department or a municipal EMS service',
-      'a hospital, clinic or flight role, with EMS as the step toward it',
-      'I do not know yet — I want to see more of the work first',
+      'A course on the sicker end of patient care — critical care, ventilators, cardiac',
+      'A fire academy course, or a department’s entrance or physical ability test',
+      'A CPR, instructor or teaching certification',
+      'None of these — the training I have done has come through work',
     ],
     answer: null,
   },
   {
-    code: 'fit-draw',
-    stem: 'What drew you to EMS in the first place?',
+    code: 'fit-paid-class',
+    stem: 'We will pay for one course of your choosing and give you the days off for it. You pick:',
     options: [
-      'emergencies — being the person who goes toward them',
-      'looking after sick people, wherever they happen to be',
-      'a stable job with a schedule and somewhere to go in it',
-      'it is a step toward another healthcare career',
+      'Vehicle extrication and rescue',
+      'Field training officer and preceptor school',
+      'Ventilators, pumps and critical care transport',
+      'Advanced cardiac life support',
     ],
     answer: null,
   },
   {
-    code: 'fit-shift',
-    stem: 'Which shift would you rather work?',
+    code: 'fit-compliment',
+    stem: 'At the end of a shift, which would you rather have said about you?',
     options: [
-      'eleven quiet hours and one cardiac arrest',
-      'five stable transfers with drips and a ventilator, and nothing that goes wrong',
-      'whichever one pays the same — I have no preference',
-      'back-to-back calls all shift, whatever they turn out to be',
+      'They kept their head when it all went bad.',
+      'The new people ask for them.',
+      'That patient got there in the same shape they left in.',
+      'Nothing in particular — I would rather the work spoke for itself.',
     ],
     answer: null,
   },
   {
-    code: 'fit-tradeoff',
-    stem: 'If you had to give one of these up, which would you give up more easily?',
+    code: 'fit-story',
+    stem: 'A friend asks what your last job was really like. The first thing you find yourself telling them about is:',
     options: [
-      'running emergencies',
-      'working with critically ill patients',
-      'neither — I want both, and I know I cannot have both here',
-      'either one, if the schedule and the pay are right',
+      'The people you worked with',
+      'The worst call you ran',
+      'A patient you got right when it would have been easy to get wrong',
+      'What it paid, and how the schedule worked',
     ],
     answer: null,
   },
   {
-    code: 'fit-911-offer',
-    stem: 'Six months in, a 911 position opens at another service at the same pay. You:',
+    code: 'fit-wear-down',
+    stem: 'Which of these would wear you down faster?',
     options: [
-      'take it — 911 is the work I want',
-      'stay — this is the work I want to be doing',
-      'look at it, but expect to stay if things are going well here',
-      'decide on the schedule and the money',
+      'A shift where nothing happened',
+      'A shift where you never got a minute to yourself',
+      'Being blamed for something that was not your fault',
+      'Working alongside somebody you did not respect',
     ],
     answer: null,
   },
   {
-    code: 'fit-honest',
-    stem: 'Being honest: how much of your interest in this job is that it is the opening available right now?',
+    code: 'fit-five-years',
+    stem: 'Five years from now, which of these would you be happiest to have become?',
     options: [
-      'none — this is the job I want',
-      'some — but the work itself interests me',
-      'a lot — I need a job, and this is the one that is open',
-      'hard to say',
+      'The one who teaches the new people',
+      'The one on a busy truck, first out the door',
+      'The one in an office role, with regular hours and a say in how things run',
+      'The one they send with the sickest patients',
+    ],
+    answer: null,
+  },
+  {
+    code: 'fit-pitch',
+    stem: 'Somebody asks you to help talk a friend into applying where you work. The line you would use is:',
+    options: [
+      'You will see things most people never see.',
+      'You will get properly good at looking after sick people.',
+      'It is steady, and they treat you like an adult.',
+      'It is a good place to start.',
+    ],
+    answer: null,
+  },
+  {
+    code: 'fit-applications',
+    stem: 'How many other places have you applied to in the last three months?',
+    options: [
+      'This is the only one',
+      'Two or three, all much the same kind of work',
+      'Several, including fire departments or 911 services',
+      'A lot — I am looking broadly at the moment',
+    ],
+    answer: null,
+  },
+  {
+    code: 'fit-swap',
+    stem: 'A partner offers to swap shifts with you. You would most want the one that:',
+    options: [
+      'Puts you with the partner you would learn the most from',
+      'Runs the busiest trucks',
+      'Gets you home on time',
+      'Takes the most complicated patients',
+    ],
+    answer: null,
+  },
+  {
+    code: 'fit-leave',
+    stem: 'Suppose you take this job. What would be most likely to start you looking somewhere else?',
+    options: [
+      'A schedule that stopped working for your life',
+      'Pay that stopped keeping up',
+      'An opening somewhere you had been waiting on',
+      'Feeling like you had stopped learning anything',
     ],
     answer: null,
   },
@@ -832,54 +1218,32 @@ export const FIT = [
     code: 'fit-least',
     stem: 'Which part of this job do you expect to like least?',
     options: [
-      'the waiting — at bedsides, and for bed assignments',
-      'the documentation',
-      'not using emergency skills often',
-      'the long transports',
+      'The waiting — at bedsides, and for beds',
+      'The documentation',
+      'How seldom the emergency skills get used',
+      'The long transports',
     ],
     answer: null,
   },
   {
-    code: 'fit-paperwork',
-    stem: 'On documentation, the statement closest to you is:',
+    code: 'fit-charts',
+    stem: 'On paperwork, which is closest to you?',
     options: [
-      'it is the part of the job I would have to make myself do',
-      'it is part of patient care, and I would rather be good at it',
-      'I am quick at it and I keep it short',
-      'I have not done much of it yet',
-    ],
-    answer: null,
-  },
-  {
-    code: 'fit-alone',
-    stem: 'Being alone in the back with a complicated but stable patient for forty-five minutes is:',
-    options: [
-      'the part I would find hardest',
-      'the part I would find most rewarding',
-      'neither — it does not concern me either way',
-      'something I would want more training on before I was comfortable with it',
+      'I would rather be the one whose charts nobody has to come back and ask about',
+      'I get it done and I keep it short',
+      'It is the part I have to be disciplined about',
+      'I have not written many yet',
     ],
     answer: null,
   },
   {
     code: 'fit-experience',
-    stem: 'Which best describes your EMS experience so far?',
+    stem: 'Which best describes the EMS work you have done so far?',
     options: [
-      'none yet — I am new to it',
-      '911 or scene work only',
-      'interfacility or transport work',
-      'both scene and transport work',
-    ],
-    answer: null,
-  },
-  {
-    code: 'fit-stay',
-    stem: 'If you took this job and it went well, how long would you expect to be here?',
-    options: [
-      'under a year',
-      'a year or two',
-      'three years or more',
-      'as long as it suits both of us',
+      'None yet — I am new to it',
+      '911 or scene work',
+      'Transport or interfacility work',
+      'Both scene and transport work',
     ],
     answer: null,
   },

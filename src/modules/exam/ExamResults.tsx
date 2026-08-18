@@ -4,7 +4,9 @@ import {
   attemptExpired,
   examConfig,
   examDeadline,
+  isSetupError,
   listExamBank,
+  SETUP_INSTRUCTIONS,
   listExamResults,
   listUnfinishedAttempts,
   resetAttempt,
@@ -19,6 +21,7 @@ import {
   NEOP_THRESHOLDS,
   SIGNAL_LABEL,
   SIGNAL_TONE,
+  TALLY_NOTE,
   type FitSignal,
 } from '../../data/neopSelection'
 import { confirmAction, notifyUser } from '../../lib/dialog'
@@ -77,6 +80,22 @@ function breakdown(a: ExamAttempt, bank: Map<number, BankRow>): Breakdown | null
 
 const pct = (right: number, of: number) => (of ? Math.round((right / of) * 100) : null)
 
+/**
+ * The pattern across the preference section, which is the only level at which
+ * it means anything.
+ *
+ * Every option in that section is a defensible answer, so one lean is noise.
+ * Presenting a count rather than a verdict is the honest rendering of what the
+ * instrument can actually support — and it is also the useful one, because what
+ * an interviewer wants to know walking into the room is whether there is a
+ * theme worth opening up, not which of thirteen boxes was ticked.
+ */
+function tally(fit: Breakdown['fit']): Record<FitSignal, number> {
+  const t: Record<FitSignal, number> = { consistent: 0, discuss: 0, neutral: 0 }
+  for (const f of fit) t[f.signal]++
+  return t
+}
+
 function toCsv(rows: ExamAttempt[], bank: Map<number, BankRow>, program: ExamProgram): string {
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
   const neop = program === 'neop'
@@ -122,6 +141,7 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
   const [open, setOpen] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [needsSetup, setNeedsSetup] = useState(false)
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -138,6 +158,13 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
       // questions in the app. The AEMT screen has never needed it.
       neop ? listExamBank(program) : Promise.resolve({ rows: [] as BankRow[] }),
     ])
+    // The SQL for this exam is run by hand against the project, and until it
+    // has been, every read here fails on a missing column or function. That is
+    // a setup step nobody has done yet, not an error — and saying so with the
+    // file name is the difference between a five-minute fix and an afternoon.
+    setNeedsSetup(
+      [done, openAttempts].some((r) => 'error' in r && isSetupError({ message: r.error ?? '' })),
+    )
     if (done.error) setError(done.error)
     else setRows(done.rows ?? [])
     if (!done.error && openAttempts.error) setError(openAttempts.error)
@@ -286,7 +313,16 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
       )}
 
       {loading && <div className="subtle" style={{ padding: 12 }}>Loading…</div>}
-      {error && <div className="banner crit">Couldn't load results: {error}</div>}
+      {needsSetup && (
+        <div className="banner warn">
+          <strong>Not installed on this project yet.</strong> {SETUP_INSTRUCTIONS}
+          <br />
+          <br />
+          Until then a candidate opening the link is told the exam is temporarily
+          unavailable and to contact {cfg.contact} — they are not shown a database error.
+        </div>
+      )}
+      {error && !needsSetup && <div className="banner crit">Couldn't load results: {error}</div>}
       {!loading && !error && rows.length === 0 && (
         <div className="banner info">No completed exams yet. Share the link above.</div>
       )}
@@ -384,6 +420,21 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
                       Ask the probe whatever they answered — the answer is the opening, not the
                       finding.
                     </div>
+                    {(b?.fit ?? []).length > 0 && (
+                      <div className="fit-tally">
+                        <div className="fit-tally-row">
+                          {(['consistent', 'discuss', 'neutral'] as FitSignal[]).map((sig) => {
+                            const n = tally(b?.fit ?? [])[sig]
+                            return (
+                              <span key={sig} className={`pill ${SIGNAL_TONE[sig]}`}>
+                                {n} · {SIGNAL_LABEL[sig]}
+                              </span>
+                            )
+                          })}
+                        </div>
+                        <p>{TALLY_NOTE}</p>
+                      </div>
+                    )}
                     {(b?.fit ?? []).map((f) => {
                       const spec = FIT_BY_CODE.get(f.code)
                       return (

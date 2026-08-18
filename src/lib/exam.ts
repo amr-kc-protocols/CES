@@ -65,7 +65,7 @@ export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
     id: 'neop',
     subtitle: 'Kansas City Interfacility — Selection Exam',
     path: '/neop-exam',
-    limitMinutes: 30,
+    limitMinutes: 35,
     deadlineIso: null,
     contact: 'the AMR Kansas City hiring team',
     attestation: [
@@ -188,6 +188,54 @@ export function attestationHash(text: string = ATTESTATION_TEXT): string {
   return `v1-${h.toString(16)}`
 }
 
+/* -------------------------------------------------------------------------
+ * When the database has not been set up yet
+ *
+ * This exam needs a SQL file to have been run against the Supabase project —
+ * the functions and the bank do not ship with the app. Nothing verifies that,
+ * and on 18 August a candidate opening /neop-exam got the raw PostgREST string
+ *
+ *   Could not find the function public.exam_start(p_attestation_hash, ...)
+ *   in the schema cache
+ *
+ * printed on the page, under our logo, above a Start button that did nothing.
+ * The frontend had been deployed and the migration had not, which is a normal
+ * thing to happen and an unacceptable thing for an applicant to be shown.
+ *
+ * So the two audiences get different messages from the same failure. The
+ * candidate gets a sentence that tells them what to do about it, because there
+ * is nothing else they can do. An administrator gets the specific problem and
+ * the file to run, on their own screen, where it is actionable.
+ *
+ * Deliberately NOT a fallback to the old function signature. Guessing a call
+ * that might work would serve some other exam, or the right exam with the
+ * wrong rules, and would hide the setup error until somebody noticed the
+ * results were strange.
+ * ---------------------------------------------------------------------- */
+
+interface Postgrestish {
+  code?: string
+  message: string
+}
+
+/**
+ * True when the failure is "this project has not had the SQL run against it".
+ *
+ * PGRST202 is PostgREST's "no function matches"; PGRST204 and 42703 are the
+ * column-missing pair, which is what an admin read of exam_attempts.program
+ * returns on a project that stopped at the previous schema. The message match
+ * is a fallback: the codes are stable but not contractual.
+ */
+export function isSetupError(err: Postgrestish | null | undefined): boolean {
+  if (!err) return false
+  if (err.code === 'PGRST202' || err.code === 'PGRST204' || err.code === '42703') return true
+  return /could not find the function|does not exist|schema cache/i.test(err.message ?? '')
+}
+
+/** What an administrator should do about it, in one string. */
+export const SETUP_INSTRUCTIONS =
+  'The exam is not installed on this Supabase project yet. In the SQL Editor, run supabase/migrations/2026-08-18-neop-selection-exam.sql, then 2026-08-19-neop-exam-sections-and-clock.sql, then supabase/neop_exam_questions_seed.sql. If those have already been run, the schema cache may be stale — run: notify pgrst, \'reload schema\';'
+
 export async function startExam(
   name: string,
   email: string,
@@ -205,7 +253,17 @@ export async function startExam(
     p_attestation_hash: attested ? attestationHash(attestationText(program)) : null,
     p_program: program,
   })
-  if (error) return { error: error.message }
+  if (error) {
+    if (isSetupError(error)) {
+      // The detail belongs in the console for whoever is debugging it, and
+      // nowhere near the person trying to sit an exam.
+      console.error('[exam] not installed on this project:', error.message, '\n', SETUP_INSTRUCTIONS)
+      return {
+        error: `This exam is temporarily unavailable. Please contact ${examConfig(program).contact} — they will get it reopened.`,
+      }
+    }
+    return { error: error.message }
+  }
   const d = data as Record<string, unknown>
   if (d?.error) {
     if (d.error === 'closed' || d.error === 'already_taken' || d.error === 'expired') {

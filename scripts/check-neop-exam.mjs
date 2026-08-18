@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { build } from 'esbuild'
 import { CLINICAL, OPERATIONS, FIT } from './neop-exam-bank.mjs'
-import { buildSeedSql, SEED_PATH, items } from './gen-neop-exam.mjs'
+import { buildInstallSql, buildSeedSql, INSTALL_PATH, SEED_PATH, items } from './gen-neop-exam.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC = join(__dirname, '..', 'src')
@@ -143,6 +143,42 @@ if (misaligned.length)
   )
 else pass('every signal map lines up with its options')
 
+// ----- the preference section has to stay non-obvious ----------------------
+// Transparency is a property a human has to judge — whether an option reads as
+// the wanted one cannot be computed. These catch the two relapses that CAN be:
+// an item with two "right" answers, and an option that names the job back at
+// the candidate.
+const twoRight = FIT_ITEMS.filter(
+  (f) => f.signals.filter((x) => x === 'consistent').length > 1,
+).map((f) => f.code)
+if (twoRight.length)
+  fail(
+    'preference items with more than one option marked consistent',
+    `${twoRight.join(', ')} — two right answers is the same as none`,
+  )
+else pass('no preference item has two preferred answers')
+
+const withLean = FIT_ITEMS.filter((f) => f.signals.includes('discuss')).length
+if (withLean < 8)
+  fail(
+    `only ${withLean} preference items carry a lean toward scene or fire work`,
+    'the interviewer is shown a pattern across the section, and a pattern needs items — at least 8',
+  )
+else pass(`${withLean} of ${FIT_ITEMS.length} preference items carry a lean`)
+
+// Phrases that hand a candidate the answer. Extend the list, do not weaken it.
+const TELLS = ['described above', 'the work described', 'as described']
+const tells = []
+for (const i of FIT) {
+  for (const text of [i.stem, ...i.options]) {
+    const hit = TELLS.find((t) => text.toLowerCase().includes(t))
+    if (hit) tells.push(`${i.code}: "${hit}"`)
+  }
+}
+if (tells.length)
+  fail('preference options that point back at the job description', tells.join('\n      '))
+else pass('no preference option quotes the job description back at the candidate')
+
 // ----- the generated SQL is current ----------------------------------------
 let onDisk = ''
 try {
@@ -156,6 +192,66 @@ if (onDisk !== buildSeedSql())
     'run: node scripts/gen-neop-exam.mjs',
   )
 else pass('the generated seed SQL matches the bank')
+
+// ----- reordered options under a reused code --------------------------------
+// exam_attempts.responses stores an option INDEX, so reordering the options of
+// an item that keeps its code silently changes what every stored answer meant.
+// Rewording in place is fine and is the point of the upsert; reordering is not.
+//
+// Compared against the seed as of the last commit, and only when git is
+// available — a shallow clone or an exported tarball skips this rather than
+// failing on it. A warning, not a failure: on a bank nobody has sat yet it is
+// harmless, and only the author knows which of the two it is.
+try {
+  const { execFileSync } = await import('node:child_process')
+  const prev = execFileSync('git', ['show', 'HEAD:supabase/neop_exam_questions_seed.sql'], {
+    cwd: join(__dirname, '..'),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  const parse = (txt) => {
+    const rows = new Map()
+    const re =
+      /\('(?:clinical|operations|fit)', '([a-z0-9-]+)', '(?:[^']|'')*', '(?:[^']|'')*', array\[((?:'(?:[^']|'')*',?)+)\]/g
+    for (const m of txt.matchAll(re)) {
+      rows.set(m[1], (m[2].match(/'(?:[^']|'')*'/g) ?? []).map((o) => o.slice(1, -1)))
+    }
+    return rows
+  }
+  const before = parse(prev)
+  const after = parse(buildSeedSql())
+  const reordered = []
+  for (const [code, opts] of after) {
+    const was = before.get(code)
+    if (!was) continue
+    // Same set of options in a different order is the dangerous case. A changed
+    // set is either a reword (fine) or a redefinition (the author's call).
+    if (was.length === opts.length && was.join('|') !== opts.join('|')) {
+      const sameSet = [...was].sort().join('|') === [...opts].sort().join('|')
+      if (sameSet) reordered.push(code)
+    }
+  }
+  if (reordered.length)
+    console.log(
+      `note  options reordered under a reused code: ${reordered.join(', ')} — give these a NEW code if any attempt has already served them`,
+    )
+} catch {
+  // No git, no previous seed, or a first commit. Nothing to compare against.
+}
+
+// ----- the one-paste installer is current -----------------------------------
+let installed = ''
+try {
+  installed = readFileSync(INSTALL_PATH, 'utf8')
+} catch {
+  /* reported below */
+}
+if (installed !== buildInstallSql())
+  fail(
+    'supabase/neop_install.sql is out of date',
+    'run: node scripts/gen-neop-exam.mjs — this is the file somebody pastes into a live project',
+  )
+else pass('the one-paste installer matches the migrations and the bank')
 
 // ----- the honesty ledger --------------------------------------------------
 const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)

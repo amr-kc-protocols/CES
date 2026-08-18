@@ -494,9 +494,9 @@ begin
     v_draw   := 50;
   else
     v_cutoff := null;                       -- rolling
-    v_limit  := 30 * 60;
+    v_limit  := 35 * 60;
     v_clin   := 12;
-    v_ops    := 16;                         -- every fit item is served
+    v_ops    := 16;                         -- every preference item is served
   end if;
 
   if v_cutoff is not null and now() > v_cutoff then
@@ -541,26 +541,30 @@ begin
         where active and program = 'neop' and section = 'fit';
       if v_have < 1 then return jsonb_build_object('error', 'bank_too_small'); end if;
 
+      --
+      -- sect_ord 1/2/3 is patient care, then preferences, then our operation.
+      -- The operations section is the one that tells a candidate what we want
+      -- to hear, so it is asked after we have asked what they want.
       with picked as (
         select id, 1 as sect_ord from (
           select id from public.exam_questions
            where active and program = 'neop' and section = 'clinical'
            order by random() limit v_clin) c
         union all
-        select id, 2 from (
+        select id, 2 from public.exam_questions
+         where active and program = 'neop' and section = 'fit'
+        union all
+        select id, 3 from (
           select id from public.exam_questions
            where active and program = 'neop' and section = 'operations'
            order by random() limit v_ops) o
-        union all
-        select id, 3 from public.exam_questions
-         where active and program = 'neop' and section = 'fit'
       )
       select array_agg(id order by sect_ord, random()) into v_qids from picked;
     end if;
 
     -- Only keyed items count toward the score, so only keyed items count
     -- toward the total. Otherwise a candidate who answers every scored item
-    -- correctly is recorded at 78%.
+    -- correctly is recorded at 68%.
     select count(*) into v_total from public.exam_questions
       where id = any(v_qids) and scored;
     if coalesce(v_total, 0) = 0 then

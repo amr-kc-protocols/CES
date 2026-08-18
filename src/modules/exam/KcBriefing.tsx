@@ -12,7 +12,11 @@ export default function KcBriefing() {
   return (
     <div className="card brief">
       <h2 style={{ marginTop: 0 }}>{KC_BRIEFING_TITLE}</h2>
-      <p className="brief-intro">{KC_BRIEFING_INTRO}</p>
+      {KC_BRIEFING_INTRO.map((p, i) => (
+        <p key={i} className="brief-intro">
+          {p}
+        </p>
+      ))}
       {KC_BRIEFING.map((s) => (
         <section key={s.ref} className="brief-section">
           <h3>{s.title}</h3>

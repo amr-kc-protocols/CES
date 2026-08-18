@@ -2390,3 +2390,18 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .fit-answer .fit-q { font-size: 13px; color: var(--text-muted); }
 .fit-answer .fit-a { font-size: 14.5px; font-weight: 600; margin: 4px 0; }
 .fit-answer .fit-probe { font-size: 13px; font-style: italic; color: var(--text-muted); }
+
+/* The pattern across a candidate's preference answers, above the answers. */
+.fit-tally {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 10px 0 4px;
+}
+.fit-tally-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.fit-tally p {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
