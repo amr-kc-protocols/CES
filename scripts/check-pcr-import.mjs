@@ -36,6 +36,7 @@ await build({
       export * from ${JSON.stringify(join(SRC, 'modules/review/pcrParse'))}
       export * from ${JSON.stringify(join(SRC, 'modules/review/autoAnswer'))}
       export { visibleQuestions, compliantAnswer } from ${JSON.stringify(join(SRC, 'data/chartReview'))}
+      export * from ${JSON.stringify(join(SRC, 'modules/review/pdfCompat'))}
     `,
     resolveDir: SRC,
     loader: 'ts',
@@ -399,6 +400,45 @@ check(
     .filter((q) => q.kind === 'yesno')
     .every((q) => typeof npReview.answers[q.id] === 'boolean'),
   'a no-patient review is fully answered',
+)
+
+// ----- the browser shim ------------------------------------------------------
+//
+// pdf.js calls Promise.withResolvers about forty times and Safari only shipped
+// it in 17.4, so on an iPhone a version behind the import screen died with
+// "undefined is not a function". Checked here because the failure is in a
+// dependency's assumptions rather than in anything this repo would notice.
+{
+  const real = Promise.withResolvers
+  delete Promise.withResolvers
+  check(m.needsPdfCompat() === true, 'a browser without Promise.withResolvers is detected')
+  m.installPdfCompat()
+  check(typeof Promise.withResolvers === 'function', 'the shim installs Promise.withResolvers')
+
+  const { promise, resolve } = Promise.withResolvers()
+  resolve('done')
+  check((await promise) === 'done', 'the shimmed Promise.withResolvers resolves')
+
+  const { promise: rejects, reject } = Promise.withResolvers()
+  reject(new Error('nope'))
+  check(await rejects.then(() => false, (e) => e.message === 'nope'), 'the shimmed one rejects too')
+
+  // The worker is its own global scope, so the wrapper has to carry the shim's
+  // source across — assert the function survives being stringified.
+  check(
+    /withResolvers/.test(m.installPdfCompat.toString()),
+    'the shim can be sent into a worker as source',
+  )
+
+  if (real) Promise.withResolvers = real
+  else delete Promise.withResolvers
+  check(m.needsPdfCompat() === false, 'a browser that already has it needs no shim')
+}
+
+check(
+  m.describePdfFailure(new Error('undefined is not a function')).includes('too old'),
+  'an unreadable PDF on an old browser says so, rather than repeating the raw error',
+  m.describePdfFailure(new Error('undefined is not a function')),
 )
 
 // ----- what the import stores ------------------------------------------------

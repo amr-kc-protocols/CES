@@ -46,9 +46,14 @@ type Draft = Omit<ChartReviewEntry, 'id' | 'updatedAt'> & { id?: string }
  * How an imported answer was arrived at, in the reviewer's words rather than
  * the parser's. "Assumed" is deliberately blunt: it means nobody, human or
  * machine, has actually checked that one.
+ *
+ * Kept short because it repeats on every one of twenty-seven rows. "Read from
+ * the chart" took half a line on a phone and made the ordinary case the
+ * loudest thing on the screen — see the styling, which quiets it for the same
+ * reason and leaves the emphasis on "assumed", the one worth stopping at.
  */
 const CONFIDENCE_LABEL: Record<string, string> = {
-  read: 'read from the chart',
+  read: 'from the chart',
   inferred: 'inferred',
   assumed: 'assumed',
 }
@@ -634,7 +639,7 @@ export default function ChartReviewTool() {
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
             Where documentation falls short
           </div>
-          <div className="table-wrap">
+          <div className="table-wrap cr-shortfall">
             <table>
               <thead>
                 <tr>
@@ -718,7 +723,17 @@ export default function ChartReviewTool() {
       ) : (
         <div className="list" style={{ marginTop: 12 }}>
           {[...filtered]
-            .sort((a, b) => (b.serviceDate ?? '').localeCompare(a.serviceDate ?? ''))
+            // Drafts first, then newest.
+            //
+            // A bulk import files most charts as complete and a handful as
+            // drafts, and the drafts are the only ones anyone has to do
+            // anything about. Sorting by date alone buried all of them under a
+            // page of finished work, which is the opposite of the point.
+            .sort(
+              (a, b) =>
+                Number(b.status === 'draft') - Number(a.status === 'draft') ||
+                (b.serviceDate ?? '').localeCompare(a.serviceDate ?? ''),
+            )
             .map((r) => (
               <div className="row" key={r.id}>
                 <div className="grow">

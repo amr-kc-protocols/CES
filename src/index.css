@@ -2182,19 +2182,109 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   line-height: 1.45;
   color: var(--text-muted);
 }
+/* The tag repeats on every row, so the ordinary cases are deliberately quiet:
+   plain grey, no shouting. Only "assumed" is styled to stop the eye, because
+   only "assumed" means nobody has actually checked. A green badge on all
+   twenty-seven rows made the unremarkable case the loudest thing on the page
+   and buried the one that mattered. */
 .cr-src-tag {
   display: inline-block;
   margin-right: 6px;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 600;
   background: var(--muted-bg);
   color: var(--text-muted);
 }
-.cr-src.read .cr-src-tag { background: var(--ok-bg); color: var(--ok); }
-/* "Assumed" is the one worth noticing: it means the export said nothing and
-   the answer is a default, not a finding. */
-.cr-src.assumed .cr-src-tag { background: var(--warn-bg); color: var(--warn); }
+.cr-src.assumed .cr-src-tag {
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Bulk import: fixes from a pass on a phone ----------
+ *
+ * A dropped file's name is one unbroken token — ImageTrend names an export
+ * after every run number in it, so "Incidents_29047490290333382903...pdf" is
+ * ordinary. Left to wrap on spaces it has none, so the warning banner grew to
+ * twice the viewport and took the whole page sideways with it.
+ */
+.cr-import .banner li,
+.cr-import .banner strong,
+.cr-import-flags li {
+  overflow-wrap: anywhere;
+}
+
+/* Once charts have been read, the explanation and the target shrink: the
+   results below them are what the screen is for. */
+.banner.info.compact {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 12.5px;
+}
+.cr-drop.compact { padding: 14px 12px; }
+.cr-drop.compact .cr-drop-title { font-size: 13.5px; margin-bottom: 0; }
+
+/* A run number before the import is a fact, not a control. */
+.cr-run-no {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+.cr-clean-table .num { text-align: right; }
+
+/* Six columns do not fit a phone, and a table that scrolls sideways inside the
+   page hides three of them behind an edge with nothing to say it is there.
+   These rows are the charts that need no attention, so they become a short
+   stack: labelled lines, no horizontal anything. */
+@media (max-width: 680px) {
+  .cr-clean-table { overflow-x: visible; }
+  .cr-clean-table table,
+  .cr-clean-table tbody,
+  .cr-clean-table tr,
+  .cr-clean-table td { display: block; width: auto; }
+  .cr-clean-table thead { display: none; }
+  .cr-clean-table tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+  .cr-clean-table td {
+    border: 0;
+    padding: 2px 0;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 13px;
+  }
+  .cr-clean-table td::before {
+    content: attr(data-label);
+    flex: none;
+    width: 78px;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+  .cr-clean-table .num { text-align: left; }
+}
+
+/* The shortfall table on a phone: the question is the row, so it keeps the
+   width. Asked and Compliant are working numbers a reviewer reads on a
+   desktop; squeezed onto a phone they crush the question into a column three
+   words wide, and the percentage alone carries the point. */
+@media (max-width: 620px) {
+  .cr-shortfall th:nth-child(2),
+  .cr-shortfall td:nth-child(2),
+  .cr-shortfall th:nth-child(3),
+  .cr-shortfall td:nth-child(3) {
+    display: none;
+  }
+  .cr-shortfall table { min-width: 0; }
+}
