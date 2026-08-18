@@ -4,7 +4,9 @@ import {
   attemptExpired,
   examConfig,
   examDeadline,
+  isSetupError,
   listExamBank,
+  SETUP_INSTRUCTIONS,
   listExamResults,
   listUnfinishedAttempts,
   resetAttempt,
@@ -139,6 +141,7 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
   const [open, setOpen] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [needsSetup, setNeedsSetup] = useState(false)
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -155,6 +158,13 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
       // questions in the app. The AEMT screen has never needed it.
       neop ? listExamBank(program) : Promise.resolve({ rows: [] as BankRow[] }),
     ])
+    // The SQL for this exam is run by hand against the project, and until it
+    // has been, every read here fails on a missing column or function. That is
+    // a setup step nobody has done yet, not an error — and saying so with the
+    // file name is the difference between a five-minute fix and an afternoon.
+    setNeedsSetup(
+      [done, openAttempts].some((r) => 'error' in r && isSetupError({ message: r.error ?? '' })),
+    )
     if (done.error) setError(done.error)
     else setRows(done.rows ?? [])
     if (!done.error && openAttempts.error) setError(openAttempts.error)
@@ -303,7 +313,16 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
       )}
 
       {loading && <div className="subtle" style={{ padding: 12 }}>Loading…</div>}
-      {error && <div className="banner crit">Couldn't load results: {error}</div>}
+      {needsSetup && (
+        <div className="banner warn">
+          <strong>Not installed on this project yet.</strong> {SETUP_INSTRUCTIONS}
+          <br />
+          <br />
+          Until then a candidate opening the link is told the exam is temporarily
+          unavailable and to contact {cfg.contact} — they are not shown a database error.
+        </div>
+      )}
+      {error && !needsSetup && <div className="banner crit">Couldn't load results: {error}</div>}
       {!loading && !error && rows.length === 0 && (
         <div className="banner info">No completed exams yet. Share the link above.</div>
       )}
