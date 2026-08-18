@@ -91,6 +91,21 @@ export interface PcrChart {
   traumaHighRisk?: string
   traumaModerate?: string
 
+  /**
+   * The trip's numbers. A non-patient transport bills on these and has no
+   * patient record to reconstruct them from afterwards.
+   */
+  odometerStart?: string
+  odometerEnd?: string
+  loadedMiles?: string
+  /** Unit times, for "are the times complete". */
+  timeDispatched?: string
+  timeEnRoute?: string
+  timeArrivedScene?: string
+  timeLeftScene?: string
+  timeArrivedDestination?: string
+  timeBackInService?: string
+
   medicalHistory?: string
   advanceDirectives?: string
   medicationHistoryTaken: boolean
@@ -454,6 +469,16 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     mechanismOfInjury: f('Mechanism of Injury'),
     traumaHighRisk: f('Trauma Triage Criteria (High Risk- Red )') ?? f('Trauma Triage Criteria (High Risk-Red)'),
     traumaModerate: f('Trauma Triage Criteria (Moderate- Yellow)') ?? f('Trauma Triage Criteria (Moderate-Yellow)'),
+
+    odometerStart: f('Beginning Odometer Reading'),
+    odometerEnd: f('Ending Odometer Reading'),
+    loadedMiles: f('Total Loaded Miles'),
+    timeDispatched: f('Unit Notified by Dispatch'),
+    timeEnRoute: f('Unit En Route'),
+    timeArrivedScene: f('Unit Arrived on Scene'),
+    timeLeftScene: f('Unit Left Scene'),
+    timeArrivedDestination: f('Patient Arrived at Destination'),
+    timeBackInService: f('Unit Back in Service'),
 
     medicalHistory: f('Medical/Surgical History'),
     advanceDirectives: f('Advance Directives'),

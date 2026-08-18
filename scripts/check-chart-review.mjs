@@ -121,8 +121,12 @@ check(
   m.AUTHORED_SECTIONS.filter((s) => !s.intro).map((s) => s.title).join(', '),
 )
 check(
-  authoredTitles.join(',') === 'Trauma Review',
-  'Trauma is the only section written here rather than transcribed',
+  // An exact list on purpose. Everything else here is a transcription of a form
+  // that already exists, and that provenance is why anyone trusts the numbers.
+  // A block we wrote is a different kind of thing, so adding one has to be a
+  // deliberate edit here rather than something that slips in.
+  authoredTitles.join(', ') === 'Non-Patient Transport Review, Trauma Review',
+  'only the sections written for AMR KC are marked as authored',
   `authored: ${authoredTitles.join(', ') || 'none'}`,
 )
 
