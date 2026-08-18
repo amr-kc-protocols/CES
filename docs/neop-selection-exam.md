@@ -151,11 +151,20 @@ reasons — these are external applicants. They are listed once, in
 
 ## Running it
 
-1. Apply `supabase/migrations/2026-08-18-neop-selection-exam.sql`, then
-   `supabase/migrations/2026-08-19-neop-exam-sections-and-clock.sql`.
-2. Load `supabase/neop_exam_questions_seed.sql`. It upserts on each item's
-   `code` and retires by setting `active = false` — safe to re-run at any time,
-   including while candidates are sitting the exam.
+1. **Paste `supabase/neop_install.sql` into the Supabase SQL Editor and run
+   it.** That is the whole database side: both migrations and the question
+   bank, in order, plus a schema-cache reload. Safe to run again at any time,
+   including while candidates are sitting the exam — the bank upserts on each
+   item's `code` and retires rather than deletes, so no attempt on record is
+   orphaned. (It is generated from the three underlying files; edit those and
+   run `npm run gen:neop`.)
+
+   **Do this whenever the app is deployed to a new project, and after any
+   change to the bank.** The app and the database deploy separately: on
+   18 August the frontend went out without the SQL, and a candidate opened the
+   exam to a PostgREST error printed under the AMR logo. The app now tells a
+   candidate the exam is temporarily unavailable and tells an administrator
+   which file to run, but nothing can run it for you.
 3. Send applicants `https://<the app>/neop-exam`. The link is on
    **NEOP → Selection exam**, with a copy button.
 4. Read results on the same screen. **⬇ CSV** exports the lot, one row per

@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { build } from 'esbuild'
 import { CLINICAL, OPERATIONS, FIT } from './neop-exam-bank.mjs'
-import { buildSeedSql, SEED_PATH, items } from './gen-neop-exam.mjs'
+import { buildInstallSql, buildSeedSql, INSTALL_PATH, SEED_PATH, items } from './gen-neop-exam.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC = join(__dirname, '..', 'src')
@@ -238,6 +238,20 @@ try {
 } catch {
   // No git, no previous seed, or a first commit. Nothing to compare against.
 }
+
+// ----- the one-paste installer is current -----------------------------------
+let installed = ''
+try {
+  installed = readFileSync(INSTALL_PATH, 'utf8')
+} catch {
+  /* reported below */
+}
+if (installed !== buildInstallSql())
+  fail(
+    'supabase/neop_install.sql is out of date',
+    'run: node scripts/gen-neop-exam.mjs — this is the file somebody pastes into a live project',
+  )
+else pass('the one-paste installer matches the migrations and the bank')
 
 // ----- the honesty ledger --------------------------------------------------
 const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)

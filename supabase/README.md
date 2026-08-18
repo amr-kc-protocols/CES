@@ -121,8 +121,12 @@ are fenced from each other by its `program` column.
 
 ### NEOP — the new-hire selection exam
 
-One file, `neop_exam_questions_seed.sql`, after the
-`2026-08-18-neop-selection-exam.sql` migration. It is generated from
+**`neop_install.sql` is the one to paste** — both migrations and the bank, in
+order, with a schema-cache reload at the end, safe to re-run. Everything below
+describes what is inside it.
+
+The bank itself is `neop_exam_questions_seed.sql`, which needs the
+`2026-08-18-neop-selection-exam.sql` migration first. It is generated from
 `scripts/neop-exam-bank.mjs` (`npm run gen:neop`) and, unlike the AEMT files
 below, it **upserts on each item's `code` and never deletes**: a re-run
 corrects the wording of an item in place, and an item dropped from the bank is
