@@ -292,11 +292,28 @@ export default function ExamPage({ program = 'aemt' }: { program?: ExamProgram }
             <li><strong>{cfg.limitMinutes}-minute time limit</strong> — a timer runs at the top; the exam submits automatically when it reaches zero.</li>
             <li><strong>One attempt.</strong> Once you start, the clock runs even if you close the page, so start when you're ready and undisturbed.</li>
             {program === 'neop' && (
-              <li>
-                <strong>Three parts:</strong> patient care, our operation, and what you want out of
-                the job. The last part is <strong>not scored</strong> — it is there so your
-                interview starts from something real.
-              </li>
+              <>
+                <li>
+                  <strong>Three parts:</strong> patient care, our operation, and what you want out
+                  of the job. The last part is <strong>not scored</strong> — it is there so your
+                  interview starts from something real.
+                </li>
+                {/* Both of these are promises the organisation has to keep, so
+                    both are worded to be exactly true and no more. The first is
+                    how this exam is actually used — saying so is not a courtesy,
+                    it is what makes the honest answer safe to give in the
+                    preference section. The second is an accommodation route: a
+                    timed exam without one is a barrier nobody intended to put
+                    up. */}
+                <li>
+                  <strong>This exam does not decide whether you are hired</strong> — your interview
+                  does. What you write here helps us plan your training if you join us.
+                </li>
+                <li>
+                  Need an adjustment to sit this — extra time, a screen reader, anything else?
+                  Contact {cfg.contact} before you start, and we will sort it out.
+                </li>
+              </>
             )}
             <li>Answer on your own — this is part of your selection.</li>
           </ul>

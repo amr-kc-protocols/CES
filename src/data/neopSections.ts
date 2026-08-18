@@ -84,18 +84,27 @@ export function sectionSpec(id: NeopSection): SectionSpec | undefined {
 }
 
 /**
- * Marks, out of the scored items only.
+ * Marks that flag a topic worth covering, out of the scored items only.
  *
- * The operations floor is the point of the instrument. A candidate can be a
- * perfectly good clinician and still have understood none of what they just
- * read about the job — that combination is exactly the hire that leaves in
- * four months, and an overall percentage lets it through by averaging.
+ * THESE ARE NOT PASS MARKS, AND THIS EXAM DOES NOT DECIDE WHO IS HIRED. What
+ * they do is say where to spend somebody's first weeks: a new hire who scored
+ * 55% on the operations section has told us, before their first shift, which
+ * half of the orientation actually needs to land for them. That is worth
+ * knowing and it is cheap to act on.
  *
- * These are decision aids, not automatic rejections. Nobody is hired or
- * declined by arithmetic; the exam informs an interview, and the interview
- * decides.
+ * They were written as floors — a gate, with the operations mark as the thing
+ * that kept a likely four-month hire out. That is not how this instrument is
+ * being used. An exam sat by applicants is a selection procedure the moment a
+ * score influences a hiring decision, whatever anybody intended, so a number
+ * shown in red beside a candidate's name is not a neutral observation; it is a
+ * decision being made without saying so. If a score is going to inform hiring,
+ * that belongs in the open where HR and counsel can look at it. Until then the
+ * screen shows these as what they are: topics to pick up in academy.
+ *
+ * The selection judgement still happens — in the interview, informed by what
+ * this exam surfaced. People decide, and they own the decision.
  */
-export const NEOP_THRESHOLDS = {
+export const LEARNING_MARKS = {
   overall: 70,
   clinical: 70,
   operations: 75,

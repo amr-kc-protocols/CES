@@ -64,24 +64,37 @@ two-hour leg. Those items were unfair in a way that was easy to miss: they look
 clinical, so a candidate who missed them reads as weak on patient care when
 what they actually lacked was a job they have not been given yet.
 
-This section is a **floor, not a ranking**. What we want to know about our own
+This section is a **floor, not a ranking**: it asks whether somebody who just
+qualified still knows what they were taught, and nothing more. What we want to know about our own
 operation we ask in the operations section, from a reading we handed them first.
 
-### Marks
+### Marks — and what they are not
 
-| | Floor |
+| | Worth covering below |
 |---|---|
 | Overall, of the scored items | 70% |
 | Patient care | 70% |
-| **Our operation** | **75%** |
+| Our operation | 75% |
 
-The operations floor is the point of the instrument. A candidate can be a
-perfectly good clinician and have understood nothing about the job they just
-read several pages about — that combination is precisely the hire who leaves in
-four months, and an overall percentage lets it through by averaging.
+**These are not pass marks. This exam does not decide who is hired — the
+interview does.** A section below its mark is a topic to cover in orientation,
+known before somebody's first shift instead of three weeks in.
 
-These are decision aids, not automatic rejections. Nobody is hired or declined
-by arithmetic. The exam informs an interview; the interview decides.
+They were originally written as floors, with the operations mark as a gate to
+keep out a likely four-month hire. That is not how the instrument is used. An
+exam sat by applicants becomes a selection procedure the moment a score
+influences a hiring decision, whatever anybody intended — so a number shown in
+red beside a candidate's name is not a neutral observation, it is a decision
+being made without saying so. If a score is ever going to inform hiring, that
+belongs in the open where HR and counsel can look at it.
+
+Which is why nothing on the results screen is red, and why the candidate is
+told plainly, before they start, that the exam does not decide whether they are
+hired. That sentence also does real work for the instrument: it is what makes
+an honest answer safe to give in the preference section.
+
+See `docs/neop-exam-talent-brief.md` for the version written for Talent
+Acquisition.
 
 ---
 

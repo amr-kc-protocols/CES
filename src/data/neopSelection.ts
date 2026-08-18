@@ -1,9 +1,16 @@
 // ---------------------------------------------------------------------------
 // NEOP selection exam — the instrument.
 //
+// WHAT THIS EXAM DECIDES: NOTHING. The interview decides who is hired, as it
+// always has. What this produces is information for two people — the
+// interviewer, who gets specific answers to open a conversation with, and the
+// educator, who knows before somebody's first shift which half of orientation
+// needs to land for them. An exam that ranks nobody out is still worth sitting
+// if it means a new hire's first week is aimed at what they actually need.
+//
 // The AEMT exam this is modelled on measures one thing: who is likely to pass a
-// certification examination. This one is a hiring instrument for the Kansas
-// City interfacility operation, and it has a second job the AEMT exam never
+// certification examination. This one informs hiring for the KC
+// interfacility operation, and it has a second job the AEMT exam never
 // had — the oral interviews keep discovering, well into the conversation, that
 // the applicant in front of us wants a 911 career and sees interfacility as the
 // way in. Everyone's time goes into finding that out one candidate at a time,
@@ -23,9 +30,10 @@
 //   OPERATIONS (scored) — did they read, and understand, what this job is.
 //   Every item keys to a section of the briefing in data/kcOperation.ts, which
 //   the candidate reads immediately before starting. This is the section that
-//   carries the weight, and a candidate who scores well here has demonstrated
+//   says the most, and a candidate who scores well here has demonstrated
 //   something no interview answer can: they engaged with an unglamorous
-//   description of the work instead of skimming to the end of the form.
+//   description of the work instead of skimming to the end of the form. One who
+//   scores badly has told their educator what to spend the first week on.
 //
 //   FIT (NOT scored, and never scored) — what they actually want. Recorded,
 //   surfaced to the interviewer, and given no marks at all.

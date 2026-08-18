@@ -18,7 +18,7 @@ import {
 import {
   FIT_BY_CODE,
   NEOP_SECTIONS,
-  NEOP_THRESHOLDS,
+  LEARNING_MARKS,
   SIGNAL_LABEL,
   SIGNAL_TONE,
   TALLY_NOTE,
@@ -228,8 +228,14 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
   const pill = (p: number | null) =>
     p == null ? 'muted' : p >= 80 ? 'ok' : p >= 70 ? 'info' : p >= 60 ? 'warn' : 'crit'
 
-  const sectionPill = (p: number | null, floor: number) =>
-    p == null ? 'muted' : p >= floor ? 'ok' : 'crit'
+  /**
+   * Never red. A section mark is not a fail — the interview decides who is
+   * hired, and this screen exists so an educator knows what to teach. A red
+   * pill beside a candidate's name is a verdict whatever the caption under it
+   * says, because people act on the colour first.
+   */
+  const sectionPill = (p: number | null, mark: number) =>
+    p == null ? 'muted' : p >= mark ? 'ok' : 'warn'
 
   return (
     <div>
@@ -252,11 +258,18 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
 
       {neop && (
         <div className="banner info">
-          Three sections. <strong>Patient care</strong> and <strong>our operation</strong> are
-          scored, with floors of {NEOP_THRESHOLDS.clinical}% and {NEOP_THRESHOLDS.operations}%.
-          The <strong>preference</strong> answers are not scored and are not a reason to decline
-          anybody — they are there so the interview starts from something the candidate has
-          already put on the record. Open a candidate to see them with the question to ask next.
+          <strong>This exam does not decide who is hired.</strong> The interview does, as it
+          always has. What is here is information for the people doing that interview, and for
+          whoever runs academy if the candidate is hired.
+          <br />
+          <br />
+          <strong>Patient care</strong> and <strong>our operation</strong> are scored. A section
+          below {LEARNING_MARKS.clinical}% and {LEARNING_MARKS.operations}% respectively is not a
+          fail — it is a topic to cover in orientation, known before the first shift instead of
+          three weeks in. The <strong>preference</strong> answers are not scored at all and are
+          never a reason to decline anybody; they are there so the interview starts from something
+          the candidate has already put on the record. Open a candidate to see them with the
+          question to ask next.
         </div>
       )}
 
@@ -394,10 +407,10 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
                   <span className={`pill ${pill(r.percent)}`}>
                     {r.percent == null ? '—' : `${r.percent}%`} overall
                   </span>
-                  <span className={`pill ${sectionPill(clin, NEOP_THRESHOLDS.clinical)}`}>
+                  <span className={`pill ${sectionPill(clin, LEARNING_MARKS.clinical)}`}>
                     Care {clin == null ? '—' : `${clin}%`}
                   </span>
-                  <span className={`pill ${sectionPill(ops, NEOP_THRESHOLDS.operations)}`}>
+                  <span className={`pill ${sectionPill(ops, LEARNING_MARKS.operations)}`}>
                     Operation {ops == null ? '—' : `${ops}%`}
                   </span>
                   <button className="btn sm" onClick={() => setOpen(isOpen ? null : r.id)}>
