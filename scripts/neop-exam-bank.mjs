@@ -1068,10 +1068,14 @@ export const OPERATIONS = [
  *
  * So these are built to four rules:
  *
- *   1. EVERY OPTION IS A DEFENSIBLE, LIKEABLE ANSWER. If one option is
- *      obviously the wanted one, the item measures nothing but obedience. Read
- *      each option and ask whether a good candidate could pick it and be proud
- *      of the reason. If not, rewrite the option, not the key.
+ *   1. EVERY OPTION IS A VIABLE ANSWER — and the test is sharper than it
+ *      sounds: would a candidate say this one out loud, to your face, without
+ *      embarrassment? An option that reads as an admission ("nothing, I never
+ *      bothered") is not a fourth answer, it is a decoy; and a candidate who
+ *      can see it is a decoy can see the shape of the whole item, which is the
+ *      thing this section is built to avoid. Six options failed that test on
+ *      the first pass and were rewritten to say the same thing without the
+ *      flinch. If an option is weak, rewrite the option — never the key.
  *   2. EVIDENCE BEATS INTENTION. What somebody has already spent their own
  *      weekends and their own money on is a fact about them; what they intend
  *      is a fact about this conversation. Several items ask what they have
@@ -1107,7 +1111,7 @@ export const FIT = [
       'A course on the sicker end of patient care — critical care, ventilators, cardiac',
       'A fire academy course, or a department’s entrance or physical ability test',
       'A CPR, instructor or teaching certification',
-      'Nothing beyond what my employer scheduled for me',
+      'None of these — the training I have done has come through work',
     ],
     answer: null,
   },
@@ -1129,7 +1133,7 @@ export const FIT = [
       'They kept their head when it all went bad.',
       'The new people ask for them.',
       'That patient got there in the same shape they left in.',
-      'Nothing — I would rather not be noticed.',
+      'Nothing in particular — I would rather the work spoke for itself.',
     ],
     answer: null,
   },
@@ -1140,7 +1144,7 @@ export const FIT = [
       'The people you worked with',
       'The worst call you ran',
       'A patient you got right when it would have been easy to get wrong',
-      'The schedule and the pay',
+      'What it paid, and how the schedule worked',
     ],
     answer: null,
   },
@@ -1161,7 +1165,7 @@ export const FIT = [
     options: [
       'The one who teaches the new people',
       'The one on a busy truck, first out the door',
-      'The one with a desk, a schedule and a say in things',
+      'The one in an office role, with regular hours and a say in how things run',
       'The one they send with the sickest patients',
     ],
     answer: null,
@@ -1184,7 +1188,7 @@ export const FIT = [
       'This is the only one',
       'Two or three, all much the same kind of work',
       'Several, including fire departments or 911 services',
-      'Everything that has come up',
+      'A lot — I am looking broadly at the moment',
     ],
     answer: null,
   },
@@ -1204,7 +1208,7 @@ export const FIT = [
     stem: 'Suppose you take this job. What would be most likely to start you looking somewhere else?',
     options: [
       'A schedule that stopped working for your life',
-      'Pay',
+      'Pay that stopped keeping up',
       'An opening somewhere you had been waiting on',
       'Feeling like you had stopped learning anything',
     ],
@@ -1227,7 +1231,7 @@ export const FIT = [
     options: [
       'I would rather be the one whose charts nobody has to come back and ask about',
       'I get it done and I keep it short',
-      'It is the part of the job I would have to make myself do',
+      'It is the part I have to be disciplined about',
       'I have not written many yet',
     ],
     answer: null,
