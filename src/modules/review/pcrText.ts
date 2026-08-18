@@ -25,6 +25,8 @@
 // matches on its prefix.
 // ---------------------------------------------------------------------------
 
+import { installPdfCompat, shimmedWorkerUrl } from './pdfCompat'
+
 export interface PcrItem {
   page: number
   x: number
@@ -243,12 +245,19 @@ export function buildPcrDoc(items: PcrItem[]): PcrDoc {
  * PDF should not pay for it on first load.
  */
 export async function readPcrPdf(data: ArrayBuffer): Promise<PcrDoc> {
+  // Before the import, not after: pdf.js calls Promise.withResolvers in its own
+  // top-level code, and Safari below 17.4 does not have it.
+  installPdfCompat()
   const pdfjs = await import('pdfjs-dist')
   // Bundled beside the library rather than fetched from a CDN: a CDN worker is
   // both a network dependency and a way for a patient record to be handled
   // somewhere other than this machine.
   const workerUrl = (await import('pdfjs-dist/build/pdf.worker.mjs?url')).default
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+  // On a browser missing what pdf.js assumes, the worker is started through a
+  // wrapper that installs the shim in the worker's own global scope first. On
+  // every other browser this is undefined and the worker loads as normal.
+  const shimmed = shimmedWorkerUrl(workerUrl)
+  pdfjs.GlobalWorkerOptions.workerSrc = shimmed ?? workerUrl
 
   const task = pdfjs.getDocument({ data: new Uint8Array(data), useSystemFonts: true })
   const doc = await task.promise
@@ -272,6 +281,7 @@ export async function readPcrPdf(data: ArrayBuffer): Promise<PcrDoc> {
   // Releases the worker's copy of the file: a patient record should not sit
   // in memory after the screen is done with it.
   await task.destroy()
+  if (shimmed) URL.revokeObjectURL(shimmed)
 
   return buildPcrDoc(items)
 }

@@ -6,6 +6,7 @@ import { autoReview, type AutoReview } from './autoAnswer'
 import { REVIEW_TYPES } from '../../data/chartReview'
 import { parseCharts, looksLikePcr } from './pcrParse'
 import { readPcrPdf } from './pcrText'
+import { describePdfFailure } from './pdfCompat'
 import type { ChartReviewEntry } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ export default function PcrImport({
           found.push({ ...review, file: file.name, alreadyReviewed: already })
         }
       } catch (err) {
-        bad.push(`${file.name} — could not be read (${err instanceof Error ? err.message : 'unknown error'}).`)
+        bad.push(`${file.name} — could not be read. ${describePdfFailure(err)}`)
       }
     }
 
