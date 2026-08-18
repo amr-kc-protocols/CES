@@ -1,17 +1,21 @@
 // ---------------------------------------------------------------------------
-// What Kansas City interfacility actually is — the candidate briefing.
+// What this role is — the candidate briefing.
 //
-// This is a realistic job preview, and it exists because of a pattern the oral
-// interviews keep finding: applicants who want a 911 career apply here, take a
-// seat, and leave for a scene service as soon as one opens. That is not
-// dishonesty on their part. Most of them have never been told what an
-// interfacility operation does all day, so "ambulance" means what they have
-// seen on a scene, and they find out what this job is after they are hired.
+// THE TEXT BELOW IS THE OPERATION'S OWN. It was written by the people who run
+// Kansas City, and it replaced an earlier draft assembled here from what this
+// repository could establish. Edit it with that in mind: the wording is theirs,
+// not this file's, and rewriting a sentence to read better is not a
+// housekeeping change — it changes what an applicant was told and, for eight of
+// the nine sections, what a scored exam item is asking about.
 //
-// The fix is to say it plainly, before they apply their time to us and before
-// we apply ours to them. Everything below is written to be read by somebody
-// with no AMR history, and it is deliberately unflattering in places — a
-// preview that only sells is not a preview.
+// It exists because of a pattern the oral interviews keep finding: applicants
+// who want a 911 or fire career apply here, take a seat, and leave for a scene
+// service as soon as one opens. That is not dishonesty on their part. Most have
+// never been told what an interfacility operation does all day, so "ambulance"
+// means what they have seen on a scene, and they find out what this job is
+// after they are hired. Saying it plainly, before they apply their time to us
+// and before we apply ours to them, is the cheapest fix available — and some
+// applicants will read it and withdraw, which is the point rather than a cost.
 //
 // IT IS ALSO THE SYLLABUS. Every scored operations item in the selection exam
 // keys to a section here by `ref`, and scripts/gen-neop-exam.mjs refuses to
@@ -20,28 +24,12 @@
 // whether a candidate read it; it is a test of whether they already worked
 // here, which is the opposite of what this instrument is for.
 //
-// SOURCES. Standby coverage at large events, mutual-aid response, bariatric
-// transport and long-distance moves come from the operation's own public
-// description of its services, by way of a search summary — which is to say a
-// generated one. It is good enough to correct a statement that was flatly
-// wrong (this briefing used to say the operation responds to no scenes at all)
-// and not good enough to be the last word on the shape of the work, so those
-// claims are in NEEDS_CONFIRMATION below.
-//
-// The rest is drawn from what this repository already
-// states about the operations: src/data/operations.ts (Kansas City is the
-// interfacility critical-care operation at roughly a thousand transports a
-// month; Linn County is rural 911 with two 24/7 trucks; Cass County runs a
-// single transport truck), src/data/academy.ts (the NEOP curriculum, and the
-// ventilator and infusion blocks Kansas City paramedics add), the Field Guide
-// registry (LTV 1200 ventilator, hemodynamics, Impella/ECMO and organ
-// transport familiarization) and the CQMP measures Kansas City reports.
-//
-// NEEDS_CONFIRMATION below names the handful of statements that are NOT
-// sourced from this repository and that somebody who runs the operation should
-// confirm or correct before this goes to an applicant. They are written
-// qualitatively on purpose — a number a candidate is given in writing is a
-// number they will hold us to.
+// SO WHEN A SECTION CHANGES, CHECK THE ITEMS THAT KEY TO IT. That is not
+// theoretical: this revision alone moved two answers. The briefing used to say
+// an applicant who dislikes paperwork is looking at the wrong operation, and
+// now says they do not have to enjoy it but must take it seriously — a
+// candidate who read carefully would have been marked wrong by the old item.
+// docs/neop-selection-exam.md lists which items key to which section.
 // ---------------------------------------------------------------------------
 
 export interface BriefingSection {
@@ -52,102 +40,119 @@ export interface BriefingSection {
   blocks: (string | { list: string[] })[]
 }
 
-export const KC_BRIEFING_TITLE = 'What this job actually is'
+export const KC_BRIEFING_TITLE = 'What This Role Is and What It Requires'
 
-export const KC_BRIEFING_INTRO =
-  'Read this before you start. The questions about our operation come from it, and it is the same description we will hold ourselves to in your interview. It is honest rather than flattering, because the point is that you can decide whether you want this job before either of us spends any more time on it.'
+export const KC_BRIEFING_INTRO = [
+  'Please read this before continuing. Several questions in the selection process come directly from it, and these are the same expectations we will use during your interview.',
+  'This is not a general description of ambulance work. It is an honest description of this operation and what we ask of the people selected to join it.',
+  'The work is often quiet, sometimes highly complex, and always dependent on consistency. We do not expect this role to appeal to everyone. We are looking for people who understand its value and want to become genuinely good at it.',
+]
 
 export const KC_BRIEFING: BriefingSection[] = [
   {
     ref: 'what-we-do',
     title: 'What we do',
     blocks: [
-      'AMR Kansas City is an interfacility operation. Our work is moving patients between healthcare facilities — hospital to hospital, hospital to a skilled nursing or rehabilitation facility, hospital to home, and back again. The operation runs on the order of a thousand transports a month across the Kansas City metro, on both sides of the state line, in Missouri and in Kansas.',
-      'A normal day is some mix of:',
+      'AMR Kansas City is an interfacility operation that handles everything from routine discharges to complex critical-care transfers. We move patients between hospitals, specialty centers, rehabilitation facilities, skilled nursing facilities, long-term acute care hospitals, hospice, and home.',
+      'Our crews complete roughly 1,000 transports each month across the Kansas City metro, on both sides of the state line.',
+      'A typical shift may include:',
       {
         list: [
-          'ICU to ICU — a critically ill patient moving to a facility that can do something the sending one cannot.',
-          'Emergency department to a specialty center — the STEMI, the stroke, the trauma, the patient who needs a service the sending hospital does not have.',
-          'Discharges — a patient going home, or to a nursing facility, rehabilitation, long-term acute care or hospice.',
-          'Scheduled and recurring transports — dialysis, treatment appointments, procedures.',
-          'Behavioral health transfers, and patients under a hold.',
-          'Bariatric transports, and long-distance moves that run well outside the metro.',
+          'An ICU patient moving to another ICU because the receiving hospital can provide care the sending facility cannot.',
+          'A patient leaving an emergency department for a STEMI, stroke, trauma, or other specialty center.',
+          'A patient being discharged home or going to a skilled nursing facility, rehabilitation center, long-term acute care hospital, or hospice.',
+          'Scheduled and recurring transports for dialysis, treatments, and procedures.',
+          'Behavioral health transfers, including patients being transported under a hold.',
+          'Bariatric and long-distance transports, sometimes well outside the metro.',
         ],
       },
-      'The patient is already someone else’s patient when you arrive. They have been assessed, diagnosed, and started on a plan by a physician you will probably never meet. Your job is to carry that plan intact — and the patient with it — from one bed to another.',
+      'Most patients have already been assessed, diagnosed, and started on a treatment plan before we arrive. Our responsibility is to understand that plan, continue it safely, recognize when something changes, and deliver both the patient and an accurate handoff to the next care team.',
+      'For the time that patient is with us, their care is in our hands. That responsibility is easy to underestimate. We do not underestimate it.',
     ],
   },
   {
     ref: 'not-911',
-    title: 'What it is not',
+    title: 'What this job is not',
     blocks: [
-      'We are not a 911 service. You will not spend your shift being dispatched to 911 calls — to a wreck, a shooting, or a house where nobody has told you what is waiting inside.',
-      'There are two exceptions and it is worth naming them, because you will see them from outside and draw the wrong conclusion. We provide standby medical coverage at large events — races at the Kansas Speedway, big regional gatherings — and we respond on mutual aid when a neighboring 911 system asks for help. Both are real. Neither is what a shift is made of, and neither is a side door onto a 911 operation.',
-      'Almost every time, you know exactly what you are getting before you touch the truck: a name, a diagnosis, what is infusing, what is attached, and where it is going. The uncertainty that defines scene work is mostly absent here, and so is the adrenaline that comes with it.',
-      'Lights and sirens are the exception, not the rhythm of the job. Most transports are made at ordinary road speed, because the patient is stable and the aim is to keep them that way.',
-      'The risk in this job is different rather than smaller. It is not "what will I find." It is "I have a complicated, already-sick patient, alone in the back of a moving truck, for the next forty-five minutes, with the equipment I chose to bring." Nobody is going to arrive to help you at minute twenty.',
+      'This is not a traditional 911 assignment. You will not spend most of your shift responding to crashes, shootings, or homes where nobody knows what is waiting inside.',
+      'We do provide planned medical coverage at major events, including races at Kansas Speedway and other regional gatherings. We also respond through mutual aid when a neighboring 911 system needs assistance. Those calls are real, but they are not what defines this position and they are not a side door into a 911 role.',
+      'On most calls, you will know the patient’s name, diagnosis, medications, medical devices, and destination before the ambulance begins moving. There is less uncertainty than on a scene call, but that does not lower the standard. It changes where the responsibility lies.',
+      'The question is usually not, “What am I walking into?” It is, “What could change during this trip, and am I prepared for it?”',
+      'Lights and sirens are the exception. Most transports happen at normal road speed because the patient is stable and our job is to keep them that way.',
+      'Once the doors close, the clinician in the back may be responsible for a medically complex patient for 45 minutes or longer. Additional help may not be immediately available. The equipment you checked, the questions you asked, and the decisions you made before leaving the facility matter.',
     ],
   },
   {
     ref: 'patients',
     title: 'Who your patients are',
     blocks: [
-      'Sicker, on average, than the patients a scene truck moves — and sick in a way that is already understood.',
+      'Our patients range from stable to critically ill, sometimes within the same shift. You may care for:',
       {
         list: [
-          'Patients on a ventilator, sedated, sometimes paralyzed.',
-          'Patients on vasopressors, sedatives and other infusions, often several at once.',
-          'Post-arrest, post-cardiac-catheterization and fresh post-operative patients.',
-          'Patients on mechanical circulatory support — devices such as intra-aortic balloon pumps, Impella and ECMO — which our crews are familiarized with and which travel with their own specialist teams.',
-          'Sepsis, GI bleeds, respiratory failure, and the ordinary medical patient having a bad week.',
-          'And, in the same shift, a stable patient going home who needs nothing from you but a safe ride and decent manners.',
+          'Patients on a ventilator who are sedated and sometimes paralyzed.',
+          'Patients receiving vasopressors, sedatives, or several infusions at once.',
+          'Post-cardiac-arrest, post-cardiac-catheterization, and fresh postoperative patients.',
+          'Patients receiving mechanical circulatory support through devices such as an intra-aortic balloon pump, Impella, or ECMO.',
+          'Patients with sepsis, gastrointestinal bleeding, respiratory failure, and other acute medical conditions.',
+          'A stable patient going home who needs no intervention, but still needs safe movement, appropriate monitoring, and to be treated with dignity.',
         ],
       },
-      'You will see the whole range on the same day, and the stable ones are not the easy part of the job. They are most of the job.',
+      'The range is part of what defines this operation. The stable transports are not filler between the important calls. They are a major part of the job, and they matter to the person on the stretcher.',
+      'We expect the routine patient to receive the same attention and professionalism as the critical one.',
     ],
   },
   {
     ref: 'skills',
-    title: 'What you have to be good at',
+    title: 'What you need to be good at',
     blocks: [
-      'The clinical skills that matter most here are the ones that keep an already-managed patient stable in a moving vehicle, not the ones that resuscitate an unknown patient on a floor.',
+      'Strong interfacility clinicians are prepared, observant, and consistent. They understand the treatment plan they are continuing, recognize when it is no longer working, and know what they can manage independently.',
+      'The clinical skills that matter most here include:',
       {
         list: [
-          'Ventilator management. Kansas City paramedics train on the transport ventilator and are expected to manage it, not to watch it.',
-          'Infusions — vasopressors, sedatives and the pumps that deliver them.',
-          'Monitoring, hemodynamics, and knowing early when a stable patient has stopped being stable.',
-          'Taking a real report from an ICU nurse, and asking the questions that report did not answer.',
-          'Moving a human being safely — bed to cot, cot to bed, through elevators, doorways and hallways, with lines, tubes and drains attached. Injuries in this job come from lifting far more often than from patients.',
+          'Managing a transport ventilator. Kansas City paramedics train on the ventilator and are expected to manage it, not simply watch it.',
+          'Managing vasopressors, sedatives, other infusions, and the pumps that deliver them.',
+          'Understanding monitoring and hemodynamics, and recognizing early when a stable patient is no longer stable.',
+          'Receiving a thorough report and asking the questions that have not yet been answered.',
+          'Moving patients safely from bed to cot, cot to bed, and through elevators, doorways, and hallways while protecting every line, tube, drain, and device.',
         ],
       },
-      'And documentation, which candidates consistently underrate. An interfacility transport has to be justified as well as performed: the chart has to establish why this patient needed an ambulance and this level of care, and it has to stand up months later when someone reads it who was not there. We review a fifth of our charts every month against a written rubric. If you dislike paperwork, this is the wrong operation, because here the paperwork is part of the clinical work rather than an afterthought to it.',
+      'The physical side of the job also matters. Our injuries come from lifting and moving patients far more often than from dramatic patient-care events.',
+      'Documentation is another part of the standard. A good chart must explain what you did, why the patient needed an ambulance, and why that level of care was appropriate. It may be reviewed months later by someone who was not present.',
+      'We review approximately one in every five charts each month against a written rubric. You do not have to enjoy paperwork, but you must take it seriously. Here, documentation is part of the clinical work and the continuity of care.',
+      'We can train people on our equipment and processes. What we need them to bring is reliability, sound judgment, intellectual honesty, and a willingness to ask when they do not know.',
     ],
   },
   {
     ref: 'shift',
     title: 'What a shift feels like',
     blocks: [
-      'Long stretches of ordinary. Waiting at a bedside for a nurse who is in the middle of something else. Waiting on a bed assignment at the receiving end. Paperwork between calls. A meal in the truck.',
-      'Some transports are twenty minutes across town. Others are long — hours each way, a lot of it on a highway with a patient who needs nothing from you except that you notice immediately if that changes.',
-      'You will finish shifts having moved several patients well, having used none of your emergency skills, and having been genuinely useful all day. If a day like that feels like a day wasted, this job will wear on you, and that is worth knowing about yourself now rather than in your fourth month.',
+      'Some parts of a shift are ordinary. You may wait at a bedside while a nurse finishes another task, wait for a room assignment at the receiving facility, complete documentation between calls, or eat a meal in the ambulance.',
+      'Some transports take 20 minutes. Others take several hours each way, much of it on the highway with a patient who needs little from you except careful observation and an immediate response if that changes.',
+      'On many shifts, doing the job well means nothing dramatic happened. You moved several people safely, kept their medications and equipment working, noticed what needed to be noticed, documented the care, and handed each patient over properly.',
+      'That kind of work does not always produce a good story at the end of the day. It does require discipline and sustained attention. Those qualities are less visible than a dramatic intervention, but they are what keep patients safe.',
+      'If a shift only feels worthwhile when you use emergency procedures, this role will probably not be a good fit. If you can take pride in doing routine things exceptionally well while remaining ready for the moment they stop being routine, you may belong here.',
     ],
   },
   {
     ref: 'facilities',
     title: 'You work inside other people’s buildings',
     blocks: [
-      'On a scene call you are in charge. Here you are, most of the time, a guest — in an ICU, on a med-surg floor, in a nursing facility, standing in a hallway waiting on a nurse who has four other patients.',
-      'You will see the same staff at the same facilities every week. How you behave in those hallways is not a small thing: it is most of our reputation, it decides how much cooperation you get on the day something is genuinely wrong with your patient, and it is visible to us because people tell us.',
-      'Patience with facility staff, and courtesy that does not depend on how your day is going, are job requirements here in a way they are not everywhere.',
+      'On a scene call, the EMS crew often controls the environment. In this role, you are usually working as a guest in someone else’s workplace. You may be in an ICU, on a medical-surgical floor, or in a nursing facility hallway waiting for a nurse who is responsible for several other patients.',
+      'You will see many of the same people at the same facilities each week. Our reputation is built through those everyday interactions. It also affects the cooperation we receive when something is genuinely wrong with a patient.',
+      'Most of the time, no supervisor will be standing beside you. We need to be able to trust how you will treat patients, families, and facility staff when no one from AMR is in the room.',
+      'Courtesy is not simply about appearances. It supports patient care and is part of the job.',
     ],
   },
   {
     ref: 'growth',
-    title: 'Where this goes',
+    title: 'Where this can lead',
     blocks: [
-      'The career here runs toward critical care rather than toward scene work. Crews build up ventilator and hemodynamics training, work with the sickest transported patients in the region, and move on into field training officer and preceptor roles, continuing-education instruction, quality review, or the Kansas AEMT course we sponsor for our own EMTs.',
-      'We will also be straight with you about the other direction. This company does run 911 in this region — Linn County, Kansas is a rural 911 operation with two round-the-clock trucks, and Cass County, Missouri runs a transport truck of its own. Those are separate operations with their own postings, their own schedules and their own hiring. Working here is not a queue you stand in until a 911 seat opens, and nobody moves across because they waited long enough.',
-      'If 911 response is the career you want, say so. It is a completely respectable answer, we would rather hear it now, and in some cases we can point you at where to apply. What does not work for either of us is taking this seat as a place to wait.',
+      'This operation has a deliberate clinical direction. Professional development here generally leads toward critical-care transport rather than scene response.',
+      'Crews build their ventilator and hemodynamic skills, work with some of the region’s most medically complex transport patients, and may move into roles such as field training officer, preceptor, continuing-education instructor, or quality reviewer. We also sponsor a Kansas AEMT course for our EMTs.',
+      'Those opportunities are earned through clinical performance, dependable work, strong documentation, and the trust of the people working beside you. They are not based only on time in the position.',
+      'The company also operates 911 services elsewhere in the region. Linn County, Kansas, is a rural 911 operation with two around-the-clock ambulances, and Cass County, Missouri, operates its own transport unit. Those are separate operations with their own positions, schedules, and hiring processes.',
+      'If 911 response is your career goal, tell us. That is a completely respectable answer, and we may be able to direct you toward the appropriate place to apply. This position, however, is not a waiting list for a future 911 opening.',
+      'Interfacility care is not a lesser version of EMS. It is a different kind of practice, and this role should be chosen for what it is.',
     ],
   },
   {
@@ -156,62 +161,47 @@ export const KC_BRIEFING: BriefingSection[] = [
     blocks: [
       {
         list: [
-          'You show up, on time, for the shift you agreed to.',
-          'You know your equipment before the patient is on it.',
-          'You own your documentation, and it is honest — including the parts that do not flatter you.',
-          'You treat facility staff, patients and families decently on the worst day of your week.',
-          'You ask when you do not know. On this operation, asking is the professional behavior and guessing is the dangerous one.',
+          'You arrive on time and prepared for the shift you accepted.',
+          'You know your equipment before a patient depends on it.',
+          'You take responsibility for accurate and honest documentation, including mistakes.',
+          'You treat patients, families, partners, and facility staff with respect, even on a difficult day.',
+          'You ask questions when you do not know something. Asking is professional; guessing can be dangerous.',
+          'You accept feedback, correct errors, and continue developing.',
+          'You bring the same level of attention to a routine transport that you bring to a critical one.',
         ],
       },
-      'We are hiring for interfacility care. We are looking for people who want to be good at this job, not people willing to tolerate it until something else opens up.',
+      'These expectations are straightforward, but meeting them consistently is what separates a dependable clinician from someone who simply occupies a seat.',
+      'We are deliberate about whom we place in this role because the trust and independence are real.',
     ],
   },
   {
     ref: 'onboarding',
     title: 'How you start',
     blocks: [
-      'New hires go through our New Employee Orientation Program: roughly a week and a half of classroom, run every other month. It covers safe stretcher operation, emergency vehicle operations, our documentation system, HR and OSHA requirements and the corporate learning modules. Paramedics coming into Kansas City add the critical-care block — ventilator management, and vasopressor and sedative infusions.',
-      'After the classroom you ride with a field training officer. You are released to work as a crew member once you have had roughly twenty to thirty patient contacts and your FTO signs you off — not on a fixed date, and not before.',
+      'New employees begin with our New Employee Orientation Program. It lasts approximately a week and a half and is offered every other month. Training includes safe stretcher operation, emergency vehicle operations, our documentation system, HR and OSHA requirements, and required corporate learning modules.',
+      'Paramedics joining the Kansas City operation also complete a critical-care block covering transport ventilator management and vasopressor and sedative infusions.',
+      'After the classroom portion, you will work alongside a field training officer. Most new employees complete approximately 20 to 30 patient contacts before being considered for release as an independent crew member.',
+      'Release is not automatic and does not happen simply because a fixed date has arrived. It is earned when you have demonstrated that you can perform the work safely, consistently, and with the judgment the role requires.',
+      'We invest in the people we select, and we expect them to take that investment seriously.',
     ],
   },
 ]
 
 /**
- * Statements above that this repository cannot source, listed so they are
- * checked by somebody who runs the operation rather than quietly published.
+ * Statements awaiting confirmation from the operation. Now empty, and that is
+ * a real outcome rather than a tidy-up.
  *
- * They are in the briefing because leaving them out would make it less honest,
- * not more. Correct them here and in the section they appear in; if one turns
- * out to be wrong, check whether an exam item keys to it — see
- * docs/neop-selection-exam.md.
+ * This list existed because the first draft of the briefing was assembled here
+ * from what the repository could establish, and five of its claims could not be
+ * sourced — including one that was simply wrong, that this operation responds
+ * to no scenes at all. The text above is now the operation's own, written by
+ * the people who run it, so there is nothing left for them to confirm.
+ *
+ * The mechanism stays. If a future edit adds a claim that nobody here can
+ * stand behind, put it in this list rather than in the briefing quietly, and
+ * check-neop-exam.mjs will keep reporting it until somebody settles it.
  */
-export const NEEDS_CONFIRMATION: { ref: string; claim: string }[] = [
-  {
-    ref: 'what-we-do',
-    claim:
-      'The call mix — that discharges, dialysis and behavioral-health transfers all feature alongside ICU and emergency-department transfers.',
-  },
-  {
-    ref: 'not-911',
-    claim:
-      'The standby and mutual-aid exceptions — that they are occasional rather than a regular part of the rota, and that neither is a route onto a 911 operation. Two exam items turn on this.',
-  },
-  {
-    ref: 'patients',
-    claim:
-      'That balloon-pump, Impella and ECMO patients travel with their own specialist teams rather than being managed by our crew alone.',
-  },
-  {
-    ref: 'shift',
-    claim:
-      'How long a long-distance transfer actually runs. That they happen is stated in the operation\'s own service list; "hours each way" is this briefing\'s wording for it.',
-  },
-  {
-    ref: 'growth',
-    claim:
-      'That there is no internal transfer path from Kansas City into the Linn County or Cass County operations short of applying to a posting.',
-  },
-]
+export const NEEDS_CONFIRMATION: { ref: string; claim: string }[] = []
 
 export function briefingSection(ref: string): BriefingSection | undefined {
   return KC_BRIEFING.find((s) => s.ref === ref)
@@ -219,13 +209,15 @@ export function briefingSection(ref: string): BriefingSection | undefined {
 
 /** Plain text of the whole briefing — for the printable candidate handout. */
 export function briefingText(): string {
-  const out: string[] = [KC_BRIEFING_TITLE, '', KC_BRIEFING_INTRO, '']
+  const out: string[] = [KC_BRIEFING_TITLE, '', ...KC_BRIEFING_INTRO.flatMap((p) => [p, ''])]
   for (const s of KC_BRIEFING) {
     out.push(s.title.toUpperCase(), '')
     for (const b of s.blocks) {
       if (typeof b === 'string') out.push(b, '')
-      else for (const li of b.list) out.push(`  • ${li}`)
-      if (typeof b !== 'string') out.push('')
+      else {
+        for (const li of b.list) out.push(`  • ${li}`)
+        out.push('')
+      }
     }
   }
   return out.join('\n')

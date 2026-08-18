@@ -28,15 +28,17 @@ Hunter's head:
   `src/modules/academy/complianceDocs.ts`, `src/modules/academy/calendar.ts`).
   Module D also carries the **NEOP selection exam** (`/neop-exam`): a public,
   one-attempt exam for external applicants to the Kansas City interfacility
-  operation. Three sections — EMT-scope patient care, comprehension of a
-  written briefing on what the operation actually is, and an **unscored**
-  preference section that asks what the applicant wants from the job. The
-  briefing sits above the Start button and reading it is untimed. The
-  preference answers are never scored; they are surfaced to the interviewer
-  with the question to ask next, because the recurring problem this addresses —
-  applicants who want a 911 career and use interfacility as a way in — is one
-  an interview can test and a self-report item cannot. Content:
-  `src/data/kcOperation.ts` (the briefing), `scripts/neop-exam-bank.mjs` (the
+  operation. Three sections — patient care at newly-qualified EMT level,
+  an **unscored** preference section, and comprehension of the operation's own
+  written description of the job, which sits above the Start button and is
+  untimed to read. The preference items come *before* the operations section
+  and none of them announces what it is for: every option is a defensible
+  answer and several ask what an applicant has already done rather than what
+  they intend, because the problem this addresses — applicants heading for a
+  911 or fire role who use interfacility as a way in — is one that an obvious
+  question only teaches them to answer. Those answers are never scored; the
+  interviewer gets a tally and a probe to ask next. Content:
+  `src/data/kcOperation.ts` (the reading), `scripts/neop-exam-bank.mjs` (the
   questions, deliberately outside `src/`), `src/data/neopSelection.ts` (the
   interview probes). Written up in `docs/neop-selection-exam.md`.
 - **Module E — Dashboard:** one glance at what's at risk right now.

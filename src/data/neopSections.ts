@@ -34,14 +34,38 @@ export interface SectionSpec {
   scored: boolean
 }
 
+/**
+ * IN SERVED ORDER, and the order is a design decision.
+ *
+ * The preference section comes SECOND, before the operations section rather
+ * than after it. The operations items are sixteen questions whose answers all
+ * describe what we value and what we are wary of — run them first and the
+ * candidate answers the preference items having just been coached, at length,
+ * on what we would like to hear. Patient care first is a neutral warm-up that
+ * gives nothing away; what somebody wants is asked before we have spent a
+ * quarter of an hour telling them.
+ *
+ * The briefing still comes before all of it, and still says plainly that this
+ * is not 911 work. That is the trade: self-selection is worth more than a clean
+ * measurement, which is why the preference items lean on what a candidate has
+ * already done rather than what they now say they want.
+ */
 export const NEOP_SECTIONS: SectionSpec[] = [
   {
     id: 'clinical',
     label: 'Patient care',
     intro:
-      'Straightforward patient-care questions at EMT level. Paramedic applicants are not asked paramedic-only material here — everybody sits the same section.',
+      'Straightforward patient-care questions, at the level of a newly qualified EMT and no higher. Everybody sits the same section — paramedic applicants are not asked paramedic material, and nothing here is specific to the way we work.',
     draw: 12,
     scored: true,
+  },
+  {
+    id: 'fit',
+    label: 'What you want',
+    intro:
+      'About you rather than about us. Nothing in this section is scored and no answer here costs you the job — we use it to shape the conversation in your interview rather than to mark you. Several of these have no option that fits you exactly; pick the closest one that is true. Guessing at what we would like to hear will only get you an interview about somebody you are not.',
+    draw: null,
+    scored: false,
   },
   {
     id: 'operations',
@@ -50,14 +74,6 @@ export const NEOP_SECTIONS: SectionSpec[] = [
       'These come from the description of the job you just read. They are the part of this exam we weigh most heavily, because understanding what the work is is the thing that goes wrong most often.',
     draw: 16,
     scored: true,
-  },
-  {
-    id: 'fit',
-    label: 'What you want',
-    intro:
-      'These are not scored, and there is no answer here that costs you the job. They exist so your interview starts from what you actually want rather than from guesswork — and so that if what you want is a 911 career, we find that out now and talk about it honestly instead of six months from now. Answer them the way they are true.',
-    draw: null,
-    scored: false,
   },
 ]
 
@@ -86,5 +102,5 @@ export const NEOP_THRESHOLDS = {
 }
 
 /** How long a sitting lasts. MUST MATCH the server — see lib/exam.ts. */
-export const NEOP_LIMIT_MINUTES = 30
+export const NEOP_LIMIT_MINUTES = 35
 

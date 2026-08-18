@@ -19,6 +19,7 @@ import {
   NEOP_THRESHOLDS,
   SIGNAL_LABEL,
   SIGNAL_TONE,
+  TALLY_NOTE,
   type FitSignal,
 } from '../../data/neopSelection'
 import { confirmAction, notifyUser } from '../../lib/dialog'
@@ -76,6 +77,22 @@ function breakdown(a: ExamAttempt, bank: Map<number, BankRow>): Breakdown | null
 }
 
 const pct = (right: number, of: number) => (of ? Math.round((right / of) * 100) : null)
+
+/**
+ * The pattern across the preference section, which is the only level at which
+ * it means anything.
+ *
+ * Every option in that section is a defensible answer, so one lean is noise.
+ * Presenting a count rather than a verdict is the honest rendering of what the
+ * instrument can actually support — and it is also the useful one, because what
+ * an interviewer wants to know walking into the room is whether there is a
+ * theme worth opening up, not which of thirteen boxes was ticked.
+ */
+function tally(fit: Breakdown['fit']): Record<FitSignal, number> {
+  const t: Record<FitSignal, number> = { consistent: 0, discuss: 0, neutral: 0 }
+  for (const f of fit) t[f.signal]++
+  return t
+}
 
 function toCsv(rows: ExamAttempt[], bank: Map<number, BankRow>, program: ExamProgram): string {
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
@@ -384,6 +401,21 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
                       Ask the probe whatever they answered — the answer is the opening, not the
                       finding.
                     </div>
+                    {(b?.fit ?? []).length > 0 && (
+                      <div className="fit-tally">
+                        <div className="fit-tally-row">
+                          {(['consistent', 'discuss', 'neutral'] as FitSignal[]).map((sig) => {
+                            const n = tally(b?.fit ?? [])[sig]
+                            return (
+                              <span key={sig} className={`pill ${SIGNAL_TONE[sig]}`}>
+                                {n} · {SIGNAL_LABEL[sig]}
+                              </span>
+                            )
+                          })}
+                        </div>
+                        <p>{TALLY_NOTE}</p>
+                      </div>
+                    )}
                     {(b?.fit ?? []).map((f) => {
                       const spec = FIT_BY_CODE.get(f.code)
                       return (

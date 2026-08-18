@@ -65,7 +65,7 @@ export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
     id: 'neop',
     subtitle: 'Kansas City Interfacility — Selection Exam',
     path: '/neop-exam',
-    limitMinutes: 30,
+    limitMinutes: 35,
     deadlineIso: null,
     contact: 'the AMR Kansas City hiring team',
     attestation: [
