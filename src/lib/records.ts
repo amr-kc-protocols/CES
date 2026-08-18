@@ -48,6 +48,9 @@ const SLICES: SliceDef[] = [
   { collection: 'ceClasses', slice: 'ceClasses', idOf: id as SliceDef['idOf'] },
   { collection: 'qaPeriods', slice: 'qaPeriods', idOf: id as SliceDef['idOf'] },
   { collection: 'charts', slice: 'charts', idOf: id as SliceDef['idOf'] },
+  // The Ninth Brain chart review questionnaire. Admin/clinical-leadership only
+  // server-side, same as the rest of the review data.
+  { collection: 'chartReviews', slice: 'chartReviews', idOf: id as SliceDef['idOf'] },
 
   // ----- AEMT program -------------------------------------------------------
   // Kansas certification records carry a three-year retention obligation under

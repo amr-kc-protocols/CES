@@ -1988,3 +1988,213 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   border-top: 1px solid var(--border);
 }
 .shot figcaption .truncate { max-width: 84px; }
+
+/* ---------- Chart review questionnaire ----------
+ *
+ * Twenty-one questions before any category block, so the rows have to stay
+ * scannable at length: a prompt, an optional grey helper line, and the control
+ * directly beneath it. Ruled between rather than boxed, because twenty-one
+ * boxes read as twenty-one separate things to decide rather than one form.
+ */
+.cr-q {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.cr-q:first-of-type { border-top: 0; }
+.cr-q-prompt {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-strong);
+}
+.cr-req {
+  color: var(--red);
+  font-weight: 800;
+  margin-right: 4px;
+}
+
+/* Multi-selects as chips. The Ninth Brain form uses a row of checkboxes with
+   the label to the right; at eight categories that wraps badly on a phone, and
+   a tappable chip is a bigger target than a 13px box. */
+.cr-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text);
+  user-select: none;
+}
+.cr-chip:hover { border-color: var(--navy-600); }
+.cr-chip.on {
+  background: var(--info-bg);
+  border-color: var(--navy-600);
+  color: var(--navy-600);
+}
+.cr-chip input { width: 15px; height: 15px; margin: 0; flex: none; }
+
+@media (max-width: 620px) {
+  .cr-q-prompt { font-size: 13.5px; }
+  .cr-chip { font-size: 12.5px; padding: 5px 9px; }
+}
+
+/* The native tool sits where the iframe would, but is ordinary page content:
+   it scrolls with the page rather than inside a fixed frame. */
+.review-native {
+  padding: 12px 0 24px;
+}
+
+/* ---------- Chart review: built for scanning ----------
+ *
+ * Sixty-five questions exist and a busy review touches thirty of them, so the
+ * layout has to let a reviewer run down the page and stop only where something
+ * needs thought. The prompt sits left and the Yes/No lands in a fixed column on
+ * the right, which means the pointer never hunts: same x, every row.
+ */
+.cr-q-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+}
+.cr-q-main.wide { grid-template-columns: 1fr; gap: 8px; }
+.cr-q-text { min-width: 0; }
+.cr-q-control { flex: none; padding-top: 1px; }
+.cr-q-control .btn-row { flex-wrap: nowrap; }
+.cr-q-control .btn { min-width: 52px; justify-content: center; }
+
+/* Answered rows recede. What is left unanswered should be what catches the eye
+   on a second pass, not the wall of work already done. */
+.cr-q.answered .cr-q-prompt { color: var(--text-muted); font-weight: 500; }
+/* Help text stays put once answered. Hiding it reflowed everything below the
+   row the moment you clicked, which moves the next question out from under the
+   pointer — the opposite of quick. */
+
+/* Markers on the questions that do not score the way the rest do. */
+.cr-mark {
+  margin-left: 8px;
+  font-size: 10px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.cr-bar { gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 700px) {
+  /* Stacked: a fixed right-hand column would leave the prompt three words wide. */
+  .cr-q-main { grid-template-columns: 1fr; gap: 6px; }
+  .cr-q.answered .cr-q-prompt { color: var(--text); }
+}
+
+/* ---------- Bulk PCR import ----------
+ *
+ * The screen exists to answer one question fast: which of these charts do I
+ * have to think about? So the flagged ones are listed in full and the clean
+ * ones collapse to a table — the opposite weighting to the tally screens, where
+ * everything counted matters equally.
+ */
+.cr-drop {
+  margin-top: 12px;
+  padding: 34px 18px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: center;
+  cursor: pointer;
+}
+.cr-drop:hover,
+.cr-drop:focus-visible { border-color: var(--navy-600); background: var(--info-bg); }
+.cr-drop.over {
+  border-color: var(--navy-600);
+  background: var(--info-bg);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.cr-drop-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-strong);
+  margin-bottom: 4px;
+}
+
+.cr-import-head {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-strong);
+  margin-bottom: 8px;
+}
+.cr-import-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.cr-import-row:first-of-type { border-top: 0; }
+.cr-import-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+/* Flags carry a coloured left edge rather than a filled background: a stack of
+   filled panels reads as an error state, and most of these are ordinary
+   documentation gaps rather than alarms. */
+.cr-import-flags { list-style: none; margin: 0; padding: 0; }
+.cr-import-flags li {
+  padding: 7px 0 7px 12px;
+  border-left: 3px solid var(--border-strong);
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.cr-import-flags li:last-child { margin-bottom: 0; }
+.cr-import-flags li.stop { border-left-color: var(--crit); }
+.cr-import-flags li.look { border-left-color: var(--warn); }
+.cr-flag-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+.cr-import-flags li.stop .cr-flag-tag { background: var(--crit-bg); color: var(--crit); }
+.cr-import-flags li.look .cr-flag-tag { background: var(--warn-bg); color: var(--warn); }
+.cr-flags { border-left: 3px solid var(--crit); }
+
+/* Provenance under an imported answer. Quiet by default — it is there to be
+   read when a reviewer doubts an answer, not to compete with the question. */
+.cr-src {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.cr-src-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--muted-bg);
+  color: var(--text-muted);
+}
+.cr-src.read .cr-src-tag { background: var(--ok-bg); color: var(--ok); }
+/* "Assumed" is the one worth noticing: it means the export said nothing and
+   the answer is a default, not a finding. */
+.cr-src.assumed .cr-src-tag { background: var(--warn-bg); color: var(--warn); }

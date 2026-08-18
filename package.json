@@ -11,12 +11,15 @@
     "icons": "node scripts/gen-icons.mjs",
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check": "npm run check:evidence && npm run check:templates && npm run check:plan",
+    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr",
     "check:plan": "node scripts/check-course-plan.mjs",
-    "doc:application": "node scripts/build-application.mjs"
+    "doc:application": "node scripts/build-application.mjs",
+    "check:review": "node scripts/check-chart-review.mjs",
+    "check:pcr": "node scripts/check-pcr-import.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
+    "pdfjs-dist": "^6.2.108",
     "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
