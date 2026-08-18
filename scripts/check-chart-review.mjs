@@ -111,6 +111,21 @@ if (m.CATEGORIES_WITHOUT_SECTIONS.length) {
   )
 }
 
+// Authored blocks are fine, but they must say so. An unlabelled one would be
+// indistinguishable from the transcribed questions the form's credibility rests
+// on.
+const authoredTitles = m.AUTHORED_SECTIONS.map((s) => s.title)
+check(
+  m.AUTHORED_SECTIONS.every((s) => !!s.intro),
+  'every authored section explains where its questions came from',
+  m.AUTHORED_SECTIONS.filter((s) => !s.intro).map((s) => s.title).join(', '),
+)
+check(
+  authoredTitles.join(',') === 'Trauma Review',
+  'Trauma is the only section written here rather than transcribed',
+  `authored: ${authoredTitles.join(', ') || 'none'}`,
+)
+
 const orphanSections = [...withSections].filter((c) => !m.REVIEW_CATEGORIES.includes(c))
 check(
   orphanSections.length === 0,
@@ -143,6 +158,7 @@ const BLOCK_IDS = {
   'Cardiac Arrest': 'ca.bystanderCpr',
   'Lights and Sirens': 'ls.transport',
   STEMI: 'stemi.twelveLead',
+  Trauma: 'tr.triageCriteria',
 }
 const blockMisses = Object.entries(BLOCK_IDS).filter(
   ([cat, qid]) => !m.visibleQuestions(['cqm'], [cat]).some((q) => q.id === qid),
@@ -395,7 +411,8 @@ console.log(`
   ${m.ALL_QUESTIONS.filter((q) => q.kind === 'yesno').length} scored yes/no · ${
     m.ALL_QUESTIONS.filter((q) => q.scoring === 'no-good').length
   } inverted · ${m.ALL_QUESTIONS.filter((q) => q.scoring === 'flag').length} flags
-  ${withSections.size} of ${m.REVIEW_CATEGORIES.length - 1} review categories have a question block`)
+  ${withSections.size} of ${m.REVIEW_CATEGORIES.length - 1} review categories have a question block
+  ${m.AUTHORED_SECTIONS.length} section(s) written here rather than transcribed: ${m.AUTHORED_SECTIONS.map((s) => s.title).join(', ') || 'none'}`)
 
 console.log(
   failed === 0 ? '\nChart review questionnaire is consistent.' : `\n${failed} check(s) failed.`,

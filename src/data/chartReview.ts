@@ -87,6 +87,16 @@ export interface ReviewSection {
   title: string
   intro?: string
   when?: SectionCondition
+  /**
+   * Written here rather than transcribed from Ninth Brain.
+   *
+   * Everything else in this file is a copy of a form that already exists, and
+   * that provenance is the reason anyone trusts it. A block we wrote is a
+   * different kind of thing — defensible, but ours — and it has to be labelled
+   * so that whoever later compares this against the real Ninth Brain form knows
+   * which questions to expect not to find.
+   */
+  authored?: boolean
   questions: ReviewQuestion[]
 }
 
@@ -132,7 +142,7 @@ export const REVIEW_CATEGORIES = [
  *
  * Each is removed from this list as its block arrives.
  */
-export const CATEGORIES_WITHOUT_SECTIONS: string[] = ['Trauma']
+export const CATEGORIES_WITHOUT_SECTIONS: string[] = []
 
 const yn = (
   id: string,
@@ -422,6 +432,35 @@ const CATEGORY_SECTIONS: ReviewSection[] = [
     ],
   },
   {
+    id: 'cat.trauma',
+    title: 'Trauma Review',
+    when: { category: 'Trauma' },
+    authored: true,
+    intro:
+      'Written for AMR Kansas City rather than transcribed from Ninth Brain, which has not supplied a Trauma block. Modelled on the Stroke and STEMI blocks — assessment, notification, destination — plus the trauma triage fields ImageTrend already carries.',
+    questions: [
+      yn('tr.triageCriteria', 'Were the trauma triage criteria documented?', {
+        // ImageTrend carries "Trauma Triage Criteria (High Risk-Red)" and
+        // "(Moderate-Yellow)" as their own fields; both were empty on the stab
+        // wound chart. They drive destination, so a blank is a real gap even
+        // when no criterion was met.
+        help: 'The High Risk (Red) and Moderate (Yellow) criteria fields, whether or not any were met.',
+      }),
+      yn('tr.mechanism', 'Is the mechanism of injury documented?'),
+      yn('tr.assessment', 'Was a full trauma assessment documented?', {
+        help: 'Head-to-toe or rapid full-body scan, as the patient’s condition called for.',
+      }),
+      yn('tr.gcs', 'Was a GCS documented?'),
+      yn('tr.hemorrhage', 'Was hemorrhage control documented?', {
+        help: 'Where bleeding was present — direct pressure, packing or tourniquet, with the time applied. If there was no bleeding to control, select Yes.',
+      }),
+      yn('tr.notification', 'Was a prehospital notification or trauma activation done?', {
+        help: 'Where the patient met trauma criteria. If they did not, select Yes.',
+      }),
+      yn('tr.destination', 'Was the patient transported to the appropriate trauma designation?'),
+    ],
+  },
+  {
     id: 'cat.stemi',
     // Titled without "Review" in Ninth Brain, unlike every other block.
     title: 'STEMI',
@@ -474,6 +513,9 @@ export function visibleSections(types: ReviewType[], categories: string[]): Revi
     return types.includes('cqm') && categories.includes(s.when.category)
   })
 }
+
+/** Sections written here rather than transcribed, for the provenance note. */
+export const AUTHORED_SECTIONS: ReviewSection[] = REVIEW_SECTIONS.filter((s) => s.authored)
 
 /** Every question a review is expected to answer, in form order. */
 export function visibleQuestions(types: ReviewType[], categories: string[]): ReviewQuestion[] {

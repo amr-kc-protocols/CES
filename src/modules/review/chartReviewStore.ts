@@ -71,7 +71,13 @@ export interface QuestionTally {
 }
 
 const SECTION_OF = new Map(
-  REVIEW_SECTIONS.flatMap((s) => s.questions.map((q) => [q.id, s.title] as const)),
+  REVIEW_SECTIONS.flatMap((s) =>
+    // The section label carries its provenance, so it reaches the Tally and
+    // Findings sheets without a column of its own. Anyone reconciling this
+    // export against Ninth Brain needs to know which rows have no counterpart
+    // there.
+    s.questions.map((q) => [q.id, s.authored ? `${s.title} (written here)` : s.title] as const),
+  ),
 )
 
 /**

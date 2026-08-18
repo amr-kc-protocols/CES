@@ -303,6 +303,11 @@ function ReviewForm({
           <div className="card" style={{ padding: 14, marginTop: 12 }} key={s.id}>
             <div className="section-title" style={{ marginTop: 0 }}>
               {s.title}
+              {s.authored && (
+                <span className="pill warn" style={{ marginLeft: 8, fontSize: 10 }}>
+                  written here
+                </span>
+              )}
             </div>
             {s.intro && (
               <div className="help-text" style={{ marginTop: 0 }}>
