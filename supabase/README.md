@@ -116,6 +116,26 @@ three-year retention obligation under K.A.R. 109-17-3 and had no backup at all.
 
 ## Loading the exam bank
 
+There are two banks, one per program. They share the `exam_questions` table and
+are fenced from each other by its `program` column.
+
+### NEOP — the new-hire selection exam
+
+One file, `neop_exam_questions_seed.sql`, after the
+`2026-08-18-neop-selection-exam.sql` migration. It is generated from
+`scripts/neop-exam-bank.mjs` (`npm run gen:neop`) and, unlike the AEMT files
+below, it **upserts on each item's `code` and never deletes**: a re-run
+corrects the wording of an item in place, and an item dropped from the bank is
+retired with `active = false` rather than removed. It is therefore safe to
+re-run while candidates are sitting the exam. Every statement in it is fenced
+to `program = 'neop'`, so it cannot touch the AEMT bank.
+
+Its preference items carry `answer = null`, which is what makes them unscored:
+`scored` is generated from the key's presence and `exam_submit` skips anything
+without one. See `docs/neop-selection-exam.md`.
+
+### AEMT — the cohort selection test
+
 Run these three in order, and **treat the order as load-bearing**:
 
 1. `exam_questions_seed.sql` — the 120-item recall tier. Re-runnable, but note

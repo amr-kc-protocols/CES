@@ -1,0 +1,169 @@
+// Consistency check for the NEOP selection exam.
+//
+// Three files have to agree, and none of them can see the others at runtime:
+// the question bank (scripts/neop-exam-bank.mjs, which is deliberately outside
+// src/ so no answer key is ever bundled into the app), the candidate briefing
+// (src/data/kcOperation.ts), and the interview instrument
+// (src/data/neopSelection.ts, which carries the probe and the reading of each
+// preference option positionally).
+//
+// What these assertions are actually protecting:
+//
+//   - An operations item whose `ref` names a briefing section that does not
+//     exist. The candidate is asked about our operation from a document that
+//     never told them the answer, which measures whether they already work
+//     here — the opposite of the point.
+//   - A preference item with an answer key, or a scored item without one. The
+//     database constraint catches this too; catching it here means catching it
+//     before it reaches the database.
+//   - A signals array that has slipped out of step with its options, which
+//     would print the wrong flag beside a real person's answer.
+//   - A duplicate code, which the upsert would turn into one item quietly
+//     overwriting another.
+//   - The generated seed SQL drifting from the bank it was generated from.
+//
+// Run: node scripts/check-neop-exam.mjs  (or `npm run check:neop`)
+import { readFileSync, rmSync } from 'node:fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { build } from 'esbuild'
+import { CLINICAL, OPERATIONS, FIT } from './neop-exam-bank.mjs'
+import { buildSeedSql, SEED_PATH, items } from './gen-neop-exam.mjs'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const SRC = join(__dirname, '..', 'src')
+const OUT = join(tmpdir(), `ces-neop-exam-${process.pid}.mjs`)
+
+await build({
+  stdin: {
+    contents: `
+      export { KC_BRIEFING, NEEDS_CONFIRMATION } from ${JSON.stringify(join(SRC, 'data/kcOperation'))}
+      export { NEOP_SECTIONS, FIT_ITEMS, NEOP_THRESHOLDS } from ${JSON.stringify(join(SRC, 'data/neopSelection'))}
+    `,
+    resolveDir: SRC,
+    loader: 'ts',
+  },
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  outfile: OUT,
+})
+
+let m
+try {
+  m = await import(pathToFileURL(OUT).href)
+} finally {
+  rmSync(OUT, { force: true })
+}
+
+const { KC_BRIEFING, NEEDS_CONFIRMATION, NEOP_SECTIONS, FIT_ITEMS } = m
+
+let failures = 0
+const fail = (msg, detail) => {
+  failures++
+  console.log(`FAIL  ${msg}`)
+  if (detail) console.log(`      ${detail}`)
+}
+const pass = (msg) => console.log(`ok    ${msg}`)
+
+// ----- every item is well formed -------------------------------------------
+const all = items()
+const bad = []
+for (const i of all) {
+  if (!i.code || !/^[a-z0-9-]+$/.test(i.code)) bad.push(`${i.code}: code must be lower-case kebab`)
+  if (!i.stem || !i.stem.trim()) bad.push(`${i.code}: empty stem`)
+  if (!Array.isArray(i.options) || i.options.length !== 4)
+    bad.push(`${i.code}: needs exactly 4 options, has ${i.options?.length}`)
+  if (new Set(i.options).size !== i.options.length) bad.push(`${i.code}: duplicate options`)
+  if (i.section === 'fit') {
+    if (i.answer !== null && i.answer !== undefined)
+      bad.push(`${i.code}: preference items must have answer: null — this one is keyed`)
+  } else if (!Number.isInteger(i.answer) || i.answer < 0 || i.answer > 3) {
+    bad.push(`${i.code}: scored item needs an answer index 0-3, has ${i.answer}`)
+  }
+}
+if (bad.length) fail(`${bad.length} malformed item(s)`, bad.join('\n      '))
+else pass(`${all.length} items well formed (${CLINICAL.length} clinical, ${OPERATIONS.length} operations, ${FIT.length} preference)`)
+
+// ----- codes are unique ----------------------------------------------------
+const dupes = all.map((i) => i.code).filter((c, n, xs) => xs.indexOf(c) !== n)
+if (dupes.length) fail(`duplicate item codes: ${[...new Set(dupes)].join(', ')}`)
+else pass('every item code is unique')
+
+// ----- operations items key to a briefing section --------------------------
+const refs = new Set(KC_BRIEFING.map((s) => s.ref))
+const orphans = OPERATIONS.filter((i) => !refs.has(i.ref)).map((i) => `${i.code} -> ${i.ref}`)
+if (orphans.length)
+  fail('operations items reference briefing sections that do not exist', orphans.join('\n      '))
+else pass(`all ${OPERATIONS.length} operations items key to a briefing section`)
+
+// A briefing section nothing asks about is not an error, but it is worth
+// knowing: it is a section a candidate has no reason to read carefully.
+const unasked = [...refs].filter((r) => !OPERATIONS.some((i) => i.ref === r))
+if (unasked.length) console.log(`note  briefing sections with no exam item: ${unasked.join(', ')}`)
+
+// ----- the bank can fill the draw ------------------------------------------
+for (const spec of NEOP_SECTIONS) {
+  if (spec.draw === null) continue
+  const n = all.filter((i) => i.section === spec.id && i.answer !== null).length
+  if (n < spec.draw) fail(`${spec.id}: draw is ${spec.draw} but the bank has ${n}`)
+  else if (n < spec.draw * 1.5)
+    console.log(
+      `note  ${spec.id}: ${n} items for a draw of ${spec.draw} — two candidates will see much the same exam`,
+    )
+  else pass(`${spec.id}: ${n} items for a draw of ${spec.draw}`)
+}
+
+// ----- preference items line up with the interview instrument --------------
+const fitCodes = new Set(FIT.map((i) => i.code))
+const probeCodes = new Set(FIT_ITEMS.map((f) => f.code))
+const noProbe = [...fitCodes].filter((c) => !probeCodes.has(c))
+const noItem = [...probeCodes].filter((c) => !fitCodes.has(c))
+if (noProbe.length)
+  fail(
+    'preference items with no entry in src/data/neopSelection.ts',
+    `${noProbe.join(', ')} — the interviewer would see the answer with no probe beside it`,
+  )
+if (noItem.length)
+  fail(
+    'entries in src/data/neopSelection.ts with no item in the bank',
+    `${noItem.join(', ')} — a probe for a question nobody is asked`,
+  )
+if (!noProbe.length && !noItem.length) pass(`all ${FIT.length} preference items have an interview probe`)
+
+const misaligned = FIT_ITEMS.filter((f) => {
+  const item = FIT.find((i) => i.code === f.code)
+  return item && f.signals.length !== item.options.length
+}).map((f) => f.code)
+if (misaligned.length)
+  fail(
+    'signal maps that do not match their options one-for-one',
+    `${misaligned.join(', ')} — signals are positional, so this puts the wrong flag on a real answer`,
+  )
+else pass('every signal map lines up with its options')
+
+// ----- the generated SQL is current ----------------------------------------
+let onDisk = ''
+try {
+  onDisk = readFileSync(SEED_PATH, 'utf8')
+} catch {
+  /* reported below */
+}
+if (onDisk !== buildSeedSql())
+  fail(
+    'supabase/neop_exam_questions_seed.sql is out of date',
+    'run: node scripts/gen-neop-exam.mjs',
+  )
+else pass('the generated seed SQL matches the bank')
+
+// ----- the honesty ledger --------------------------------------------------
+const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)
+if (stale.length) fail(`NEEDS_CONFIRMATION names sections that no longer exist: ${stale.join(', ')}`)
+else if (NEEDS_CONFIRMATION.length)
+  console.log(
+    `note  ${NEEDS_CONFIRMATION.length} briefing statement(s) still awaiting confirmation from the operation`,
+  )
+
+console.log(failures ? `\n${failures} check(s) failed` : '\nNEOP exam: all checks passed')
+process.exit(failures ? 1 : 0)

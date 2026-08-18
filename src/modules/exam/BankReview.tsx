@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Empty } from '../../components/ui'
 import { toCSV, downloadCSV } from '../../lib/csv'
-import { listAttemptsForAnalysis, listExamBank, type BankRow } from '../../lib/exam'
+import {
+  listAttemptsForAnalysis,
+  listExamBank,
+  type BankRow,
+  type ExamProgram,
+} from '../../lib/exam'
 import { analyseExam, type ItemStat } from '../../lib/itemAnalysis'
 
 // ---------------------------------------------------------------------------
@@ -44,7 +49,7 @@ const SME_COLUMNS = [
 
 type Filter = 'all' | 'flagged' | 'too-easy' | 'weak' | 'unseen'
 
-export default function BankReview() {
+export default function BankReview({ program = 'aemt' }: { program?: ExamProgram }) {
   const [bank, setBank] = useState<BankRow[]>([])
   const [stats, setStats] = useState<Map<number, ItemStat>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -56,7 +61,10 @@ export default function BankReview() {
   useEffect(() => {
     void (async () => {
       setLoading(true)
-      const [bk, att] = await Promise.all([listExamBank(), listAttemptsForAnalysis()])
+      const [bk, att] = await Promise.all([
+        listExamBank(program),
+        listAttemptsForAnalysis(program),
+      ])
       setLoading(false)
       if (bk.error) {
         setError(bk.error)
@@ -67,15 +75,21 @@ export default function BankReview() {
       // Statistics are a bonus, not a requirement — the audit is worth doing
       // before anybody has sat the exam.
       if (!att.error) {
-        const key = Object.fromEntries(rows.map((q) => [String(q.id), q.answer]))
+        // Keyed items only — an unscored preference item has no statistics to
+        // have, and including it would report every candidate as wrong on it.
+        const key: Record<string, number> = {}
+        for (const q of rows) if (q.answer !== null && q.answer !== undefined) key[String(q.id)] = q.answer
         const a = analyseExam(
-          (att.rows ?? []).map((r) => ({ questionIds: r.question_ids ?? [], responses: r.responses ?? {} })),
+          (att.rows ?? []).map((r) => ({
+            questionIds: (r.question_ids ?? []).filter((id) => key[String(id)] !== undefined),
+            responses: r.responses ?? {},
+          })),
           key,
         )
         setStats(new Map(a.items.map((i) => [i.id, i])))
       }
     })()
-  }, [])
+  }, [program])
 
   const domains = useMemo(() => [...new Set(bank.map((q) => q.domain))].sort(), [bank])
 
@@ -111,7 +125,8 @@ export default function BankReview() {
       return [
         q.id, q.domain, q.stem,
         q.options[0] ?? '', q.options[1] ?? '', q.options[2] ?? '', q.options[3] ?? '',
-        LETTER[q.answer] ?? '?', q.options[q.answer] ?? '',
+        q.answer === null || q.answer === undefined ? 'unscored' : LETTER[q.answer] ?? '?',
+        q.answer === null || q.answer === undefined ? '' : q.options[q.answer] ?? '',
         s?.n ?? 0,
         s?.p === undefined ? '' : (s.p * 100).toFixed(0),
         s?.discrimination === undefined ? '' : s.discrimination.toFixed(2),
@@ -119,7 +134,10 @@ export default function BankReview() {
         ...SME_COLUMNS.map(() => ''),
       ]
     })
-    downloadCSV(`AEMT_exam_bank_${new Date().toISOString().slice(0, 10)}.csv`, toCSV(headers, rows))
+    downloadCSV(
+      `${program.toUpperCase()}_exam_bank_${new Date().toISOString().slice(0, 10)}.csv`,
+      toCSV(headers, rows),
+    )
   }
 
   if (loading) return <div className="subtle">Loading the bank…</div>
@@ -135,7 +153,9 @@ export default function BankReview() {
           </div>
         </div>
         <div className="btn-row">
-          <Link to="/aemt/exam-results" className="btn sm">← Results</Link>
+          <Link to={program === 'neop' ? '/academy/exam-results' : '/aemt/exam-results'} className="btn sm">
+            ← Results
+          </Link>
           <button className="btn sm" onClick={() => setReveal((r) => !r)}>
             {reveal ? '🙈 Hide answers' : '👁 Reveal answers'}
           </button>
@@ -204,7 +224,9 @@ export default function BankReview() {
               <div style={{ fontWeight: 600, margin: '8px 0 6px' }}>{q.stem}</div>
               <ol type="A" style={{ margin: 0, paddingLeft: 22 }}>
                 {q.options.map((o, i) => {
-                  const isKey = i === q.answer
+                  // An unscored item has no key to reveal, and nothing here
+                  // should imply one of its options is the right one.
+                  const isKey = q.answer !== null && q.answer !== undefined && i === q.answer
                   const picked = s?.chosen?.[i] ?? 0
                   return (
                     <li

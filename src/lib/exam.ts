@@ -1,27 +1,89 @@
 // ---------------------------------------------------------------------------
-// AEMT selection exam client.
+// Selection exam client — AEMT cohort selection, and NEOP new-hire selection.
 //
 // The bank and grading live server-side (Postgres SECURITY DEFINER functions
 // exam_start / exam_submit). This module only calls them: correct answers never
 // reach the browser. Admin reads results straight from exam_attempts (RLS).
+//
+// TWO PROGRAMS, ONE ENGINE. Everything that makes this exam trustworthy is in
+// the server functions, not in the questions, so the new-hire exam is a
+// `program` argument rather than a second implementation. What differs between
+// them is configuration, and all of it is in EXAM_PROGRAMS below — clock,
+// cutoff, wording, where results are read. See the 2026-08-18 migration.
 // ---------------------------------------------------------------------------
 
 import { getSupabaseClient } from './sync'
 
-/**
- * The exam window, and how long a sitting lasts.
- *
- * BOTH VALUES MUST MATCH THE SQL. `v_cutoff` and `v_limit` in
- * supabase/migrations/2026-08-08-exam-hardening.sql are what actually govern
- * the exam; these exist so the candidate can be told before they start. The
- * server is authoritative — once an attempt begins, the timer counts down
- * `limitSeconds` from the server response, not this constant. Only the
- * pre-start copy can drift, and it did: the instructions advertised 40 minutes
- * for a week after the server moved to 25.
- */
-export const EXAM_LIMIT_MINUTES = 25
+export type ExamProgram = 'aemt' | 'neop'
 
-const DEADLINE_ISO = '2026-08-17T17:00:00-05:00'
+export interface ExamProgramConfig {
+  id: ExamProgram
+  /** Line under the AMR mark on the candidate page. */
+  subtitle: string
+  /** Public route the candidate is sent to. */
+  path: string
+  /**
+   * MUST MATCH THE SQL. `v_limit` in exam_start is what actually governs the
+   * sitting; this exists so the candidate can be told before they start. The
+   * server is authoritative — once an attempt begins the timer counts down the
+   * limitSeconds in the server's response, not this constant. Only the
+   * pre-start copy can drift, and it did once: the instructions advertised 40
+   * minutes for a week after the server moved to 25.
+   */
+  limitMinutes: number
+  /**
+   * The close of the window, or null for a rolling exam.
+   *
+   * AEMT selection runs to a cohort deadline. NEOP hiring does not: a new-hire
+   * exam with a date on it is an exam that quietly stops working for every
+   * applicant who comes after it, which is a worse failure than any deadline
+   * it was meant to enforce.
+   */
+  deadlineIso: string | null
+  /** Who a candidate should contact when something has gone wrong. */
+  contact: string
+  /** The integrity statement, in display order. `*starred*` runs render bold. */
+  attestation: string[]
+}
+
+export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
+  aemt: {
+    id: 'aemt',
+    subtitle: 'AEMT Program — Selection Exam',
+    path: '/exam',
+    limitMinutes: 25,
+    deadlineIso: '2026-08-17T17:00:00-05:00',
+    contact: 'the AMR KC education team',
+    attestation: [
+      'I am completing this exam *entirely on my own* — no notes, books, websites, apps, or other people.',
+      'The answers I submit are *my own work*, and my attempt is recorded with my name and email.',
+      "This exam is part of *AMR Kansas City's AEMT selection process*.",
+      'Giving or receiving help is a violation of *AMR’s Standards of Conduct* and may result in *disqualification from selection* and further review.',
+    ],
+  },
+  neop: {
+    id: 'neop',
+    subtitle: 'Kansas City Interfacility — Selection Exam',
+    path: '/neop-exam',
+    limitMinutes: 30,
+    deadlineIso: null,
+    contact: 'the AMR Kansas City hiring team',
+    attestation: [
+      // First, and stored with the attempt: the acknowledgement that they read
+      // the job description. It is the whole point of the briefing that nobody
+      // can later say they were not told what this operation does.
+      'I have read the description of the Kansas City interfacility operation above, and I understand that *this job is not 911 scene response*.',
+      'I am completing this exam *entirely on my own* — no notes, books, websites, apps, or other people.',
+      'The answers I submit are *my own work*, and my attempt is recorded with my name and email.',
+      'This exam is part of *AMR Kansas City’s hiring process* for the interfacility operation.',
+      'Giving or receiving help may result in *my application being withdrawn from consideration*.',
+    ],
+  },
+}
+
+export function examConfig(program: ExamProgram = 'aemt'): ExamProgramConfig {
+  return EXAM_PROGRAMS[program] ?? EXAM_PROGRAMS.aemt
+}
 
 /**
  * The weekday is DERIVED, never typed.
@@ -44,13 +106,26 @@ function deadlineDisplay(iso: string): string {
   })} (Central)`
 }
 
-export const EXAM_DEADLINE = {
-  iso: DEADLINE_ISO,
-  display: deadlineDisplay(DEADLINE_ISO),
+export interface ExamDeadline {
+  iso: string
+  display: string
 }
 
-export function examClosed(now: number = Date.now()): boolean {
-  return now > new Date(EXAM_DEADLINE.iso).getTime()
+/** Null for a rolling exam — there is no date to show, and none to enforce. */
+export function examDeadline(program: ExamProgram = 'aemt'): ExamDeadline | null {
+  const iso = examConfig(program).deadlineIso
+  return iso ? { iso, display: deadlineDisplay(iso) } : null
+}
+
+/** The AEMT deadline, kept as a named export for the candidate email copy. */
+export const EXAM_DEADLINE = examDeadline('aemt') as ExamDeadline
+
+/** The AEMT clock, likewise. */
+export const EXAM_LIMIT_MINUTES = EXAM_PROGRAMS.aemt.limitMinutes
+
+export function examClosed(program: ExamProgram = 'aemt', now: number = Date.now()): boolean {
+  const d = examDeadline(program)
+  return d ? now > new Date(d.iso).getTime() : false
 }
 
 export interface ExamQuestion {
@@ -58,12 +133,17 @@ export interface ExamQuestion {
   domain: string
   stem: string
   options: string[]
+  /** NEOP only: 'clinical' | 'operations' | 'fit'. Absent on the AEMT exam. */
+  section?: string | null
+  /** False for the NEOP preference items, which carry no key at all. */
+  scored?: boolean
 }
 
 export interface ExamStart {
   attemptId: string
   startedAt: string
   limitSeconds: number
+  program?: ExamProgram
   questions: ExamQuestion[]
 }
 
@@ -81,17 +161,25 @@ export type StartResult =
 /**
  * The Integrity Statement the candidate agrees to.
  *
- * Kept here rather than only in the component so the exact wording can be
- * hashed and stored with the attempt. A future edit to the statement then
- * cannot silently change what a past candidate is recorded as having agreed
- * to — the stored hash simply stops matching, which is the honest outcome.
+ * The wording is stored ONCE, in EXAM_PROGRAMS above, and both the page and
+ * the hash are derived from it. They used to be two copies of the same
+ * sentences in two files, which is a promise that they will differ eventually
+ * — and the whole purpose of storing the hash is that a later edit cannot
+ * silently change what a past candidate is recorded as having agreed to. The
+ * emphasis markers are stripped before hashing, so re-bolding a phrase does
+ * not invalidate every attestation on record.
  */
-export const ATTESTATION_TEXT = [
-  'I am completing this exam entirely on my own — no notes, books, websites, apps, or other people.',
-  'The answers I submit are my own work, and my attempt is recorded with my name and email.',
-  "This exam is part of AMR Kansas City's AEMT selection process.",
-  "Giving or receiving help is a violation of AMR's Standards of Conduct and may result in disqualification from selection and further review.",
-].join('\n')
+export function attestationLines(program: ExamProgram = 'aemt'): string[] {
+  return examConfig(program).attestation
+}
+
+export function attestationText(program: ExamProgram = 'aemt'): string {
+  return attestationLines(program)
+    .map((l) => l.replace(/\*/g, ''))
+    .join('\n')
+}
+
+export const ATTESTATION_TEXT = attestationText('aemt')
 
 /** Stable, non-cryptographic digest. Identifies the wording, not a secret. */
 export function attestationHash(text: string = ATTESTATION_TEXT): string {
@@ -105,6 +193,7 @@ export async function startExam(
   email: string,
   attested?: boolean,
   signature?: string,
+  program: ExamProgram = 'aemt',
 ): Promise<StartResult> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'The exam is temporarily unavailable. Please try again shortly.' }
@@ -113,7 +202,8 @@ export async function startExam(
     p_email: email,
     p_attested: attested ?? null,
     p_signature: signature ?? null,
-    p_attestation_hash: attested ? attestationHash() : null,
+    p_attestation_hash: attested ? attestationHash(attestationText(program)) : null,
+    p_program: program,
   })
   if (error) return { error: error.message }
   const d = data as Record<string, unknown>
@@ -150,15 +240,22 @@ export interface ExamAttempt {
   score: number | null
   total: number
   percent: number | null
+  program?: ExamProgram
+  /** Present because the results read is `select *`; the NEOP screen uses both. */
+  question_ids?: number[]
+  responses?: Record<string, number> | null
 }
 
-/** Admin only (RLS). Completed attempts, highest score first. */
-export async function listExamResults(): Promise<{ rows?: ExamAttempt[]; error?: string }> {
+/** Admin only (RLS). Completed attempts for one program, highest score first. */
+export async function listExamResults(
+  program: ExamProgram = 'aemt',
+): Promise<{ rows?: ExamAttempt[]; error?: string }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
   const { data, error } = await c
     .from('exam_attempts')
     .select('*')
+    .eq('program', program)
     .not('submitted_at', 'is', null)
     .is('voided_at', null)
     .order('percent', { ascending: false })
@@ -183,12 +280,15 @@ export interface AttemptRow {
 }
 
 /** Submitted attempts with their served items and raw responses. */
-export async function listAttemptsForAnalysis(): Promise<{ rows?: AttemptRow[]; error?: string }> {
+export async function listAttemptsForAnalysis(
+  program: ExamProgram = 'aemt',
+): Promise<{ rows?: AttemptRow[]; error?: string }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
   const { data, error } = await c
     .from('exam_attempts')
     .select('id, question_ids, responses')
+    .eq('program', program)
     .not('submitted_at', 'is', null)
     // A voided attempt must not move an item's difficulty or discrimination.
     .is('voided_at', null)
@@ -201,14 +301,22 @@ export interface BankRow {
   stem: string
   /** The four choices, in bank order. The exam shuffles display order. */
   options: string[]
-  answer: number
+  /** Null on an unscored item — the NEOP preference section has no key. */
+  answer: number | null
+  section?: string | null
+  code?: string | null
 }
 
-/** The bank, with the key. Admin only, by RLS. */
-export async function listExamBank(): Promise<{ rows?: BankRow[]; error?: string }> {
+/** The bank for one program, with the key. Admin only, by RLS. */
+export async function listExamBank(
+  program: ExamProgram = 'aemt',
+): Promise<{ rows?: BankRow[]; error?: string }> {
   const c = await getSupabaseClient()
   if (!c) return { error: 'Cloud project not configured.' }
-  const { data, error } = await c.from('exam_questions').select('id, domain, stem, options, answer')
+  const { data, error } = await c
+    .from('exam_questions')
+    .select('id, domain, stem, options, answer, section, code')
+    .eq('program', program)
   return error ? { error: error.message } : { rows: (data ?? []) as BankRow[] }
 }
 
@@ -232,7 +340,9 @@ export interface UnfinishedAttempt {
 }
 
 /** Started but never submitted — still running, or out of time. Admin only. */
-export async function listUnfinishedAttempts(): Promise<{
+export async function listUnfinishedAttempts(
+  program: ExamProgram = 'aemt',
+): Promise<{
   rows?: UnfinishedAttempt[]
   error?: string
 }> {
@@ -241,6 +351,7 @@ export async function listUnfinishedAttempts(): Promise<{
   const { data, error } = await c
     .from('exam_attempts')
     .select('id, name, email, started_at, limit_seconds')
+    .eq('program', program)
     .is('submitted_at', null)
     .is('voided_at', null)
     .order('started_at', { ascending: false })

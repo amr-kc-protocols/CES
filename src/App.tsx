@@ -77,6 +77,26 @@ function AemtOnly({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Selection exam results and the bank behind them.
+ *
+ * Same administrator gate as the instruments, for its own reason: these rows
+ * are job applicants' names, contact details and their own answers about what
+ * they want from a career, and an applicant may be a current colleague of the
+ * FTO who would otherwise read them.
+ */
+function HiringOnly({ children }: { children: ReactNode }) {
+  const { manageAcademy } = useCan()
+  return (
+    <Gated
+      allowed={manageAcademy}
+      why="Selection exam results carry applicants' contact details and their own answers about what they want from a career. Administrators only."
+    >
+      {children}
+    </Gated>
+  )
+}
+
 function AdminOnly({ children }: { children: ReactNode }) {
   const { manageAcademy } = useCan()
   return (
@@ -122,6 +142,18 @@ export default function App() {
           </Suspense>
         }
       />
+      {/* The new-hire selection exam for the Kansas City interfacility
+          operation. Same page, same server functions, different program — the
+          job briefing renders above the Start button and the clock does not
+          begin until they press it. */}
+      <Route
+        path="/neop-exam"
+        element={
+          <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+            <ExamPage program="neop" />
+          </Suspense>
+        }
+      />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         {CE_ENABLED && <Route path="ce" element={<CETracker />} />}
@@ -135,6 +167,22 @@ export default function App() {
         )}
         <Route path="academy" element={<AcademyList />} />
         <Route path="academy/ftos" element={<FtoScheduleView />} />
+        <Route
+          path="academy/exam-results"
+          element={
+            <HiringOnly>
+              <ExamResults program="neop" />
+            </HiringOnly>
+          }
+        />
+        <Route
+          path="academy/exam-bank"
+          element={
+            <HiringOnly>
+              <BankReview program="neop" />
+            </HiringOnly>
+          }
+        />
         <Route path="academy/:cohortId" element={<CohortView />} />
         {FIELD_OBJECTIVES_ENABLED && HAS_FIELD_OBJECTIVES && (
           <Route path="academy/:cohortId/checklist/:traineeId" element={<FieldChecklistView />} />

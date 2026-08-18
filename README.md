@@ -26,6 +26,19 @@ Hunter's head:
   file** (one timed event per block) for Outlook / Google / Apple Calendar
   (content data: `src/data/ftObjectives.ts`, `src/data/academyTemplate.ts`,
   `src/modules/academy/complianceDocs.ts`, `src/modules/academy/calendar.ts`).
+  Module D also carries the **NEOP selection exam** (`/neop-exam`): a public,
+  one-attempt exam for external applicants to the Kansas City interfacility
+  operation. Three sections — EMT-scope patient care, comprehension of a
+  written briefing on what the operation actually is, and an **unscored**
+  preference section that asks what the applicant wants from the job. The
+  briefing sits above the Start button and reading it is untimed. The
+  preference answers are never scored; they are surfaced to the interviewer
+  with the question to ask next, because the recurring problem this addresses —
+  applicants who want a 911 career and use interfacility as a way in — is one
+  an interview can test and a self-report item cannot. Content:
+  `src/data/kcOperation.ts` (the briefing), `scripts/neop-exam-bank.mjs` (the
+  questions, deliberately outside `src/`), `src/data/neopSelection.ts` (the
+  interview probes). Written up in `docs/neop-selection-exam.md`.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics
