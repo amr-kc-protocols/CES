@@ -209,7 +209,7 @@ export default function ExamPage({ program = 'aemt' }: { program?: ExamProgram }
       <header className="intake-head">
         <img src="/pwa-192x192.png" alt="" />
         <div>
-          <div className="intake-title">AMR Kansas City</div>
+          <div className="intake-title">{cfg.orgName}</div>
           <div className="intake-sub">{cfg.subtitle}</div>
         </div>
       </header>

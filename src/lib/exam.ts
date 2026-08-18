@@ -18,6 +18,16 @@ export type ExamProgram = 'aemt' | 'neop'
 
 export interface ExamProgramConfig {
   id: ExamProgram
+  /**
+   * The organisation as it is named to the candidate, in the page header.
+   *
+   * Per program, because the two exams answer to different names. The NEOP
+   * exam uses the operation's house style for candidate-facing material,
+   * "AMR KC". The AEMT exam keeps "AMR Kansas City", which is the sponsoring
+   * organisation as named in the Kansas filings — a certification record
+   * should carry the name that is on the paperwork.
+   */
+  orgName: string
   /** Line under the AMR mark on the candidate page. */
   subtitle: string
   /** Public route the candidate is sent to. */
@@ -49,6 +59,7 @@ export interface ExamProgramConfig {
 export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
   aemt: {
     id: 'aemt',
+    orgName: 'AMR Kansas City',
     subtitle: 'AEMT Program — Selection Exam',
     path: '/exam',
     limitMinutes: 25,
@@ -63,19 +74,20 @@ export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
   },
   neop: {
     id: 'neop',
-    subtitle: 'Kansas City Interfacility — Selection Exam',
+    orgName: 'AMR KC',
+    subtitle: 'KC Interfacility — Selection Exam',
     path: '/neop-exam',
     limitMinutes: 35,
     deadlineIso: null,
-    contact: 'the AMR Kansas City hiring team',
+    contact: 'the AMR KC hiring team',
     attestation: [
       // First, and stored with the attempt: the acknowledgement that they read
       // the job description. It is the whole point of the briefing that nobody
       // can later say they were not told what this operation does.
-      'I have read the description of the Kansas City interfacility operation above, and I understand that *this job is not 911 scene response*.',
+      'I have read the description of the KC interfacility operation above, and I understand that *this job is not 911 scene response*.',
       'I am completing this exam *entirely on my own* — no notes, books, websites, apps, or other people.',
       'The answers I submit are *my own work*, and my attempt is recorded with my name and email.',
-      'This exam is part of *AMR Kansas City’s hiring process* for the interfacility operation.',
+      'This exam is part of *AMR KC’s hiring process* for the interfacility operation.',
       'Giving or receiving help may result in *my application being withdrawn from consideration*.',
     ],
   },

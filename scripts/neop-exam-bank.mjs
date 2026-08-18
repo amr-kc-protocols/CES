@@ -545,7 +545,7 @@ export const OPERATIONS = [
   {
     code: 'ops-primary-work',
     ref: 'what-we-do',
-    stem: "AMR Kansas City's primary work is:",
+    stem: 'AMR KC’s primary work is:',
     options: [
       'responding to 911 calls across the metro',
       'moving patients between healthcare facilities',
@@ -581,12 +581,12 @@ export const OPERATIONS = [
   {
     code: 'ops-geography',
     ref: 'what-we-do',
-    stem: 'The Kansas City operation works:',
+    stem: 'The KC operation works:',
     options: [
-      'in Missouri only',
-      'in Kansas only',
-      'on both sides of the state line, in Missouri and Kansas',
-      'anywhere in the two states, dispatched from a single hospital',
+      'in one state only',
+      'within a single county',
+      'across the metro, on both sides of the state line',
+      'anywhere in the region, dispatched from one hospital',
     ],
     answer: 2,
   },
@@ -658,7 +658,7 @@ export const OPERATIONS = [
     code: 'ops-standby-aid',
     ref: 'not-911',
     stem:
-      'Standby coverage at the Kansas Speedway, and responding on mutual aid when a neighboring 911 system asks for help:',
+      'Standby coverage at the Speedway, and responding on mutual aid when a neighboring 911 system asks for help:',
     options: [
       'are the main work of this operation',
       'both happen, and both are the exception rather than what a shift is made of',
@@ -746,7 +746,7 @@ export const OPERATIONS = [
   {
     code: 'ops-vent-expectation',
     ref: 'skills',
-    stem: 'A Kansas City paramedic is expected to:',
+    stem: 'A KC paramedic is expected to:',
     options: [
       'manage the transport ventilator, not simply watch it',
       'leave ventilator settings to the sending respiratory therapist',
@@ -951,10 +951,10 @@ export const OPERATIONS = [
     ref: 'growth',
     stem: 'The 911 work this company does in the region is:',
     options: [
-      'run out of the Kansas City interfacility trucks',
-      'in Linn County, Kansas — a rural 911 operation with two round-the-clock trucks — and Cass County, Missouri, which runs a transport truck of its own',
+      'run out of the KC interfacility trucks',
+      'in Linn County — a rural 911 operation with two round-the-clock ambulances — and Cass County, which runs a transport unit of its own',
       'contracted out to another provider',
-      'available to Kansas City crews as overtime shifts',
+      'available to KC crews as overtime shifts',
     ],
     answer: 1,
   },
@@ -1033,7 +1033,7 @@ export const OPERATIONS = [
   {
     code: 'ops-medic-block',
     ref: 'onboarding',
-    stem: 'Paramedics coming into Kansas City add which block to the standard orientation?',
+    stem: 'Paramedics coming into KC add which block to the standard orientation?',
     options: [
       'rescue and extrication',
       'ventilator management, and vasopressor and sedative infusions',

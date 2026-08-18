@@ -1,8 +1,14 @@
 // ---------------------------------------------------------------------------
 // What this role is — the candidate briefing.
 //
+// NAMING: this operation is "AMR KC" throughout, never "Kansas City", and the
+// counties are named without their states. That is the operation's own house
+// style for candidate-facing material and it is applied consistently — the
+// exam items quote this document, so a rename here without a rename there
+// produces a question whose answer is not quite in the reading.
+//
 // THE TEXT BELOW IS THE OPERATION'S OWN. It was written by the people who run
-// Kansas City, and it replaced an earlier draft assembled here from what this
+// KC, and it replaced an earlier draft assembled here from what this
 // repository could establish. Edit it with that in mind: the wording is theirs,
 // not this file's, and rewriting a sentence to read better is not a
 // housekeeping change — it changes what an applicant was told and, for eight of
@@ -53,8 +59,8 @@ export const KC_BRIEFING: BriefingSection[] = [
     ref: 'what-we-do',
     title: 'What we do',
     blocks: [
-      'AMR Kansas City is an interfacility operation that handles everything from routine discharges to complex critical-care transfers. We move patients between hospitals, specialty centers, rehabilitation facilities, skilled nursing facilities, long-term acute care hospitals, hospice, and home.',
-      'Our crews complete roughly 1,000 transports each month across the Kansas City metro, on both sides of the state line.',
+      'AMR KC is an interfacility operation that handles everything from routine discharges to complex critical-care transfers. We move patients between hospitals, specialty centers, rehabilitation facilities, skilled nursing facilities, long-term acute care hospitals, hospice, and home.',
+      'Our crews complete roughly 1,000 transports each month across the KC metro, on both sides of the state line.',
       'A typical shift may include:',
       {
         list: [
@@ -75,7 +81,7 @@ export const KC_BRIEFING: BriefingSection[] = [
     title: 'What this job is not',
     blocks: [
       'This is not a traditional 911 assignment. You will not spend most of your shift responding to crashes, shootings, or homes where nobody knows what is waiting inside.',
-      'We do provide planned medical coverage at major events, including races at Kansas Speedway and other regional gatherings. We also respond through mutual aid when a neighboring 911 system needs assistance. Those calls are real, but they are not what defines this position and they are not a side door into a 911 role.',
+      'We do provide planned medical coverage at major events, including races at the Speedway and other regional gatherings. We also respond through mutual aid when a neighboring 911 system needs assistance. Those calls are real, but they are not what defines this position and they are not a side door into a 911 role.',
       'On most calls, you will know the patient’s name, diagnosis, medications, medical devices, and destination before the ambulance begins moving. There is less uncertainty than on a scene call, but that does not lower the standard. It changes where the responsibility lies.',
       'The question is usually not, “What am I walking into?” It is, “What could change during this trip, and am I prepared for it?”',
       'Lights and sirens are the exception. Most transports happen at normal road speed because the patient is stable and our job is to keep them that way.',
@@ -109,7 +115,7 @@ export const KC_BRIEFING: BriefingSection[] = [
       'The clinical skills that matter most here include:',
       {
         list: [
-          'Managing a transport ventilator. Kansas City paramedics train on the ventilator and are expected to manage it, not simply watch it.',
+          'Managing a transport ventilator. KC paramedics train on the ventilator and are expected to manage it, not simply watch it.',
           'Managing vasopressors, sedatives, other infusions, and the pumps that deliver them.',
           'Understanding monitoring and hemodynamics, and recognizing early when a stable patient is no longer stable.',
           'Receiving a thorough report and asking the questions that have not yet been answered.',
@@ -148,9 +154,9 @@ export const KC_BRIEFING: BriefingSection[] = [
     title: 'Where this can lead',
     blocks: [
       'This operation has a deliberate clinical direction. Professional development here generally leads toward critical-care transport rather than scene response.',
-      'Crews build their ventilator and hemodynamic skills, work with some of the region’s most medically complex transport patients, and may move into roles such as field training officer, preceptor, continuing-education instructor, or quality reviewer. We also sponsor a Kansas AEMT course for our EMTs.',
+      'Crews build their ventilator and hemodynamic skills, work with some of the region’s most medically complex transport patients, and may move into roles such as field training officer, preceptor, continuing-education instructor, or quality reviewer. We also sponsor a state-approved AEMT course for our EMTs.',
       'Those opportunities are earned through clinical performance, dependable work, strong documentation, and the trust of the people working beside you. They are not based only on time in the position.',
-      'The company also operates 911 services elsewhere in the region. Linn County, Kansas, is a rural 911 operation with two around-the-clock ambulances, and Cass County, Missouri, operates its own transport unit. Those are separate operations with their own positions, schedules, and hiring processes.',
+      'The company also operates 911 services elsewhere in the region. Linn County is a rural 911 operation with two around-the-clock ambulances, and Cass County operates its own transport unit. Those are separate operations with their own positions, schedules, and hiring processes.',
       'If 911 response is your career goal, tell us. That is a completely respectable answer, and we may be able to direct you toward the appropriate place to apply. This position, however, is not a waiting list for a future 911 opening.',
       'Interfacility care is not a lesser version of EMS. It is a different kind of practice, and this role should be chosen for what it is.',
     ],
@@ -179,7 +185,7 @@ export const KC_BRIEFING: BriefingSection[] = [
     title: 'How you start',
     blocks: [
       'New employees begin with our New Employee Orientation Program. It lasts approximately a week and a half and is offered every other month. Training includes safe stretcher operation, emergency vehicle operations, our documentation system, HR and OSHA requirements, and required corporate learning modules.',
-      'Paramedics joining the Kansas City operation also complete a critical-care block covering transport ventilator management and vasopressor and sedative infusions.',
+      'Paramedics joining the KC operation also complete a critical-care block covering transport ventilator management and vasopressor and sedative infusions.',
       'After the classroom portion, you will work alongside a field training officer. Most new employees complete approximately 20 to 30 patient contacts before being considered for release as an independent crew member.',
       'Release is not automatic and does not happen simply because a fixed date has arrived. It is earned when you have demonstrated that you can perform the work safely, consistently, and with the judgment the role requires.',
       'We invest in the people we select, and we expect them to take that investment seriously.',

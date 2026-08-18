@@ -14,7 +14,7 @@
 -- WHAT IS ACTUALLY NEW, and it is not cosmetic:
 --
 --   SECTIONS. The NEOP exam is three sections that are not interchangeable —
---   patient care, understanding of the Kansas City interfacility operation,
+--   patient care, understanding of the KC interfacility operation,
 --   and what the candidate actually wants from the job. The draw is stratified
 --   so every candidate gets the same shape of exam rather than whatever 36
 --   random items happened to come up.

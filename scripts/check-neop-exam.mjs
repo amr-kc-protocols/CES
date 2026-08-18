@@ -38,7 +38,7 @@ const OUT = join(tmpdir(), `ces-neop-exam-${process.pid}.mjs`)
 await build({
   stdin: {
     contents: `
-      export { KC_BRIEFING, NEEDS_CONFIRMATION } from ${JSON.stringify(join(SRC, 'data/kcOperation'))}
+      export { KC_BRIEFING, KC_BRIEFING_TITLE, KC_BRIEFING_INTRO, NEEDS_CONFIRMATION } from ${JSON.stringify(join(SRC, 'data/kcOperation'))}
       export { NEOP_SECTIONS, FIT_ITEMS, NEOP_THRESHOLDS } from ${JSON.stringify(join(SRC, 'data/neopSelection'))}
     `,
     resolveDir: SRC,
@@ -57,7 +57,7 @@ try {
   rmSync(OUT, { force: true })
 }
 
-const { KC_BRIEFING, NEEDS_CONFIRMATION, NEOP_SECTIONS, FIT_ITEMS } = m
+const { KC_BRIEFING, KC_BRIEFING_TITLE, KC_BRIEFING_INTRO, NEEDS_CONFIRMATION, NEOP_SECTIONS, FIT_ITEMS } = m
 
 let failures = 0
 const fail = (msg, detail) => {
@@ -326,6 +326,29 @@ else pass('no comment in the installer carries a quote character')
 const dq = buildInstallSql().split('"').length - 1
 if (dq) fail(`the installer contains ${dq} double-quote character(s)`, 'use typographic quotes in item text')
 else pass('the installer contains no double-quote character')
+
+// ----- the house style holds across the reading and the items ---------------
+// This operation is "AMR KC" to a candidate, and the counties are named without
+// their states. The rule is enforced rather than remembered because the two
+// halves are edited separately: the exam items quote the reading, so a rename
+// in one and not the other produces a question whose answer is not quite in the
+// document the candidate was given.
+const readingText = [
+  KC_BRIEFING_TITLE,
+  ...KC_BRIEFING_INTRO,
+  ...KC_BRIEFING.flatMap((sec) => [
+    sec.title,
+    ...sec.blocks.flatMap((b) => (typeof b === 'string' ? [b] : b.list)),
+  ]),
+]
+const itemText = all.flatMap((i) => [i.stem, ...i.options])
+const strays = [...readingText, ...itemText].filter((t) => /Kansas/.test(t))
+if (strays.length)
+  fail(
+    `${strays.length} candidate-facing string(s) still say "Kansas"`,
+    `${strays[0].slice(0, 90)}…\n      Use KC for the operation, and name the counties without their states.`,
+  )
+else pass('the reading and the items agree on the house style (KC, counties unqualified)')
 
 // ----- the honesty ledger --------------------------------------------------
 const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)
