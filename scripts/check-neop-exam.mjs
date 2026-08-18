@@ -253,6 +253,68 @@ if (installed !== buildInstallSql())
   )
 else pass('the one-paste installer matches the migrations and the bank')
 
+// ----- no comment in the installer carries a quote character ----------------
+// The property that actually failed in the field. A comment containing an
+// ASCII apostrophe — "each item\'s code" — desynchronises any statement
+// splitter that tracks quote state without skipping comments, and from there
+// the editor reads prose as SQL: the Supabase editor reported
+// `relation "Kansas" does not exist` for a file psql applied cleanly twice.
+//
+// Asserted directly rather than by comparing statement counts, which was the
+// first attempt and was wrong: the revert blocks are commented-out SQL full of
+// semicolons, so the counts differ for a reason that harms nobody. What must
+// never differ is quote state.
+const commentQuotes = (sql) => {
+  const found = []
+  let i = 0
+  let tag = null
+  let line = 1
+  const bump = (from, to) => {
+    for (let k = from; k < to; k++) if (sql[k] === '\n') line++
+  }
+  while (i < sql.length) {
+    const rest = sql.slice(i)
+    if (tag) {
+      if (rest.startsWith(tag)) { bump(i, i + tag.length); i += tag.length; tag = null }
+      else { if (sql[i] === '\n') line++; i++ }
+      continue
+    }
+    const d = /^\$[A-Za-z_]*\$/.exec(rest)
+    if (d) { tag = d[0]; i += tag.length; continue }
+    if (sql[i] === "'") {
+      i++
+      while (i < sql.length) {
+        if (sql[i] === '\n') line++
+        if (sql[i] === "'") {
+          if (sql[i + 1] === "'") { i += 2; continue }
+          i++
+          break
+        }
+        i++
+      }
+      continue
+    }
+    if (rest.startsWith('--')) {
+      const e = sql.indexOf('\n', i)
+      const stop = e === -1 ? sql.length : e
+      const text = sql.slice(i, stop)
+      if (/['"]/.test(text)) found.push(`line ${line}: ${text.trim().slice(0, 72)}`)
+      i = stop
+      continue
+    }
+    if (sql[i] === '\n') line++
+    i++
+  }
+  return found
+}
+const leaked = commentQuotes(buildInstallSql())
+if (leaked.length)
+  fail(
+    `${leaked.length} comment(s) in the installer carry a quote character`,
+    `${leaked.slice(0, 3).join('\n      ')}\n      An editor that splits statements itself will desynchronise here and report a nonsense error about whatever word follows.`,
+  )
+else pass('no comment in the installer carries a quote character')
+
 // ----- the honesty ledger --------------------------------------------------
 const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)
 if (stale.length) fail(`NEEDS_CONFIRMATION names sections that no longer exist: ${stale.join(', ')}`)

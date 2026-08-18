@@ -118,11 +118,88 @@ select section, count(*) filter (where active) as active_items, count(*) as tota
 `
 }
 
+/**
+ * Make the concatenated SQL safe for an editor that splits statements itself.
+ *
+ * THIS IS NOT COSMETIC. The first version of this installer failed in the
+ * Supabase SQL Editor with
+ *
+ *   ERROR: 42P01: relation "Kansas" does not exist
+ *
+ * on a file that psql applied cleanly twice. Nothing in it names a relation
+ * "Kansas". What it does contain is seventeen ASCII apostrophes inside `--`
+ * comment lines — "each item's code", "somebody's stated", "the candidate's" —
+ * several of them an ODD number per line. A splitter that tracks quote state
+ * but does not skip comments desynchronises on the first one, and from there it
+ * is reading prose as SQL: the middle of a sentence becomes an identifier.
+ *
+ * The fix is to make comments incapable of carrying quote state. Apostrophes
+ * and double quotes INSIDE comments become their typographic equivalents,
+ * which read identically to a human and are not quote characters to any
+ * parser. Comments survive; the hazard does not. Code and string literals are
+ * untouched, so the SQL is byte-identical where it matters.
+ *
+ * check-neop-exam.mjs asserts that a naive splitter and a correct one find the
+ * same number of statements in the result — which is the property that was
+ * actually violated, rather than a proxy for it.
+ */
+export function safeForEditors(sql) {
+  let out = ''
+  let i = 0
+  let dollarTag = null
+  while (i < sql.length) {
+    const rest = sql.slice(i)
+    if (dollarTag) {
+      if (rest.startsWith(dollarTag)) {
+        out += dollarTag
+        i += dollarTag.length
+        dollarTag = null
+      } else {
+        out += sql[i++]
+      }
+      continue
+    }
+    const dollar = /^\$[A-Za-z_]*\$/.exec(rest)
+    if (dollar) {
+      dollarTag = dollar[0]
+      out += dollarTag
+      i += dollarTag.length
+      continue
+    }
+    if (sql[i] === "'") {
+      // A string literal, doubled quotes and all. Copy it verbatim.
+      out += sql[i++]
+      while (i < sql.length) {
+        out += sql[i]
+        if (sql[i] === "'") {
+          i++
+          if (sql[i] === "'") {
+            out += sql[i++]
+            continue
+          }
+          break
+        }
+        i++
+      }
+      continue
+    }
+    if (rest.startsWith('--')) {
+      const end = sql.indexOf('\n', i)
+      const stop = end === -1 ? sql.length : end
+      out += sql.slice(i, stop).replace(/'/g, '\u2019').replace(/"/g, '\u201d')
+      i = stop
+      continue
+    }
+    out += sql[i++]
+  }
+  return out
+}
+
 export function buildInstallSql() {
   const parts = INSTALL_PARTS.map(([dir, file]) =>
     readFileSync(join(__dirname, '..', 'supabase', dir, file), 'utf8'),
   )
-  return `-- ---------------------------------------------------------------------------
+  return safeForEditors(`-- ---------------------------------------------------------------------------
 -- NEOP selection exam — INSTALL EVERYTHING, IN ORDER.
 --
 -- Paste the whole file into the Supabase SQL Editor and run it once. It is
@@ -156,7 +233,7 @@ ${buildSeedSql()}
 -- because the failure mode is an exam that reports itself as unavailable while
 -- the database is in fact perfectly ready.
 notify pgrst, 'reload schema';
-`
+`)
 }
 
 const invokedDirectly = process.argv[1] && process.argv[1].endsWith('gen-neop-exam.mjs')

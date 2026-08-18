@@ -3,7 +3,7 @@
 --
 -- Paste the whole file into the Supabase SQL Editor and run it once. It is
 -- safe to run again: every statement in it is written to be re-runnable, the
--- question bank upserts on each item's code rather than reloading, and items no
+-- question bank upserts on each item’s code rather than reloading, and items no
 -- longer in the bank are retired instead of deleted, so an attempt already on
 -- record is never orphaned.
 --
@@ -20,7 +20,7 @@
 -- holding a stale schema cache. The last statement in this file reloads it; if
 -- you are pasting only part of the file, run this on its own:
 --
---   notify pgrst, 'reload schema';
+--   notify pgrst, ’reload schema’;
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@
 -- candidate presses Start.
 --
 -- The AEMT exam is untouched by design. Existing rows default to
--- program = 'aemt'; its draw, cutoff, clock and one-attempt rule behave exactly
+-- program = ’aemt’; its draw, cutoff, clock and one-attempt rule behave exactly
 -- as before, and an attempt already in flight is unaffected.
 -- ---------------------------------------------------------------------------
 
@@ -93,7 +93,7 @@ alter table public.exam_questions add constraint exam_questions_neop_has_section
 alter table public.exam_questions alter column answer drop not null;
 
 -- Unscored items live in the preference section and nowhere else, in both
--- directions: a keyed preference item would be scoring somebody's stated
+-- directions: a keyed preference item would be scoring somebody’s stated
 -- ambitions, and an unkeyed item anywhere else is a question that quietly
 -- counts for nothing.
 alter table public.exam_questions drop constraint if exists exam_questions_unscored_is_fit;
@@ -126,7 +126,7 @@ alter table public.exam_attempts add constraint exam_attempts_program_check
 
 -- One attempt per email PER PROGRAM. Without the program in the key, an
 -- internal EMT who sat the AEMT selection exam could never sit the new-hire
--- exam, and the failure would look like "you have already taken this" to
+-- exam, and the failure would look like ”you have already taken this” to
 -- somebody who has not.
 drop index if exists public.exam_attempts_one_submitted_per_email;
 create unique index if not exists exam_attempts_one_submitted_per_email_program
@@ -141,9 +141,9 @@ create index if not exists exam_attempts_program_idx on public.exam_attempts (pr
 -- ============================================================================
 -- The old five-argument signature is DROPPED rather than left in place.
 -- Creating the six-argument version beside it would leave two overloads, and
--- every call would fail with "function exam_start(unknown, unknown) is not
--- unique" — the exact failure the migration README warns about. p_program
--- defaults to 'aemt', so a browser still running the previous build calls the
+-- every call would fail with ”function exam_start(unknown, unknown) is not
+-- unique” — the exact failure the migration README warns about. p_program
+-- defaults to ’aemt’, so a browser still running the previous build calls the
 -- new function successfully and gets the AEMT exam it asked for.
 
 drop function if exists public.exam_start(text, text, boolean, text, text);
@@ -306,7 +306,7 @@ grant execute on function public.exam_start(text, text, boolean, text, text, tex
 -- 4. exam_submit — grade the keyed items, keep the rest
 -- ============================================================================
 -- Unscored responses are STORED and not graded. They are the whole point of
--- the preference section: the interviewer reads them beside the candidate's
+-- the preference section: the interviewer reads them beside the candidate’s
 -- name, and nothing about them touches the score.
 
 create or replace function public.exam_submit(p_attempt uuid, p_responses jsonb)
@@ -370,7 +370,7 @@ commit;
 -- Load the questions
 -- ============================================================================
 -- Then run supabase/neop_exam_questions_seed.sql, which loads only
--- program = 'neop' rows and leaves the AEMT bank alone.
+-- program = ’neop’ rows and leaves the AEMT bank alone.
 
 
 -- ============================================================================
@@ -381,8 +381,8 @@ commit;
 -- first if anybody has sat it.
 --
 -- begin;
--- delete from public.exam_attempts where program = 'neop';
--- delete from public.exam_questions where program = 'neop';
+-- delete from public.exam_attempts where program = ’neop’;
+-- delete from public.exam_questions where program = ’neop’;
 -- alter table public.exam_questions
 --   drop constraint if exists exam_questions_unscored_is_fit,
 --   drop constraint if exists exam_questions_neop_has_section,
@@ -625,7 +625,7 @@ commit;
 -- attempt still resolves to the question it actually asked.
 --
 -- The AEMT bank is untouched — every statement here is fenced to
--- program = 'neop'.
+-- program = ’neop’.
 --
 -- The preference items carry answer = null on purpose. That is what makes them
 -- unscored: the database generates `scored` from it and exam_submit skips
