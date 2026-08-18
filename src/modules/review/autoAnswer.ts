@@ -48,7 +48,25 @@ export interface ChartFlag {
 export interface AutoReview {
   incidentNumber: string
   serviceDate?: string
+  /**
+   * Who the review counts against: the crew member who wrote the report.
+   *
+   * Not everyone on the truck. A chart is one provider's work, and crediting
+   * both means a driver carries their partner's documentation score and a
+   * medic's own figure is diluted by charts they never wrote. ImageTrend names
+   * the author in "Crew Member Completing this Report" and that is the person
+   * a chart review is about.
+   */
   crew: string[]
+  /** Everyone else on the crew, for context. Not counted, not stored. */
+  otherCrew: string[]
+  /**
+   * The crew's narrative, passed through for the reviewer to read.
+   *
+   * Deliberately NOT part of the answers or anything that syncs — the import
+   * screen files this in the device-local narrative store instead.
+   */
+  narrative?: string
   types: ReviewType[]
   categories: string[]
   answers: ReviewAnswers
@@ -206,6 +224,20 @@ function categoriesFor(chart: PcrChart): string[] {
   ) add('Lights and Sirens')
 
   return out
+}
+
+/**
+ * Split the crew into the report's author and everyone else.
+ *
+ * Falls back to the whole crew when the export does not name an author, which
+ * is better than crediting nobody — but it is a fallback, and the reason it is
+ * one is that the per-crew tally is what a new hire is judged on.
+ */
+function primaryAndRest(chart: PcrChart): { crew: string[]; otherCrew: string[] } {
+  const names = chart.crew.map((c) => personName(c.name))
+  if (!chart.reportBy) return { crew: names, otherCrew: [] }
+  const author = personName(chart.reportBy)
+  return { crew: [author], otherCrew: names.filter((n) => n !== author) }
 }
 
 /** True when this chart records a patient being carried somewhere. */
@@ -442,7 +474,8 @@ export function autoReview(chart: PcrChart): AutoReview {
   return {
     incidentNumber: chart.incidentNumber ?? '',
     serviceDate: chart.serviceDateISO,
-    crew: chart.crew.map((c) => personName(c.name)),
+    ...primaryAndRest(chart),
+    narrative: chart.narrative,
     types,
     categories,
     answers,

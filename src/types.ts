@@ -979,6 +979,29 @@ export interface ChartReviewEntry {
   updatedAt: string
 }
 
+/**
+ * A chart's narrative, held on this device only.
+ *
+ * A reviewer cannot judge whether the exam supports the reason for transport
+ * without reading what the crew wrote, so the narrative has to be on screen
+ * during a review. It is also free text about a patient — the one thing in an
+ * export that is certain to carry names, addresses and history.
+ *
+ * So it is kept OUT of ChartReviewEntry deliberately. Review entries sync to
+ * the server and go into the exported workbook; narratives do neither. They
+ * live in this slice, which is absent from the sync SLICES list, so they stay
+ * in this browser's storage on the machine that read the PDF and nowhere else.
+ * Clearing them is a button away, and deleting a review deletes its narrative.
+ */
+export interface ChartNarrative {
+  /** The review this belongs to. Deleting the review deletes this. */
+  reviewId: string
+  /** Only so a reviewer can tell which chart they are reading. */
+  incidentNumber: string
+  text: string
+  savedAt: string
+}
+
 export interface AemtCandidate {
   id: string
   courseId: string
@@ -1188,6 +1211,8 @@ export interface DBShape {
   aemtAudit: AemtAuditEvent[]
   aemtCandidates: AemtCandidate[]
   chartReviews: ChartReviewEntry[]
+  /** Device-local, never synced. See ChartNarrative. */
+  chartNarratives: ChartNarrative[]
   templates: TemplateVersion[]
   cqmpReports: CqmpReport[]
   settings: Settings

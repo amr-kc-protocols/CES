@@ -19,7 +19,7 @@
 //     dangerous: "Paramedic Protocol" contains "cpr".
 //
 // Run: node scripts/check-pcr-import.mjs
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -56,7 +56,19 @@ try {
 } catch (err) {
   console.log('FAIL  the PCR import modules throw on load')
   console.log(`      ${err.message}`)
-  rmSync(OUT, { force: true })
+  // The narrative slice is device-local ONLY because it is absent from the sync
+// list. That is one line in another file and nothing else enforces it, so it is
+// asserted here rather than left to a comment.
+{
+  const records = readFileSync(join(SRC, 'lib/records.ts'), 'utf8')
+  check(
+    !/chartNarratives/.test(records),
+    'narratives are not in the sync slices, so they never leave the device',
+    'lib/records.ts mentions chartNarratives — a narrative would sync to the server',
+  )
+}
+
+rmSync(OUT, { force: true })
   process.exit(1)
 }
 
@@ -382,11 +394,44 @@ check(npReview.types.join() === 'nopatient', 'a call with no patient found is a 
   npReview.types.join())
 check(npReview.categories.length === 0, 'a no-patient review gets no category blocks')
 check(
-  review.crew.join(' | ') === 'Robin Vance | Sam Okafor',
+  review.crew.join(' | ') === 'Robin Vance',
+  'the review counts against the crew member who wrote the report, not the whole crew',
+  // A chart is one provider's work. Crediting both means a driver carries their
+  // partner's documentation score and the author's own figure is diluted.
+  review.crew.join(' | '),
+)
+check(
+  review.otherCrew.join(' | ') === 'Sam Okafor',
+  'the rest of the crew is kept for context, separately',
+  review.otherCrew.join(' | '),
+)
+check(
+  !review.crew.some((n) => n.includes(',')),
   'crew names are stored the way a person types them, with no comma inside a name',
   // The crew field is one comma-separated line in the form, so "Vance, Robin"
   // would split into two people the first time anyone opened and saved this.
   review.crew.join(' | '),
+)
+
+// Without an author named, crediting nobody would be worse than crediting all.
+{
+  const anonymous = m.parseChart(
+    m.buildPcrDoc([...p1, ...p2].filter((it) => !it.str.startsWith('Crew Member Completing'))),
+    1,
+    2,
+  )
+  const r = m.autoReview(anonymous)
+  check(
+    r.crew.length === 2 && r.otherCrew.length === 0,
+    'a chart that never names an author falls back to the whole crew',
+    `${r.crew.join(' | ')} / ${r.otherCrew.join(' | ')}`,
+  )
+}
+
+check(
+  review.narrative?.includes(NARRATIVE_HEAD),
+  'the narrative is handed to the reviewer to read',
+  `${review.narrative?.length ?? 0} characters`,
 )
 check(
   review.serviceDate === '2026-08-16',
@@ -441,10 +486,12 @@ check(
   m.describePdfFailure(new Error('undefined is not a function')),
 )
 
-// ----- what the import stores ------------------------------------------------
+// ----- what the SYNCED review carries ----------------------------------------
 //
-// The whole design rests on nothing patient-identifying leaving this screen, so
-// assert it rather than trusting the review that wrote it.
+// The narrative is shown to the reviewer and kept on their device, but it must
+// never ride along on the review record — that is what syncs to the server and
+// what the workbook exports. These are the fields the import writes onto a
+// ChartReviewEntry; nothing patient-identifying may appear among them.
 const stored = JSON.stringify({
   incidentNumber: review.incidentNumber,
   serviceDate: review.serviceDate,
@@ -456,6 +503,18 @@ const stored = JSON.stringify({
 check(!stored.includes('1 EXAMPLE ST'), 'the incident address is not carried into the stored review')
 check(!stored.includes('555-0100'), 'the phone number is not carried into the stored review')
 check(!stored.includes(NARRATIVE_HEAD), 'the narrative is not carried into the stored review')
+
+// The narrative slice is device-local ONLY because it is absent from the sync
+// list. That is one line in another file and nothing else enforces it, so it is
+// asserted here rather than left to a comment.
+{
+  const records = readFileSync(join(SRC, 'lib/records.ts'), 'utf8')
+  check(
+    !/chartNarratives/.test(records),
+    'narratives are not in the sync slices, so they never leave the device',
+    'lib/records.ts mentions chartNarratives — a narrative would sync to the server',
+  )
+}
 
 rmSync(OUT, { force: true })
 
