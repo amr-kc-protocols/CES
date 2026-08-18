@@ -149,14 +149,21 @@ export default function PcrImport({
         )}
       </div>
 
-      <div className="banner info">
-        Drop the printed PCRs here and the app reads them. <strong>The files stay on this
-        computer</strong> — they are read in the browser and never uploaded. Only the run number
-        and the answers are saved.
-      </div>
+      {/* Full explanation until there is something to read instead. After that
+          the results are what the screen is for, and a five-line banner above
+          them is five lines of scrolling on a phone. */}
+      {rows.length === 0 ? (
+        <div className="banner info">
+          Drop the printed PCRs here and the app reads them. <strong>The files stay on this
+          computer</strong> — they are read in the browser and never uploaded. Only the run
+          number and the answers are saved.
+        </div>
+      ) : (
+        <div className="banner info compact">Read in this browser · nothing uploaded.</div>
+      )}
 
       <div
-        className={`cr-drop${dragging ? ' over' : ''}`}
+        className={`cr-drop${dragging ? ' over' : ''}${rows.length ? ' compact' : ''}`}
         onDragOver={(e) => {
           e.preventDefault()
           setDragging(true)
@@ -185,10 +192,15 @@ export default function PcrImport({
             e.target.value = ''
           }}
         />
-        <div className="cr-drop-title">{busy || 'Drop PCR exports here, or click to choose'}</div>
-        <div className="subtle">
-          One export can hold any number of charts back to back — the whole batch at once is fine.
+        <div className="cr-drop-title">
+          {busy || (rows.length ? 'Drop more PCR exports' : 'Drop PCR exports here, or click to choose')}
         </div>
+        {rows.length === 0 && (
+          <div className="subtle">
+            One export can hold any number of charts back to back — the whole batch at once is
+            fine.
+          </div>
+        )}
       </div>
 
       {problems.length > 0 && (
@@ -231,9 +243,15 @@ export default function PcrImport({
               {needsLook.map((r) => (
                 <div key={r.incidentNumber} className="cr-import-row">
                   <div className="cr-import-run">
-                    <button className="btn sm" onClick={() => onOpen(r.incidentNumber)} disabled={!imported}>
-                      {r.incidentNumber}
-                    </button>
+                    {/* Before the import there is nothing to open, and a
+                        disabled button still looks like something to press. */}
+                    {imported ? (
+                      <button className="btn sm" onClick={() => onOpen(r.incidentNumber)}>
+                        {r.incidentNumber}
+                      </button>
+                    ) : (
+                      <strong className="cr-run-no">{r.incidentNumber}</strong>
+                    )}
                     <span className="subtle">
                       {r.serviceDate ?? '—'} · {r.crew.join(', ') || 'crew not read'}
                     </span>
@@ -258,10 +276,11 @@ export default function PcrImport({
                 {clear.length} chart{clear.length === 1 ? '' : 's'} read clean
               </div>
               <div className="subtle" style={{ marginBottom: 8 }}>
-                Answered from the export and counted in the tally. Nothing in them contradicts
-                itself and no field that matters is empty.
+                Answered from the export and counted in the tally. Nothing here needs a decision
+                — a finding shown below was read straight off the chart and is already counted,
+                not waiting on you.
               </div>
-              <div className="table-wrap">
+              <div className="table-wrap cr-clean-table">
                 <table>
                   <thead>
                     <tr>
@@ -270,22 +289,26 @@ export default function PcrImport({
                       <th>Crew</th>
                       <th>Type</th>
                       <th>Categories</th>
-                      <th style={{ textAlign: 'right' }}>Findings</th>
+                      <th className="num">Findings</th>
                     </tr>
                   </thead>
                   <tbody>
                     {clear.map((r) => (
                       <tr key={r.incidentNumber}>
-                        <td>
-                          <button className="btn sm" onClick={() => onOpen(r.incidentNumber)} disabled={!imported}>
-                            {r.incidentNumber}
-                          </button>
+                        <td data-label="Run">
+                          {imported ? (
+                            <button className="btn sm" onClick={() => onOpen(r.incidentNumber)}>
+                              {r.incidentNumber}
+                            </button>
+                          ) : (
+                            <strong className="cr-run-no">{r.incidentNumber}</strong>
+                          )}
                         </td>
-                        <td>{r.serviceDate ?? '—'}</td>
-                        <td>{r.crew.join(', ') || '—'}</td>
-                        <td>{typeLabels(r.types)}</td>
-                        <td>{r.categories.join(', ') || '—'}</td>
-                        <td style={{ textAlign: 'right' }}>{r.findings.length || '—'}</td>
+                        <td data-label="Date">{r.serviceDate ?? '—'}</td>
+                        <td data-label="Crew">{r.crew.join(', ') || '—'}</td>
+                        <td data-label="Type">{typeLabels(r.types)}</td>
+                        <td data-label="Categories">{r.categories.join(', ') || '—'}</td>
+                        <td data-label="Findings" className="num">{r.findings.length || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
