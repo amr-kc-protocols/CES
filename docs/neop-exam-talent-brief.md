@@ -1,4 +1,4 @@
-# NEOP Selection Exam — briefing for Talent Acquisition
+# NEOP Comprehension Exam — briefing for Talent Acquisition
 
 **AMR KC, interfacility operation**
 For review by Talent Acquisition, Requisition and HR before first use.
@@ -12,6 +12,7 @@ authority to answer them before an applicant sits this.
 
 ## In one paragraph
 
+It is called a comprehension exam because that is what it measures.
 Applicants to the KC interfacility operation read a written description of the
 job and then answer 41 questions about it — patient care at newly-qualified EMT
 level, comprehension of what they just read, and a set of unscored questions

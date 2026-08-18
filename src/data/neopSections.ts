@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// NEOP selection exam — the shape of the exam.
+// NEOP comprehension exam — the shape of the exam.
 //
 // SPLIT FROM neopSelection.ts ON PURPOSE. This half is imported by the
 // candidate-facing exam page, so everything in it is safe for a candidate to

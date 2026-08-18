@@ -84,9 +84,9 @@ export default function AcademyList() {
             <Link
               to="/academy/exam-results"
               className="btn"
-              title="New-hire selection exam — results, section breakdown and interview notes"
+              title="New-hire comprehension exam — results, section breakdown and interview notes"
             >
-              📝 Selection exam
+              📝 Comprehension exam
             </Link>
           )}
           {can.manageAcademy && (

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// NEOP selection exam — the question bank.
+// NEOP comprehension exam — the question bank.
 //
 // THIS FILE IS NOT IN src/, AND MUST NOT BE. It carries the answer key. The
 // whole design of the exam is that the bank and the key live in the database

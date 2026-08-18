@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// NEOP selection exam — the instrument.
+// NEOP comprehension exam — the instrument.
 //
 // WHAT THIS EXAM DECIDES: NOTHING. The interview decides who is hired, as it
 // always has. What this produces is information for two people — the

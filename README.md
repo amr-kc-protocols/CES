@@ -40,7 +40,7 @@ Hunter's head:
   interviewer gets a tally and a probe to ask next. Content:
   `src/data/kcOperation.ts` (the reading), `scripts/neop-exam-bank.mjs` (the
   questions, deliberately outside `src/`), `src/data/neopSelection.ts` (the
-  interview probes). Written up in `docs/neop-selection-exam.md`.
+  interview probes). Written up in `docs/neop-comprehension-exam.md`.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

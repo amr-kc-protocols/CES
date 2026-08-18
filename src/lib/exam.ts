@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Selection exam client — AEMT cohort selection, and NEOP new-hire selection.
+// Exam client — the AEMT cohort selection test, and the NEOP comprehension exam.
 //
 // The bank and grading live server-side (Postgres SECURITY DEFINER functions
 // exam_start / exam_submit). This module only calls them: correct answers never
@@ -75,7 +75,7 @@ export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
   neop: {
     id: 'neop',
     orgName: 'AMR KC',
-    subtitle: 'KC Interfacility — Selection Exam',
+    subtitle: 'KC Interfacility — Comprehension Exam',
     path: '/neop-exam',
     limitMinutes: 35,
     deadlineIso: null,

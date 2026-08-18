@@ -78,7 +78,7 @@ function AemtOnly({ children }: { children: ReactNode }) {
 }
 
 /**
- * Selection exam results and the bank behind them.
+ * Comprehension exam results and the bank behind them.
  *
  * Same administrator gate as the instruments, for its own reason: these rows
  * are job applicants' names, contact details and their own answers about what
@@ -90,7 +90,7 @@ function HiringOnly({ children }: { children: ReactNode }) {
   return (
     <Gated
       allowed={manageAcademy}
-      why="Selection exam results carry applicants' contact details and their own answers about what they want from a career. Administrators only."
+      why="Comprehension exam results carry applicants' contact details and their own answers about what they want from a career. Administrators only."
     >
       {children}
     </Gated>
@@ -142,7 +142,7 @@ export default function App() {
           </Suspense>
         }
       />
-      {/* The new-hire selection exam for the Kansas City interfacility
+      {/* The new-hire comprehension exam for the KC interfacility
           operation. Same page, same server functions, different program — the
           job briefing renders above the Start button and the clock does not
           begin until they press it. */}

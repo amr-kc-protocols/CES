@@ -1,12 +1,20 @@
-# NEOP Selection Exam — Kansas City Interfacility
+# NEOP Comprehension Exam — KC Interfacility
 
-**AMR Kansas City — new-hire selection, interfacility operation**
+**AMR KC — new-hire comprehension exam, interfacility operation**
 Draft 2 · requires HR review before use
 
 Sat by external applicants at **`/neop-exam`**. One attempt per email, no
 sign-in, rolling — there is no closing date.
 
 ---
+
+## Why it is called a comprehension exam
+
+Because that is what it measures, and naming it anything else invites the
+misreading. It asks whether an applicant understood a description of the job
+we handed them, and whether somebody who just qualified still knows what they
+were taught. It does not select, rank or exclude — the interview decides who is
+hired, and these results tell the educator what to teach.
 
 ## The problem this instrument was built for
 

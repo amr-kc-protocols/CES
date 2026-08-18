@@ -35,7 +35,7 @@
 // an applicant who dislikes paperwork is looking at the wrong operation, and
 // now says they do not have to enjoy it but must take it seriously — a
 // candidate who read carefully would have been marked wrong by the old item.
-// docs/neop-selection-exam.md lists which items key to which section.
+// docs/neop-comprehension-exam.md lists which items key to which section.
 // ---------------------------------------------------------------------------
 
 export interface BriefingSection {

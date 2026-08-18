@@ -15,7 +15,7 @@ import { confirmAction } from '../../lib/dialog'
 import { ConfirmHost } from '../../components/DialogHost'
 import KcBriefing from './KcBriefing'
 
-// Public, no-login selection exam. Questions come from the server without
+// Public, no-login exam. Questions come from the server without
 // answers; grading is server-side. One attempt per email per program, and — on
 // the AEMT exam — before the cutoff.
 //
@@ -315,7 +315,15 @@ export default function ExamPage({ program = 'aemt' }: { program?: ExamProgram }
                 </li>
               </>
             )}
-            <li>Answer on your own — this is part of your selection.</li>
+            <li>
+              {program === 'neop' ? (
+                // Not "this is part of your selection" — it is not, and the
+                // reason to answer honestly here is better than that anyway.
+                <>Answer on your own. A score that is not yours tells us nothing about what to teach you.</>
+              ) : (
+                <>Answer on your own — this is part of your selection.</>
+              )}
+            </li>
           </ul>
           <div className="field">
             <label htmlFor="ex-name">Full name</label>

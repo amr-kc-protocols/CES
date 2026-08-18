@@ -136,7 +136,7 @@ to `program = 'neop'`, so it cannot touch the AEMT bank.
 
 Its preference items carry `answer = null`, which is what makes them unscored:
 `scored` is generated from the key's presence and `exam_submit` skips anything
-without one. See `docs/neop-selection-exam.md`.
+without one. See `docs/neop-comprehension-exam.md`.
 
 ### AEMT — the cohort selection test
 

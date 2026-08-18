@@ -27,7 +27,7 @@ import {
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import TestQuality from './TestQuality'
 
-// Admin review of selection exam results, for either program. RLS is the real
+// Admin review of exam results, for either program. RLS is the real
 // gate (only an admin profile can read exam_attempts); the routes wrap this in
 // the matching screen gate. Ranked by score.
 //
@@ -241,7 +241,7 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
     <div>
       <div className="page-head">
         <div>
-          <h1>{neop ? 'New hire selection exam' : 'AEMT Exam'}</h1>
+          <h1>{neop ? 'New hire comprehension exam' : 'AEMT Exam'}</h1>
           <div className="subtle">
             {rows.length} completed · ranked by score
             {neop && ' · the preference section is not scored'}
@@ -478,7 +478,7 @@ export default function ExamResults({ program = 'aemt' }: { program?: ExamProgra
 
       {neop && (
         <p className="help-text">
-          Sections and floors are set in <code>src/data/neopSelection.ts</code>; the briefing the
+          Sections and marks are set in <code>src/data/neopSections.ts</code>; the reading the
           operations questions come from is <code>src/data/kcOperation.ts</code>. Both are read by{' '}
           <code>npm run check:neop</code>, which will not let an operations item ask about
           something the briefing never told the candidate.{' '}
