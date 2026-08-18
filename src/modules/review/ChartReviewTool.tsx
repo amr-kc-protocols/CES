@@ -5,6 +5,7 @@ import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate, todayISO } from '../../lib/date'
 import { downloadXlsx } from '../../lib/xlsx'
 import {
+  isCompliant,
   REVIEW_TYPES,
   visibleSections,
   type ReviewQuestion,
@@ -76,6 +77,9 @@ function QuestionRow({
   const answer = draft.answers[q.id]
   const setAnswer = (v: boolean | string | string[]) =>
     set({ answers: { ...draft.answers, [q.id]: v } })
+  // Prompted only where the answer is the non-compliant one. Asking for a note
+  // on every question would get every note left blank.
+  const wantsNote = isCompliant(q, answer) === false
 
   return (
     <div className="cr-q">
@@ -132,6 +136,20 @@ function QuestionRow({
           />
         )}
       </div>
+
+      {wantsNote && (
+        <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
+          <label htmlFor={`note-${q.id}`}>What was missing or wrong?</label>
+          <input
+            id={`note-${q.id}`}
+            value={draft.questionNotes?.[q.id] ?? ''}
+            onChange={(e) =>
+              set({ questionNotes: { ...(draft.questionNotes ?? {}), [q.id]: e.target.value } })
+            }
+            placeholder="Specific enough for the crew to act on"
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -254,7 +272,7 @@ function ReviewForm({
           {REVIEW_TYPES.map((t) => {
             const on = draft.types.includes(t.id)
             return (
-              <label key={t.id} className={`cr-chip${on ? ' on' : ''}`}>
+              <label key={t.id} className={`cr-chip${on ? ' on' : ''}`} title={t.note}>
                 <input
                   type="checkbox"
                   checked={on}
@@ -269,6 +287,11 @@ function ReviewForm({
             )
           })}
         </div>
+        {REVIEW_TYPES.filter((t) => t.note && draft.types.includes(t.id)).map((t) => (
+          <div className="help-text" key={t.id} style={{ marginTop: 6 }}>
+            <strong>{t.label}:</strong> {t.note}
+          </div>
+        ))}
       </div>
 
       {draft.types.length === 0 ? (
@@ -520,7 +543,13 @@ export default function ChartReviewTool() {
                   <div className="meta">
                     {r.serviceDate ? formatDate(r.serviceDate) : 'no date'} ·{' '}
                     {r.crew.join(', ') || 'no crew'} ·{' '}
-                    {[...r.types, ...r.categories].join(', ') || 'no type'}
+                    {[
+                      ...r.types.map((t) => REVIEW_TYPES.find((x) => x.id === t)?.label ?? t),
+                      ...r.categories.filter((c) => c !== 'Other'),
+                      r.categoryOther || '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'no type'}
                   </div>
                 </div>
                 <button

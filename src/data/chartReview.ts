@@ -72,6 +72,13 @@ export interface ReviewQuestion {
 export type SectionCondition =
   /** Shown when this review type is selected at the top of the form. */
   | { reviewType: ReviewType }
+  /**
+   * Shown when any of these types is selected. The patient-care backbone uses
+   * this: it applies to a new-hire or CQM review but not to a call where no
+   * patient was found, which has no destination, exam, treatment or transport
+   * to ask about.
+   */
+  | { anyReviewType: ReviewType[] }
   /** Shown when this CQM review category is ticked. */
   | { category: string }
 
@@ -83,12 +90,20 @@ export interface ReviewSection {
   questions: ReviewQuestion[]
 }
 
-export type ReviewType = 'newhire' | 'cqm'
+export type ReviewType = 'newhire' | 'cqm' | 'nopatient'
 
-export const REVIEW_TYPES: { id: ReviewType; label: string }[] = [
+export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = [
   { id: 'newhire', label: 'New Hire' },
   { id: 'cqm', label: 'CQM (Clinical Quality Management)' },
+  {
+    id: 'nopatient',
+    label: 'No Patient Contact',
+    note: 'A call cleared without a patient — cancelled, no patient found, refusal before assessment.',
+  },
 ]
+
+/** Types that review actual patient care, and so get the full backbone. */
+export const PATIENT_CARE_TYPES: ReviewType[] = ['newhire', 'cqm']
 
 /**
  * CQM review categories. Ticking one appends its section to the end of the
@@ -190,6 +205,7 @@ const CQM: ReviewSection = {
 const DEMOGRAPHICS: ReviewSection = {
   id: 'demographics',
   title: 'Demographics',
+  when: { anyReviewType: PATIENT_CARE_TYPES },
   questions: [
     yn('dem.locations', 'Are the Incident Location and Destination Location recorded correctly?', {
       help: 'Are the locations specific and not generalizations?',
@@ -212,6 +228,7 @@ const DEMOGRAPHICS: ReviewSection = {
 const ASSESSMENT: ReviewSection = {
   id: 'assessment',
   title: 'Assessment and Exam',
+  when: { anyReviewType: PATIENT_CARE_TYPES },
   questions: [
     yn('asm.reasonSupported', 'Is the Reason for Transport supported by the documented physical exam?'),
     yn('asm.history', 'Is the Patient History documented in the Patient History section?'),
@@ -229,6 +246,7 @@ const ASSESSMENT: ReviewSection = {
 const TREATMENT: ReviewSection = {
   id: 'treatment',
   title: 'Treatment / Procedures / Medications',
+  when: { anyReviewType: PATIENT_CARE_TYPES },
   questions: [
     yn(
       'trt.standards',
@@ -250,9 +268,27 @@ const TREATMENT: ReviewSection = {
   ],
 }
 
+const NO_PATIENT: ReviewSection = {
+  id: 'nopatient',
+  title: 'No Patient Contact Review',
+  intro:
+    'The patient-care sections are not asked. A call cleared without a patient has no destination, exam, treatment or transport to document, and answering those Yes to get through the form is how a tally stops meaning anything.',
+  when: { reviewType: 'nopatient' },
+  questions: [
+    yn('np.location', 'Is the Incident Location recorded correctly and specifically?', {
+      help: 'Specific, not a generalization.',
+    }),
+    yn('np.disposition', 'Does the recorded crew disposition match what the narrative describes?'),
+    yn('np.narrative', 'Does the narrative explain why no patient care was provided?'),
+    yn('np.signatures', 'Did all crew members sign the PCR?'),
+    yn('np.decisions', 'Were the on-scene decisions appropriate and timely given what the crew found?'),
+  ],
+}
+
 const OVERALL: ReviewSection = {
   id: 'overall',
   title: 'Overall Evaluation',
+  when: { anyReviewType: PATIENT_CARE_TYPES },
   questions: [
     yn(
       'ovr.narrativeMatches',
@@ -266,7 +302,22 @@ const OVERALL: ReviewSection = {
       'ovr.safeDecisions',
       "Were the clinical decisions/interventions safe and appropriate given the patient's presentation and the situation necessitating transport?",
     ),
-    // The three below invert. A Yes here is a finding, not a pass.
+  ],
+}
+
+/**
+ * Asked on every review, whatever its type.
+ *
+ * Split out of the Overall Evaluation so a no-patient-contact call still gets
+ * asked them under the SAME question ids. Duplicating them per review type
+ * would split the near-miss count across two rows of the tally, which is the
+ * one number nobody should have to add up by hand.
+ */
+const OUTCOME: ReviewSection = {
+  id: 'outcome',
+  title: 'Review Outcome',
+  questions: [
+    // The two below invert. A Yes here is a finding, not a pass.
     yn(
       'ovr.nearMiss',
       'Were there any near misses, errors, and/or patient events that should be reported in Baldwin?',
@@ -386,10 +437,12 @@ const CATEGORY_SECTIONS: ReviewSection[] = [
 export const REVIEW_SECTIONS: ReviewSection[] = [
   NEW_HIRE,
   CQM,
+  NO_PATIENT,
   DEMOGRAPHICS,
   ASSESSMENT,
   TREATMENT,
   OVERALL,
+  OUTCOME,
   ...CATEGORY_SECTIONS,
 ]
 
@@ -415,6 +468,7 @@ export function visibleSections(types: ReviewType[], categories: string[]): Revi
   return REVIEW_SECTIONS.filter((s) => {
     if (!s.when) return true
     if ('reviewType' in s.when) return types.includes(s.when.reviewType)
+    if ('anyReviewType' in s.when) return s.when.anyReviewType.some((t) => types.includes(t))
     return types.includes('cqm') && categories.includes(s.when.category)
   })
 }

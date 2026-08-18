@@ -275,12 +275,34 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
     ]),
   ]
 
+  // One row per non-compliant answer, with the reviewer's note. This is the
+  // sheet a supervisor actually works from: the Reviews sheet says a chart
+  // scored 86%, this one says which four questions and why.
+  const findingRows: (string | number)[][] = [
+    ['Incident / PCR', 'Date of service', 'Crew', 'Section', 'Question', 'Answer', 'Why'],
+  ]
+  for (const r of reviews) {
+    for (const q of visibleQuestions(r.types as ReviewType[], r.categories)) {
+      if (isCompliant(q, r.answers[q.id]) !== false) continue
+      findingRows.push([
+        r.incidentNumber,
+        r.serviceDate ?? '',
+        r.crew.join('; '),
+        SECTION_OF.get(q.id) ?? '',
+        q.prompt,
+        answerText(r.answers[q.id]),
+        r.questionNotes?.[q.id] ?? '',
+      ])
+    }
+  }
+
   return [
     {
       name: 'Reviews',
       rows: [header, ...rows],
       widths: [14, 10, 16, 14, 16, 26, 24, 18, 14, 30, ...questions.map(() => 22)],
     },
+    { name: 'Findings', rows: findingRows, widths: [16, 14, 24, 22, 70, 9, 60] },
     { name: 'Tally', rows: tallyRows, widths: [22, 70, 18, 11, 8, 8, 11, 12] },
     { name: 'By crew', rows: crewRows, widths: [26, 10, 17, 11, 12, 11] },
   ]
@@ -306,6 +328,7 @@ export function blankReview(reviewer: string): Omit<ChartReviewEntry, 'id' | 'up
     reviewer,
     reviewedAt: todayISO(),
     answers: {},
+    questionNotes: {},
     status: 'draft',
   }
 }

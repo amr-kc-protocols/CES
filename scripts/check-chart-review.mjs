@@ -167,6 +167,30 @@ check(
   'a category block needs CQM selected, not just the category',
 )
 
+// A no-patient-contact review must not be asked the patient-care backbone, and
+// must still be asked the universal outcome questions under the same ids — a
+// second set would split the near-miss count across two rows of the tally.
+const np = m.visibleQuestions(['nopatient'], []).map((q) => q.id)
+check(
+  !np.includes('dem.locations') && !np.includes('trt.procedures') && !np.includes('asm.history'),
+  'a no-patient-contact review skips the patient-care backbone',
+  np.filter((id) => id.startsWith('dem.') || id.startsWith('trt.') || id.startsWith('asm.')).join(', '),
+)
+check(
+  np.includes('np.narrative') && np.includes('np.signatures'),
+  'a no-patient-contact review asks its own short block',
+)
+check(
+  np.includes('ovr.nearMiss') && np.includes('ovr.safetyConcerns') && np.includes('ovr.escalate'),
+  'the outcome questions are asked on every review type, under the same ids',
+  np.filter((id) => id.startsWith('ovr.')).join(', ') || 'none present',
+)
+const care = m.visibleQuestions(['cqm'], []).map((q) => q.id)
+check(
+  !care.includes('np.narrative') && care.includes('dem.locations') && care.includes('ovr.nearMiss'),
+  'a patient-care review gets the backbone and the outcome questions, not the short block',
+)
+
 // ----- the tally -------------------------------------------------------------
 
 const review = (answers, extra = {}) => ({
@@ -226,9 +250,38 @@ check(
 // ----- the workbook ----------------------------------------------------------
 
 const sheets = m.reviewWorkbook([
-  review({ 'dem.locations': true, 'ovr.nearMiss': false, 'cqm.categories': ['Trauma'] }),
+  review(
+    { 'dem.locations': false, 'ovr.nearMiss': false, 'cqm.categories': ['Trauma'] },
+    { questionNotes: { 'dem.locations': 'Destination recorded as "hospital" with no name' } },
+  ),
 ])
-check(sheets.length === 3, 'the workbook has Reviews, Tally and By crew', `${sheets.length} sheets`)
+check(
+  sheets.length === 4,
+  'the workbook has Reviews, Findings, Tally and By crew',
+  `${sheets.length} sheets: ${sheets.map((x) => x.name).join(', ')}`,
+)
+
+// The Findings sheet is what a supervisor works from: one row per
+// non-compliant answer, carrying the reviewer's note.
+const findings = sheets.find((x) => x.name === 'Findings')
+check(
+  findings.rows.length === 2 &&
+    findings.rows[1][4] === 'Are the Incident Location and Destination Location recorded correctly?' &&
+    findings.rows[1][5] === 'No' &&
+    String(findings.rows[1][6]).includes('no name'),
+  'a non-compliant answer reaches the Findings sheet with its note',
+  JSON.stringify(findings.rows[1] ?? null),
+)
+
+// A compliant answer must NOT appear as a finding, and neither must a flag.
+const clean = m.reviewWorkbook([review({ 'dem.locations': true, 'ovr.escalate': true })]).find(
+  (x) => x.name === 'Findings',
+)
+check(
+  clean.rows.length === 1,
+  'compliant answers and flags produce no findings rows',
+  `${clean.rows.length - 1} unexpected row(s)`,
+)
 
 const header = sheets[0].rows[0]
 const missingCols = m.ALL_QUESTIONS.filter((q) => !header.includes(q.prompt))
@@ -293,7 +346,7 @@ const required = [
   'xl/_rels/workbook.xml.rels',
   'xl/styles.xml',
   'xl/worksheets/sheet1.xml',
-  'xl/worksheets/sheet3.xml',
+  'xl/worksheets/sheet4.xml',
 ]
 const absent = required.filter((n) => !parts.has(n))
 check(absent.length === 0, 'the archive holds every part a workbook needs', absent.join(', '))

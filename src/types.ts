@@ -944,6 +944,15 @@ export interface ChartReviewEntry {
    * store booleans; selects store their option string; multi-selects an array.
    */
   answers: Record<string, boolean | string | string[]>
+  /**
+   * Why a question was answered the way it was, keyed by question id.
+   *
+   * Only meaningful on non-compliant answers, and only those are prompted for.
+   * "Procedures not documented" tells a crew nothing; "two IV attempts appear
+   * in the narrative only, with no Procedures entry" is something they can fix
+   * on the next chart.
+   */
+  questionNotes?: Record<string, string>
   notes?: string
   status: ChartReviewStatus
   updatedAt: string
