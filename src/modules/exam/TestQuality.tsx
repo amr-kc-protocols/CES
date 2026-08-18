@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { listAttemptsForAnalysis, listExamBank, type BankRow } from '../../lib/exam'
+import {
+  listAttemptsForAnalysis,
+  listExamBank,
+  type BankRow,
+  type ExamProgram,
+} from '../../lib/exam'
 import {
   analyseExam,
   MIN_N_ITEM,
@@ -57,7 +62,7 @@ function Histogram({ a }: { a: ExamAnalysis }) {
   )
 }
 
-export default function TestQuality() {
+export default function TestQuality({ program = 'aemt' }: { program?: ExamProgram }) {
   const [a, setA] = useState<ExamAnalysis | null>(null)
   const [bank, setBank] = useState<Map<number, BankRow>>(new Map())
   const [loading, setLoading] = useState(false)
@@ -66,23 +71,30 @@ export default function TestQuality() {
   const run = async () => {
     setLoading(true)
     setError(null)
-    const [att, bk] = await Promise.all([listAttemptsForAnalysis(), listExamBank()])
+    const [att, bk] = await Promise.all([
+      listAttemptsForAnalysis(program),
+      listExamBank(program),
+    ])
     setLoading(false)
     if (att.error || bk.error) {
       setError(att.error || bk.error || 'Could not load.')
       return
     }
+    // Only KEYED items enter the analysis. The NEOP exam serves unscored
+    // preference items alongside the scored ones; counting them would mark
+    // every candidate wrong on eleven questions that have no right answer, and
+    // drag the whole distribution down with them.
     const key: Record<string, number> = {}
     const map = new Map<number, BankRow>()
     for (const q of bk.rows ?? []) {
-      key[String(q.id)] = q.answer
+      if (q.answer !== null && q.answer !== undefined) key[String(q.id)] = q.answer
       map.set(q.id, q)
     }
     setBank(map)
     setA(
       analyseExam(
         (att.rows ?? []).map((r) => ({
-          questionIds: r.question_ids ?? [],
+          questionIds: (r.question_ids ?? []).filter((id) => key[String(id)] !== undefined),
           responses: r.responses ?? {},
         })),
         key,

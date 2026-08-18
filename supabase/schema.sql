@@ -300,12 +300,40 @@ create policy "admin deletes intake"
 
 create table if not exists public.exam_questions (
   id bigint generated always as identity primary key,
+  -- Which exam this item belongs to. 'aemt' is the AEMT cohort selection test;
+  -- 'neop' is the new-hire selection exam for the Kansas City interfacility
+  -- operation. One engine, two banks — see the 2026-08-18 migration for why
+  -- this is a column rather than a second set of tables.
+  program text not null default 'aemt' check (program in ('aemt', 'neop')),
+  -- NEOP only: which of the three sections the item belongs to. The NEOP draw
+  -- is stratified, so an item with no section could never be served.
+  section text check (section is null or section in ('clinical', 'operations', 'fit')),
+  -- Stable identifier. The AEMT bank has none, which is why its corrections
+  -- file matches on stem text; NEOP items carry one from the start.
+  code text,
   domain text not null,
   stem text not null,
   options text[] not null check (array_length(options, 1) = 4),
-  answer int not null check (answer between 0 and 3),   -- index into options
-  active boolean not null default true
+  -- NULL = no key, and therefore no marks: the preference section asks what a
+  -- candidate wants, which has no correct answer and must never be scored as
+  -- though it did.
+  answer int check (answer between 0 and 3),   -- index into options
+  active boolean not null default true,
+  constraint exam_questions_neop_has_section
+    check (program <> 'neop' or section is not null),
+  constraint exam_questions_unscored_is_fit
+    check ((answer is null) = (section is not distinct from 'fit'))
 );
+
+-- Generated, so a row's scored flag cannot disagree with whether it has a key.
+alter table public.exam_questions
+  add column if not exists scored boolean
+  generated always as (answer is not null) stored;
+
+create unique index if not exists exam_questions_code_idx
+  on public.exam_questions (code) where code is not null;
+create index if not exists exam_questions_draw_idx
+  on public.exam_questions (program, section) where active;
 
 alter table public.exam_questions enable row level security;
 create policy "admin reads exam bank" on public.exam_questions
@@ -344,16 +372,22 @@ create table if not exists public.exam_attempts (
   -- exam_attempts sits OUTSIDE `records`, so the fence on that table does not
   -- reach it. Without this column a Wichita admin reads every Kansas City
   -- candidate's name, email, responses and score.
-  market text not null default 'kc' check (market in ('kc', 'wichita'))
+  market text not null default 'kc' check (market in ('kc', 'wichita')),
+  -- Which exam was sat. Every rule below that says "per email" means per email
+  -- per program.
+  program text not null default 'aemt' check (program in ('aemt', 'neop'))
 );
 
 create index if not exists exam_attempts_email_idx on public.exam_attempts (email);
 -- One submitted attempt per email, enforced by the database rather than by an
 -- EXISTS that two concurrent starts can both pass. Voided rows are excluded, or
 -- a reset would record itself and leave the candidate locked out for good.
-create unique index if not exists exam_attempts_one_submitted_per_email
-  on public.exam_attempts (email)
+-- Per program: an internal EMT who sat the AEMT selection exam must still be
+-- able to sit the new-hire exam, and vice versa.
+create unique index if not exists exam_attempts_one_submitted_per_email_program
+  on public.exam_attempts (email, program)
   where submitted_at is not null and voided_at is null;
+create index if not exists exam_attempts_program_idx on public.exam_attempts (program);
 
 -- voided_by is the account that pressed the button, and an account should not
 -- be able to name a different one. The client sends the reason; the server
@@ -408,12 +442,17 @@ create policy "admin manages exam attempts" on public.exam_attempts
   );
 
 -- Start (or resume) an attempt. Returns the drawn questions WITHOUT answers.
+-- Per-program configuration lives in the function: the AEMT exam draws 50 at
+-- random against a fixed cutoff; the NEOP exam is stratified across its three
+-- sections, serves every preference item, and has no cutoff because hiring is
+-- rolling.
 create or replace function public.exam_start(
   p_name text,
   p_email text,
   p_attested boolean default null,
   p_signature text default null,
-  p_attestation_hash text default null
+  p_attestation_hash text default null,
+  p_program text default 'aemt'
 )
 returns jsonb
 language plpgsql
@@ -421,25 +460,52 @@ security definer
 set search_path = public
 as $$
 declare
-  v_email  text := lower(trim(p_email));
-  v_name   text := trim(p_name);
-  v_sign   text := nullif(trim(coalesce(p_signature, '')), '');
-  v_cutoff constant timestamptz := '2026-08-17 17:00:00-05';  -- Aug 17, 5 PM Central
-  v_limit  constant int := 25 * 60;
-  v_draw   constant int := 50;
+  v_email   text := lower(trim(p_email));
+  v_name    text := trim(p_name);
+  v_sign    text := nullif(trim(coalesce(p_signature, '')), '');
+  v_program text := coalesce(nullif(trim(p_program), ''), 'aemt');
+  -- Per-program configuration. The AEMT row is the existing behavior,
+  -- unchanged: 17 August cutoff, 25 minutes, 50 items drawn at random.
+  --
+  -- NEOP has NO CUTOFF because hiring is rolling — a new-hire exam that closes
+  -- on a date is an exam that silently stops working for every applicant after
+  -- it, which is worse than any deadline it was meant to enforce.
+  v_cutoff  timestamptz;
+  v_limit   int;
+  v_draw    int;
+  v_clin    int;
+  v_ops     int;
+  v_have    int;
   v_attempt public.exam_attempts;
-  v_qids bigint[];
+  v_qids    bigint[];
+  v_total   int;
   v_questions jsonb;
 begin
+  if v_program not in ('aemt', 'neop') then
+    return jsonb_build_object('error', 'Unknown exam.');
+  end if;
   if v_name = '' or v_email = '' then
     return jsonb_build_object('error', 'Name and email are required.');
   end if;
-  if now() > v_cutoff then
+
+  if v_program = 'aemt' then
+    v_cutoff := '2026-08-17 17:00:00-05';   -- Aug 17, 5 PM Central
+    v_limit  := 25 * 60;
+    v_draw   := 50;
+  else
+    v_cutoff := null;                       -- rolling
+    v_limit  := 30 * 60;
+    v_clin   := 12;
+    v_ops    := 16;                         -- every fit item is served
+  end if;
+
+  if v_cutoff is not null and now() > v_cutoff then
     return jsonb_build_object('error', 'closed');
   end if;
 
   select * into v_attempt from public.exam_attempts a
     where a.email = v_email
+      and a.program = v_program
       and a.voided_at is null          -- a reset attempt no longer counts
     order by a.started_at desc limit 1;
 
@@ -452,19 +518,60 @@ begin
     end if;
     v_qids := v_attempt.question_ids;
   else
-    select array_agg(id) into v_qids
-      from (select id from public.exam_questions where active order by random() limit v_draw) s;
-    -- A bank that cannot fill a draw is a setup problem, and it should say so
-    -- rather than fail on a not-null constraint. Reachable by a project that
-    -- has not run the seed, or a pool retired below the draw size.
-    if v_qids is null or array_length(v_qids, 1) < v_draw then
+    if v_program = 'aemt' then
+      select array_agg(id) into v_qids
+        from (select id from public.exam_questions
+               where active and program = 'aemt'
+               order by random() limit v_draw) s;
+      if v_qids is null or array_length(v_qids, 1) < v_draw then
+        return jsonb_build_object('error', 'bank_too_small');
+      end if;
+    else
+      -- Stratified: a fixed number from each scored section, then EVERY
+      -- preference item. The preference items are not sampled — an interviewer
+      -- comparing two candidates needs them to have answered the same
+      -- questions, and a random subset of eleven takes that away.
+      select count(*) into v_have from public.exam_questions
+        where active and program = 'neop' and section = 'clinical';
+      if v_have < v_clin then return jsonb_build_object('error', 'bank_too_small'); end if;
+      select count(*) into v_have from public.exam_questions
+        where active and program = 'neop' and section = 'operations';
+      if v_have < v_ops then return jsonb_build_object('error', 'bank_too_small'); end if;
+      select count(*) into v_have from public.exam_questions
+        where active and program = 'neop' and section = 'fit';
+      if v_have < 1 then return jsonb_build_object('error', 'bank_too_small'); end if;
+
+      with picked as (
+        select id, 1 as sect_ord from (
+          select id from public.exam_questions
+           where active and program = 'neop' and section = 'clinical'
+           order by random() limit v_clin) c
+        union all
+        select id, 2 from (
+          select id from public.exam_questions
+           where active and program = 'neop' and section = 'operations'
+           order by random() limit v_ops) o
+        union all
+        select id, 3 from public.exam_questions
+         where active and program = 'neop' and section = 'fit'
+      )
+      select array_agg(id order by sect_ord, random()) into v_qids from picked;
+    end if;
+
+    -- Only keyed items count toward the score, so only keyed items count
+    -- toward the total. Otherwise a candidate who answers every scored item
+    -- correctly is recorded at 78%.
+    select count(*) into v_total from public.exam_questions
+      where id = any(v_qids) and scored;
+    if coalesce(v_total, 0) = 0 then
       return jsonb_build_object('error', 'bank_too_small');
     end if;
+
     insert into public.exam_attempts (
-      name, email, question_ids, total, limit_seconds,
+      name, email, question_ids, total, limit_seconds, program,
       attested, signature, attested_at, attestation_hash)
       values (
-        v_name, v_email, v_qids, coalesce(array_length(v_qids, 1), 0), v_limit,
+        v_name, v_email, v_qids, v_total, v_limit, v_program,
         p_attested, v_sign,
         case when p_attested is true then now() else null end,
         nullif(trim(coalesce(p_attestation_hash, '')), ''))
@@ -472,7 +579,9 @@ begin
   end if;
 
   select jsonb_agg(
-           jsonb_build_object('id', q.id, 'domain', q.domain, 'stem', q.stem, 'options', q.options)
+           jsonb_build_object(
+             'id', q.id, 'domain', q.domain, 'stem', q.stem, 'options', q.options,
+             'section', q.section, 'scored', q.scored)
            order by array_position(v_qids, q.id))
     into v_questions
     from public.exam_questions q
@@ -482,14 +591,16 @@ begin
     'attemptId', v_attempt.id,
     'startedAt', v_attempt.started_at,
     'limitSeconds', v_attempt.limit_seconds,
+    'program', v_attempt.program,
     'questions', coalesce(v_questions, '[]'::jsonb));
 end;
 $$;
 
-revoke all on function public.exam_start(text, text, boolean, text, text) from public;
-grant execute on function public.exam_start(text, text, boolean, text, text) to anon, authenticated;
+revoke all on function public.exam_start(text, text, boolean, text, text, text) from public;
+grant execute on function public.exam_start(text, text, boolean, text, text, text) to anon, authenticated;
 
 -- Grade an attempt server-side against the bank. Never returns the answers.
+-- Items with no key (the NEOP preference section) are stored, never graded.
 create or replace function public.exam_submit(p_attempt uuid, p_responses jsonb)
 returns jsonb
 language plpgsql
@@ -508,8 +619,6 @@ begin
   if not found then
     return jsonb_build_object('error', 'Attempt not found.');
   end if;
-  -- A candidate holding the page open when an admin resets them would otherwise
-  -- submit minutes later, resurrecting a score that was meant to be set aside.
   if v_attempt.voided_at is not null then
     return jsonb_build_object('error', 'voided');
   end if;
@@ -523,6 +632,10 @@ begin
 
   foreach v_qid in array v_attempt.question_ids loop
     select answer into v_ans from public.exam_questions where id = v_qid;
+    -- No key, no marks. A preference item cannot be scored even by accident.
+    if v_ans is null then
+      continue;
+    end if;
     v_chosen := nullif(p_responses ->> v_qid::text, '')::int;
     if v_chosen is not null and v_chosen = v_ans then
       v_score := v_score + 1;

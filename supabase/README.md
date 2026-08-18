@@ -47,6 +47,19 @@ The project URL + publishable key are baked into the app
 - New person/device: open the app → **Settings → Cloud sync** → enter email →
   tap the magic link. Done.
 - Then set their `role` in **Table Editor → profiles** (one time per person).
+
+### Adding an administrator
+
+`admin` is the widest role there is — everything in the market, in both
+directions — so it is granted by a named file rather than by a dropdown nobody
+remembers changing. Copy `add_admin_mary_glover.sql`, change the three
+constants at the top (`v_email`, `v_name`, `v_market`) and run it in the SQL
+Editor. It promotes an existing account, or creates one when you supply the
+person's employee number as their starting password, and it is safe to re-run.
+
+Each such file is left in the repo after it is run: together they are the
+record of who was given administrator access and when.
+
 ### Roles
 
 Row-level security scopes **both reads and writes**. Reads matter as much as
@@ -102,6 +115,26 @@ local storage upload to the project — which is the point, since those carry a
 three-year retention obligation under K.A.R. 109-17-3 and had no backup at all.
 
 ## Loading the exam bank
+
+There are two banks, one per program. They share the `exam_questions` table and
+are fenced from each other by its `program` column.
+
+### NEOP — the new-hire selection exam
+
+One file, `neop_exam_questions_seed.sql`, after the
+`2026-08-18-neop-selection-exam.sql` migration. It is generated from
+`scripts/neop-exam-bank.mjs` (`npm run gen:neop`) and, unlike the AEMT files
+below, it **upserts on each item's `code` and never deletes**: a re-run
+corrects the wording of an item in place, and an item dropped from the bank is
+retired with `active = false` rather than removed. It is therefore safe to
+re-run while candidates are sitting the exam. Every statement in it is fenced
+to `program = 'neop'`, so it cannot touch the AEMT bank.
+
+Its preference items carry `answer = null`, which is what makes them unscored:
+`scored` is generated from the key's presence and `exam_submit` skips anything
+without one. See `docs/neop-selection-exam.md`.
+
+### AEMT — the cohort selection test
 
 Run these three in order, and **treat the order as load-bearing**:
 

@@ -1,18 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  EXAM_DEADLINE,
-  EXAM_LIMIT_MINUTES,
+  attestationLines,
   examClosed,
+  examConfig,
+  examDeadline,
   startExam,
   submitExam,
+  type ExamProgram,
   type ExamQuestion,
   type ExamStart,
 } from '../../lib/exam'
+import { NEOP_SECTIONS } from '../../data/neopSections'
 import { confirmAction } from '../../lib/dialog'
 import { ConfirmHost } from '../../components/DialogHost'
+import KcBriefing from './KcBriefing'
 
-// Public, no-login AEMT selection exam. Questions come from the server without
-// answers; grading is server-side. One attempt per email, before the cutoff.
+// Public, no-login selection exam. Questions come from the server without
+// answers; grading is server-side. One attempt per email per program, and — on
+// the AEMT exam — before the cutoff.
+//
+// ONE COMPONENT, TWO EXAMS. `program` selects the configuration in lib/exam.ts:
+// the clock, whether there is a cutoff at all, the integrity statement, and who
+// to contact. The NEOP exam adds two things this page did not have — the job
+// briefing on the intro screen, and a section banner when the exam moves from
+// one kind of question to the next.
 
 type Phase = 'intro' | 'exam' | 'submitting' | 'done' | 'closed' | 'taken' | 'expired'
 
@@ -63,8 +74,17 @@ function fmtClock(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-export default function ExamPage() {
-  const [phase, setPhase] = useState<Phase>(() => (examClosed() ? 'closed' : 'intro'))
+/** `*starred*` runs render bold, so the displayed and hashed wording are one. */
+function emphasise(line: string): ReactNode[] {
+  return line
+    .split('*')
+    .map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>))
+}
+
+export default function ExamPage({ program = 'aemt' }: { program?: ExamProgram }) {
+  const cfg = examConfig(program)
+  const deadline = examDeadline(program)
+  const [phase, setPhase] = useState<Phase>(() => (examClosed(program) ? 'closed' : 'intro'))
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [consent, setConsent] = useState(false)
@@ -136,9 +156,9 @@ export default function ExamPage() {
   // Countdown, anchored to the server's started_at so a refresh can't reset it.
   useEffect(() => {
     if (phase !== 'exam' || !exam) return
-    const deadline = new Date(exam.startedAt).getTime() + exam.limitSeconds * 1000
+    const deadlineMs = new Date(exam.startedAt).getTime() + exam.limitSeconds * 1000
     const tick = () => {
-      const left = Math.round((deadline - Date.now()) / 1000)
+      const left = Math.round((deadlineMs - Date.now()) / 1000)
       setRemaining(left)
       if (left <= 0) void finish('time')
     }
@@ -155,7 +175,7 @@ export default function ExamPage() {
     if (signature.trim().toLowerCase() !== name.trim().toLowerCase())
       return setError('Your signature must match the full name you entered above.')
     setPhase('submitting')
-    const r = await startExam(name.trim(), email.trim(), consent, signature.trim())
+    const r = await startExam(name.trim(), email.trim(), consent, signature.trim(), program)
     if ('data' in r) {
       setExam(r.data)
       setIndex(0)
@@ -190,7 +210,7 @@ export default function ExamPage() {
         <img src="/pwa-192x192.png" alt="" />
         <div>
           <div className="intake-title">AMR Kansas City</div>
-          <div className="intake-sub">AEMT Program — Selection Exam</div>
+          <div className="intake-sub">{cfg.subtitle}</div>
         </div>
       </header>
       <main className="intake-body">{body}</main>
@@ -204,8 +224,8 @@ export default function ExamPage() {
         <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
         <h2 style={{ marginBottom: 8 }}>The exam is closed</h2>
         <p className="subtle" style={{ margin: 0 }}>
-          The window closed on <strong>{EXAM_DEADLINE.display}</strong>. Reach out to the AMR KC
-          education team with any questions.
+          {deadline ? <>The window closed on <strong>{deadline.display}</strong>. </> : null}
+          Reach out to {cfg.contact} with any questions.
         </p>
       </div>,
     )
@@ -217,7 +237,7 @@ export default function ExamPage() {
         <h2 style={{ marginBottom: 8 }}>You've already taken the exam</h2>
         <p className="subtle" style={{ margin: 0 }}>
           Our records show a completed attempt for this email. The exam is one attempt only. If you
-          think this is a mistake, contact the AMR KC education team.
+          think this is a mistake, contact {cfg.contact}.
         </p>
       </div>,
     )
@@ -230,8 +250,7 @@ export default function ExamPage() {
         <p className="subtle" style={{ margin: 0 }}>
           This attempt's time limit passed before it was submitted, so it is closed. The exam is
           one attempt with one set of questions — there is no second sitting to hand out. If
-          something went wrong at your end, contact the AMR KC education team and they can reset
-          it for you.
+          something went wrong at your end, contact {cfg.contact} and they can reset it for you.
         </p>
       </div>,
     )
@@ -242,8 +261,8 @@ export default function ExamPage() {
         <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
         <h2 style={{ marginBottom: 8 }}>Exam submitted</h2>
         <p className="subtle" style={{ margin: 0 }}>
-          Your responses have been recorded. Thank you — the AMR KC education team will be in touch.
-          You can close this page.
+          Your responses have been recorded. Thank you — {cfg.contact} will be in touch. You can
+          close this page.
         </p>
       </div>,
     )
@@ -251,9 +270,17 @@ export default function ExamPage() {
   if (phase === 'intro' || (phase === 'submitting' && !exam))
     return shell(
       <>
-        <div className="intake-deadline">
-          ⏰ The exam window closes <strong>{EXAM_DEADLINE.display}</strong>.
-        </div>
+        {deadline && (
+          <div className="intake-deadline">
+            ⏰ The exam window closes <strong>{deadline.display}</strong>.
+          </div>
+        )}
+
+        {/* The briefing comes FIRST on the new-hire exam, above the form and
+            above the Start button, and the clock has not started while it is
+            being read. The operations section is comprehension of it. */}
+        {program === 'neop' && <KcBriefing />}
+
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Before you begin</h2>
           <ul style={{ paddingLeft: 18, lineHeight: 1.6 }}>
@@ -262,8 +289,15 @@ export default function ExamPage() {
                 budget the slack for looking answers up; not knowing makes it a
                 gamble against a timer they cannot see the end of. */}
             <li><strong>Multiple choice.</strong> Answer one question at a time; you can go back.</li>
-            <li><strong>{EXAM_LIMIT_MINUTES}-minute time limit</strong> — a timer runs at the top; the exam submits automatically when it reaches zero.</li>
+            <li><strong>{cfg.limitMinutes}-minute time limit</strong> — a timer runs at the top; the exam submits automatically when it reaches zero.</li>
             <li><strong>One attempt.</strong> Once you start, the clock runs even if you close the page, so start when you're ready and undisturbed.</li>
+            {program === 'neop' && (
+              <li>
+                <strong>Three parts:</strong> patient care, our operation, and what you want out of
+                the job. The last part is <strong>not scored</strong> — it is there so your
+                interview starts from something real.
+              </li>
+            )}
             <li>Answer on your own — this is part of your selection.</li>
           </ul>
           <div className="field">
@@ -272,17 +306,25 @@ export default function ExamPage() {
           </div>
           <div className="field">
             <label htmlFor="ex-email">Email</label>
-            <input id="ex-email" type="email" placeholder="name@gmr.net" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input
+              id="ex-email"
+              type="email"
+              placeholder={program === 'neop' ? 'you@example.com' : 'name@gmr.net'}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
 
           <section className="attestation" aria-label="Integrity Statement">
             <div className="attestation-head">⚖️ Integrity Statement</div>
             <p className="attestation-lead">Read carefully. Starting this exam is your signed agreement to the following:</p>
             <ul className="attestation-list">
-              <li>I am completing this exam <strong>entirely on my own</strong> — no notes, books, websites, apps, or other people.</li>
-              <li>The answers I submit are <strong>my own work</strong>, and my attempt is recorded with my name and email.</li>
-              <li>This exam is part of <strong>AMR Kansas City's AEMT selection process</strong>.</li>
-              <li>Giving or receiving help is a violation of <strong>AMR's Standards of Conduct</strong> and may result in <strong>disqualification from selection</strong> and further review.</li>
+              {/* Rendered from the same strings that are hashed and stored with
+                  the attempt — see attestationLines(). Two hand-kept copies of
+                  this wording is a promise that they will differ eventually. */}
+              {attestationLines(program).map((line, i) => (
+                <li key={i}>{emphasise(line)}</li>
+              ))}
             </ul>
             <label className="attestation-check">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
@@ -316,6 +358,14 @@ export default function ExamPage() {
   const last = index === exam.questions.length - 1
   const lowTime = remaining <= 300
 
+  // A section banner on the first question of each section. The three NEOP
+  // sections are asking genuinely different things, and the preference section
+  // in particular has to say so — an unscored question that looks like a scored
+  // one invites a candidate to guess what we want to hear.
+  const prev = index > 0 ? exam.questions[index - 1] : null
+  const sect = q.section ? NEOP_SECTIONS.find((s) => s.id === q.section) : undefined
+  const showSectionIntro = !!sect && (!prev || prev.section !== q.section)
+
   return shell(
     <>
       <div className="exam-bar">
@@ -328,6 +378,13 @@ export default function ExamPage() {
         </span>
         <span className={`exam-timer${lowTime ? ' low' : ''}`}>⏱ {fmtClock(remaining)}</span>
       </div>
+
+      {showSectionIntro && sect && (
+        <div className="exam-section-intro">
+          <div className="sect-label">{sect.label}</div>
+          <p>{sect.intro}</p>
+        </div>
+      )}
 
       <div className="card exam-q">
         <div className="exam-domain">{q.domain}</div>

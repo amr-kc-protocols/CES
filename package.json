@@ -11,11 +11,13 @@
     "icons": "node scripts/gen-icons.mjs",
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr",
+    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr && npm run check:neop",
     "check:plan": "node scripts/check-course-plan.mjs",
     "doc:application": "node scripts/build-application.mjs",
     "check:review": "node scripts/check-chart-review.mjs",
-    "check:pcr": "node scripts/check-pcr-import.mjs"
+    "check:pcr": "node scripts/check-pcr-import.mjs",
+    "check:neop": "node scripts/check-neop-exam.mjs",
+    "gen:neop": "node scripts/gen-neop-exam.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
