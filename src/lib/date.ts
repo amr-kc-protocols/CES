@@ -54,6 +54,11 @@ export function monthLabel(key: string): string {
 export function formatDate(iso?: string): string {
   if (!iso) return '—'
   const d = fromISODate(iso)
+  // A string that is not an ISO date gives an Invalid Date, whose getMonth() is
+  // NaN — and MONTH_NAMES[NaN] is undefined, so the next line used to throw and
+  // take the whole screen down with it. A bad date is worth a dash, not a white
+  // page.
+  if (Number.isNaN(d.getTime())) return '—'
   return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`
 }
 

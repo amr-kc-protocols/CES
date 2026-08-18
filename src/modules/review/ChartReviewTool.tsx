@@ -13,8 +13,10 @@ import {
   type ReviewQuestion,
   type ReviewType,
 } from '../../data/chartReview'
+import PcrImport from './PcrImport'
 import {
   addChartReview,
+  allReviews,
   blankReview,
   crewTally,
   deleteChartReview,
@@ -39,6 +41,17 @@ import type { ChartReviewEntry } from '../../types'
 // ---------------------------------------------------------------------------
 
 type Draft = Omit<ChartReviewEntry, 'id' | 'updatedAt'> & { id?: string }
+
+/**
+ * How an imported answer was arrived at, in the reviewer's words rather than
+ * the parser's. "Assumed" is deliberately blunt: it means nobody, human or
+ * machine, has actually checked that one.
+ */
+const CONFIDENCE_LABEL: Record<string, string> = {
+  read: 'read from the chart',
+  inferred: 'inferred',
+  assumed: 'assumed',
+}
 
 function YesNo({
   value,
@@ -77,6 +90,7 @@ function QuestionRow({
   set: (patch: Partial<Draft>) => void
 }) {
   const answer = draft.answers[q.id]
+  const source = draft.answerSources?.[q.id]
   const setAnswer = (v: boolean | string | string[]) =>
     set({ answers: { ...draft.answers, [q.id]: v } })
   // Prompted only where the answer is the non-compliant one. Asking for a note
@@ -106,6 +120,19 @@ function QuestionRow({
             {q.scoring === 'flag' && <span className="pill muted cr-mark">not scored</span>}
           </div>
           {q.help && <div className="help-text" style={{ marginTop: 2 }}>{q.help}</div>}
+          {/*
+            On an imported review, what the app read and how sure it was. This
+            is the difference between an answer a reviewer can accept at a
+            glance and one they have to go back to the PDF for: "no phone
+            number — the field says Unable to Complete" needs no checking,
+            "assumed" says plainly that nobody has looked.
+          */}
+          {source && (
+            <div className={`cr-src ${source.confidence}`}>
+              <span className="cr-src-tag">{CONFIDENCE_LABEL[source.confidence] ?? source.confidence}</span>
+              {source.because}
+            </div>
+          )}
         </div>
 
       <div className="cr-q-control">
@@ -271,6 +298,30 @@ function ReviewForm({
         )}
         <SavedIndicator />
       </div>
+
+      {/*
+        What the import wants looked at, put where the reviewer lands rather
+        than left for them to find. An imported chart that raised nothing shows
+        nothing here — the point is that those cost no attention at all.
+      */}
+      {draft.flags && draft.flags.length > 0 && (
+        <div className="card cr-flags" style={{ padding: 12, marginBottom: 12 }}>
+          <div className="section-title" style={{ marginTop: 0 }}>
+            Read from the chart — {draft.flags.length} to check
+          </div>
+          <ul className="cr-import-flags">
+            {draft.flags.map((f, i) => (
+              <li key={i} className={f.severity === 'stop' ? 'stop' : 'look'}>
+                <span className="cr-flag-tag">
+                  {f.severity === 'stop' ? 'Needs a decision' : 'Worth a look'}
+                </span>
+                <strong>{f.title}</strong>
+                <div className="subtle">{f.detail}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card" style={{ padding: 14 }}>
         <div className="section-title" style={{ marginTop: 0 }}>
@@ -451,6 +502,7 @@ export default function ChartReviewTool() {
   const reviews = useChartReviews()
   const { email } = useSyncStatus()
   const [editing, setEditing] = useState<Draft | null>(null)
+  const [importing, setImporting] = useState(false)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
@@ -458,7 +510,13 @@ export default function ChartReviewTool() {
   const scored = useMemo(() => filtered.filter((r) => r.status === 'complete'), [filtered])
   const stats = useMemo(() => overall(scored), [scored])
   const rows = useMemo(
-    () => tally(scored).filter((t) => t.answered > 0).sort((a, b) => (a.percent ?? 101) - (b.percent ?? 101)),
+    // Only questions that actually fell short. Sorting by percentage and taking
+    // the first eight fills the panel with 100% rows once a bulk import lands,
+    // which is the opposite of what its heading promises.
+    () =>
+      tally(scored)
+        .filter((t) => t.answered > 0 && t.percent !== undefined && t.percent < 100)
+        .sort((a, b) => (a.percent ?? 101) - (b.percent ?? 101)),
     [scored],
   )
   const crew = useMemo(() => crewTally(scored), [scored])
@@ -477,6 +535,24 @@ export default function ChartReviewTool() {
 
   if (editing) {
     return <ReviewForm initial={editing} onClose={() => setEditing(null)} />
+  }
+
+  if (importing) {
+    return (
+      <PcrImport
+        reviewer={email ?? ''}
+        onClose={() => setImporting(false)}
+        onOpen={(incidentNumber) => {
+          // Straight from the import summary into the chart it names, so a
+          // flagged run number is one click from the questions behind it.
+          const hit = allReviews().find((r) => r.incidentNumber === incidentNumber)
+          if (hit) {
+            setImporting(false)
+            setEditing({ ...hit, id: hit.id })
+          }
+        }}
+      />
+    )
   }
 
   return (
@@ -541,7 +617,14 @@ export default function ChartReviewTool() {
         >
           ⬇ Export workbook
         </button>
-        <button className="btn primary" onClick={() => setEditing(blankReview(email ?? ''))}>
+        <button
+          className="btn primary"
+          onClick={() => setImporting(true)}
+          title="Read a stack of printed PCRs and answer what the export can answer"
+        >
+          ⬆ Import PCRs
+        </button>
+        <button className="btn" onClick={() => setEditing(blankReview(email ?? ''))}>
           + New review
         </button>
       </div>

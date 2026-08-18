@@ -2095,3 +2095,106 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   .cr-q-main { grid-template-columns: 1fr; gap: 6px; }
   .cr-q.answered .cr-q-prompt { color: var(--text); }
 }
+
+/* ---------- Bulk PCR import ----------
+ *
+ * The screen exists to answer one question fast: which of these charts do I
+ * have to think about? So the flagged ones are listed in full and the clean
+ * ones collapse to a table — the opposite weighting to the tally screens, where
+ * everything counted matters equally.
+ */
+.cr-drop {
+  margin-top: 12px;
+  padding: 34px 18px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: center;
+  cursor: pointer;
+}
+.cr-drop:hover,
+.cr-drop:focus-visible { border-color: var(--navy-600); background: var(--info-bg); }
+.cr-drop.over {
+  border-color: var(--navy-600);
+  background: var(--info-bg);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.cr-drop-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-strong);
+  margin-bottom: 4px;
+}
+
+.cr-import-head {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-strong);
+  margin-bottom: 8px;
+}
+.cr-import-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.cr-import-row:first-of-type { border-top: 0; }
+.cr-import-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+/* Flags carry a coloured left edge rather than a filled background: a stack of
+   filled panels reads as an error state, and most of these are ordinary
+   documentation gaps rather than alarms. */
+.cr-import-flags { list-style: none; margin: 0; padding: 0; }
+.cr-import-flags li {
+  padding: 7px 0 7px 12px;
+  border-left: 3px solid var(--border-strong);
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.cr-import-flags li:last-child { margin-bottom: 0; }
+.cr-import-flags li.stop { border-left-color: var(--crit); }
+.cr-import-flags li.look { border-left-color: var(--warn); }
+.cr-flag-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+.cr-import-flags li.stop .cr-flag-tag { background: var(--crit-bg); color: var(--crit); }
+.cr-import-flags li.look .cr-flag-tag { background: var(--warn-bg); color: var(--warn); }
+.cr-flags { border-left: 3px solid var(--crit); }
+
+/* Provenance under an imported answer. Quiet by default — it is there to be
+   read when a reviewer doubts an answer, not to compete with the question. */
+.cr-src {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.cr-src-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--muted-bg);
+  color: var(--text-muted);
+}
+.cr-src.read .cr-src-tag { background: var(--ok-bg); color: var(--ok); }
+/* "Assumed" is the one worth noticing: it means the export said nothing and
+   the answer is a default, not a finding. */
+.cr-src.assumed .cr-src-tag { background: var(--warn-bg); color: var(--warn); }

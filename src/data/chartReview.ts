@@ -423,12 +423,13 @@ const CATEGORY_SECTIONS: ReviewSection[] = [
     id: 'cat.lightsSirens',
     title: 'Lights and Sirens Review',
     when: { category: 'Lights and Sirens' },
-    // Whether the chart records the response and transport mode. Lights-and-
-    // sirens use carries crash risk and is reported on; an unrecorded mode is
-    // the gap, not the mode itself.
+    // Counted, never scored. Lights-and-sirens use carries crash risk and is
+    // reported on, so the numbers matter — but a No is the GOOD answer here as
+    // often as not, and scoring it either way turns every properly run
+    // non-emergent transport into a finding on the crew's record.
     questions: [
-      yn('ls.respond', 'Did the crew respond to the call Lights and Sirens?'),
-      yn('ls.transport', 'Did the crew transport Lights and Sirens?'),
+      yn('ls.respond', 'Did the crew respond to the call Lights and Sirens?', { scoring: 'flag' }),
+      yn('ls.transport', 'Did the crew transport Lights and Sirens?', { scoring: 'flag' }),
     ],
   },
   {

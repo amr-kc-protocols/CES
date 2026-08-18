@@ -955,6 +955,27 @@ export interface ChartReviewEntry {
   questionNotes?: Record<string, string>
   notes?: string
   status: ChartReviewStatus
+  /**
+   * Where the answers came from. Absent means a person filled the form in.
+   *
+   * 'import' means the app read them off a PCR export. It is recorded because
+   * an auto-answered review and a hand-answered one carry different weight in
+   * an audit, and because a mapping that turns out to be wrong needs to be
+   * findable after the fact.
+   */
+  source?: 'import'
+  /**
+   * Per-question provenance for an imported review: how sure the app was and
+   * what it read. Keyed by question id, same as `answers`.
+   *
+   * Kept so nothing is a black box — a reviewer can see that "no phone number"
+   * came off the Patient's Phone Number field rather than being assumed.
+   */
+  answerSources?: Record<string, { confidence: string; because: string }>
+  /**
+   * What the import wants a human to look at. Empty on a chart that read clean.
+   */
+  flags?: { severity: string; title: string; detail: string; questionId?: string }[]
   updatedAt: string
 }
 
