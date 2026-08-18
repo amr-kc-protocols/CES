@@ -47,6 +47,19 @@ The project URL + publishable key are baked into the app
 - New person/device: open the app → **Settings → Cloud sync** → enter email →
   tap the magic link. Done.
 - Then set their `role` in **Table Editor → profiles** (one time per person).
+
+### Adding an administrator
+
+`admin` is the widest role there is — everything in the market, in both
+directions — so it is granted by a named file rather than by a dropdown nobody
+remembers changing. Copy `add_admin_mary_glover.sql`, change the three
+constants at the top (`v_email`, `v_name`, `v_market`) and run it in the SQL
+Editor. It promotes an existing account, or creates one when you supply the
+person's employee number as their starting password, and it is safe to re-run.
+
+Each such file is left in the repo after it is run: together they are the
+record of who was given administrator access and when.
+
 ### Roles
 
 Row-level security scopes **both reads and writes**. Reads matter as much as
