@@ -2053,3 +2053,45 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .review-native {
   padding: 12px 0 24px;
 }
+
+/* ---------- Chart review: built for scanning ----------
+ *
+ * Sixty-five questions exist and a busy review touches thirty of them, so the
+ * layout has to let a reviewer run down the page and stop only where something
+ * needs thought. The prompt sits left and the Yes/No lands in a fixed column on
+ * the right, which means the pointer never hunts: same x, every row.
+ */
+.cr-q-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+}
+.cr-q-main.wide { grid-template-columns: 1fr; gap: 8px; }
+.cr-q-text { min-width: 0; }
+.cr-q-control { flex: none; padding-top: 1px; }
+.cr-q-control .btn-row { flex-wrap: nowrap; }
+.cr-q-control .btn { min-width: 52px; justify-content: center; }
+
+/* Answered rows recede. What is left unanswered should be what catches the eye
+   on a second pass, not the wall of work already done. */
+.cr-q.answered .cr-q-prompt { color: var(--text-muted); font-weight: 500; }
+/* Help text stays put once answered. Hiding it reflowed everything below the
+   row the moment you clicked, which moves the next question out from under the
+   pointer — the opposite of quick. */
+
+/* Markers on the questions that do not score the way the rest do. */
+.cr-mark {
+  margin-left: 8px;
+  font-size: 10px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.cr-bar { gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 700px) {
+  /* Stacked: a fixed right-hand column would leave the prompt three words wide. */
+  .cr-q-main { grid-template-columns: 1fr; gap: 6px; }
+  .cr-q.answered .cr-q-prompt { color: var(--text); }
+}

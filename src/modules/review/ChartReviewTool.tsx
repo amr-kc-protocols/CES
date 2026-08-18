@@ -5,8 +5,10 @@ import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate, todayISO } from '../../lib/date'
 import { downloadXlsx } from '../../lib/xlsx'
 import {
+  compliantAnswer,
   isCompliant,
   REVIEW_TYPES,
+  visibleQuestions,
   visibleSections,
   type ReviewQuestion,
   type ReviewType,
@@ -81,15 +83,32 @@ function QuestionRow({
   // on every question would get every note left blank.
   const wantsNote = isCompliant(q, answer) === false
 
-  return (
-    <div className="cr-q">
-      <div className="cr-q-prompt">
-        {q.required && <span className="cr-req" aria-hidden="true">*</span>}
-        {q.prompt}
-      </div>
-      {q.help && <div className="help-text" style={{ marginTop: 2 }}>{q.help}</div>}
+  const answered = answer !== undefined && answer !== '' && !(Array.isArray(answer) && !answer.length)
 
-      <div style={{ marginTop: 6 }}>
+  // Yes/No and a short select sit beside the prompt; a multi-select or a text
+  // box takes the full width. Nine category chips in an auto-width column
+  // squeeze the prompt to nothing and the two overlap.
+  const wide = q.kind === 'multi' || q.kind === 'text'
+
+  return (
+    <div className={`cr-q${answered ? ' answered' : ''}`}>
+      <div className={`cr-q-main${wide ? ' wide' : ''}`}>
+        <div className="cr-q-text">
+          <div className="cr-q-prompt">
+            {q.required && <span className="cr-req" aria-hidden="true">*</span>}
+            {q.prompt}
+            {/* The two questions where Yes is the finding. A reviewer running
+                down a column of Yes buttons will otherwise report a near miss
+                on every chart they touch. */}
+            {q.scoring === 'no-good' && (
+              <span className="pill crit cr-mark">Yes = finding</span>
+            )}
+            {q.scoring === 'flag' && <span className="pill muted cr-mark">not scored</span>}
+          </div>
+          {q.help && <div className="help-text" style={{ marginTop: 2 }}>{q.help}</div>}
+        </div>
+
+      <div className="cr-q-control">
         {q.kind === 'yesno' && (
           <YesNo value={typeof answer === 'boolean' ? answer : undefined} onChange={setAnswer} />
         )}
@@ -135,6 +154,7 @@ function QuestionRow({
             onChange={(e) => setAnswer(e.target.value)}
           />
         )}
+        </div>
       </div>
 
       {wantsNote && (
@@ -171,7 +191,46 @@ function ReviewForm({
     ? (draft.answers['cqm.categories'] as string[])
     : []
   const sections = visibleSections(draft.types as ReviewType[], categories)
+  const inScope = visibleQuestions(draft.types as ReviewType[], categories)
   const missing = unanswered({ ...draft, categories })
+
+  const isAnswered = (q: ReviewQuestion) => {
+    const a = draft.answers[q.id]
+    return a !== undefined && a !== '' && !(Array.isArray(a) && a.length === 0)
+  }
+  const answeredCount = inScope.filter(isAnswered).length
+
+  /**
+   * Fill every unanswered yes/no question with its compliant answer.
+   *
+   * The reviewer's time should go on the exceptions. Most charts are compliant
+   * on most questions, so the useful default is "nothing wrong here" everywhere
+   * and then change the few that are — rather than twenty-eight identical
+   * clicks before reaching the one that matters.
+   *
+   * It reads compliantAnswer(), not "Yes". The near-miss and safety-concern
+   * questions are compliant when answered No, and a naive fill would report an
+   * incident on every chart. Already-answered questions are left alone, so this
+   * can be pressed at any point without undoing a deliberate No.
+   */
+  const markRestCompliant = () => {
+    const next = { ...draft.answers }
+    let filled = 0
+    for (const q of inScope) {
+      if (isAnswered(q)) continue
+      const good = compliantAnswer(q)
+      if (good === undefined) continue
+      next[q.id] = good
+      filled++
+    }
+    set({ answers: next })
+    notifyUser(
+      filled === 0
+        ? 'Nothing left to fill — every scored question already has an answer.'
+        : `Marked ${filled} question${filled === 1 ? '' : 's'} compliant. Change the ones that are not.`,
+      'info',
+    )
+  }
 
   const save = (status: ChartReviewEntry['status']) => {
     const entry: Draft = { ...draft, categories, status }
@@ -190,11 +249,26 @@ function ReviewForm({
 
   return (
     <div className="cr-form">
-      <div className="toolbar" style={{ marginBottom: 12 }}>
+      <div className="toolbar cr-bar" style={{ marginBottom: 12 }}>
         <button className="btn" onClick={onClose}>
-          ← Back to reviews
+          ← Back
         </button>
+        {draft.types.length > 0 && (
+          <span className="subtle">
+            {answeredCount} of {inScope.length} answered
+            {missing.length > 0 && ` · ${missing.length} required outstanding`}
+          </span>
+        )}
         <div className="spacer" />
+        {draft.types.length > 0 && (
+          <button
+            className="btn"
+            onClick={markRestCompliant}
+            title="Fill every unanswered question with the answer that means nothing was wrong — Yes for most, No for the two that ask whether something went wrong. Answers you have already given are left alone."
+          >
+            ✓ Mark rest compliant
+          </button>
+        )}
         <SavedIndicator />
       </div>
 
@@ -389,6 +463,18 @@ export default function ChartReviewTool() {
   )
   const crew = useMemo(() => crewTally(scored), [scored])
 
+  // The same run number reviewed twice counts twice everywhere. Usually it is a
+  // second reviewer duplicating work rather than a deliberate re-review, and
+  // either way it is worth seeing before the numbers are read.
+  const duplicates = useMemo(() => {
+    const seen = new Map<string, number>()
+    for (const r of reviews) {
+      const k = r.incidentNumber.trim()
+      if (k) seen.set(k, (seen.get(k) ?? 0) + 1)
+    }
+    return [...seen].filter(([, n]) => n > 1).map(([k]) => k)
+  }, [reviews])
+
   if (editing) {
     return <ReviewForm initial={editing} onClose={() => setEditing(null)} />
   }
@@ -401,6 +487,18 @@ export default function ChartReviewTool() {
         what happened, not whether the care was right. <strong>No patient identifiers</strong>: the
         run number links back to ImageTrend.
       </div>
+
+      {duplicates.length > 0 && (
+        <div className="banner warn" style={{ marginTop: 12 }}>
+          <strong>
+            {duplicates.length} run number{duplicates.length === 1 ? ' has' : 's have'} more than one
+            review.
+          </strong>{' '}
+          Each is counted separately in the tally and in the per-crew figures:{' '}
+          {duplicates.slice(0, 8).join(', ')}
+          {duplicates.length > 8 && ` and ${duplicates.length - 8} more`}.
+        </div>
+      )}
 
       <div className="stat-grid" style={{ marginTop: 12 }}>
         <div className="stat">

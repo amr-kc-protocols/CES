@@ -28,7 +28,7 @@ await build({
     contents: `
       export * from ${JSON.stringify(join(SRC, 'data/chartReview'))}
       export { buildXlsx, columnName, safeSheetName } from ${JSON.stringify(join(SRC, 'lib/xlsx'))}
-      export { reviewWorkbook, tally, crewTally, overall } from ${JSON.stringify(join(SRC, 'modules/review/chartReviewStore'))}
+      export { reviewWorkbook, tally, crewTally, overall, unanswered } from ${JSON.stringify(join(SRC, 'modules/review/chartReviewStore'))}
     `,
     resolveDir: SRC,
     loader: 'ts',
@@ -287,6 +287,53 @@ check(
     String(findings.rows[1][6]).includes('no name'),
   'a non-compliant answer reaches the Findings sheet with its note',
   JSON.stringify(findings.rows[1] ?? null),
+)
+
+// An answer left behind by a de-selected section must not export as though the
+// question had been put. Tick a category, answer its block, untick it: the
+// answers stay in the record, and the Reviews sheet used to print them while
+// the Tally and Findings sheets correctly ignored them.
+const staleSheets = m.reviewWorkbook([
+  review(
+    { 'aw.capnography': true, 'dem.locations': false, 'np.location': true },
+    { types: ['nopatient'], categories: [] },
+  ),
+])
+const staleHeader = staleSheets[0].rows[0]
+const staleRow = staleSheets[0].rows[1]
+const outOfScope = ['Waveform Capnography', 'Are the Incident Location and Destination Location recorded correctly?']
+  .map((p) => [p, staleRow[staleHeader.indexOf(p)]])
+  .filter(([, v]) => v !== '')
+check(
+  outOfScope.length === 0,
+  'answers to de-selected questions are blank on the Reviews sheet',
+  outOfScope.map(([p, v]) => `${p.slice(0, 30)}=${JSON.stringify(v)}`).join(', '),
+)
+
+// The per-crew rollup is what a Phase 1 new hire is judged on. Free-text names
+// arriving as "Pat Lee", "pat lee" and " Pat Lee " used to split one medic into
+// three, each with a third of their reviews.
+const cased = m.crewTally([
+  review({ 'dem.locations': true }, { crew: ['Pat Lee'] }),
+  review({ 'dem.locations': true }, { crew: ['pat lee'] }),
+  review({ 'dem.locations': true }, { crew: ['  Pat   Lee '] }),
+])
+check(
+  cased.length === 1 && cased[0].reviews === 3 && cased[0].crew === 'Pat Lee',
+  'crew names differing only by case or spacing are one person',
+  `${cased.length} row(s): ${cased.map((c) => `${JSON.stringify(c.crew)} x${c.reviews}`).join(', ')}`,
+)
+
+// What "mark the rest compliant" fills in. Filling every unanswered question
+// with Yes would tick the near-miss and safety-concern boxes on every chart.
+check(
+  m.compliantAnswer(m.question('dem.locations')) === true &&
+    m.compliantAnswer(m.question('ovr.nearMiss')) === false &&
+    m.compliantAnswer(m.question('ovr.safetyConcerns')) === false &&
+    m.compliantAnswer(m.question('ovr.escalate')) === undefined &&
+    m.compliantAnswer(m.question('cqm.setting')) === undefined,
+  'the compliant answer is Yes, except No on the inverted pair and nothing for flags',
+  `locations=${m.compliantAnswer(m.question('dem.locations'))} nearMiss=${m.compliantAnswer(m.question('ovr.nearMiss'))} escalate=${m.compliantAnswer(m.question('ovr.escalate'))}`,
 )
 
 // A compliant answer must NOT appear as a finding, and neither must a flag.

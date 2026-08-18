@@ -138,7 +138,18 @@ export interface CrewTally {
   escalated: number
 }
 
-/** Per-crew-member rollup. A review naming two medics counts for both. */
+/**
+ * Per-crew-member rollup. A review naming two medics counts for both.
+ *
+ * Grouped on a normalised key, not the raw string. The crew field is free text
+ * split on commas, so the same medic arrives as "Pat Lee", "pat lee" and
+ * " Pat Lee " across three reviews — and this is the number a Phase 1 new hire
+ * is judged on, where one person showing up as three defeats the purpose. The
+ * first spelling seen is what gets displayed; nobody's name is retyped for
+ * them.
+ */
+const crewKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+
 export function crewTally(reviews: ChartReviewEntry[]): CrewTally[] {
   const rows = new Map<string, CrewTally>()
   for (const r of reviews) {
@@ -157,12 +168,19 @@ export function crewTally(reviews: ChartReviewEntry[]): CrewTally[] {
     // A review with nobody named still has to appear somewhere, or the crew
     // sheet silently totals to fewer reviews than were filed.
     for (const name of r.crew.length ? r.crew : ['(no crew recorded)']) {
-      const row = rows.get(name) ?? { crew: name, reviews: 0, answered: 0, compliant: 0, escalated: 0 }
+      const key = crewKey(name)
+      const row = rows.get(key) ?? {
+        crew: name.trim(),
+        reviews: 0,
+        answered: 0,
+        compliant: 0,
+        escalated: 0,
+      }
       row.reviews++
       row.answered += answered
       row.compliant += compliant
       row.escalated += escalated
-      rows.set(name, row)
+      rows.set(key, row)
     }
   }
   for (const row of rows.values()) {
@@ -233,21 +251,29 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
     ...questions.map((q) => q.prompt),
   ]
 
-  const rows = reviews.map((r) => [
-    r.id,
-    r.status,
-    r.incidentNumber,
-    r.serviceDate ?? '',
-    r.types.join('; '),
-    [...r.categories, r.categoryOther ? `Other: ${r.categoryOther}` : '']
-      .filter(Boolean)
-      .join('; '),
-    r.crew.join('; '),
-    r.reviewer,
-    r.reviewedAt,
-    r.notes ?? '',
-    ...questions.map((q) => answerText(r.answers[q.id])),
-  ])
+  const rows = reviews.map((r) => {
+    // Only what this review was actually asked. Ticking a category, answering
+    // its block and then unticking it leaves the answers behind in the record,
+    // and without this they exported as though the question had been put — the
+    // Tally and Findings sheets already filter by scope, so the three sheets
+    // disagreed about the same review.
+    const inScope = new Set(visibleQuestions(r.types as ReviewType[], r.categories).map((q) => q.id))
+    return [
+      r.id,
+      r.status,
+      r.incidentNumber,
+      r.serviceDate ?? '',
+      r.types.join('; '),
+      [...r.categories, r.categoryOther ? `Other: ${r.categoryOther}` : '']
+        .filter(Boolean)
+        .join('; '),
+      r.crew.join('; '),
+      r.reviewer,
+      r.reviewedAt,
+      r.notes ?? '',
+      ...questions.map((q) => (inScope.has(q.id) ? answerText(r.answers[q.id]) : '')),
+    ]
+  })
 
   const t = tally(reviews)
   const tallyRows: (string | number)[][] = [

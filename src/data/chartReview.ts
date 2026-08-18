@@ -535,6 +535,22 @@ export function isCompliant(q: ReviewQuestion, answer: unknown): boolean | undef
   return q.scoring === 'no-good' ? answer === false : answer === true
 }
 
+/**
+ * The answer that means "nothing wrong here", or undefined where there isn't
+ * one. Yes for most questions, No for the two that ask whether something went
+ * wrong, nothing for the flags and the non-yes/no questions.
+ *
+ * This is what a bulk "mark the rest compliant" has to read. Filling every
+ * unanswered question with Yes would tick the near-miss and safety-concern
+ * boxes on every chart, turning a time-saver into a machine for fabricating
+ * incident reports.
+ */
+export function compliantAnswer(q: ReviewQuestion): boolean | undefined {
+  if (q.kind !== 'yesno') return undefined
+  if (q.scoring === 'flag') return undefined
+  return q.scoring !== 'no-good'
+}
+
 /** Whether a question contributes to the compliance percentage at all. */
 export function isScored(q: ReviewQuestion): boolean {
   return q.kind === 'yesno' && q.scoring !== 'flag'
