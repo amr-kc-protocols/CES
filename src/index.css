@@ -314,10 +314,13 @@ input[type='date']::-webkit-date-and-time-value {
   box-shadow: 0 -1px 6px rgba(15, 23, 42, 0.05);
 }
 
+/* Five sections at most, so a cell is ~75px wide on a 375px phone and can
+   afford the height too — the ten-tab bar this replaced gave each cell 37px,
+   under Apple's 44pt minimum and Google's 48dp. */
 .tabbar a {
   flex: 1;
   position: relative;
-  padding: 8px 4px 10px;
+  padding: 10px 4px 12px;
   text-align: center;
   color: var(--text-muted);
   font-size: 11px;
@@ -773,6 +776,23 @@ a.row:hover {
 .row .grow { flex: 1; min-width: 0; }
 .row .title { font-weight: 700; }
 .row .meta { color: var(--text-muted); font-size: 13px; }
+
+/* ---------- Section landings ---------- */
+/* One row per destination inside a section. The leading glyph repeats the tab
+   bar's icon so the thing you tapped and the thing you land on read as the
+   same object — the row is the only place that association can be made now
+   that a leaf no longer has a tab of its own. */
+.hub-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex: none;
+  width: 28px;
+  text-align: center;
+}
+
+.hub-row { padding: 14px; }
+
+.stat-grid + .list { margin-top: 14px; }
 
 .row.left-accent { border-left-width: 4px; }
 .row.acc-ok { border-left-color: var(--ok); }
