@@ -5,13 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Simulator Control Panel</title>
 <style>
+/* Text tones. The panel used to reach for #333 through #666 for anything
+   secondary, which lands between 1.4:1 and 3:1 on this background — the drug
+   doses, the scenario notes and the empty states were effectively invisible in
+   a lit classroom. These three all clear WCAG AA on both surfaces (6.3:1, 9.6:1
+   and 14.7:1) and still give three steps of hierarchy.
+   --t-faint is 4.0:1 — large or non-essential text only. */
+:root{
+  --t-strong:#e6edf5;
+  --t:#b6c2d1;
+  --t-dim:#8f9db0;
+  --t-faint:#6d7b8d;
+}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#0d1b2a;color:#e0e0e0;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;}
 /* Compact by design. Every pixel above the cards is a pixel of the scenario
    the facilitator cannot see while running it — the panel is 3.4 screens tall
    and the controls that matter mid-scenario are in the first two. */
 h1{color:#00e5ff;font-size:1rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;text-shadow:0 0 10px #00e5ff88;}
-.subtitle{color:#666;font-size:.66rem;margin-bottom:10px;letter-spacing:1px;}
+.subtitle{color:var(--t-dim);font-size:.66rem;margin-bottom:10px;letter-spacing:1px;}
 /* Whether the crew's screen is actually up. The facilitator is usually not
    looking at it, and a monitor that was never opened or got closed is
    otherwise silent — the scenario just stops reaching anybody. */
@@ -53,7 +65,7 @@ h1{color:#00e5ff;font-size:1rem;letter-spacing:2px;text-transform:uppercase;marg
 .card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;}
 .card.ecg h2{color:#00ff00;}.card.bp h2{color:#ff4444;}.card.spo2 h2{color:#ffff00;}.card.etco2 h2{color:#ff00ff;}.card.temp h2{color:#00e5ff;}.card.alarms h2{color:#ff00ff;}
 
-label{display:block;font-size:.7rem;color:#aaa;margin-bottom:4px;margin-top:8px;}
+label{display:block;font-size:.7rem;color:var(--t);margin-bottom:4px;margin-top:8px;}
 label:first-of-type{margin-top:0;}
 input[type=range]{flex:1;accent-color:#00e5ff;cursor:pointer;}
 select{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:#fff;padding:5px 8px;font-size:.8rem;margin-bottom:4px;outline:none;}
@@ -67,9 +79,9 @@ select:focus{border-color:#00e5ff;}
 :focus-visible{outline:2px solid #00e5ff;outline-offset:2px;}
 
 /* Rhythm grid */
-.rcat{font-size:.58rem;color:#555;letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px;}
+.rcat{font-size:.58rem;color:var(--t-dim);letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px;}
 .rgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:4px;}
-.rbtn{background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:#ccc;font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
+.rbtn{background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:var(--t-strong);font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
 .rbtn:hover{border-color:#00ff00;color:#00ff00;}
 .rbtn.on{background:#003300;border-color:#00ff00;color:#00ff00;}
 
@@ -77,7 +89,7 @@ select:focus{border-color:#00e5ff;}
 .card.art{grid-column:span 3;}
 .art-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:10px;}
 .art-toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #1e3a52;}
-.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:2px solid #333;background:#0a0f1a;color:#555;font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
+.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:2px solid #333;background:#0a0f1a;color:var(--t-dim);font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
 .art-btn.on{border-color:#ff4444;background:#2a0000;color:#ff4444;box-shadow:0 0 10px #ff444433;}
 .art-btn .dot{width:9px;height:9px;border-radius:50%;background:#333;transition:all .2s;}
 .art-btn.on .dot{background:#ff4444;box-shadow:0 0 6px #ff4444;}
@@ -85,13 +97,13 @@ select:focus{border-color:#00e5ff;}
 .arbox{background:#0a0f1a;border:1px solid #1e3a52;border-radius:6px;padding:7px 10px;}
 .arbox.wide{grid-column:span 2;}
 .arbox.pulse{border-color:#ff4444;background:#1a0000;}
-.arbox .arl{font-size:.6rem;color:#888;text-transform:uppercase;letter-spacing:.5px;}
+.arbox .arl{font-size:.6rem;color:var(--t);text-transform:uppercase;letter-spacing:.5px;}
 .arbox .arv{font-size:1.1rem;font-weight:bold;color:#ff6666;line-height:1.2;}
-.arbox .aru{font-size:.58rem;color:#666;}
+.arbox .aru{font-size:.58rem;color:var(--t-dim);}
 
 /* Alarm toggles */
 .alarm-row{display:flex;gap:6px;margin-bottom:8px;}
-.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid #1e3a52;background:#0a0f1a;color:#888;cursor:pointer;text-align:center;transition:all .15s;}
+.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid #1e3a52;background:#0a0f1a;color:var(--t);cursor:pointer;text-align:center;transition:all .15s;}
 .atog.on{background:#1a3300;border-color:#00ff00;color:#00ff00;}
 .atog.off{background:#330000;border-color:#ff4444;color:#ff4444;}
 
@@ -103,14 +115,14 @@ select:focus{border-color:#00e5ff;}
 .card.simstate h2{color:#ff9900;}
 .sim-scenario-name{font-size:.75rem;color:#ff9900;font-weight:bold;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1e3a52;line-height:1.3;}
 .sim-states{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
-.state-btn{padding:6px 9px;border-radius:6px;border:1px solid #1e3a52;background:#0a0f1a;color:#888;font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;}
+.state-btn{padding:6px 9px;border-radius:6px;border:1px solid #1e3a52;background:#0a0f1a;color:var(--t);font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;}
 .state-btn:hover{border-color:#ff9900;color:#ff9900;}
 .state-btn.active{background:#1a0e00;border-color:#ff9900;color:#ff9900;}
 .state-btn .sname{font-weight:bold;font-size:.72rem;display:block;margin-bottom:2px;}
-.state-btn .svitals{font-size:.62rem;color:#666;display:block;}
+.state-btn .svitals{font-size:.62rem;color:var(--t-dim);display:block;}
 .state-btn.active .svitals{color:#cc7700;}
-.sim-note{font-size:.62rem;color:#555;line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
-.no-sim{font-size:.72rem;color:#444;text-align:center;padding:20px 0;line-height:1.6;}
+.sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
+.no-sim{font-size:.72rem;color:var(--t-dim);text-align:center;padding:20px 0;line-height:1.6;}
 
 /* Drug card — positioned via inline grid-column/row */
 .card.drugs h2{color:#ff6600;}
@@ -139,13 +151,13 @@ select:focus{border-color:#00e5ff;}
 .drug-btn.running{border-color:#ff660088;background:#150700;}
 @keyframes drugPulse{0%{box-shadow:0 0 0 0 #ff660088}100%{box-shadow:0 0 0 12px #ff660000}}
 .drug-btn .dname{font-size:.68rem;font-weight:bold;color:#ff8844;line-height:1.2;}
-.drug-btn .ddose{font-size:.58rem;color:#666;line-height:1.2;}
-.drug-btn .deffect{font-size:.55rem;color:#444;line-height:1.2;margin-top:1px;}
+.drug-btn .ddose{font-size:.58rem;color:var(--t-dim);line-height:1.2;}
+.drug-btn .deffect{font-size:.55rem;color:var(--t-dim);line-height:1.2;margin-top:1px;}
 .drug-log{margin-top:10px;padding-top:8px;border-top:1px solid #1e3a52;max-height:90px;overflow-y:auto;}
-.drug-log-entry{font-size:.6rem;color:#888;line-height:1.5;display:flex;justify-content:space-between;}
+.drug-log-entry{font-size:.6rem;color:var(--t);line-height:1.5;display:flex;justify-content:space-between;}
 .drug-log-entry .dlt{color:#ff8844;}
-.drug-log-entry .dltime{color:#555;}
-.drug-clear{font-size:.6rem;color:#444;cursor:pointer;text-align:right;margin-top:3px;}
+.drug-log-entry .dltime{color:var(--t-dim);}
+.drug-clear{font-size:.6rem;color:var(--t-dim);cursor:pointer;text-align:right;margin-top:3px;}
 .drug-clear:hover{color:#ff6600;}
 
 /* Make BP and SpO2 cards more compact */
@@ -198,7 +210,7 @@ select:focus{border-color:#00e5ff;}
   border:2px solid;
 }
 .phys-btn.on{background:#001a33;border-color:#0088cc;color:#00aaff;box-shadow:0 0 16px #0088cc33;}
-.phys-btn.off{background:#1a1a1a;border-color:#444;color:#666;}
+.phys-btn.off{background:#1a1a1a;border-color:var(--t-dim);color:var(--t-dim);}
 .phys-btn:hover{opacity:.85;}
 .launch-btn{display:block;width:100%;max-width:960px;margin:20px auto 0;padding:16px;font-size:1rem;font-weight:bold;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,#003366,#005599);border:2px solid #00e5ff;border-radius:10px;color:#00e5ff;cursor:pointer;transition:all .2s;box-shadow:0 0 20px #00e5ff22;}
 .launch-btn:hover{background:linear-gradient(135deg,#004488,#0077bb);box-shadow:0 0 30px #00e5ff55;}
@@ -239,7 +251,7 @@ select:focus{border-color:#00e5ff;}
     <button class="phys-btn on" id="physLockBtn2" onclick="togglePhysLock()" title="Prevents impossible vital sign combinations" style="width:100%;flex:none;">
       <span id="physLockIcon">🔒 PHYS LOCK</span>&nbsp;<span id="physLockLbl2">ON</span>
     </button>
-    <div class="phys-note" style="font-size:.55rem;color:#444;line-height:1.3;text-align:center;">Prevents impossible vital combinations<br>(e.g. VF + BP 180/100)</div>
+    <div class="phys-note" style="font-size:.55rem;color:var(--t-dim);line-height:1.3;text-align:center;">Prevents impossible vital combinations<br>(e.g. VF + BP 180/100)</div>
   </div>
 </div>
 
@@ -322,7 +334,7 @@ select:focus{border-color:#00e5ff;}
     <div class="rbtn" id="pvcBtn" onclick="toggleEctopic('pvc')" style="border-color:#ff8800;color:#ff8800;">PVC</div>
     <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:#00aaff;color:#00aaff;">PAC</div>
   </div>
-  <label for="ectFreq">Ectopic Frequency <span id="ectFreqLbl" style="color:#aaa;">— every 6 beats</span></label>
+  <label for="ectFreq">Ectopic Frequency <span id="ectFreqLbl" style="color:var(--t);">— every 6 beats</span></label>
   <div class="row">
     <input type="range" id="ectFreq" min="2" max="12" value="6" step="1"
       oninput="sv('ectFreq',+this.value);updateEctFreqLbl(+this.value)">
@@ -363,16 +375,16 @@ select:focus{border-color:#00e5ff;}
 <!-- Drug Interactions — col 2, spans rows 1+2 -->
 <div class="card drugs" style="grid-column:2;grid-row:1/3;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;">
-    <h2 style="margin-bottom:0;padding-bottom:0;border-bottom:none;">Medication Administration</h2>
+    <h2 style="margin-bottom:0;padding-bottom:0;border-bottom:none;">Medications</h2>
     <button id="drugHoldBtn" onclick="toggleDrugHold()"
       style="padding:4px 10px;font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;
-             border-radius:5px;border:1px solid #555;background:#0a0f1a;color:#888;cursor:pointer;
+             border-radius:5px;border:1px solid #555;background:#0a0f1a;color:var(--t);cursor:pointer;
              transition:all .2s;white-space:nowrap;"
       title="Cancels every medication still running and keeps the vitals where they are now">
       ⏹ STOP MEDS
     </button>
   </div>
-  <div style="font-size:.6rem;color:#555;margin-bottom:8px;line-height:1.4;">Click to apply physiologic effect to current vitals. Effects taper after duration.</div>
+  <div style="font-size:.6rem;color:var(--t-dim);margin-bottom:8px;line-height:1.4;">Click to apply physiologic effect to current vitals. Effects taper after duration.</div>
   <div class="drug-grid">
 
     <div class="drug-btn" data-drug="adenosine" onclick="giveDrug('adenosine')">
@@ -450,7 +462,7 @@ select:focus{border-color:#00e5ff;}
   </div>
 
   <div class="drug-log" id="drugLog">
-    <div style="font-size:.6rem;color:#333;text-align:center;">No drugs administered</div>
+    <div style="font-size:.6rem;color:var(--t-dim);text-align:center;">No drugs administered</div>
   </div>
   <div class="drug-clear" onclick="clearDrugLog()">✕ Clear log</div>
 </div>
@@ -546,7 +558,7 @@ select:focus{border-color:#00e5ff;}
     <div class="art-btn" id="artBtn" onclick="toggleArt()">
       <span class="dot"></span><span id="artLbl">A-LINE OFF</span>
     </div>
-    <span style="font-size:.65rem;color:#666;">Toggles arterial waveform on monitor</span>
+    <span style="font-size:.65rem;color:var(--t-dim);">Toggles arterial waveform on monitor</span>
   </div>
   <div class="art-inner">
     <div>
@@ -564,7 +576,7 @@ select:focus{border-color:#00e5ff;}
       <div class="alarm-row">
         <div class="atog on" id="artLinkBtn" onclick="toggleArtLink()" title="Mirror NIBP values to A-Line">🔗 LINKED TO NIBP</div>
       </div>
-      <div style="font-size:.6rem;color:#555;margin-top:2px;line-height:1.3;">Unlink to set A-Line values independently</div>
+      <div style="font-size:.6rem;color:var(--t-dim);margin-top:2px;line-height:1.3;">Unlink to set A-Line values independently</div>
       <label for="artDampSel" style="margin-top:6px;">Damping</label>
       <select id="artDampSel" onchange="sv('artDamping',this.value);refreshArt()">
         <option value="normal">Normal</option>
@@ -603,10 +615,10 @@ select:focus{border-color:#00e5ff;}
 <div class="card art" style="grid-column:span 3;margin-top:0;">
   <h2 style="color:#00aaff;">Swan-Ganz / PA Catheter (P2)</h2>
   <div class="art-toggle">
-    <div class="art-btn" id="sgBtn" onclick="toggleSG()" style="border-color:#333;color:#555;">
+    <div class="art-btn" id="sgBtn" onclick="toggleSG()" style="border-color:var(--t-dim);color:var(--t-dim);">
       <span class="dot" style="background:#333;"></span><span id="sgLbl">PA CATHETER OFF</span>
     </div>
-    <span style="font-size:.65rem;color:#666;">Displays PA waveform in P2 channel on monitor</span>
+    <span style="font-size:.65rem;color:var(--t-dim);">Displays PA waveform in P2 channel on monitor</span>
   </div>
   <div class="art-inner" id="sgInner" style="opacity:.4;">
     <div>
@@ -1455,7 +1467,7 @@ function renderSimPanel(simKey){
     return;
   }
   const sim=SIMULATIONS[simKey];
-  let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:#888;font-weight:normal;">${sim.subtitle}</span></div>`;
+  let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t);font-weight:normal;">${sim.subtitle}</span></div>`;
   html+=`<div class="sim-states">`;
   sim.states.forEach((st,i)=>{
     html+=`<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
@@ -1621,7 +1633,7 @@ function drugTick(){
 function renderDrugLog(){
   const el=document.getElementById('drugLog');
   if(!el) return;
-  if(!drugLog.length){el.innerHTML='<div style="font-size:.6rem;color:#333;text-align:center;">No drugs administered</div>';return;}
+  if(!drugLog.length){el.innerHTML='<div style="font-size:.6rem;color:var(--t-dim);text-align:center;">No drugs administered</div>';return;}
   el.innerHTML=drugLog.map(e=>`<div class="drug-log-entry"><span class="dlt">${e.name}</span><span class="dltime">${e.time}</span></div>`).join('');
 }
 function clearDrugLog(){drugLog=[];renderDrugLog();}
