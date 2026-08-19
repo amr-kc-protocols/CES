@@ -2464,3 +2464,34 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 }
 .sim-mon.on { color: #0a7d43; border-color: #0a7d4355; background: #0a7d430f; }
 .sim-mon.off { color: #9a5b1d; border-color: #9a5b1d55; background: #9a5b1d0f; }
+
+/* Console / Runs switch in the simulator bar. */
+.sim-tabs { display: flex; gap: 2px; padding: 3px; background: var(--surface-2, #e8edf4); border-radius: 8px; }
+.sim-tabs button {
+  padding: 5px 12px; border: 0; background: none; border-radius: 6px;
+  font-size: 12px; font-weight: 700; color: var(--text-muted); cursor: pointer; white-space: nowrap;
+}
+.sim-tabs button.active { background: var(--surface); color: var(--navy); box-shadow: 0 1px 3px rgba(16, 24, 40, 0.14); }
+.sim-saved { color: #0a7d43; }
+
+/* Saved runs. No score — the approved scenarios define none — so what a reader
+   wants is which expected actions were seen and which were not. */
+.sim-records { padding: 14px; max-width: 900px; margin: 0 auto; width: 100%; }
+.sim-run { padding: 0; overflow: hidden; }
+.sim-run-head {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 14px; background: none; border: 0; cursor: pointer; text-align: left;
+}
+.sim-run-head:hover { background: var(--surface-2, #f2f5f9); }
+.sim-run-time { font-variant-numeric: tabular-nums; }
+.sim-run-body { padding: 2px 14px 14px; border-top: 1px solid var(--border); }
+.sim-run-state { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.sim-run-state:last-child { border-bottom: 0; }
+.sim-run-state-head { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.sim-act { font-size: 13px; line-height: 1.5; padding-left: 2px; }
+.sim-act.ok { color: #0a7d43; }
+.sim-act.miss { color: #9a3412; }
+.sim-run-note {
+  margin-top: 10px; padding: 8px 10px; border-radius: 7px;
+  background: var(--surface-2, #f2f5f9); font-size: 13px; line-height: 1.5;
+}

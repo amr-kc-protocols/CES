@@ -51,6 +51,7 @@ function emptyDB(): DBShape {
     chartNarratives: [],
     templates: [],
     cqmpReports: [],
+    simRuns: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }

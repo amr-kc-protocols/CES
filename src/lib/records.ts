@@ -117,6 +117,13 @@ const SLICES: SliceDef[] = [
   // screenshots do not — they are IndexedDB blobs referenced by key, for the
   // reasons set out on CqmpImageRef in types.ts.
   { collection: 'cqmpReports', slice: 'cqmpReports', idOf: id as SliceDef['idOf'] },
+
+  // ----- quarterly simulation runs -------------------------------------------
+  // Same construction as CQMP: the read policy gives an admin their whole
+  // market and names every collection the other roles may see, so this is
+  // admin-only in both directions without a migration. Runs are written once
+  // at the end of a scenario and never edited, so they only ever grow.
+  { collection: 'simRuns', slice: 'simRuns', idOf: id as SliceDef['idOf'] },
 ]
 
 const SETTINGS_COLLECTION = 'settings'

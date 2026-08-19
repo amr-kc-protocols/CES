@@ -348,6 +348,105 @@ function loadMonitor(storage = {}) {
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// Facilitating and grading in one pass
+//
+// The quarterly scenarios come from Medical Director-approved Word documents
+// whose only gradeable content is an "Expected Actions" column. What is checked
+// here is that the transcription stays in step with the vitals table it sits
+// beside, and that a run produces the record a debrief is read from.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+
+  const docs = w.eval('SCENARIO_DOCS')
+  const sims = w.eval('SIMULATIONS')
+
+  ok('the graded scenarios are the quarterly ones', Object.keys(docs).length >= 2, Object.keys(docs).join(','))
+
+  for (const key of Object.keys(docs)) {
+    ok(`${key}: scenario exists`, !!sims[key])
+    if (!sims[key]) continue
+    // A state without its actions grades as a blank; a stray action list means
+    // the transcription and the vitals table have drifted apart.
+    ok(
+      `${key}: one action list per state`,
+      docs[key].states.length === sims[key].states.length,
+      `${docs[key].states.length} action lists for ${sims[key].states.length} states`,
+    )
+    ok(`${key}: every state carries a transition trigger`, docs[key].states.every((st) => !!st.trigger))
+    ok(`${key}: every state carries at least one expected action`, docs[key].states.every((st) => st.actions.length > 0))
+    const b = docs[key].brief
+    for (const field of ['patient', 'dispatch', 'handoff', 'primary', 'secondary'])
+      ok(`${key}: brief carries ${field}`, !!b[field])
+    ok(`${key}: SAMPLE has all six elements`, b.sample.length === 6, String(b.sample.length))
+  }
+
+  // Anything that starts hidden must actually be hidden. A class rule that sets
+  // a `display` outranks the user agent's `[hidden] { display: none }`, so the
+  // element renders open — which is what had the scenario brief unfolding to
+  // 613px on load and pushing the run off the bottom of every laptop screen.
+  //
+  // Checked against the stylesheet source rather than a computed style: jsdom
+  // resolves `hidden` but not the class rule that beats it, so getComputedStyle
+  // reports 'none' either way and can never see this.
+  {
+    const src = readFileSync(PAGE, 'utf8')
+    const css = src.slice(src.indexOf('<style>'), src.indexOf('</style>'))
+    for (const el of d.querySelectorAll('[hidden]')) {
+      for (const cls of el.classList) {
+        const rule = new RegExp(`\\.${cls}\\s*\\{[^}]*display\\s*:`)
+        if (!rule.test(css)) continue
+        ok(
+          `.${cls} starts hidden despite setting a display`,
+          css.includes(`.${cls}[hidden]`),
+          `.${cls} sets a display, so [hidden] does not hide it — add .${cls}[hidden]{display:none}`,
+        )
+      }
+    }
+  }
+
+  // Loading a quarterly scenario starts a run; the quick presets do not, since
+  // no approved action list stands behind them.
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  ok('applying a quarterly scenario starts a run', !!w.eval('run'))
+  ok('the run names the scenario', w.eval('run').scenario === 'asthma')
+  ok('the run has a state per scenario state', w.eval('run').states.length === sims.asthma.states.length)
+
+  // Ticking is the grading.
+  w.applySimState('asthma', 1)
+  w.toggleAction(0)
+  w.toggleAction(2)
+  ok('ticking marks the action done', w.eval('run').states[1].actions.filter((a) => a.done).length === 2)
+  w.toggleAction(0)
+  ok('ticking again clears it', w.eval('run').states[1].actions.filter((a) => a.done).length === 1)
+
+  // Time follows the patient, not the wall clock of the whole session.
+  ok('the state being run is the one being graded', w.eval('run').current === 1)
+
+  w.setRunField('crew', 'Med 3 — Alvarez / Boyd')
+  w.endRun()
+  const rec = w.eval('lastRun')
+  ok('ending a run produces a record', !!rec)
+  ok('the record keeps the crew', rec.crew === 'Med 3 — Alvarez / Boyd')
+  ok('the record keeps the scenario name for later reading', /Asthma/.test(rec.scenarioName))
+  ok('the record carries every state', rec.states.length === sims.asthma.states.length)
+  ok(
+    'the record carries what was and was not done',
+    rec.states[1].actions.some((a) => a.done) && rec.states[1].actions.some((a) => !a.done),
+  )
+  ok('the run is closed once ended', w.eval('run') === null)
+
+  // A quick preset is a vitals preset, not an assessment.
+  w.eval('lastRun = null')
+  d.getElementById('scenarioSel').value = 'shock'
+  w.applyScenario()
+  ok('a quick scenario starts no run', w.eval('run') === null)
+  ok('and applies its vitals anyway', S().sbp === 78 && S().hr === 125, `${S().hr} ${S().sbp}`)
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)

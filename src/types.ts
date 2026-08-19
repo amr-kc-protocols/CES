@@ -1182,6 +1182,52 @@ export interface CqmpReport {
   updatedAt: string
 }
 
+// ---------------------------------------------------------------------------
+// Quarterly simulation runs.
+//
+// One record per scenario run at the sim lab. The gradeable content is the
+// scenario's own "Expected Actions" — the Word documents these scenarios come
+// from carry no scoring rubric, and inventing one would be assessing crews
+// against something no medical director approved.
+//
+// So a run records what the facilitator observed: which expected actions the
+// crew performed, in which state, and how long the patient spent in each. No
+// score, no pass/fail. What a debrief needs is the list of what was and was not
+// done, and that is exactly what this holds.
+// ---------------------------------------------------------------------------
+
+export interface SimRunState {
+  /** State id within the scenario, e.g. 'worsening'. */
+  id: string
+  /** Label as it read at run time, so a reworded scenario still renders. */
+  label: string
+  /** Seconds the patient spent in this state. */
+  seconds: number
+  /** The state's expected actions, and whether the crew was seen to do each. */
+  actions: { text: string; done: boolean }[]
+}
+
+export interface SimRun {
+  id: string
+  /** Scenario key in the control panel's SIMULATIONS, e.g. 'drowning'. */
+  scenario: string
+  /**
+   * Scenario name and subtitle as they read at run time. Denormalised on
+   * purpose: the scenarios live in a static file that gets revised between
+   * quarters, and a record has to keep meaning after that.
+   */
+  scenarioName: string
+  startedAt: string
+  endedAt: string
+  /** Free text — the crew being assessed. Roles vary by scenario. */
+  crew: string
+  /** Stamped from Settings.reviewer when the run is saved. */
+  facilitator: string
+  states: SimRunState[]
+  /** Anything the facilitator wants carried into the debrief. */
+  notes?: string
+}
+
 export interface DBShape {
   version: number
   ceClasses: CEClass[]
@@ -1215,6 +1261,7 @@ export interface DBShape {
   chartNarratives: ChartNarrative[]
   templates: TemplateVersion[]
   cqmpReports: CqmpReport[]
+  simRuns: SimRun[]
   settings: Settings
 }
 

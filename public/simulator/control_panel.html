@@ -124,6 +124,85 @@ select:focus{border-color:#00e5ff;}
 .sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
 .no-sim{font-size:.72rem;color:var(--t-dim);text-align:center;padding:20px 0;line-height:1.6;}
 
+/* Expected Actions — the scenario's own gradeable list. Ticking one is the
+   whole of grading, so it has to be a big target the facilitator can hit
+   without looking away from the crew. */
+.act{display:flex;gap:8px;align-items:flex-start;padding:6px 7px;border-radius:6px;
+  border:1px solid #1e3a52;background:#0a0f1a;cursor:pointer;margin-bottom:4px;
+  font-size:.66rem;line-height:1.35;color:var(--t);transition:all .12s;}
+.act:hover{border-color:#00cc66;}
+.act.done{background:#04240f;border-color:#00cc66;color:#7fe0a5;}
+.act .box{flex:0 0 13px;height:13px;margin-top:1px;border:1px solid #3a5570;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#04240f;}
+.act.done .box{background:#00cc66;border-color:#00cc66;color:#04240f;}
+.act-head{font-size:.58rem;color:#00cc66;letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px;}
+.trig{font-size:.6rem;color:var(--t-dim);line-height:1.45;margin-top:8px;padding-top:8px;
+  border-top:1px solid #1e3a52;white-space:pre-line;}
+.trig b{color:#ff9900;font-weight:bold;letter-spacing:1px;font-size:.56rem;text-transform:uppercase;
+  display:block;margin-bottom:3px;}
+.run-foot{margin-top:10px;padding-top:9px;border-top:1px solid #1e3a52;}
+.run-foot input{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;
+  color:var(--t-strong);padding:5px 8px;font-size:.68rem;outline:none;margin-bottom:6px;}
+.run-foot input:focus{border-color:#00e5ff;}
+.end-btn{width:100%;padding:8px;border-radius:6px;border:1px solid #00cc66;background:#04240f;
+  color:#00cc66;font-size:.68rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.end-btn:hover{background:#06381a;}
+.run-sum{font-size:.63rem;color:var(--t);line-height:1.5;}
+.run-sum .rs-state{margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid #16283a;}
+.run-sum .rs-miss{color:#ff8844;}
+.run-sum .rs-ok{color:#7fe0a5;}
+
+/* Run card — the facilitator's console during a quarterly scenario.
+   Measured at 1440x900 and 1280x800: the states plus a five-item checklist plus
+   the end control come to ~895px, which does not fit the third of the grid the
+   Simulation State card occupies — the End run button and the last actions sat
+   below the fold on every laptop. At full width the same content is ~260px, so
+   the whole run is on screen at once, which is the point of one person being
+   able to drive and grade together. */
+.run-card{width:100%;max-width:960px;margin-bottom:12px;padding:12px 16px 14px;}
+.run-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;
+  padding-bottom:9px;border-bottom:1px solid #1e3a52;}
+.run-head .rh-name{font-size:.76rem;color:#ff9900;font-weight:bold;line-height:1.3;}
+.run-head .rh-sub{color:var(--t-dim);font-weight:normal;}
+.run-head .rh-sp{margin-left:auto;}
+.run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:16px;}
+@media (max-width:820px){.run-cols{grid-template-columns:1fr;}}
+.run-cols .col-h{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
+.run-card .state-btn{margin-bottom:4px;}
+.run-card .sim-note{margin-top:8px;}
+.run-inline{display:flex;gap:8px;align-items:center;}
+.run-inline input{flex:1;min-width:120px;}
+
+/* In a graded run the state list lives in the full-width card above, so the
+   in-grid card would be a duplicate. Hiding it leaves a hole at column 3 row 2,
+   which the pressure card fills by spanning both rows. */
+body.run-mode .card.simstate{display:none;}
+body.run-mode .card.bp{grid-row:1/3;}
+
+/* Scenario brief — everything the facilitator would otherwise have the Word
+   document open for. Collapsed by default; it is reference, not controls. */
+.brief-card{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;
+  border-radius:10px;margin-bottom:12px;overflow:hidden;}
+.brief-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;
+  background:none;border:none;cursor:pointer;color:#ff9900;font-size:.7rem;font-weight:bold;
+  letter-spacing:1.5px;text-transform:uppercase;text-align:left;}
+.brief-toggle:hover{background:#132638;}
+.brief-toggle .bchev{margin-left:auto;color:var(--t-dim);font-size:.8rem;}
+.brief-body{padding:2px 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;}
+/* `display:grid` from the rule above outranks the user-agent's [hidden] rule,
+   so without this the brief renders fully expanded on load — 613px of reference
+   text pushing the run card off the bottom of every laptop screen. */
+.brief-body[hidden]{display:none;}
+@media (max-width:820px){.brief-body{grid-template-columns:1fr;}}
+.bsec h4{font-size:.58rem;color:#00e5ff;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;}
+.bsec p{font-size:.68rem;color:var(--t);line-height:1.5;white-space:pre-line;margin-bottom:8px;}
+.bsec.wide{grid-column:1/-1;}
+.bsam{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:.66rem;}
+.bsam dt{color:var(--t-dim);white-space:nowrap;}
+.bsam dd{color:var(--t);}
+.bwithhold{font-size:.66rem;color:#ff9900;background:#2a1a00;border:1px solid #ff990044;
+  border-radius:6px;padding:6px 10px;line-height:1.4;}
+
 /* Drug card — positioned via inline grid-column/row */
 .card.drugs h2{color:#ff6600;}
 .drug-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px;}
@@ -288,6 +367,16 @@ select:focus{border-color:#00e5ff;}
   <button class="apply-btn" onclick="applySimScenario()">Apply</button>
 </div>
 </div><!-- /scenario-row -->
+
+<div class="brief-card" id="briefCard" hidden>
+  <button class="brief-toggle" onclick="toggleBrief()" aria-expanded="false">
+    <span id="briefTitle">Scenario brief</span>
+    <span class="bchev" id="briefChev">▸</span>
+  </button>
+  <div class="brief-body" id="briefBody" hidden></div>
+</div>
+
+<div class="card run-card" id="runCard" hidden></div>
 
 <div class="grid">
 
@@ -1366,6 +1455,92 @@ const SIMULATIONS={
     ],
   },
 };
+// ── Scenario reference and grading content ────────────────────────────────────
+// Transcribed from the approved Word scenarios (Medical Director reviewed).
+// Kept beside SIMULATIONS rather than inside it so the vitals table stays the
+// vitals table: these are the parts a facilitator reads and grades against.
+//
+// `actions` is the scenario's own "Expected Actions" column, verbatim in
+// substance. It is the only gradeable content either document contains —
+// neither carries a scoring rubric, so the app does not invent one. Ticking an
+// action means the facilitator saw the crew do it.
+//
+// `trigger` is the "Transition Triggers" column: what moves the patient on, and
+// what sends them backwards.
+const SCENARIO_DOCS={
+  drowning:{
+    brief:{
+      patient:'Alex Iceman · 7 yo M · 50 lb (23 kg) · 4′1″',
+      dispatch:'GMR One, you are dispatched for a scene call. Respond to Lakeside Park for a 7-year-old drowning victim recovered from a frozen freshwater lake. Bystander reports the patient is now spontaneously breathing but remains unresponsive.\n\nScene call · Response 8 min · Transport RW 35 min / FW 35 min / Ground 120 min · No specialty equipment reported.',
+      hpi:'Submersion in fresh, cold water, estimated 3–4 minutes. Bystander-initiated CPR; ROSC achieved before EMS arrival. Patient is now altered and hypoxic with signs of aspiration and mild hypothermia.',
+      handoff:'Bystander reports he did CPR for approximately two minutes. No medications given, no advanced airway placed. After about two minutes of CPR the patient coughed and regained spontaneous respirations.',
+      withhold:'No vital signs are available until the crew places the patient on the monitor.',
+      sample:[['Signs / symptoms','Coughing, frothy sputum'],['Allergies','NKDA'],['Medications','None'],['Past history','None reported'],['Last oral intake','Unknown'],['Events','Fell into the lake through an ice fishing hole']],
+      primary:'Found lying on his side in the recovery position. Airway: patent but with gurgling frothy secretions. Breathing: shallow and irregular, coarse crackles bilaterally. Circulation: central pulses present, skin cold, cap refill 4 seconds. Disability: GCS 9 (E2 V2 M5), pupils equal and sluggish. Exposure: wet, cold, pale. Massive haemorrhage: none.',
+      secondary:'HEENT: pupils equal but sluggish. Neck: normal. Cardiovascular: weak tachycardia. Pulmonary: bilateral crackles, increased work of breathing. Abdomen: soft, non-tender. Extremities: mottled. Skin: pale, cold, wet, mottled. Cap refill 4 seconds.',
+      labs:'BGL 101.',
+      scene:'Crew is first on scene. Ambulance ETA 10 minutes.',
+    },
+    states:[
+      {actions:[
+        'Position the patient and suction the airway',
+        'Positive-pressure ventilation with BVM and PEEP valve at 5–8 cm H₂O, gentle ventilations to avoid barotrauma',
+        'Capnography, targeting EtCO₂ 35–45 mmHg; avoid hyperventilation',
+        'Core temperature monitoring and rewarming — remove wet clothes, warmed IV fluids 20 mL/kg if hypotensive',
+      ],trigger:'Oxygenation/airway support started, wet clothes removed and rewarming begun within the first 5 minutes → Slightly Improved.\n\nAt any point, any of these → Worsening: excessive suctioning · hyperventilation causing hypocapnia · failure to rewarm or wet clothing left on · unnecessary RSI before optimising oxygenation and temperature.'},
+      {actions:[
+        'Proper airway management',
+        'Remove wet clothes and apply warming measures',
+        'Appropriate oxygenation and ventilation with BVM and PEEP',
+      ],trigger:'After 4 minutes, if oxygenation and airway support are appropriate and the patient has been rewarmed and undressed → Slightly Improved.\n\nIf after 4 minutes the crew is still not treating appropriately (e.g. aggressive bagging at altitude causing barotrauma and desaturation), end the simulation.'},
+      {actions:[
+        'Discuss advanced airway considerations and options per protocol and flight parameters',
+        'If intubated, state the ventilatory strategy and settings — lung-protective ventilation',
+      ],trigger:'Appropriate resuscitation and airway management → Improved.\n\nAggressive ventilation or excessive suctioning → the patient decompensates; end the scenario after 5 minutes of decompensation.'},
+      {actions:[
+        'Proper ventilator management — lung protective; this patient will require increased PEEP',
+        'Sedation and analgesia per protocol',
+        'Transport to the closest Pediatric Level 1 Trauma Center',
+      ],trigger:'Once report is given to the receiving facility, end the simulation.'},
+    ],
+  },
+  asthma:{
+    brief:{
+      patient:'Jordan Sirk · 18 yo M · 175 lb · 5′10″ · IBW to be calculated by the crew (73 kg)',
+      dispatch:'Interfacility transfer of an 18-year-old with respiratory distress.\n\nInterfacility · Response 15 min · Transport RW 45 min / FW 1 h 15 min / Ground 2 h · No specialty equipment.',
+      hpi:'Acute shortness of breath and wheezing not relieved by home albuterol after exposure to cat dander.',
+      handoff:'This is Jordan, an 18-year-old with a known history of asthma who presented about 15 minutes ago with worsening shortness of breath and wheezing not relieved by home albuterol. On arrival his SpO₂ was 88% on room air with a respiratory rate in the mid-30s and significant accessory muscle use. He is currently on 15 litres via non-rebreather, saturating 90%, still working hard to breathe.\n\nTreatment so far is an albuterol nebuliser that finished just prior to your arrival; we started an IV and sent lab work. He has a 20-gauge IV in the left forearm, labs are drawn and imaging is complete. Our facility has no respiratory therapy support, no BiPAP interfaces and no ICU, which is why we are requesting transfer.\n\nHis mother is at the bedside and is aware of the transfer. Consent and EMTALA paperwork are complete.',
+      withhold:'',
+      sample:[['Signs / symptoms','Dyspnoea, chest tightness, dry cough'],['Allergies','Cat dander'],['Medications','Albuterol, cetirizine'],['Past history','Asthma, allergic rhinitis'],['Last oral intake','Minimal today'],['Events','Difficulty breathing after being at a friend’s house with a cat, with minimal response to his inhaler']],
+      primary:'Massive haemorrhage: none. Airway: wheezing. Breathing: laboured, accessory muscle use. Circulation: decreased cap refill, 4 seconds. Disability: none. Exposure: none. General impression: asthmatic patient.',
+      secondary:'HEENT: PERRLA. Neck: visible contraction of the sternocleidomastoids during inspiration. Cardiovascular: tachycardic. Pulmonary: wheezing, respiratory distress. Abdomen: exaggerated rise and fall. Extremities: normal. Skin: pale. Cap refill normal.',
+      labs:'Lab packet handout — chest X-ray and labs available on request.',
+      scene:'Small community hospital ED with no paediatric inpatient services, no respiratory therapy, no BiPAP interfaces and no ICU. One monitored bay with wall O₂ and suction.',
+    },
+    states:[
+      {actions:[
+        'Rapid primary survey and identification of a severe asthma exacerbation',
+        'Appropriate initial treatment of the exacerbation per local PCG/protocol',
+        'Assess ABG and chest X-ray',
+      ],trigger:'After the crew initiates a nebuliser, or after 5 minutes regardless of their initial management → Slightly Worsening.'},
+      {actions:[
+        'Ongoing treatment of severe asthma exacerbation per local PCG/protocol',
+        'Initiate non-invasive ventilation per protocol with appropriate settings — ideally BiPAP, IPAP around 10 to reduce work of breathing, EPAP around 6 to offset intrinsic PEEP',
+        'Epinephrine',
+        'Magnesium 2 g',
+        'Steroid per PCG',
+      ],trigger:'The patient will not improve without albuterol and epinephrine.\n\nInappropriate NIV settings, missed steroids, epinephrine or albuterol, or an intubation attempt → Worsening.\n\nAll desired interventions completed → Improved.'},
+      {actions:[
+        'Correct what was missed — steroids, epinephrine, albuterol, or NIV settings',
+        'Avoid intubation',
+      ],trigger:'Give the crew a chance to continue treatment or resolve what they have missed. End the simulation after 3 minutes in this state.'},
+      {actions:[
+        'Continue treatment and ongoing care of the patient',
+      ],trigger:'End the simulation after 3 minutes in this state.'},
+    ],
+  },
+};
+
 let activeSim=null;
 let activeStateIdx=-1;
 
@@ -1441,7 +1616,7 @@ function applySimScenario(){
   if(!entry) return;
   activeSim=entry.sim;
   activeStateIdx=entry.idx;
-  renderSimPanel(entry.sim);
+  run=null; lastRun=null;   // Apply always begins a new run, even on the same scenario
   applySimState(entry.sim,entry.idx);
   // Clear the quick scenario dropdown so it doesn't look selected
   document.getElementById('scenarioSel').value='';
@@ -1455,32 +1630,232 @@ function applySimState(simKey, stateIdx){
   activeStateIdx=stateIdx;
   activeSim=simKey;
   S.scenario=simKey; // track active scenario for monitor popup
+  // Quarterly scenarios are graded; the quick presets are vitals only, with no
+  // approved action list behind them. Starting the clock here rather than on a
+  // separate "start" button means the facilitator never has to remember one.
+  if(SCENARIO_DOCS[simKey]){
+    if(!run||run.scenario!==simKey){ lastRun=null; startRun(simKey); }
+    enterRunState(stateIdx);
+  }
   applyVitals(st.vitals, sim.patientType);
-  // Repaint so the active state's own note is the one showing.
+  // Repaint so the active state's own note and checklist are the ones showing.
   renderSimPanel(simKey);
+}
+
+// ── Facilitator run: driving and grading in one pass ──────────────────────────
+// One person runs these scenarios. They click the state buttons to drive the
+// patient and tick the Expected Actions as the crew performs them; that is the
+// grading. Ending the run hands a record to the CES app, which stamps the
+// facilitator and saves it.
+//
+// Only the quarterly scenarios are graded — the quick scenarios in the other
+// picker are vitals presets with no approved action list behind them.
+let run=null;      // the run in progress
+let lastRun=null;  // the finished record, kept on screen for the debrief
+
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
+
+function startRun(simKey){
+  const sim=SIMULATIONS[simKey], doc=SCENARIO_DOCS[simKey];
+  if(!sim||!doc) return;
+  run={
+    scenario:simKey,
+    scenarioName:sim.name+' — '+sim.subtitle,
+    startedAt:new Date().toISOString(),
+    crew:'', notes:'',
+    current:-1, enteredAt:Date.now(),
+    states:sim.states.map((st,i)=>({
+      id:st.id||('state'+i),
+      label:st.label,
+      seconds:0,
+      actions:((doc.states[i]||{}).actions||[]).map(t=>({text:t,done:false})),
+    })),
+  };
+}
+
+// Close the clock on the state being left and open it on the next. Passing -1
+// closes the last one without opening another, which is what ending does.
+function enterRunState(idx){
+  if(!run) return;
+  const now=Date.now();
+  if(run.current>=0 && run.states[run.current])
+    run.states[run.current].seconds += Math.round((now-run.enteredAt)/1000);
+  run.current=idx;
+  run.enteredAt=now;
+}
+
+function toggleAction(i){
+  if(!run||run.current<0) return;
+  const a=run.states[run.current].actions[i];
+  if(!a) return;
+  a.done=!a.done;
+  renderSimPanel(run.scenario);
+}
+
+function setRunField(field,value){ if(run) run[field]=value; }
+
+function endRun(){
+  if(!run) return;
+  enterRunState(-1);
+  const rec={
+    scenario:run.scenario, scenarioName:run.scenarioName,
+    startedAt:run.startedAt, endedAt:new Date().toISOString(),
+    crew:run.crew.trim(), notes:run.notes.trim(),
+    states:run.states.map(st=>({id:st.id,label:st.label,seconds:st.seconds,actions:st.actions})),
+  };
+  // Hand it to the CES app. Same origin, so this is a direct call to the host
+  // that framed us; standalone the panel simply keeps the summary on screen.
+  let saved=false;
+  try{
+    if(window.parent&&window.parent!==window){
+      window.parent.postMessage({type:'ces-sim-run',run:rec},window.location.origin);
+      saved=true;
+    }
+  }catch(e){}
+  rec.saved=saved;
+  lastRun=rec; run=null;
+  renderSimPanel(rec.scenario);
+}
+
+function newRun(){ lastRun=null; const k=activeSim; if(k&&SCENARIO_DOCS[k]){ startRun(k); applySimState(k,0); } }
+
+// ── Scenario brief ────────────────────────────────────────────────────────────
+let briefOpen=false;
+function toggleBrief(){
+  briefOpen=!briefOpen;
+  const body=document.getElementById('briefBody');
+  const chev=document.getElementById('briefChev');
+  const btn=document.querySelector('.brief-toggle');
+  if(body) body.hidden=!briefOpen;
+  if(chev) chev.textContent=briefOpen?'▾':'▸';
+  if(btn) btn.setAttribute('aria-expanded',String(briefOpen));
+}
+
+function renderBrief(simKey){
+  const card=document.getElementById('briefCard');
+  const doc=SCENARIO_DOCS[simKey];
+  if(!card) return;
+  if(!doc){ card.hidden=true; return; }
+  card.hidden=false;
+  const b=doc.brief;
+  document.getElementById('briefTitle').textContent='Scenario brief — '+b.patient;
+  const sec=(title,body,wide)=>body?`<div class="bsec${wide?' wide':''}"><h4>${title}</h4><p>${esc(body)}</p></div>`:'';
+  let html='';
+  html+=sec('Dispatch',b.dispatch);
+  html+=sec('Hand-off report',b.handoff);
+  html+=sec('History of present illness',b.hpi);
+  html+=`<div class="bsec"><h4>SAMPLE</h4><dl class="bsam">`+
+        b.sample.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')+`</dl></div>`;
+  html+=sec('Primary assessment — only if assessed',b.primary,true);
+  html+=sec('Secondary assessment — only if assessed',b.secondary,true);
+  html+=sec('Setting',b.scene);
+  html+=sec('Labs / imaging',b.labs);
+  if(b.withhold) html+=`<div class="bsec wide"><div class="bwithhold">⚠ ${esc(b.withhold)}</div></div>`;
+  document.getElementById('briefBody').innerHTML=html;
 }
 
 function renderSimPanel(simKey){
   const panel=document.getElementById('simStatePanel');
+  const card=document.getElementById('runCard');
+  const graded=!!SCENARIO_DOCS[simKey];
+  document.body.classList.toggle('run-mode',graded);
+  if(card) card.hidden=!graded;
+
   if(!simKey||!SIMULATIONS[simKey]){
     panel.innerHTML='<div class="no-sim">No simulation active.<br>Select a scenario or simulation<br>from the pickers above.</div>';
+    renderBrief(null);
     return;
   }
+  renderBrief(simKey);
   const sim=SIMULATIONS[simKey];
-  let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t);font-weight:normal;">${sim.subtitle}</span></div>`;
-  html+=`<div class="sim-states">`;
-  sim.states.forEach((st,i)=>{
-    html+=`<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
-      <span class="sname" style="color:${st.color}">${st.label}</span>
+
+  // A finished run stays on screen — this is what the debrief is read from.
+  if(lastRun&&lastRun.scenario===simKey){
+    (graded?card:panel).innerHTML=runSummaryHtml(lastRun);
+    if(graded) panel.innerHTML='';
+    return;
+  }
+
+  const states=sim.states.map((st,i)=>{
+    const rs=run&&run.states[i];
+    const hit=rs?rs.actions.filter(a=>a.done).length:0;
+    const tot=rs?rs.actions.length:0;
+    const tally=tot?`<span style="float:right;font-size:.6rem;color:${hit===tot?'#7fe0a5':'var(--t-dim)'}">${hit}/${tot}</span>`:'';
+    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
+      <span class="sname" style="color:${st.color}">${st.label}${tally}</span>
       <span class="svitals">${st.display}</span>
     </div>`;
-  });
-  html+=`</div>`;
-  // Show note for active state
-  if(activeStateIdx>=0 && sim.states[activeStateIdx]){
-    html+=`<div class="sim-note">💡 ${sim.states[activeStateIdx].note}</div>`;
+  }).join('');
+
+  const st=sim.states[activeStateIdx];
+  const doc=SCENARIO_DOCS[simKey];
+  const dst=doc&&doc.states[activeStateIdx];
+
+  let actionsHtml='';
+  if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
+    actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
+      `<div class="act${a.done?' done':''}" role="button" tabindex="0" onclick="toggleAction(${i})">
+        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>
+      </div>`).join('');
   }
+  const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
+  const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
+
+  if(graded){
+    // Full width: states, the checklist and the triggers side by side, so a
+    // facilitator can see the whole run without scrolling mid-scenario.
+    panel.innerHTML='<div class="no-sim" style="padding:10px 0;">Running above ↑</div>';
+    card.innerHTML=`
+      <div class="run-head">
+        <div class="rh-name">📋 ${esc(sim.name)}<br><span class="rh-sub">${esc(sim.subtitle)}</span></div>
+        <div class="rh-sp run-inline">
+          <input id="crewIn" placeholder="Crew being assessed" value="${esc(run?run.crew:'')}"
+                 oninput="setRunField('crew',this.value)">
+          <input id="noteIn" placeholder="Debrief note" value="${esc(run?run.notes:'')}"
+                 oninput="setRunField('notes',this.value)">
+          <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
+        </div>
+      </div>
+      <div class="run-cols">
+        <div><div class="col-h">Patient state — click to drive</div>${states}</div>
+        <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
+        <div>${triggerHtml}${noteHtml}</div>
+      </div>`;
+    return;
+  }
+
+  // Quick scenarios: vitals presets with no approved action list, so they keep
+  // the compact in-grid card they have always had.
+  let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t-dim);font-weight:normal;">${sim.subtitle}</span></div>`;
+  html+=`<div class="sim-states">${states}</div>`;
+  html+=noteHtml;
   panel.innerHTML=html;
+}
+
+// What the facilitator reads out at the debrief: what was done, what was not,
+// and how long the patient spent in each state.
+function runSummaryHtml(rec){
+  const total=rec.states.reduce((n,s)=>n+s.seconds,0);
+  const hit=rec.states.reduce((n,s)=>n+s.actions.filter(a=>a.done).length,0);
+  const tot=rec.states.reduce((n,s)=>n+s.actions.length,0);
+  let h=`<div class="sim-scenario-name">✔ Run complete<br><span style="color:var(--t-dim);font-weight:normal;">${esc(rec.scenarioName)}</span></div>`;
+  h+=`<div class="run-sum">`;
+  h+=`<div style="margin-bottom:8px;color:var(--t-dim);">${hit} of ${tot} expected actions observed · ${mmss(total)} total`+
+     (rec.crew?` · ${esc(rec.crew)}`:'')+`</div>`;
+  rec.states.forEach(st=>{
+    if(!st.actions.length&&!st.seconds) return;
+    h+=`<div class="rs-state"><div style="color:var(--t-strong);font-weight:bold;">${esc(st.label)} <span style="color:var(--t-dim);font-weight:normal;">${mmss(st.seconds)}</span></div>`;
+    st.actions.forEach(a=>{
+      h+=`<div class="${a.done?'rs-ok':'rs-miss'}">${a.done?'✓':'✗'} ${esc(a.text)}</div>`;
+    });
+    h+=`</div>`;
+  });
+  h+=`</div>`;
+  h+=`<div class="run-foot" style="color:var(--t-dim);font-size:.6rem;line-height:1.4;">`+
+     (rec.saved?'Saved to CES — see Records above.':'Not saved: the panel is open on its own rather than inside CES.')+
+     `<button class="end-btn" style="margin-top:8px;" onclick="newRun()">↻ Run this scenario again</button></div>`;
+  return h;
 }
 
 // ── Open Monitor ─────────────────────────────────────────────
