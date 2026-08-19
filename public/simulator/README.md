@@ -147,6 +147,72 @@ this app stores is under `ces.*` (`ces.db.v1`, `ces.market.active`,
 `ces.cloud.config`). Renaming `simState` to `ces.sim.state` has to happen in
 both windows at once, and buys nothing until something else wants that key.
 
+## Usability
+
+Both screens are read by different people under different conditions, and the
+pass that shaped them worked from that rather than from the markup.
+
+**The monitor is read from across a room.** Rendering it and shrinking it to the
+visual angle of 2.5m and 4m showed the numerics (54-60px) survive and the alarm
+banner (11px) does not. So a breached parameter now flashes red on the value
+itself and turns its header bar red — the number is the only alarm signal that
+carries at teaching distance, and it is also what the real equipment does. The
+banner names what is wrong (`⚠ HR LOW`) rather than announcing `ALARM` and
+leaving the crew to hunt. Only HR and SpO₂ can flash, because those are the only
+two the control panel lets an instructor set limits for.
+
+Muting hides the banner but leaves the parameter flashing: muting silences the
+announcement, it does not make the value stop being out of range, and a monitor
+that looks entirely normal while the patient is bradycardic teaches the wrong
+thing.
+
+**The control panel is driven mid-scenario, from a laptop, while watching a
+crew.** It is 3.4 screens tall, and the header used to spend 440px of the first
+one on a title, a subtitle and a connect bar whose work was already done — which
+left two of the five simulation states visible on the card that drives the whole
+scenario. The header is compact, the connect bar shrinks to a status line once
+it has been used, and the two scenario pickers share a row. That reclaimed
+256px and puts all five states, the full medication grid, the rhythm buttons and
+HR/BP on the first screen.
+
+**A facilitator cannot see the crew's screen.** Each open monitor announces
+itself on the shared channel once a second (`{__monitor:1}`); the panel and the
+CES bar both listen and say whether one is live. A monitor closed by accident is
+otherwise completely silent — the scenario simply stops reaching anybody. The
+indicator lives in the CES bar because that is the only part of the screen that
+does not scroll away.
+
+## Text tones
+
+Both screens were audited by walking every rendered text run and computing its
+contrast against its own composited background. The control panel failed 50 of
+180 runs — it reached for `#333` through `#666` for anything secondary, which
+lands between 1.4:1 and 3:1 on this background, so the drug doses, the scenario
+notes and the empty states were effectively invisible in a lit classroom.
+
+The panel now declares three tones in `:root`, all verified against both
+surfaces it uses (`#0d1b2a` cards, `#0a0f1a` insets):
+
+| token        | hex       | on cards | on insets |
+|--------------|-----------|----------|-----------|
+| `--t-strong` | `#e6edf5` | 14.7:1   | 16.2:1    |
+| `--t`        | `#b6c2d1` | 9.6:1    | 10.6:1    |
+| `--t-dim`    | `#8f9db0` | 6.3:1    | 7.0:1     |
+| `--t-faint`  | `#6d7b8d` | 4.0:1    | 4.4:1     |
+
+The three illegible greys collapsed into `--t-dim` — they were all unreadable,
+so there was no hierarchy there to preserve. Three steps that each clear AA is
+plenty, and the accent colours (cyan headings, orange medications, red
+pressures) still carry most of the structure. `--t-faint` is large or
+non-essential text only.
+
+The monitor failed four runs, all in the 4.1–4.5 band, and all fixed by shifts
+too small to see: `#cc00cc` → `#ce00ce` on the EtCO₂ header, `#0088aa` →
+`#0081a1` on the P2 square, `#cc4444` → `#cc5555` on the arterial mean. Both
+screens now pass AA on every text run. The rule for this screen is that it has
+to keep reading as equipment — restyling it beyond a nudge is not an
+improvement.
+
 ## Known gaps
 
 - **The alarm is visual only.** The control panel offers alarm ON / MUTE and the

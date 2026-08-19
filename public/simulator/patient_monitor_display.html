@@ -11,7 +11,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 #top{position:absolute;top:0;left:0;right:0;height:26px;background:#1a1a1a;border-bottom:2px solid #333;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:12px;z-index:20;}
 .tseg{display:flex;align-items:center;gap:10px;}
 .batt{background:#00bb00;color:#000;font-weight:bold;font-size:10px;padding:1px 6px;border-radius:2px;}
-#alm{display:none;position:absolute;left:50%;transform:translateX(-50%);background:#ff0;color:#000;font-weight:bold;font-size:11px;padding:1px 12px;border-radius:2px;animation:af .5s infinite alternate;z-index:30;}
+#alm{display:none;position:absolute;top:0;left:50%;transform:translateX(-50%);background:#ff0;color:#000;font-weight:bold;font-size:16px;letter-spacing:1px;height:26px;line-height:26px;padding:0 18px;border-radius:0 0 3px 3px;animation:af .5s infinite alternate;z-index:30;white-space:nowrap;}
+
+/* A breached parameter flashes red on the value itself.
+   The banner is 16px on a screen read from across a room; the numerics are
+   54-60px, so the number is the only alarm signal that survives the distance.
+   This is also how the equipment being simulated behaves — students are being
+   trained to catch the parameter, not a badge. */
+@keyframes almVal{0%,49%{opacity:1}50%,100%{opacity:.25}}
+.alarming{animation:almVal .7s steps(1,end) infinite;}
+.nHR .nv.alarming,.lpHR .lpval.alarming{color:#ff3b3b!important;}
+.nSP .spo2val.alarming,.lpSP .lpval.alarming{color:#ff3b3b!important;}
+/* The header bar above a breached value goes red too, so the block reads as
+   the alarming one even when the digits are mid-blink. */
+.nhdr.alarming,.ntri.alarming{background:#ff3b3b!important;}
 @keyframes af{from{opacity:1}to{opacity:.1}}
 
 #bot{position:absolute;bottom:0;left:0;right:0;height:56px;background:#000;border-top:1px solid #2a2a2a;display:flex;z-index:20;}
@@ -32,10 +45,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 /* ART — red square */
 .bArt .bsq{background:#cc0000;color:#fff;}
 .bArt .bv{color:#ff4444;}
-.bArt .bs{color:#cc4444;}
+.bArt .bs{color:#cc5555;}
 
 /* P2 — cyan square */
-.bP2 .bsq{background:#0088aa;color:#fff;}
+.bP2 .bsq{background:#0081a1;color:#fff;}
 .bP2 .bv{color:#00ccee;}
 
 /* P3 — blue square */
@@ -70,7 +83,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
   flex-shrink:0;
 }
 .nhdr .nlbl{font-size:11px;font-weight:bold;color:#000;}
-.nhdr .nunit{font-size:9px;font-weight:bold;color:#000;opacity:.8;}
+.nhdr .nunit{font-size:9px;font-weight:bold;color:#000;opacity:1;}
 
 /* Triangle header for SpO2 and Temp */
 .ntri{
@@ -98,11 +111,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 .nBP .nvs{color:#00eeff;font-size:46px;font-weight:bold;text-align:left;line-height:1;padding-left:4px;}
 .nBP .nbdiv{height:2px;background:#00ccee;margin:2px 4px;flex-shrink:0;opacity:.7;align-self:flex-start;max-width:80px;}
 .nBP .nvd{color:#00eeff;font-size:32px;font-weight:bold;text-align:left;line-height:1;padding-left:4px;}
-.nBP .nvm{color:#00aabb;font-size:28px;font-weight:bold;text-align:center;line-height:1;width:100%;}
+.nBP .nvm{color:#00c2d6;font-size:28px;font-weight:bold;text-align:center;line-height:1;width:100%;}
 
 /* EtCO2 — magenta bar, value CENTERED */
 .nCO2{background:#000;}
-.nCO2 .nhdr{background:#cc00cc;}
+.nCO2 .nhdr{background:#ce00ce;}
 .nCO2 .nv{color:#ff44ff;font-size:54px;text-align:center;width:100%;align-self:center;}
 .nCO2 .nsub{color:#ff44ff;font-size:20px;font-weight:bold;text-align:left;padding-left:4px;line-height:1;width:100%;}
 
@@ -128,7 +141,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 .yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
 /* -- Skin switcher -- */
 .skin-btn{display:flex;gap:0;border:1px solid #444;border-radius:4px;overflow:hidden;margin-left:8px;}
-.skb{padding:2px 7px;font-size:10px;font-weight:bold;cursor:pointer;background:#222;color:#888;border:none;letter-spacing:1px;transition:all .15s;}
+.skb{padding:2px 7px;font-size:10px;font-weight:bold;cursor:pointer;background:#222;color:#a8a8a8;border:none;letter-spacing:1px;transition:all .15s;}
 .skb.on{background:#004466;color:#00e5ff;}
 
 /* -- LP Skin overrides -- */
@@ -320,7 +333,12 @@ ld(); // load saved state on startup
 // BroadcastChannel — receives live updates from Control Panel the instant any control changes
 try{
   const bc=new BroadcastChannel('simState');
-  bc.onmessage=e=>{ S={...S,...e.data}; };
+  // The panel broadcasts state; this window broadcasts a heartbeat so the
+  // facilitator can see the crew's screen is actually up. Ignore heartbeats —
+  // a second monitor's ping is not patient state.
+  bc.onmessage=e=>{ if(e.data&&e.data.__monitor) return; S={...S,...e.data}; };
+  setInterval(()=>{ try{ bc.postMessage({__monitor:1}); }catch(e){} },1000);
+  try{ bc.postMessage({__monitor:1}); }catch(e){}
 }catch(e){}
 // Fallback: poll localStorage every 250ms in case BC unavailable or cross-origin
 //
@@ -532,7 +550,30 @@ function upNums(){
 
   const ncEl=document.getElementById('notConnected');
   if(ncEl) ncEl.style.display=nc?'flex':'none';
-  document.getElementById('alm').style.display=(!nc&&S.alarmOn&&!S.alarmMuted&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh||S.spo2<S.spo2AlarmLow))?'block':'none';
+  // Alarms. Only HR and SpO2 carry limits — those are the two the control
+  // panel lets an instructor set — so those are the two that can flash.
+  // Breaches are computed even while muted: muting silences the announcement,
+  // it does not make the value stop being out of range, and a monitor that
+  // looks entirely normal while the patient is bradycardic teaches the wrong
+  // lesson. Muted shows the parameter without the banner.
+  const live=!nc&&S.alarmOn;
+  const hrBreach=live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
+  const spBreach=live&&(S.spo2<S.spo2AlarmLow);
+  const flag=(el,on)=>{if(el)el.classList.toggle('alarming',!!on);};
+  flag(document.getElementById('nHR'),hrBreach);
+  flag(document.getElementById('nSpo2'),spBreach);
+  flag(document.getElementById('lpHR'),hrBreach);
+  flag(document.getElementById('lpSP'),spBreach);
+  flag(document.querySelector('.nHR .nhdr'),hrBreach);
+  flag(document.querySelector('.nSP .ntri'),spBreach);
+  // Name what is wrong rather than announcing "ALARM" and leaving the crew to
+  // hunt for it.
+  const alarms=[];
+  if(hrBreach) alarms.push(S.hr<S.hrAlarmLow?'HR LOW':'HR HIGH');
+  if(spBreach) alarms.push('SpO\u2082 LOW');
+  const almEl=document.getElementById('alm');
+  almEl.textContent='\u26a0 '+alarms.join('   \u26a0 ');
+  almEl.style.display=(alarms.length&&!S.alarmMuted)?'block':'none';
   document.getElementById('rArt').style.opacity=(S.artActive&&!nc)?'1':'0.2';
 
   // ── LP Skin numerics ──

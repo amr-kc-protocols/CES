@@ -28,6 +28,29 @@ const PANEL_TITLE = 'Simulator Control Panel'
 export default function SimulatorView() {
   const frame = useRef<HTMLIFrameElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading')
+  const [monitorLive, setMonitorLive] = useState(false)
+
+  // Every open monitor announces itself on the shared channel once a second.
+  // This bar is the only part of the screen that does not scroll away, so it is
+  // where a facilitator can see at a glance that the crew still has a display —
+  // a monitor that was closed by accident is otherwise completely silent.
+  useEffect(() => {
+    let channel: BroadcastChannel
+    try {
+      channel = new BroadcastChannel('simState')
+    } catch {
+      return // no channel, no claim either way
+    }
+    let last = 0
+    channel.onmessage = (e) => {
+      if (e.data && e.data.__monitor) last = Date.now()
+    }
+    const timer = setInterval(() => setMonitorLive(Date.now() - last < 3000), 1000)
+    return () => {
+      clearInterval(timer)
+      channel.close()
+    }
+  }, [])
 
   // A missing or unbuilt directory would otherwise show as a blank white panel
   // with no explanation. The SPA fallback makes the failure mode worse than
@@ -49,7 +72,9 @@ export default function SimulatorView() {
   function openMonitor() {
     // Sized for a second display; resizable so it can be dragged to a TV and
     // put full screen with the monitor's own ⛶ button or the F key.
-    window.open(MONITOR_URL, 'SimMonitor', 'width=1280,height=760,resizable=yes')
+    // Named, so a second press focuses the monitor already open rather than
+    // opening another one onto the same scenario.
+    window.open(MONITOR_URL, 'SimMonitor', 'width=1280,height=760,resizable=yes')?.focus()
   }
 
   return (
@@ -63,8 +88,11 @@ export default function SimulatorView() {
             reads.
           </span>
         </div>
+        <span className={`sim-mon ${monitorLive ? 'on' : 'off'}`}>
+          {monitorLive ? '● Monitor live' : '◌ No monitor open'}
+        </span>
         <button className="btn primary sm" onClick={openMonitor} disabled={state === 'failed'}>
-          Open patient monitor ↗
+          {monitorLive ? 'Bring monitor to front ↗' : 'Open patient monitor ↗'}
         </button>
       </div>
 
