@@ -171,6 +171,32 @@ select:focus{border-color:#00e5ff;}
 .run-card .state-btn{margin-bottom:4px;}
 .run-card .sim-note{margin-top:8px;}
 .run-inline{display:flex;gap:8px;align-items:center;}
+
+/* The AHA checklist assesses team behaviour and CPR quality once for the whole
+   code rather than in any one rhythm, and ends in a PASS / NR. One strip under
+   the header, so it is never mistaken for a step in the state on screen. */
+.cl-strip{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;
+  margin:0 0 10px;padding:8px 10px;border-radius:7px;background:#0a0f1a;border:1px solid #1e3a52;}
+.cl-grp{display:flex;flex-direction:column;gap:4px;}
+.cl-grp>.col-h{margin-bottom:1px;}
+.cl-row{display:flex;gap:10px;flex-wrap:wrap;}
+.cl-chk{display:flex;gap:5px;align-items:center;cursor:pointer;font-size:.63rem;color:var(--t);
+  padding:3px 7px;border-radius:5px;border:1px solid #1e3a52;transition:all .12s;}
+.cl-chk:hover{border-color:#00cc66;}
+.cl-chk.done{background:#04240f;border-color:#00cc66;color:#7fe0a5;}
+.cl-chk .box{width:12px;height:12px;border:1px solid #3a5570;border-radius:3px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#04240f;}
+.cl-chk.done .box{background:#00cc66;border-color:#00cc66;}
+.cl-num{display:flex;gap:5px;align-items:center;font-size:.63rem;color:var(--t-dim);}
+.cl-num input{width:52px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:5px;
+  color:var(--t-strong);padding:3px 6px;font-size:.66rem;outline:none;text-align:right;}
+.cl-num input:focus{border-color:#00e5ff;}
+.res-grp{margin-left:auto;display:flex;gap:6px;align-items:center;}
+.res-btn{padding:5px 16px;border-radius:6px;border:1px solid #3a5570;background:#0d1b2a;
+  color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
+.res-btn.pass.on{background:#04240f;border-color:#00cc66;color:#00cc66;}
+.res-btn.nr.on{background:#2a0e00;border-color:#ff8844;color:#ff8844;}
+.res-btn:hover{border-color:var(--t-dim);}
 .run-inline input{flex:1;min-width:120px;}
 
 /* In a graded run the state list lives in the full-width card above, so the
@@ -359,10 +385,19 @@ body.run-mode .card.bp{grid-row:1/3;}
   <label for="simScenarioSel">QUARTERLY SIMULATIONS</label>
   <select id="simScenarioSel">
     <option value="">— Select a simulation —</option>
-    <option value="drowning_initial">Pediatric Drowning</option>
-    <option value="asthma_initial">Adult Asthma Exacerbation</option>
-    <option value="abdominal_trauma_initial">Adult Abdominal Trauma / Hemorrhagic Shock</option>
-    <option value="peds_tbi_initial">Pediatric TBI / Closed Head Injury</option>
+    <optgroup label="Quarterly simulations">
+      <option value="drowning_initial">Pediatric Drowning</option>
+      <option value="asthma_initial">Adult Asthma Exacerbation</option>
+      <option value="abdominal_trauma_initial">Adult Abdominal Trauma / Hemorrhagic Shock</option>
+      <option value="peds_tbi_initial">Pediatric TBI / Closed Head Injury</option>
+    </optgroup>
+    <optgroup label="ACLS megacodes">
+      <option value="megacode1">1 — Unstable Bradycardia → pVT → PEA</option>
+      <option value="megacode2">2 — Unstable Bradycardia → VF → Asystole</option>
+      <option value="megacode3">3 — Unstable Bradycardia (transplant) → pVT → PEA</option>
+      <option value="megacode4">4 — Unstable VT → VF → PEA</option>
+      <option value="megacode5">5 — ED Bradycardia (CCB overdose) → VF → Asystole</option>
+    </optgroup>
   </select>
   <button class="apply-btn" onclick="applySimScenario()">Apply</button>
 </div>
@@ -1039,25 +1074,35 @@ function enforcePhysiology(changedKey){
   if(r==='vfib'||r==='asystole'){
     setVital('sbp',0);setVital('dbp',0);
     setVital('artSbp',0);setVital('artDbp',0);
-    if(r==='vfib'){
-      if(S.spo2>3) setVital('spo2',3);
-      if(S.etco2>7) setVital('etco2',7);
-    }else{
-      if(S.spo2>0) setVital('spo2',0);
-      if(S.etco2>0) setVital('etco2',0);
-      // PVCs allowed in asystole (agonal rhythm / escape beats)
-    }
+    // No pulsatile flow, so no plethysmograph and no spontaneous respiration.
+    if(r==='vfib'){ if(S.spo2>3) setVital('spo2',3); }
+    else if(S.spo2>0) setVital('spo2',0);   // PVCs still allowed — agonal beats
     if(S.rr!==0) setVital('rr',0);
+    // EtCO2 is deliberately NOT pinned. It used to be forced to 7 in V-Fib and
+    // 0 in asystole, on the reasoning that neither perfuses — but an arrest
+    // being run has CPR in progress, and EtCO2 is the one number that reflects
+    // how good those compressions are. Under 10 means push harder; an abrupt
+    // rise is ROSC. Pinning it made the whole capnography teaching point
+    // impossible, and contradicted the AHA megacodes, which run at 22, 25 and
+    // 48 mmHg mid-arrest. Ceiling only, above which it implies a perfusing
+    // rhythm rather than compressions.
+    if(S.etco2>50) setVital('etco2',50);
   }
   // VTach — severe hemodynamic compromise (pulseless or near-pulseless).
   // Ceilings only. EtCO2 and RR used to be pinned to the scenario's 56/28,
   // which meant those two sliders did nothing at all while V-Tach was up.
+  // VTach. Ceilings only, and looser than they were: the old 62/30 cap assumed
+  // pulseless or near-pulseless VT, which made unstable-VT-with-a-pulse
+  // unreachable — AHA Megacode 4 runs monomorphic wide-complex tachycardia at
+  // 84/54 with palpable carotid and radial pulses, and that patient is the
+  // whole reason the tachycardia algorithm exists. Pulseless VT is still
+  // expressible: these are upper bounds, so a scenario setting 0/0 keeps it.
   if(r==='vtach'){
-    if(S.sbp>62) setVital('sbp',62);
-    if(S.dbp>30) setVital('dbp',30);
-    if(S.artSbp>62) setVital('artSbp',62);
-    if(S.artDbp>30) setVital('artDbp',30);
-    if(S.spo2>88) setVital('spo2',88);
+    if(S.sbp>110) setVital('sbp',110);
+    if(S.dbp>70) setVital('dbp',70);
+    if(S.artSbp>110) setVital('artSbp',110);
+    if(S.artDbp>70) setVital('artDbp',70);
+    if(S.spo2>96) setVital('spo2',96);
   }
   // Rate bounds apply only while the instructor is dragging the HR slider.
   // Applied unconditionally they rewrote authored scenario states — the
@@ -1454,6 +1499,126 @@ const SIMULATIONS={
       },
     ],
   },
+  // ── ACLS Megacodes ─────────────────────────────────────────────────────────
+  // AHA ACLS Instructor Manual megacodes 1-5 (pp. 235-239). Vitals are the
+  // manual's own where it states them; the manual leaves several fields blank,
+  // and those are marked "derived" in SCENARIO_DOCS so nobody mistakes a
+  // clinical inference of ours for something the AHA specified.
+  megacode1:{
+    name:'ACLS Megacode 1 — Out-of-Hospital Unstable Bradycardia',
+    subtitle:'Unstable Bradycardia → pVT → PEA → PCAC',
+    patientType:'Adult',
+    checklist:'brady_pvt_pea',
+    states:[
+      {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
+       vitals:{hr:38,rhythm:'brady',sbp:78,dbp:42,spo2:92,etco2:34,rr:18,temp:36.8,pvcOn:true},
+       display:'HR 38 | BP 78/42 | SpO₂ 92% | EtCO₂ 34 | RR 18',
+       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.'},
+      {id:'pvt',label:'Pulseless VT',color:'#ff3333',
+       vitals:{hr:180,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:18,rr:0,temp:36.8,pvcOn:false},
+       display:'HR 180 | Pulseless VT | BP 0/0 | EtCO₂ 18',
+       note:'With the introduction of the pacing impulse the monitor displays VT and there is no pulse. Pacing should be discontinued and the patient defibrillated.'},
+      {id:'pea',label:'PEA',color:'#cc0000',
+       vitals:{hr:40,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:20,rr:0,temp:36.7},
+       display:'HR 40 | PEA | BP 0/0 | EtCO₂ 20',
+       note:'After the third shock the patient develops an organized rhythm that is slow. There is no pulse.'},
+      {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
+       vitals:{hr:72,rhythm:'nsr',sbp:96,dbp:58,spo2:94,etco2:38,rr:12,temp:36.8},
+       display:'HR 72 | ROSC | BP 96/58 | SpO₂ 94% | EtCO₂ 38',
+       note:'After effective ventilation a carotid pulse is detectable. The patient has ROSC.'},
+    ]},
+  megacode2:{
+    name:'ACLS Megacode 2 — Out-of-Hospital Unstable Bradycardia',
+    subtitle:'Unstable Bradycardia → VF → Asystole → PCAC',
+    patientType:'Adult',
+    checklist:'brady_vf_asys',
+    states:[
+      {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
+       vitals:{hr:44,rhythm:'brady',sbp:84,dbp:50,spo2:88,etco2:30,rr:3,temp:36.6},
+       display:'HR 44 | BP 84/50 | SpO₂ 88% | EtCO₂ 30 | RR 3',
+       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.'},
+      {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
+       vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:22,rr:0,temp:36.5},
+       display:'VF | BP 0/0 | EtCO₂ 22',
+       note:'No respirations and no pulse. After the first 2 minutes of CPR the rhythm is still VF. EtCO₂ 22 mmHg with an advanced airway placed.'},
+      {id:'asystole',label:'Asystole',color:'#880000',
+       vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:14,rr:0,temp:36.4},
+       display:'Asystole | BP 0/0 | EtCO₂ 14',
+       note:'Asystole confirmed in 2 leads. CPR continues and treatable causes are considered.'},
+      {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
+       vitals:{hr:56,rhythm:'brady',sbp:180,dbp:108,spo2:96,etco2:50,rr:10,temp:36.5},
+       display:'HR 56 | ROSC | BP 180/108 | EtCO₂ 50',
+       note:'Borderline wide-complex organized rhythm at 56 with pulses. Still apneic — ventilated. Glucose 187 mg/dL if asked for. ED 4 min, stroke centre 12 min, cardiac arrest centre 16 min.'},
+    ]},
+  megacode3:{
+    name:'ACLS Megacode 3 — Out-of-Hospital Unstable Bradycardia',
+    subtitle:'Unstable Bradycardia → pVT → PEA → PCAC',
+    patientType:'Adult',
+    checklist:'brady_pvt_pea',
+    states:[
+      {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'#ff9900',
+       vitals:{hr:32,rhythm:'hb3',sbp:86,dbp:48,spo2:96,etco2:36,rr:18,temp:36.7},
+       display:'HR 32 | BP 86/48 Doppler | SpO₂ 96% | RR 18',
+       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.'},
+      {id:'pvt',label:'Pulseless VT',color:'#ff3333',
+       vitals:{hr:170,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:22,rr:0,temp:36.7},
+       display:'HR 170 | Pulseless VT | BP 0/0 | EtCO₂ 22',
+       note:'Before the transcutaneous pacemaker acquires capture the patient becomes unresponsive and apneic, the rhythm changes to VT and there is no pulse.'},
+      {id:'pea',label:'PEA',color:'#cc0000',
+       vitals:{hr:32,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:48,rr:0,temp:36.6},
+       display:'HR 32 | PEA | BP 0/0 | EtCO₂ 48',
+       note:'Sinus bradycardia with marginally wide QRS after 2 minutes; no pulse. Advanced airway placed, capnography 22 then rising to 48. A carotid pulse becomes present but no radial.'},
+      {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
+       vitals:{hr:40,rhythm:'brady',sbp:68,dbp:40,spo2:92,etco2:40,rr:8,temp:36.6},
+       display:'HR 40 | ROSC | BP 68/40 Doppler | RR 8',
+       note:'The patient bats his eyes to loud voices and breathes at 8/min. Consider dopamine and/or epinephrine infusion for perfusion. ED 3 min, STEMI centre 12 min.'},
+    ]},
+  megacode4:{
+    name:'ACLS Megacode 4 — Out-of-Hospital Unstable VT',
+    subtitle:'Unstable Tachycardia → VF → PEA → PCAC',
+    patientType:'Adult',
+    checklist:'tachy_vf_pea',
+    states:[
+      {id:'tachy',label:'Unstable Tachycardia',color:'#ff9900',
+       vitals:{hr:150,rhythm:'vtach',sbp:84,dbp:54,spo2:94,etco2:32,rr:20,temp:36.9},
+       display:'HR 150 | BP 84/54 | SpO₂ 94% on 15 L | RR 20',
+       note:'Monomorphic wide-complex tachycardia with a pulse. Awake, talking in 2–3 word sentences, fine crackles both bases, palpable carotid and radial pulses. Cardioversion produces no change; while preparing to escalate energy she stops breathing and the monitor shows VF.'},
+      {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
+       vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:25,rr:0,temp:36.8},
+       display:'VF | BP 0/0 | EtCO₂ 25',
+       note:'Moved from the car to the stretcher, CPR and rapid defibrillation. IO access achieved; bag-mask ventilation with mild difficulty. Still VF after 2 minutes; advanced airway placed, capnography 25.'},
+      {id:'pea',label:'PEA',color:'#cc0000',
+       vitals:{hr:70,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:25,rr:0,temp:36.8},
+       display:'HR 70 | PEA | BP 0/0 | EtCO₂ 22–27',
+       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.'},
+      {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
+       vitals:{hr:100,rhythm:'nsr',sbp:94,dbp:56,spo2:100,etco2:60,rr:14,temp:36.9},
+       display:'HR 100 | ROSC | BP 94/56 | SpO₂ 100% | EtCO₂ 60',
+       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.'},
+    ]},
+  megacode5:{
+    name:'ACLS Megacode 5 — ED Unstable Bradycardia',
+    subtitle:'Unstable Bradycardia → VF → Asystole → PCAC',
+    patientType:'Adult',
+    checklist:'brady_vf_asys',
+    states:[
+      {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'#ff9900',
+       vitals:{hr:30,rhythm:'hb3',sbp:80,dbp:48,spo2:98,etco2:34,rr:16,temp:36.5},
+       display:'HR 30 | BP 80/48 | SpO₂ 98% on 3 L | RR 16',
+       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.'},
+      {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
+       vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:20,rr:0,temp:36.5},
+       display:'VF | BP 0/0 | EtCO₂ 20',
+       note:'The heart rate continues to drop, then he suddenly becomes unresponsive and pulseless. Advanced learners may discuss IV lipid emulsion therapy and extracorporeal CPR.'},
+      {id:'asystole',label:'Asystole',color:'#880000',
+       vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:12,rr:0,temp:36.4},
+       display:'Asystole | BP 0/0 | EtCO₂ 12',
+       note:'After the second shock the rhythm changes to asystole. Special attention to high-quality CPR and team communication.'},
+      {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
+       vitals:{hr:36,rhythm:'hb3',sbp:72,dbp:44,spo2:94,etco2:36,rr:10,temp:36.5},
+       display:'HR 36 | ROSC | BP 72/44 | EtCO₂ 36',
+       note:'ROSC after several rounds of CPR. Ventricular escape bradycardia with hypotension. Consider the toxicological differential and calcium channel blocker overdose treatment.'},
+    ]},
 };
 // ── Scenario reference and grading content ────────────────────────────────────
 // Transcribed from the approved Word scenarios (Medical Director reviewed).
@@ -1467,6 +1632,132 @@ const SIMULATIONS={
 //
 // `trigger` is the "Transition Triggers" column: what moves the patient on, and
 // what sends them backwards.
+// ── AHA Megacode Testing Checklists ──────────────────────────────────────────
+// Critical Performance Steps transcribed from the AHA ACLS Megacode Testing
+// Checklists, © 2025 American Heart Association, as used by this AHA Training
+// Center for ACLS megacode testing. The wording is the AHA's; this app is a
+// place to record it rather than a restatement of it.
+//
+// Unlike the quarterly scenarios, these DO define an outcome — the instructor
+// circles PASS or NR (needs remediation) — so a megacode run records one.
+//
+// The six published checklists cover scenarios 1-12; the three here are the
+// ones megacodes 1-5 test against.
+const ACLS_CHECKLISTS={
+  brady_pvt_pea:{
+    scenarios:'Scenarios 1/3/8',
+    path:'Bradycardia → Pulseless VT → PEA → PCAC',
+    sections:[
+      {title:'Bradycardia Management',steps:[
+        'Starts oxygen if needed, places monitor, starts IV',
+        'Places monitor leads in proper position',
+        'Recognizes symptomatic/unstable bradycardia',
+        'Administers correct treatment',
+        'Prepares for second-line treatment',
+      ]},
+      {title:'Pulseless VT Management',steps:[
+        'Recognizes pVT',
+        'Clears before analyze and shock',
+        'Immediately resumes CPR after shocks',
+        'Appropriate airway management',
+        'Appropriate cycles of drug–rhythm check/shock–CPR',
+        'Administers appropriate drug(s) and doses',
+      ]},
+      {title:'PEA Management',steps:[
+        'Recognizes PEA',
+        'Verbalizes potential reversible causes of PEA (H’s and T’s)',
+        'Administers appropriate drug(s) and doses',
+        'Immediately resumes CPR after rhythm checks',
+      ]},
+      {title:'Post–Cardiac Arrest Care',steps:[
+        'Identifies ROSC',
+        'Verbalizes need for endotracheal intubation and continuous waveform capnography, ensures BP and 12-lead ECG are performed and O₂ saturation is monitored, and orders laboratory test',
+        'Considers temperature control',
+      ]},
+    ],
+  },
+  brady_vf_asys:{
+    scenarios:'Scenarios 2/5',
+    path:'Bradycardia → VF → Asystole → PCAC',
+    sections:[
+      {title:'Bradycardia Management',steps:[
+        'Starts oxygen if needed, places monitor, starts IV',
+        'Places monitor leads in proper position',
+        'Recognizes symptomatic/unstable bradycardia',
+        'Administers correct dose of atropine',
+        'Prepares for second-line treatment',
+      ]},
+      {title:'VF Management',steps:[
+        'Recognizes VF',
+        'Clears before analyze and shock',
+        'Immediately resumes CPR after shocks',
+        'Appropriate airway management',
+        'Appropriate cycles of drug–rhythm check/shock–CPR',
+        'Administers appropriate drug(s) and doses',
+      ]},
+      {title:'Asystole Management',steps:[
+        'Recognizes asystole',
+        'Verbalizes potential reversible causes of asystole (H’s and T’s)',
+        'Administers appropriate drug(s) and doses',
+        'Immediately resumes CPR after rhythm checks',
+      ]},
+      {title:'Post–Cardiac Arrest Care',steps:[
+        'Identifies ROSC',
+        'Verbalizes need for endotracheal intubation and continuous waveform capnography, ensures BP and 12-lead ECG are performed and O₂ saturation is monitored, and orders laboratory test',
+        'Considers temperature control',
+      ]},
+    ],
+  },
+  tachy_vf_pea:{
+    scenarios:'Scenarios 4/7/10',
+    path:'Tachycardia → VF → PEA → PCAC',
+    sections:[
+      {title:'Tachycardia Management',steps:[
+        'Starts oxygen if needed, places monitor, starts IV',
+        'Places monitor leads in proper position',
+        'Recognizes unstable tachycardia',
+        'Recognizes symptoms due to tachycardia',
+        'Performs immediate synchronized cardioversion',
+      ]},
+      {title:'VF Management',steps:[
+        'Recognizes VF',
+        'Clears before analyze and shock',
+        'Immediately resumes CPR after shocks',
+        'Appropriate airway management',
+        'Appropriate cycles of drug–rhythm check/shock–CPR',
+        'Administers appropriate drug(s) and doses',
+      ]},
+      {title:'PEA Management',steps:[
+        'Recognizes PEA',
+        'Verbalizes potential reversible causes of PEA (H’s and T’s)',
+        'Administers appropriate drug(s) and doses',
+        'Immediately resumes CPR after rhythm checks',
+      ]},
+      {title:'Post–Cardiac Arrest Care',steps:[
+        'Identifies ROSC',
+        'Verbalizes need for endotracheal intubation and continuous waveform capnography, ensures BP and 12-lead ECG are performed and O₂ saturation is monitored, and orders laboratory test',
+        'Considers temperature control',
+      ]},
+    ],
+  },
+};
+
+// Assessed once for the whole megacode rather than per rhythm, exactly as the
+// checklist lays them out.
+const ACLS_TEAM_STEPS=[
+  'Team Leader assigns team member roles',
+  'Team Leader ensures that team members communicate well',
+];
+// The CPR quality block on the same checklist. Three are ticked, two are
+// written in.
+const ACLS_CPR_FIELDS=[
+  {id:'rate',   label:'Compression rate 100-120/min', type:'check'},
+  {id:'depth',  label:'Compression depth ≥2 inches',  type:'check'},
+  {id:'recoil', label:'Chest recoil',                 type:'check'},
+  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%'},
+  {id:'ventRate',label:'Ventilation rate',            type:'value', suffix:'/min'},
+];
+
 const SCENARIO_DOCS={
   drowning:{
     brief:{
@@ -1539,7 +1830,131 @@ const SCENARIO_DOCS={
       ],trigger:'End the simulation after 3 minutes in this state.'},
     ],
   },
+
+  // ── ACLS megacodes ─────────────────────────────────────────────────────────
+  // The brief is the manual's Lead-in, Vital Signs and Initial Assessment; the
+  // triggers are its Instructor notes. Expected actions are NOT written here —
+  // they are filled from ACLS_CHECKLISTS below, so the AHA steps have exactly
+  // one home and a run is always graded against the published instrument.
+  //
+  // Where the manual leaves a vital blank, the value in SIMULATIONS is ours,
+  // inferred from the rhythm and the described state, and marked here.
+  megacode1:{
+    brief:{
+      patient:'62-year-old man · syncopal episode',
+      dispatch:'You are a paramedic treating a man who had a syncopal episode.',
+      hpi:'Vital signs from the manual: BP 78/42 mmHg, age 62. Heart rate, respiratory rate, SpO₂, temperature and weight are blank in the manual — the rate, RR 18 and SpO₂ 92% used here are inferred from the described unstable sinus bradycardia.',
+      handoff:'',
+      withhold:'',
+      sample:[['Signs / symptoms','Syncopal episode; pale, diaphoretic'],['Allergies','Not specified'],['Medications','Not specified'],['Past history','Not specified'],['Last oral intake','Not specified'],['Events','Syncope']],
+      primary:'The patient is conscious and alert. His skin is pale and he is diaphoretic. The patient is not following commands. There is no radial pulse, but the carotid pulse is weak and slow.',
+      secondary:'Not specified in the manual.',
+      labs:'Not specified in the manual.',
+      scene:'Out of hospital.',
+    },
+    states:[
+      {trigger:'The student should follow the Adult Bradycardia With a Pulse Algorithm and be prepared to administer a single dose of atropine while preparing for transcutaneous pacing.\n\n→ With the introduction of the pacing impulse, the ECG monitor displays VT and there is no pulse.'},
+      {trigger:'Discontinue pacing immediately and defibrillate. Follow the VF/pVT pathway of the Adult Cardiac Arrest Algorithm, assigning team functions and administering epinephrine and amiodarone.\n\n→ After the third shock the patient develops an organized rhythm that is slow, with no pulse.'},
+      {trigger:'Continue high-quality CPR and follow the PEA pathway. The student should consider reversible causes.\n\n→ After ensuring effective ventilation a carotid pulse is detectable. The patient has ROSC.'},
+      {trigger:'The student should initiate the Post–Cardiac Arrest Care Algorithm.'},
+    ],
+  },
+  megacode2:{
+    brief:{
+      patient:'Adult man · collapsed at a restaurant',
+      dispatch:'You are called to a restaurant for a man who suddenly became unresponsive, vomited, and then stopped breathing. You have a 4-minute response to the scene in your ALS ambulance.',
+      hpi:'Vital signs from the manual: HR 44/min and very strong, BP 84/50 mmHg, RR 3/min. SpO₂, temperature, weight and age are blank in the manual — SpO₂ 88% and EtCO₂ 30 used here are inferred from a respiratory rate of 3.',
+      handoff:'His wife says he is normally healthy and takes only vitamin supplements, but he has been under extreme stress at work lately.',
+      withhold:'',
+      sample:[['Signs / symptoms','Sudden unresponsiveness, vomiting, then apnoea'],['Allergies','Not specified'],['Medications','Vitamin supplements only'],['Past history','Normally healthy'],['Last oral intake','At a restaurant'],['Events','Collapsed at a restaurant']],
+      primary:'You arrive to find 3 firefighters assisting the patient. One is maintaining an open airway, another is suctioning, and the third is getting vital signs. Witnesses state the patient had a normal day but seemed irritated.',
+      secondary:'Glucose 187 mg/dL (10.4 mmol/L) if asked for by the Team Leader.',
+      labs:'Finger-stick glucose 187 mg/dL (10.4 mmol/L) — only if requested.',
+      scene:'Restaurant. Nearest ED 4 minutes; comprehensive stroke centre 12 minutes; cardiac arrest receiving centre 16 minutes.',
+    },
+    states:[
+      {trigger:'Sinus bradycardia on the limb leads; the 12-lead is not suspicious for injury or ischaemia.\n\n→ During IV access the patient has a 5-second grand mal seizure and remains unresponsive. Bag-mask ventilation with oxygen is initiated. Shortly after, no respirations and no pulse — the monitor shows VF.'},
+      {trigger:'Defibrillate, then 2 minutes of CPR. After the first 2 minutes the rhythm is still VF: another shock, more CPR, epinephrine, advanced airway with EtCO₂ 22 mmHg.\n\n→ Two minutes later the rhythm is asystole, confirmed in 2 leads.'},
+      {trigger:'CPR continues and treatable causes are considered.\n\n→ After 2 minutes of CPR the monitor shows a borderline wide-complex organized rhythm at 56/min and pulses are present.'},
+      {trigger:'BP 180/108 mmHg, still apneic, capnography 50 mmHg. Consider transport destination.'},
+    ],
+  },
+  megacode3:{
+    brief:{
+      patient:'Elderly man · chest pain · heart transplant 2 years ago',
+      dispatch:'Your ALS ambulance is dispatched to help an elderly man having chest pain. A BLS engine is also responding. You arrive to find the firefighters placing a nonrebreathing oxygen mask on the patient.',
+      hpi:'Vital signs from the manual: BP 86/48 mmHg by Doppler, RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
+      handoff:'',
+      withhold:'',
+      sample:[['Signs / symptoms','Chest heaviness, may need to vomit; started abruptly while waiting in line at the bank'],['Allergies','Sulfa'],['Medications','Multiple, all at home'],['Past history','Cardiac problems; heart transplant 2 years ago'],['Last oral intake','Not specified'],['Events','Abrupt chest heaviness while standing in line']],
+      primary:'Sitting with his back against a wall, alert and talking with firefighters. Pulse slow and weak; grossly diaphoretic, pale and grey. Monitor displays third-degree AV block with wider QRS complexes at 32/min.',
+      secondary:'12-lead ECG suspicious for injury in leads II, III and aVF; lead V₄R is flat.',
+      labs:'Not specified in the manual.',
+      scene:'Out of hospital. Closest ED 3 minutes; STEMI receiving centre 12 minutes.',
+    },
+    states:[
+      {trigger:'If students try to give atropine it will have no effect because of heart denervation.\n\n→ The transcutaneous pacemaker is applied, but before it acquires capture the patient becomes unresponsive, the rhythm changes to VT and he becomes apneic. There is no pulse.'},
+      {trigger:'Defibrillate, then high-quality CPR for 2 minutes with peripheral IVs in each arm. After 2 minutes the rhythm is still VT — defibrillate again, CPR, epinephrine. Bag-mask ventilation is easy, so an advanced airway is not required unless the Team Leader feels it is indicated.\n\n→ After 2 minutes the rhythm is sinus bradycardia with marginally wide QRS complexes and no pulse.'},
+      {trigger:'CPR continues, advanced airway placed, capnography 22 mmHg. After 2 minutes the rhythm is nearly the same and the QRS complexes are less wide but the rate is unchanged. EtCO₂ is now 48 mmHg.\n\n→ A carotid pulse is present but a radial pulse cannot be felt.'},
+      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. BP by Doppler is 68/40 mmHg. Consider dopamine and/or epinephrine infusion to support perfusion.'},
+    ],
+  },
+  megacode4:{
+    brief:{
+      patient:'65-year-old woman · shortness of breath and weakness',
+      dispatch:'Your ALS ambulance is dispatched to a car that has pulled to the side of the highway. The caller was driving the patient to an appointment, but she was sick and needed to stop. She reports shortness of breath and weakness.',
+      hpi:'Vital signs from the manual: HR 150/min, BP 84/54 mmHg, RR 20/min with mildly laboured breathing, SpO₂ 94% on 15 L/min oxygen, age 65.',
+      handoff:'',
+      withhold:'',
+      sample:[['Signs / symptoms','Shortness of breath, weakness'],['Allergies','Not specified'],['Medications','Not specified'],['Past history','Dialysis patient — missed her appointment 2 days ago'],['Last oral intake','Not specified'],['Events','Became unwell while being driven to an appointment']],
+      primary:'Found in the passenger seat of an SUV, awake and talking in 2- to 3-word sentences. Lungs have fine crackles in both bases. Palpable carotid and radial pulses.',
+      secondary:'The person driving states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider hyperkalaemia.',
+      labs:'Finger-stick glucose 330 mg/dL (18.3 mmol/L) post-arrest.',
+      scene:'Roadside. Nearest ED 7 minutes; tertiary care centre 14 minutes.',
+    },
+    states:[
+      {trigger:'The initial rhythm is monomorphic wide-complex tachycardia. Given the overall patient condition the Team Leader should consider cardioversion. A peripheral IV is attempted without success; cardioversion is performed without a change in condition.\n\n→ While preparing to increase the energy, her head slumps and she stops breathing. The monitor now shows VF.'},
+      {trigger:'Rapidly moved to the stretcher; CPR, prompt defibrillation, CPR continued. IO access achieved; bag-mask ventilation with mild difficulty. After 2 minutes still VF — defibrillate, CPR, epinephrine, advanced airway with capnography 25 mmHg.\n\n→ After 2 minutes the rhythm is an organized wide-complex rhythm at 70/min with no pulses.'},
+      {trigger:'CPR continues with capnography 22–27 mmHg. Treatable causes are considered — calcium chloride or gluconate and sodium bicarbonate should be considered for hyperkalaemia.\n\n→ At the next rhythm check the monitor shows a marginally wide-complex rhythm with severely peaked T waves at 100/min, and a carotid pulse is present.'},
+      {trigger:'Spontaneous but disorganized respirations, capnography 60 mmHg, SpO₂ 100% with oxygen, BP 94/56 mmHg, glucose 330 mg/dL.'},
+    ],
+  },
+  megacode5:{
+    brief:{
+      patient:'28-year-old man · suspected diltiazem overdose',
+      dispatch:'You are working in the emergency department when paramedics bring in a drowsy man. They are concerned about a drug overdose.',
+      hpi:'Vital signs from the manual: HR 30/min, BP 80/48 mmHg, RR 16/min, SpO₂ 98% on 3 L by nasal prongs, temperature 36.5 °C, glucose 195 mg/dL (10.8 mmol/L), age 28.',
+      handoff:'Paramedics say the patient has a history of depression and also takes diltiazem for an unknown reason. A family member on scene said he has had a very low mood lately and threatened suicide earlier in the day. An empty bottle of diltiazem was found beside him.',
+      withhold:'',
+      sample:[['Signs / symptoms','Drowsy, slurring his words'],['Allergies','Not specified'],['Medications','Diltiazem'],['Past history','Depression'],['Last oral intake','Unknown'],['Events','Suspected intentional diltiazem overdose']],
+      primary:'Assessing the patient on the paramedic stretcher you find him very drowsy and slurring his words. You cannot get any useful information from him on his history.',
+      secondary:'Rhythm strip shows a wide QRS ventricular escape rhythm at 30 with a long QT.',
+      labs:'Blood glucose 195 mg/dL (10.8 mmol/L).',
+      scene:'Emergency department.',
+    },
+    states:[
+      {trigger:'Wide QRS ventricular escape rhythm at 30 with a long QT.\n\n→ His heart rate continues to drop, then he suddenly becomes unresponsive and loses his pulse. The monitor shows VF.'},
+      {trigger:'Students should follow the VF pathway of the Adult Cardiac Arrest Algorithm. Advanced students may consider intravenous lipid emulsion therapy and extracorporeal CPR.\n\n→ After the second shock the rhythm changes to asystole.'},
+      {trigger:'Follow the asystole pathway with special attention to high-quality CPR and good team communication.\n\n→ After several rounds of CPR and ACLS the patient has ROSC.'},
+      {trigger:'The rhythm is a ventricular escape bradycardia with hypotension. Consider the toxicological aspects of the case and the differential diagnosis; a discussion of calcium channel blocker overdose treatment may be included for advanced learners.'},
+    ],
+  },
 };
+
+// Megacode expected actions come from the AHA checklist the scenario is tested
+// against, so the published steps are never transcribed twice and a run cannot
+// be graded against a stale copy.
+Object.keys(SCENARIO_DOCS).forEach(key=>{
+  const sim=SIMULATIONS[key];
+  if(!sim||!sim.checklist) return;
+  const cl=ACLS_CHECKLISTS[sim.checklist];
+  if(!cl) return;
+  SCENARIO_DOCS[key].checklist=sim.checklist;
+  SCENARIO_DOCS[key].states.forEach((st,i)=>{
+    st.actions=(cl.sections[i]||{}).steps||[];
+    st.section=(cl.sections[i]||{}).title||'';
+  });
+});
 
 let activeSim=null;
 let activeStateIdx=-1;
@@ -1612,7 +2027,7 @@ function applySimScenario(){
     abdominal_trauma_initial:{sim:'abdominal_trauma',idx:0},
     peds_tbi_initial:     {sim:'peds_tbi',    idx:0},
   };
-  const entry=simMap[key];
+  const entry=simMap[key]||(SIMULATIONS[key]?{sim:key,idx:0}:null);
   if(!entry) return;
   activeSim=entry.sim;
   activeStateIdx=entry.idx;
@@ -1659,12 +2074,21 @@ const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
 function startRun(simKey){
   const sim=SIMULATIONS[simKey], doc=SCENARIO_DOCS[simKey];
   if(!sim||!doc) return;
+  const cl=sim.checklist?ACLS_CHECKLISTS[sim.checklist]:null;
   run={
     scenario:simKey,
     scenarioName:sim.name+' — '+sim.subtitle,
     startedAt:new Date().toISOString(),
     crew:'', notes:'',
     current:-1, enteredAt:Date.now(),
+    // Present only for megacodes: the AHA checklist assesses team behaviour and
+    // CPR quality across the whole code rather than in any one rhythm, and ends
+    // in a PASS / NR the instructor circles.
+    checklist:sim.checklist||null,
+    checklistName:cl?cl.scenarios+' — '+cl.path:'',
+    team:cl?ACLS_TEAM_STEPS.map(t=>({text:t,done:false})):null,
+    cpr:cl?{rate:false,depth:false,recoil:false,fraction:'',ventRate:''}:null,
+    result:null,
     states:sim.states.map((st,i)=>({
       id:st.id||('state'+i),
       label:st.label,
@@ -1695,6 +2119,25 @@ function toggleAction(i){
 
 function setRunField(field,value){ if(run) run[field]=value; }
 
+function toggleTeam(i){
+  if(!run||!run.team||!run.team[i]) return;
+  run.team[i].done=!run.team[i].done;
+  renderSimPanel(run.scenario);
+}
+function toggleCpr(id){
+  if(!run||!run.cpr) return;
+  run.cpr[id]=!run.cpr[id];
+  renderSimPanel(run.scenario);
+}
+function setCpr(id,v){ if(run&&run.cpr) run.cpr[id]=v; }
+// PASS / NR, as the checklist has it. Clicking the set result again clears it,
+// so a mis-tap before the debrief is one click to undo.
+function setResult(r){
+  if(!run) return;
+  run.result=run.result===r?null:r;
+  renderSimPanel(run.scenario);
+}
+
 function endRun(){
   if(!run) return;
   enterRunState(-1);
@@ -1704,6 +2147,13 @@ function endRun(){
     crew:run.crew.trim(), notes:run.notes.trim(),
     states:run.states.map(st=>({id:st.id,label:st.label,seconds:st.seconds,actions:st.actions})),
   };
+  if(run.checklist){
+    rec.checklist=run.checklist;
+    rec.checklistName=run.checklistName;
+    rec.team=run.team;
+    rec.cpr=run.cpr;
+    rec.result=run.result;   // 'pass' | 'nr' | null
+  }
   // Hand it to the CES app. Same origin, so this is a direct call to the host
   // that framed us; standalone the panel simply keeps the summary on screen.
   let saved=false;
@@ -1753,6 +2203,33 @@ function renderBrief(simKey){
   html+=sec('Labs / imaging',b.labs);
   if(b.withhold) html+=`<div class="bsec wide"><div class="bwithhold">⚠ ${esc(b.withhold)}</div></div>`;
   document.getElementById('briefBody').innerHTML=html;
+}
+
+// The run-level half of the AHA checklist: team behaviour, CPR quality, and the
+// PASS / NR the instructor circles at the end.
+function checklistStripHtml(){
+  if(!run||!run.checklist) return '';
+  const team=run.team.map((t,i)=>
+    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" onclick="toggleTeam(${i})">
+       <span class="box">${t.done?'✓':''}</span><span>${esc(t.text)}</span></div>`).join('');
+  const cpr=ACLS_CPR_FIELDS.map(f=>{
+    if(f.type==='check'){
+      const on=run.cpr[f.id];
+      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" onclick="toggleCpr('${f.id}')">
+        <span class="box">${on?'✓':''}</span><span>${esc(f.label)}</span></div>`;
+    }
+    return `<label class="cl-num">${esc(f.label)}
+      <input inputmode="numeric" value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value)">${f.suffix}</label>`;
+  }).join('');
+  return `<div class="cl-strip">
+    <div class="cl-grp"><div class="col-h">Team leader / team members</div><div class="cl-row">${team}</div></div>
+    <div class="cl-grp"><div class="col-h">High-quality CPR at all times</div><div class="cl-row">${cpr}</div></div>
+    <div class="res-grp">
+      <span class="col-h" style="margin:0 4px 0 0;">Result</span>
+      <button class="res-btn pass${run.result==='pass'?' on':''}" onclick="setResult('pass')">PASS</button>
+      <button class="res-btn nr${run.result==='nr'?' on':''}" onclick="setResult('nr')">NR</button>
+    </div>
+  </div>`;
 }
 
 function renderSimPanel(simKey){
@@ -1817,6 +2294,7 @@ function renderSimPanel(simKey){
           <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
         </div>
       </div>
+      ${run&&run.checklist?checklistStripHtml():''}
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}</div>
         <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
@@ -1841,6 +2319,17 @@ function runSummaryHtml(rec){
   const tot=rec.states.reduce((n,s)=>n+s.actions.length,0);
   let h=`<div class="sim-scenario-name">✔ Run complete<br><span style="color:var(--t-dim);font-weight:normal;">${esc(rec.scenarioName)}</span></div>`;
   h+=`<div class="run-sum">`;
+  if(rec.checklist){
+    const teamHit=(rec.team||[]).filter(t=>t.done).length;
+    const c=rec.cpr||{};
+    const cprBits=[c.rate?'rate ✓':'rate ✗',c.depth?'depth ✓':'depth ✗',c.recoil?'recoil ✓':'recoil ✗',
+      'fraction '+(c.fraction||'—')+'%','vent '+(c.ventRate||'—')+'/min'].join(' · ');
+    h+=`<div style="margin-bottom:8px;">`+
+       (rec.result?`<span class="res-btn ${rec.result} on" style="cursor:default;">${rec.result==='pass'?'PASS':'NR'}</span> `:
+         `<span style="color:#ff8844;">No result recorded — the checklist asks for PASS or NR.</span> `)+
+       `<span style="color:var(--t-dim);">${esc(rec.checklistName||'')}</span></div>`;
+    h+=`<div style="margin-bottom:8px;color:var(--t-dim);">Team ${teamHit}/${(rec.team||[]).length} · CPR ${esc(cprBits)}</div>`;
+  }
   h+=`<div style="margin-bottom:8px;color:var(--t-dim);">${hit} of ${tot} expected actions observed · ${mmss(total)} total`+
      (rec.crew?` · ${esc(rec.crew)}`:'')+`</div>`;
   rec.states.forEach(st=>{

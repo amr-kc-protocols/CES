@@ -1207,7 +1207,34 @@ export interface SimRunState {
   actions: { text: string; done: boolean }[]
 }
 
-export interface SimRun {
+/**
+ * The run-level half of an AHA Megacode Testing Checklist.
+ *
+ * Present only on ACLS megacode runs. Team behaviour and CPR quality are
+ * assessed once for the whole code rather than in any one rhythm, and the
+ * instructor circles PASS or needs-remediation at the end. The quarterly
+ * scenarios have none of this — their approved documents define no outcome,
+ * which is why these fields are optional rather than part of every run.
+ */
+export interface SimRunChecklist {
+  /** Key into the control panel's ACLS_CHECKLISTS, e.g. 'brady_vf_asys'. */
+  checklist: string
+  /** Which published checklist, as it read at run time. */
+  checklistName: string
+  team: { text: string; done: boolean }[]
+  cpr: {
+    rate: boolean
+    depth: boolean
+    recoil: boolean
+    /** Written in by the instructor, so kept as typed rather than coerced. */
+    fraction: string
+    ventRate: string
+  }
+  /** null when the instructor ended the run without circling one. */
+  result: 'pass' | 'nr' | null
+}
+
+export interface SimRun extends Partial<SimRunChecklist> {
   id: string
   /** Scenario key in the control panel's SIMULATIONS, e.g. 'drowning'. */
   scenario: string

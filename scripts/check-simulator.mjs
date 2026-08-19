@@ -131,8 +131,19 @@ function load(file = PAGE) {
   ok('EtCO2 is adjustable in V-Tach', S().etco2 === 20, String(S().etco2))
   w.sv('rr', 12)
   ok('RR is adjustable in V-Tach', S().rr === 12, String(S().rr))
+  // Still capped, just not at a pressure that makes unstable-VT-with-a-pulse
+  // unreachable — AHA Megacode 4 runs that patient at 84/54.
   w.sv('sbp', 200)
-  ok('systolic is still capped in V-Tach', S().sbp === 62, String(S().sbp))
+  ok('systolic is still capped in V-Tach', S().sbp === 110, String(S().sbp))
+  w.sv('sbp', 84)
+  w.sv('dbp', 54)
+  ok('but a perfusing V-Tach is expressible', S().sbp === 84 && S().dbp === 54, `${S().sbp}/${S().dbp}`)
+
+  // EtCO2 in arrest reflects compression quality and must stay free.
+  w.setR('vfib')
+  w.sv('etco2', 22)
+  ok('EtCO2 is adjustable during a worked arrest', S().etco2 === 22, String(S().etco2))
+  ok('and the arrest itself still holds 0/0', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -377,7 +388,10 @@ function loadMonitor(storage = {}) {
     ok(`${key}: every state carries a transition trigger`, docs[key].states.every((st) => !!st.trigger))
     ok(`${key}: every state carries at least one expected action`, docs[key].states.every((st) => st.actions.length > 0))
     const b = docs[key].brief
-    for (const field of ['patient', 'dispatch', 'handoff', 'primary', 'secondary'])
+    // A hand-off report only exists where somebody hands the patient over. The
+    // ACLS megacodes are mostly scene calls with no prior provider, so it is
+    // optional; the rest of the brief is what a facilitator cannot run without.
+    for (const field of ['patient', 'dispatch', 'primary', 'secondary'])
       ok(`${key}: brief carries ${field}`, !!b[field])
     ok(`${key}: SAMPLE has all six elements`, b.sample.length === 6, String(b.sample.length))
   }
@@ -444,6 +458,90 @@ function loadMonitor(storage = {}) {
   w.applyScenario()
   ok('a quick scenario starts no run', w.eval('run') === null)
   ok('and applies its vitals anyway', S().sbp === 78 && S().hr === 125, `${S().hr} ${S().sbp}`)
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// ACLS megacodes
+//
+// These differ from the quarterly scenarios in one important way: the AHA
+// Megacode Testing Checklist IS an approved instrument, with critical
+// performance steps and a PASS / NR outcome. So the steps must come from the
+// checklist rather than a hand-copy beside it, and the manual's own vitals must
+// survive the physiology lock — two of them did not before these scenarios
+// existed, which is why the lock was loosened.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  const sims = w.eval('SIMULATIONS')
+  const docs = w.eval('SCENARIO_DOCS')
+  const cls = w.eval('ACLS_CHECKLISTS')
+
+  const megacodes = Object.keys(sims).filter((k) => sims[k].checklist)
+  ok('the ACLS megacodes are loaded', megacodes.length === 5, megacodes.join(','))
+
+  for (const key of megacodes) {
+    const cl = cls[sims[key].checklist]
+    ok(`${key}: names a published checklist`, !!cl, sims[key].checklist)
+    if (!cl) continue
+    ok(
+      `${key}: a checklist section per rhythm phase`,
+      cl.sections.length === sims[key].states.length,
+      `${cl.sections.length} sections for ${sims[key].states.length} states`,
+    )
+    // The AHA steps must have exactly one home. This does not detect drift
+    // between two copies — there is only one copy, which is the point. What it
+    // guards is that the derivation is still wired: remove it and the megacodes
+    // fall back to whatever is hand-written beside them, which is how a run
+    // ends up graded against something other than the published instrument.
+    const derived = docs[key].states.every((st, i) => {
+      const steps = cl.sections[i].steps
+      return st.actions.length === steps.length && st.actions.every((a, j) => a === steps[j])
+    })
+    ok(`${key}: expected actions come from the checklist verbatim`, derived)
+    ok(`${key}: every phase ends in Post–Cardiac Arrest Care`, /Post–Cardiac Arrest Care/.test(cl.sections[cl.sections.length - 1].title))
+  }
+
+  // The manual's numbers, which the physiology lock used to overwrite.
+  const m4 = sims.megacode4.states
+  ok('Megacode 4 keeps unstable VT with a pulse at 84/54', m4[0].vitals.sbp === 84 && m4[0].vitals.dbp === 54)
+  ok('Megacode 4 keeps EtCO2 25 during the worked VF arrest', m4[1].vitals.etco2 === 25)
+  ok('Megacode 2 keeps EtCO2 22 during the worked VF arrest', sims.megacode2.states[1].vitals.etco2 === 22)
+  ok('Megacode 3 keeps EtCO2 48 in PEA', sims.megacode3.states[2].vitals.etco2 === 48)
+
+  // Applying one has to actually produce those numbers through the lock.
+  d.getElementById('simScenarioSel').value = 'megacode4'
+  w.applySimScenario()
+  ok('applying Megacode 4 gives the manual vitals', S().hr === 150 && S().sbp === 84 && S().dbp === 54, `${S().hr} ${S().sbp}/${S().dbp}`)
+  w.applySimState('megacode4', 1)
+  ok('and its VF phase keeps EtCO2 on CPR', S().etco2 === 25 && S().sbp === 0, `EtCO2 ${S().etco2} BP ${S().sbp}`)
+
+  // The run-level half of the checklist exists for megacodes only.
+  const run = () => w.eval('run')
+  ok('a megacode run carries the team steps', (run().team || []).length === 2)
+  ok('a megacode run carries the CPR quality block', !!run().cpr)
+  ok('a megacode run starts with no result circled', run().result === null)
+  w.setResult('pass')
+  ok('PASS can be recorded', run().result === 'pass')
+  w.setResult('pass')
+  ok('and clicking it again clears it, for a mis-tap', run().result === null)
+  w.setResult('nr')
+  w.toggleTeam(0)
+  w.toggleCpr('rate')
+  w.setCpr('fraction', '82')
+  w.endRun()
+  const rec = w.eval('lastRun')
+  ok('the record carries the result', rec.result === 'nr', String(rec.result))
+  ok('the record carries the team assessment', rec.team[0].done === true)
+  ok('the record carries CPR quality', rec.cpr.rate === true && rec.cpr.fraction === '82')
+  ok('the record names the checklist it was graded against', /Scenarios 4\/7\/10/.test(rec.checklistName), rec.checklistName)
+
+  // A quarterly scenario has none of it — its documents define no outcome.
+  w.eval('lastRun = null')
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  ok('a quarterly run carries no checklist', run().checklist === null)
+  ok('and no PASS / NR', run().team === null && run().cpr === null)
   w.close()
 }
 

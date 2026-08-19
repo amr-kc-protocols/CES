@@ -156,8 +156,9 @@ export default function SimulatorView() {
         ) : (
           <div className="sim-bar-text">
             <span className="subtle">
-              Every graded scenario run. Actions are the scenario's own expected actions — there is
-              no score, because the approved scenarios do not define one.
+              Every graded run. Actions are the scenario's own expected actions. ACLS megacodes
+              carry the AHA checklist's PASS / NR; the quarterly scenarios do not, because their
+              approved documents define no outcome.
             </span>
           </div>
         )}
@@ -237,6 +238,11 @@ function RunList({ runs }: { runs: SimRun[] }) {
                   {r.facilitator ? ` · facilitated by ${r.facilitator}` : ''}
                 </div>
               </div>
+              {r.checklist ? (
+                <span className={`pill ${r.result === 'pass' ? 'ok' : r.result === 'nr' ? 'warn' : 'muted'}`}>
+                  {r.result === 'pass' ? 'PASS' : r.result === 'nr' ? 'NR' : 'no result'}
+                </span>
+              ) : null}
               <span className={`pill ${done === total ? 'ok' : 'info'}`}>
                 {done}/{total} actions
               </span>
@@ -246,6 +252,25 @@ function RunList({ runs }: { runs: SimRun[] }) {
 
             {isOpen && (
               <div className="sim-run-body">
+                {r.checklist ? (
+                  <div className="sim-run-state">
+                    <div className="sim-run-state-head">
+                      Team &amp; CPR quality <span className="subtle">{r.checklistName}</span>
+                    </div>
+                    {(r.team ?? []).map((t, j) => (
+                      <div key={j} className={t.done ? 'sim-act ok' : 'sim-act miss'}>
+                        {t.done ? '✓' : '✗'} {t.text}
+                      </div>
+                    ))}
+                    {r.cpr ? (
+                      <div className="sim-act subtle">
+                        Compression rate {r.cpr.rate ? '✓' : '✗'} · depth {r.cpr.depth ? '✓' : '✗'} · recoil{' '}
+                        {r.cpr.recoil ? '✓' : '✗'} · fraction {r.cpr.fraction || '—'}% · ventilation{' '}
+                        {r.cpr.ventRate || '—'}/min
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {r.states.map((st, i) =>
                   st.actions.length || st.seconds ? (
                     <div key={i} className="sim-run-state">
