@@ -147,6 +147,41 @@ this app stores is under `ces.*` (`ces.db.v1`, `ces.market.active`,
 `ces.cloud.config`). Renaming `simState` to `ces.sim.state` has to happen in
 both windows at once, and buys nothing until something else wants that key.
 
+## Usability
+
+Both screens are read by different people under different conditions, and the
+pass that shaped them worked from that rather than from the markup.
+
+**The monitor is read from across a room.** Rendering it and shrinking it to the
+visual angle of 2.5m and 4m showed the numerics (54-60px) survive and the alarm
+banner (11px) does not. So a breached parameter now flashes red on the value
+itself and turns its header bar red — the number is the only alarm signal that
+carries at teaching distance, and it is also what the real equipment does. The
+banner names what is wrong (`⚠ HR LOW`) rather than announcing `ALARM` and
+leaving the crew to hunt. Only HR and SpO₂ can flash, because those are the only
+two the control panel lets an instructor set limits for.
+
+Muting hides the banner but leaves the parameter flashing: muting silences the
+announcement, it does not make the value stop being out of range, and a monitor
+that looks entirely normal while the patient is bradycardic teaches the wrong
+thing.
+
+**The control panel is driven mid-scenario, from a laptop, while watching a
+crew.** It is 3.4 screens tall, and the header used to spend 440px of the first
+one on a title, a subtitle and a connect bar whose work was already done — which
+left two of the five simulation states visible on the card that drives the whole
+scenario. The header is compact, the connect bar shrinks to a status line once
+it has been used, and the two scenario pickers share a row. That reclaimed
+256px and puts all five states, the full medication grid, the rhythm buttons and
+HR/BP on the first screen.
+
+**A facilitator cannot see the crew's screen.** Each open monitor announces
+itself on the shared channel once a second (`{__monitor:1}`); the panel and the
+CES bar both listen and say whether one is live. A monitor closed by accident is
+otherwise completely silent — the scenario simply stops reaching anybody. The
+indicator lives in the CES bar because that is the only part of the screen that
+does not scroll away.
+
 ## Known gaps
 
 - **The alarm is visual only.** The control panel offers alarm ON / MUTE and the

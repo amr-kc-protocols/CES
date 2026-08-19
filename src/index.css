@@ -2450,3 +2450,17 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   .sim-bar { padding: 8px 12px; }
   .sim-bar-text { min-width: 0; }
 }
+
+/* Whether the crew actually has a display. Lives in the bar because that is
+   the only part of this screen that does not scroll away. */
+.sim-mon {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.sim-mon.on { color: #0a7d43; border-color: #0a7d4355; background: #0a7d430f; }
+.sim-mon.off { color: #9a5b1d; border-color: #9a5b1d55; background: #9a5b1d0f; }
