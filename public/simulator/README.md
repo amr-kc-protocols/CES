@@ -11,9 +11,10 @@ review tools under `public/review/` and `public/necessity/` are.
 
 ## Status
 
-**Not yet wired into the app.** The control panel and the monitor are both here
-and work together; the platform landing page has not landed yet. No route and no
-tab have been added — see the last section.
+**Live at `/simulator`,** on the `Sim` tab in the bottom bar, for administrators.
+`src/modules/simulator/SimulatorView.tsx` frames the control panel and opens the
+monitor in its own window. The platform landing page that shipped with these two
+files is not used: the CES tab replaces the chooser it offered.
 
 ## The contract between the two windows
 
@@ -114,28 +115,37 @@ each of them. That mismatch — panel sending `over`, monitor testing for
 `overdamped` — meant two carefully built waveforms had never once rendered, and
 neither file could have noticed on its own.
 
-## Before this is wired into the app
+## How it is wired in
 
-Four things are known to need doing. All of them touch both windows at once,
-which is why they were left until the pair was complete and checkable:
+- **Framed, not ported.** `SimulatorView` puts the control panel in an iframe
+  and gets out of the way. That is deliberate: the panel defines `.card`,
+  `.row`, `.grid`, `.badge`, `.list` and `.subtitle` as its own, and
+  `src/index.css` defines several of those globally. Framing keeps the two
+  stylesheets apart. Lifting this markup into a React screen would mean
+  renaming all of them first.
+- **Paths keep their `.html` extension.** The Vercel rewrite
+  (`/((?!assets/|.*\..*).*)`) and the service worker's
+  `navigateFallbackDenylist` (`/\.[a-z0-9]+$/i`) both let a dotted path through
+  and would otherwise hand back the CES shell — an iframe load counts as a
+  navigation for both. `SimulatorView` checks the framed document's title and
+  says so plainly if the shell came back instead. Same trap as `ReviewView`.
+- **Two windows, on purpose.** The monitor opens with `window.open` rather than
+  as a second panel, because it belongs on the screen the crew reads. The
+  control panel's own `OPEN MONITOR` button resolves
+  `patient_monitor_display.html` relative to this directory, so it works from
+  inside the frame too, as long as both files stay here.
+- **Admin gate.** `SimulatorOnly` in `src/App.tsx` and the `sim` tab flag in
+  `Layout.tsx` both use the `manageAcademy` capability — not the plain `admin`
+  flag History and CQMP use. Those two withhold records, and their rule also
+  hides them on a local-only install where nobody is signed in and there are no
+  roles to enforce. The simulator holds no records, and an instructor running a
+  scenario off a laptop is exactly who it is for. The route is gated as well as
+  the tab: hiding a tab is not access control, since a bookmark still resolves.
 
-- **CSS collides with the app's.** The control panel defines `.card`, `.row`, `.grid`,
-  `.badge`, `.list` and `.subtitle` as its own, and `src/index.css` defines
-  several of those globally. Fine while it is a separate document; not fine if
-  the markup is ever lifted into a React screen rather than framed in an
-  iframe. Framing it, as `/review` does, avoids the problem entirely.
-- **`localStorage` keys are unnamespaced.** Everything else this app stores is
-  under `ces.*` (`ces.db.v1`, `ces.market.active`, `ces.cloud.config`). Renaming
-  `simState` to `ces.sim.state` has to happen in both windows at once.
-- **Paths must keep their `.html` extension.** Both the Vercel rewrite and the
-  service worker's `navigateFallback` treat an extensionless path as an SPA
-  route and hand back the CES shell — an iframe load counts as a navigation for
-  both. This is the same trap documented in `src/modules/review/ReviewView.tsx`.
-  `openMonitor()` opens `patient_monitor_display.html` relative to this
-  directory, which resolves correctly as long as both files stay here.
-- **Admin gate.** The feature is for administrators only, which in this app is
-  the `manageAcademy` capability plus a route-level `Gated` wrapper — hiding
-  the tab is not access control, since a bookmark still resolves.
+Still outstanding: **`localStorage` keys are unnamespaced.** Everything else
+this app stores is under `ces.*` (`ces.db.v1`, `ces.market.active`,
+`ces.cloud.config`). Renaming `simState` to `ces.sim.state` has to happen in
+both windows at once, and buys nothing until something else wants that key.
 
 ## Known gaps
 

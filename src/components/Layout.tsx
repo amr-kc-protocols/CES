@@ -14,7 +14,7 @@ import { QA_ENABLED, CE_ENABLED } from '../config/features'
 // (botSync → qaStore → bot-bridge) stay out of the initial chunk while paused.
 const BotSyncMount = lazy(() => import('../modules/qa/BotSyncMount'))
 
-const TAB = { qa: false, ce: false, admin: false, aemt: false, review: false }
+const TAB = { qa: false, ce: false, admin: false, aemt: false, review: false, sim: false }
 
 const TABS = [
   { ...TAB, to: '/', label: 'Home', icon: '🏠', end: true },
@@ -33,6 +33,13 @@ const TABS = [
   // Chart review takes patient care reports as input. Same gate as AEMT, and
   // the tab must stay hidden from crews whose own transports it reviews.
   { ...TAB, to: '/review', label: 'Review', icon: '🔎', end: false, review: true },
+  // The patient simulator — instructor console for the quarterly scenarios.
+  // Gated on manageAcademy rather than the plain admin flag that History and
+  // CQMP use: those two withhold records, and their rule also hides them on a
+  // local-only install where nobody is signed in and there are no roles to
+  // enforce. This one holds no records, and an instructor running a scenario
+  // off a laptop is exactly who it is for.
+  { ...TAB, to: '/simulator', label: 'Sim', icon: '🫀', end: false, sim: true },
   { ...TAB, to: '/courses', label: 'Resources', icon: '📚', end: false },
   // KS/MO EMS regulatory reference — for every provider in both markets.
   // Labelled "Regs" rather than "EMS Ref": at the admin tab count (8) a 375px
@@ -54,17 +61,18 @@ export default function Layout() {
   // Signed-in admin only — the local signed-out "acts as admin" convenience
   // deliberately does NOT apply here, so an FTO who signs out gains nothing.
   const { signedIn, role, configured, market } = useSyncStatus()
-  const { manageAemt, reviewCharts } = useCan()
+  const { manageAemt, reviewCharts, manageAcademy } = useCan()
   const tabs = TABS.filter(
     (t) =>
       (!t.admin || (signedIn && role === 'admin')) &&
       (!t.aemt || manageAemt) &&
-      (!t.review || reviewCharts),
+      (!t.review || reviewCharts) &&
+      (!t.sim || manageAcademy),
   )
   const { pathname } = useLocation()
   // The review tool is a dense chart table that the 900px reading column would
   // squeeze into uselessness. It supplies its own padding and chrome.
-  const fullBleed = pathname.startsWith('/review')
+  const fullBleed = pathname.startsWith('/review') || pathname.startsWith('/simulator')
 
   // Drives the city watermark in the masthead. Only set once the market is a
   // real fact about this account — on a local-only device it would be
