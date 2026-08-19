@@ -35,6 +35,7 @@ const IntakeResults = lazy(() => import('./modules/intake/IntakeResults'))
 const ExamPage = lazy(() => import('./modules/exam/ExamPage'))
 const ExamResults = lazy(() => import('./modules/exam/ExamResults'))
 const BankReview = lazy(() => import('./modules/exam/BankReview'))
+const SimulatorView = lazy(() => import('./modules/simulator/SimulatorView'))
 const CqmpView = lazy(() => import('./modules/cqmp/CqmpView'))
 const CqmpReportView = lazy(() => import('./modules/cqmp/CqmpReportView'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
@@ -91,6 +92,26 @@ function HiringOnly({ children }: { children: ReactNode }) {
     <Gated
       allowed={manageAcademy}
       why="Selection exam results carry applicants' contact details and their own answers about what they want from a career. Administrators only."
+    >
+      {children}
+    </Gated>
+  )
+}
+
+/**
+ * The patient simulator.
+ *
+ * Administrator-only for a different reason than the screens below: it holds no
+ * records at all. It is the instructor's console — whoever has it open decides
+ * what the crew's monitor shows mid-scenario, so it belongs to the person
+ * running the session rather than to everyone in the room.
+ */
+function SimulatorOnly({ children }: { children: ReactNode }) {
+  const { manageAcademy } = useCan()
+  return (
+    <Gated
+      allowed={manageAcademy}
+      why="The simulator drives what the patient monitor shows during a scenario. It is limited to the instructor running the session."
     >
       {children}
     </Gated>
@@ -282,6 +303,14 @@ export default function App() {
             <AdminOnly>
               <CqmpReportView />
             </AdminOnly>
+          }
+        />
+        <Route
+          path="simulator"
+          element={
+            <SimulatorOnly>
+              <SimulatorView />
+            </SimulatorOnly>
           }
         />
         <Route path="courses" element={<LearningView />} />
