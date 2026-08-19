@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Arial Narrow',Arial,sans-serif;color:#fff;}
+
+#top{position:absolute;top:0;left:0;right:0;height:26px;background:#1a1a1a;border-bottom:2px solid #333;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:12px;z-index:20;}
+.tseg{display:flex;align-items:center;gap:10px;}
+.batt{background:#00bb00;color:#000;font-weight:bold;font-size:10px;padding:1px 6px;border-radius:2px;}
+#alm{display:none;position:absolute;left:50%;transform:translateX(-50%);background:#ff0;color:#000;font-weight:bold;font-size:11px;padding:1px 12px;border-radius:2px;animation:af .5s infinite alternate;z-index:30;}
+@keyframes af{from{opacity:1}to{opacity:.1}}
+
+#bot{position:absolute;bottom:0;left:0;right:0;height:56px;background:#000;border-top:1px solid #2a2a2a;display:flex;z-index:20;}
+.bc{flex:1;display:flex;align-items:center;border-right:1px solid #222;overflow:hidden;}
+.bc:last-child{border-right:none;flex:.65;}
+
+/* Square colored label box */
+.bsq{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:52px;height:56px;flex-shrink:0;
+  font-size:10px;font-weight:bold;line-height:1.4;text-align:center;
+}
+/* Values area */
+.bvals{display:flex;flex-direction:column;justify-content:center;padding:2px 6px;}
+.bv{font-size:18px;font-weight:bold;line-height:1.1;}
+.bs{font-size:11px;line-height:1.1;}
+
+/* ART — red square */
+.bArt .bsq{background:#cc0000;color:#fff;}
+.bArt .bv{color:#ff4444;}
+.bArt .bs{color:#cc4444;}
+
+/* P2 — cyan square */
+.bP2 .bsq{background:#0088aa;color:#fff;}
+.bP2 .bv{color:#00ccee;}
+
+/* P3 — blue square */
+.bP3 .bsq{background:#005588;color:#fff;}
+.bP3 .bv{color:#4499cc;}
+
+/* Temp — right-aligned, white label square */
+.bTmp{justify-content:flex-end;}
+.bTmp .bsq{background:#cccccc;color:#000;}
+.bTmp .bvals{text-align:right;}
+.bTmp .bv{color:#ffffff;font-size:18px;}
+
+#strip{position:absolute;top:26px;left:0;bottom:56px;width:52px;background:#111;border-right:2px solid #333;display:flex;flex-direction:column;z-index:10;}
+.ic{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border-bottom:1px solid #2e2e2e;font-size:9px;color:#bbb;cursor:pointer;
+  text-align:center;line-height:1.3;min-height:0;
+  transition:background .12s;
+}
+.ic:hover{background:#1e1e1e;}
+.ic:last-child{border-bottom:none;}
+
+#nums{position:absolute;top:26px;right:0;bottom:56px;width:155px;display:flex;flex-direction:column;background:#000;z-index:10;}
+.nb{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:0 0 3px;border-bottom:1px solid #111;overflow:hidden;min-height:0;}
+.nb:last-child{border-bottom:none;}
+
+/* Header bar — colored rectangle with black text */
+.nhdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:2px 5px;font-size:11px;font-weight:bold;
+  color:#000;letter-spacing:.5px;line-height:1.3;
+  flex-shrink:0;
+}
+.nhdr .nlbl{font-size:11px;font-weight:bold;color:#000;}
+.nhdr .nunit{font-size:9px;font-weight:bold;color:#000;opacity:.8;}
+
+/* Triangle header for SpO2 and Temp */
+.ntri{
+  position:relative;height:18px;flex-shrink:0;overflow:visible;
+  display:flex;align-items:center;padding-left:6px;
+}
+.ntri::before{
+  content:'';position:absolute;left:0;top:0;
+  width:0;height:0;
+  border-top:18px solid transparent;
+  border-bottom:0px solid transparent;
+}
+.ntri .ntlbl{font-size:10px;font-weight:bold;color:#000;position:relative;z-index:1;white-space:nowrap;}
+
+.nv{font-weight:bold;line-height:.9;letter-spacing:-1px;padding:0 4px;}
+
+/* HR — green bar, value LEFT */
+.nHR{background:#000;justify-content:flex-start;}
+.nHR .nhdr{background:#00cc00;}
+.nHR .nv{color:#00ff00;font-size:60px;text-align:left;padding-left:4px;align-self:flex-start;margin-top:2px;}
+
+/* NIBP — cyan bar, values LEFT, line between sys/dia */
+.nBP{background:#000;}
+.nBP .nhdr{background:#00ccee;}
+.nBP .nvs{color:#00eeff;font-size:46px;font-weight:bold;text-align:left;line-height:1;padding-left:4px;}
+.nBP .nbdiv{height:2px;background:#00ccee;margin:2px 4px;flex-shrink:0;opacity:.7;align-self:flex-start;max-width:80px;}
+.nBP .nvd{color:#00eeff;font-size:32px;font-weight:bold;text-align:left;line-height:1;padding-left:4px;}
+.nBP .nvm{color:#00aabb;font-size:28px;font-weight:bold;text-align:center;line-height:1;width:100%;}
+
+/* EtCO2 — magenta bar, value CENTERED */
+.nCO2{background:#000;}
+.nCO2 .nhdr{background:#cc00cc;}
+.nCO2 .nv{color:#ff44ff;font-size:54px;text-align:center;width:100%;align-self:center;}
+.nCO2 .nsub{color:#ff44ff;font-size:20px;font-weight:bold;text-align:left;padding-left:4px;line-height:1;width:100%;}
+
+/* SpO2 — yellow bar header, value TOP-LEFT, breath rectangle right */
+.nSP{background:#000;justify-content:flex-start;}
+.nSP .ntri{background:#cccc00;width:100%;}
+.nSP .spo2row{display:flex;align-items:flex-start;justify-content:flex-start;gap:18px;padding:2px 4px;}
+.nSP .spo2val{color:#ffff00;font-size:54px;font-weight:bold;line-height:1;letter-spacing:-1px;align-self:flex-start;}
+#spo2Bar{flex-shrink:0;align-self:flex-start;}
+
+/* Temp — white bar header, value CENTERED */
+.nTMP{background:#000;flex:0 0 62px!important;}
+.nTMP .ntri{background:#ffffff;width:100%;}
+.nTMP .nv{color:#ffffff;font-size:28px;text-align:center;width:100%;align-self:center;}
+
+/* Wave area — 4 rows stacked between top bar, bottom bar, strip and nums */
+#wavearea{position:absolute;top:26px;left:52px;right:155px;bottom:56px;display:flex;flex-direction:column;background:#000;}
+.wr{flex:1;position:relative;border-bottom:1px solid #1a1a1a;min-height:0;}
+.wr:last-child{border-bottom:none;}
+.wh{position:absolute;top:0;left:0;right:0;height:22px;display:flex;justify-content:space-between;align-items:center;padding:2px 6px;z-index:5;pointer-events:none;}
+.wt{font-size:15px;font-weight:bold;}
+.ws{font-size:10px;}
+.yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
+/* -- Skin switcher -- */
+.skin-btn{display:flex;gap:0;border:1px solid #444;border-radius:4px;overflow:hidden;margin-left:8px;}
+.skb{padding:2px 7px;font-size:10px;font-weight:bold;cursor:pointer;background:#222;color:#888;border:none;letter-spacing:1px;transition:all .15s;}
+.skb.on{background:#004466;color:#00e5ff;}
+
+/* -- LP Skin overrides -- */
+body.lp-skin #nums{display:none;}
+body.lp-skin #strip{display:none;}
+body.lp-skin #wavearea{left:140px;right:0;}
+body.lp-skin #lpNums{display:flex;}
+body.lp-skin #rArt{display:none;}
+body.lp-skin #top{background:#0a0a0a;border-bottom:2px solid #222;}
+body.lp-skin #bot{background:#0a0a0a;border-top:1px solid #222;}
+
+/* -- LP Numerics Panel -- */
+#lpNums{display:none;position:absolute;top:26px;left:0;bottom:56px;width:140px;flex-direction:column;background:#0a0a0a;z-index:10;border-right:2px solid #222;}
+.lpb{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:4px 6px 3px;border-bottom:1px solid #1a1a1a;overflow:hidden;min-height:0;}
+.lpb:last-child{border-bottom:none;}
+.lplbl{font-size:11px;font-weight:bold;letter-spacing:1px;line-height:1;}
+.lpunit{font-size:9px;margin-left:2px;opacity:.7;}
+.lpval{text-align:right;font-weight:bold;line-height:.9;letter-spacing:-1px;align-self:flex-end;}
+.lpHR .lplbl,.lpHR .lpunit{color:#00cc00;}.lpHR .lpval{color:#00ff00;font-size:54px;}
+.lpSP .lplbl,.lpSP .lpunit{color:#cccccc;}.lpSP .lpval{color:#ffffff;font-size:50px;}
+.lpCO2 .lplbl,.lpCO2 .lpunit{color:#ccaa00;}.lpCO2 .lpval{color:#FFD700;font-size:46px;}
+.lpCO2 .lprr{color:#ccaa00;font-size:15px;font-weight:bold;text-align:right;line-height:1;margin-top:2px;}
+.lpTMP{flex:0 0 58px!important;}.lpTMP .lplbl,.lpTMP .lpunit{color:#6ab8d4;}.lpTMP .lpval{color:#89CFF0;font-size:24px;}
+.lpBP .lplbl,.lpBP .lpunit{color:#6ab8d4;}
+.lpBP .lpvs{color:#89CFF0;font-size:36px;font-weight:bold;text-align:right;line-height:1;}
+.lpBP .lpvd{color:#89CFF0;font-size:26px;font-weight:bold;text-align:right;line-height:1;}
+.lpBP .lpvm{color:#4d99aa;font-size:13px;font-weight:bold;text-align:right;}
+.lpP1{display:none;}.lpP1.visible{display:flex;}
+.lpP1 .lplbl,.lpP1 .lpunit{color:#ccaa00;}
+.lpP1 .lpvs{color:#FFD700;font-size:36px;font-weight:bold;text-align:right;line-height:1;}
+.lpP1 .lpvd{color:#FFD700;font-size:26px;font-weight:bold;text-align:right;line-height:1;}
+.lpP1 .lpvm{color:#aa8800;font-size:13px;font-weight:bold;text-align:right;}
+
+</style>
+</head>
+<body>
+
+<div id="alm">⚠ ALARM</div>
+
+<div id="top">
+  <div class="tseg"><span id="tDate"></span><span id="tTime"></span></div>
+  <div class="tseg" style="font-size:13px;"><span id="tPat">Adult</span><span style="color:#555;margin-left:4px;">✦</span></div>
+  <div class="tseg">
+    <span class="batt">100%</span>
+    <span id="tElap">00:00:00</span>
+    <div class="skin-btn">
+      <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
+      <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
+      <button class="skb" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
+    </div>
+  </div>
+</div>
+
+<div id="strip">
+  <div class="ic" style="color:#00ff00;font-size:9px;font-weight:bold;letter-spacing:.5px;">I, II,<br>III...</div>
+  <div class="ic" onclick="toggle12Lead()" title="12-Lead ECG"
+       style="font-size:18px;font-weight:bold;color:#fff;background:#0a0a1e;border-bottom:1px solid #2e2e2e;position:relative;">
+    12
+    <div style="position:absolute;bottom:3px;left:0;right:0;height:3px;background:linear-gradient(90deg,#0f0,#0a0,#0f0);opacity:.6;border-radius:1px;"></div>
+  </div>
+  <div class="ic" style="color:#00dd00;font-size:10px;font-weight:bold;">CO2</div>
+  <div class="ic" style="color:#00ff88;font-size:20px;font-weight:bold;">✛</div>
+  <div class="ic" style="color:#cccccc;font-size:9px;font-weight:bold;letter-spacing:.5px;">SYNC</div>
+  <div class="ic" style="font-size:16px;">🖫</div>
+  <div class="ic" onclick="window.open('control_panel.html','ControlPanel','width=1100,height=900,resizable=yes,scrollbars=yes')"
+       style="font-size:20px;color:#00aaff;background:#001020;" title="Open Control Panel">↩</div>
+</div>
+
+<!-- LP Numerics Panel (shown only in LP skin) -->
+<div id="lpNums">
+  <div class="lpb lpHR">
+    <div><span class="lplbl">HR</span><span class="lpunit">bpm</span></div>
+    <div class="lpval" id="lpHR">78</div>
+  </div>
+  <div class="lpb lpSP">
+    <div><span class="lplbl">SpO2</span><span class="lpunit">%</span></div>
+    <div class="lpval" id="lpSP">97</div>
+  </div>
+  <div class="lpb lpCO2">
+    <div><span class="lplbl">CO2</span><span class="lpunit">mmHg</span></div>
+    <div class="lpval" id="lpCO2v">36</div>
+    <div class="lprr">RR &nbsp;<span id="lpRR">11</span></div>
+  </div>
+  <div class="lpb lpTMP">
+    <div><span class="lplbl">Temp</span><span class="lpunit" id="lpTu">°C</span></div>
+    <div class="lpval" id="lpTMP">36.9</div>
+  </div>
+  <div class="lpb lpBP">
+    <div><span class="lplbl">NIBP</span><span class="lpunit">mmHg</span></div>
+    <div class="lpvs" id="lpSys">121</div>
+    <div class="lpvd" id="lpDia">79</div>
+    <div class="lpvm" id="lpMap">(93)</div>
+  </div>
+  <div class="lpb lpP1" id="lpP1box">
+    <div><span class="lplbl">P1</span><span class="lpunit">mmHg</span></div>
+    <div class="lpvs" id="lpP1s">121</div>
+    <div class="lpvd" id="lpP1d">79</div>
+    <div class="lpvm" id="lpP1m">(93)</div>
+  </div>
+</div>
+<div id="wavearea">
+  <div class="wr" id="rEcg">
+    <div id="notConnected" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;letter-spacing:3px;color:#666;z-index:6;pointer-events:none;">— PATIENT NOT CONNECTED —</div>
+    <div class="wh"><span class="wt" id="wlEcg" style="color:#00ff00;"><span id="dLead">II</span> <span style="font-size:9px;color:#777;font-weight:normal;">1.0 cm/mV</span></span></div>
+    <canvas id="cEcg"></canvas>
+  </div>
+  <div class="wr" id="rArt">
+    <div class="wh"><span class="wt" id="wlArtLP" style="color:#ff4444;">ART</span><span class="ws" style="color:#ff6666;" id="dArtLbl">0 to 180 mmHg</span></div>
+    <div class="yl" style="color:#ff5555;"><span id="dArtTop">180</span><span>90</span><span>0</span></div>
+    <canvas id="cArt"></canvas>
+  </div>
+  <div class="wr" id="rP2" style="display:none;">
+    <div class="wh"><span class="wt" style="color:#00aaff;">P2 — PA</span><span class="ws" style="color:#4488ff;" id="dP2Lbl">0 to 40 mmHg</span></div>
+    <div class="yl" style="color:#4488ff;"><span id="dP2Top">40</span><span>20</span><span>0</span></div>
+    <canvas id="cP2"></canvas>
+  </div>
+  <div class="wr" id="rCo2">
+    <div class="wh"><span class="wt" id="wlCo2" style="color:#ff44ff;">CO2</span><span class="ws" style="color:#ff88ff;">0 to 60 mmHg</span></div>
+    <div class="yl" style="color:#ff88ff;"><span>60</span><span>30</span><span>0</span></div>
+    <canvas id="cCo2"></canvas>
+  </div>
+  <div class="wr" id="rSpo2">
+    <div class="wh"><span class="wt" id="wlSpo2" style="color:#cccc00;">SpO2 <span style="font-size:9px;color:#777;font-weight:normal;">1X</span></span></div>
+    <canvas id="cSpo2"></canvas>
+  </div>
+</div>
+
+<div id="nums">
+  <!-- HR — green bar -->
+  <div class="nb nHR">
+    <div class="nhdr"><span class="nlbl">HR</span><span class="nunit">bpm</span></div>
+    <div class="nv" id="nHR">78</div>
+  </div>
+  <!-- NIBP — cyan bar -->
+  <div class="nb nBP">
+    <div class="nhdr"><span class="nlbl">NIBP</span><span class="nunit">mmHg</span></div>
+    <div class="nvs" id="nSys">121</div>
+    <div class="nbdiv" id="nbpDiv"></div>
+    <div class="nvd" id="nDia">79</div>
+    <div class="nvm" id="nMap">(93)</div>
+  </div>
+  <!-- EtCO2 — magenta bar -->
+  <div class="nb nCO2">
+    <div class="nhdr"><span class="nlbl">EtCO2</span><span class="nunit">mmHg</span></div>
+    <div class="nv" id="nEtco2">36</div>
+    <div class="nsub">RR &nbsp;<span id="nRR">11</span></div>
+  </div>
+  <!-- SpO2 — yellow triangle header, value top-left, breath triangle bottom-right -->
+  <div class="nb nSP">
+    <div class="ntri"><span class="ntlbl">SpO2&nbsp;&nbsp;%</span></div>
+    <div class="spo2row">
+      <div class="spo2val" id="nSpo2">97</div>
+      <canvas id="spo2Bar" width="12" height="52" style="margin-top:2px;"></canvas>
+    </div>
+  </div>
+  <!-- Temp — white triangle -->
+  <div class="nb nTMP">
+    <div class="ntri"><span class="ntlbl" id="nTuHdr">Temp&nbsp;&nbsp;°C</span></div>
+    <div class="nv" id="nTemp">36.9</div>
+  </div>
+</div>
+
+<div id="bot">
+  <div class="bc bArt">
+    <div class="bsq">ART<br>mmHg</div>
+    <div class="bvals"><div class="bv" id="bArt">121/79</div><div class="bs" id="bMap">(93)</div></div>
+  </div>
+  <div class="bc bP2">
+    <div class="bsq" id="bP2lbl">P2<br>mmHg</div>
+    <div class="bvals"><div class="bv" id="bP2v">—</div><div class="bs" id="bP2m"></div></div>
+  </div>
+  <div class="bc bP3">
+    <div class="bsq">P3<br>mmHg</div>
+    <div class="bvals"><div class="bv">—</div></div>
+  </div>
+</div>
+
+<script>
+/* ── State ────────────────────────────────── */
+let S={hr:78,rhythm:'nsr',lead:'II',sbp:121,dbp:79,spo2:97,etco2:36,rr:11,co2Shape:'normal',temp:36.9,tempUnit:'C',patientType:'Adult',alarmOn:true,alarmMuted:false,hrAlarmLow:50,hrAlarmHigh:120,spo2AlarmLow:94,artActive:false,artSbp:121,artDbp:79,artScale:180,artLinked:true,artDamping:'normal',artSite:'Radial — Left',sgActive:false,sgSbp:25,sgDbp:10,sgPcwp:8,sgCvp:5,sgMode:'pa',sgScale:40,sgSite:'Right Internal Jugular',pvcOn:false,pacOn:false,ectFreq:6,patientConnected:false,spo2Quality:'excellent',scenario:'',etco2On:false};
+
+/* ── Canvas state — declared early so setSkin can safely reference them ── */
+const cSizes={};
+let pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
+const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
+function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
+ld(); // load saved state on startup
+
+// BroadcastChannel — receives live updates from Control Panel the instant any control changes
+try{
+  const bc=new BroadcastChannel('simState');
+  bc.onmessage=e=>{ S={...S,...e.data}; };
+}catch(e){}
+// Fallback: poll localStorage every 250ms in case BC unavailable or cross-origin
+//
+// The 12-lead command is a timestamped one-shot, and localStorage outlives the
+// session. Seeding the high-water mark from whatever is already stored means a
+// monitor opened tomorrow does not replay yesterday's "open" the moment it
+// loads; only a command issued after this window opened counts.
+let lastCmdT=(()=>{
+  try{ return parseInt(((localStorage.getItem('simCmd12Lead')||'')+':0').split(':')[1])||0; }
+  catch(e){ return 0; }
+})();
+setInterval(()=>{
+  ld();
+  try{
+    const raw=localStorage.getItem('simCmd12Lead')||'';
+    if(raw){
+      const [action,ts]=(raw+':0').split(':');
+      const t=parseInt(ts)||0;
+      if(t>lastCmdT){
+        lastCmdT=t;
+        if(action==='open') open12Lead();
+        else if(action==='close'&&w12Lead&&!w12Lead.closed){ w12Lead.close(); w12Lead=null; }
+      }
+    }
+  }catch(e){}
+},250);
+
+
+/* ── Clock ────────────────────────────────── */
+const T0=Date.now();
+function clk(){
+  const n=new Date();
+  document.getElementById('tTime').textContent=n.toTimeString().slice(0,8);
+  document.getElementById('tDate').textContent=String(n.getMonth()+1).padStart(2,'0')+'/'+String(n.getDate()).padStart(2,'0')+'/'+n.getFullYear();
+  const s=Math.floor((Date.now()-T0)/1000);
+  document.getElementById('tElap').textContent=String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}
+setInterval(clk,1000);clk();
+
+/* ── Skin switcher ── */
+let currentSkin='zx';
+const LP_Y='#FFD700', LP_B='#4488ff', LP_W='#ffffff', LP_G='#00ff00';
+
+function setSkin(skin){
+  currentSkin=skin;
+  document.body.classList.toggle('lp-skin', skin==='lp');
+  document.getElementById('skinZX').classList.toggle('on', skin==='zx');
+  document.getElementById('skinLP').classList.toggle('on', skin==='lp');
+  // Update waveform row labels
+  if(skin==='lp'){
+    document.getElementById('wlEcg').style.color=LP_G;
+    document.getElementById('wlSpo2').innerHTML='<span style="color:'+LP_B+'">SpO2</span>';
+    document.getElementById('wlCo2').style.color=LP_Y;
+  } else {
+    document.getElementById('wlEcg').style.color='#00ff00';
+    document.getElementById('wlSpo2').innerHTML='SpO2 <span style="font-size:9px;color:#777;font-weight:normal;">1X</span>';
+    document.getElementById('wlCo2').style.color='#ff44ff';
+  }
+  // Full reset — invalidate all cached sizes and positions
+  Object.keys(cSizes).forEach(k=>delete cSizes[k]);
+  pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
+  Object.keys(lastY).forEach(k=>lastY[k]=-1);
+  // Force canvas resize on next sizeAll by zeroing canvas dimensions
+  // This ensures the browser layout has settled before we re-measure
+  ['cEcg','cArt','cCo2','cSpo2','cP2'].forEach(id=>{
+    const c=document.getElementById(id);
+    if(c){ c.width=0; c.height=0; }
+  });
+}
+
+function skinColors(){
+  if(currentSkin==='lp'){
+    return{
+      ecg:LP_G,
+      art:'#ff6600',
+      co2:LP_Y,
+      // The SpO2 row draws the pleth in every skin, and the LP label for it is
+      // blue. Colouring the trace yellow whenever an A-Line was running left
+      // the row labelled SpO2 in blue while drawing a yellow trace.
+      spo2:LP_B,
+      co2fill:'rgba(120,90,0,.45)',
+    };
+  }
+  return{ecg:'#00ff00',art:'#ff3333',co2:'#ff44ff',spo2:'#cccc00',co2fill:'rgba(150,0,110,.6)'};
+}
+
+/* ── Breath Triangle (SpO2 box) ─────────────── */
+let breathPhase=0; // 0..1 per breath cycle
+function drawBreathTri(){
+  const c=document.getElementById('spo2Bar');
+  if(!c) return;
+  const H=c.height;
+  const ctx=c.getContext('2d');
+  const W=c.width;
+  ctx.clearRect(0,0,W,H);
+  // Outline rectangle — yellow stroke, no fill
+  ctx.strokeStyle='#cccc00';
+  ctx.lineWidth=2;
+  ctx.strokeRect(1,1,W-2,H-2);
+  // Fill from bottom up based on breathPhase
+  if(S.patientConnected && S.rr>0 && breathPhase>0){
+    const fillH=Math.round(breathPhase*(H-2));
+    ctx.fillStyle='#cccc00';
+    ctx.fillRect(1, H-1-fillH, W-2, fillH);
+  }
+}
+
+// Advance breath phase each frame
+let breathT=0;
+function advanceBreath(dt){
+  if(!S.patientConnected||S.rr<=0){breathPhase=0;drawBreathTri();return;}
+  const period=60/S.rr; // seconds per breath
+  breathT=(breathT+dt)%period;
+  // Fill 0→1 over first half of breath (inhale), drain 1→0 over second half (exhale)
+  const half=period/2;
+  breathPhase=breathT<half?(breathT/half):(1-(breathT-half)/half);
+  drawBreathTri();
+}
+
+/* ── Numerics ─────────────────────────────── */
+let lastSysTxt=null;
+function m3(s,d){return Math.round((s+2*d)/3);}
+function upNums(){
+  const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
+  const nc=!S.patientConnected; // not connected
+  document.getElementById('tPat').textContent=S.patientType||'Adult';
+  document.getElementById('dLead').textContent=S.lead||'II';
+  const sc=S.artScale||180;
+  document.getElementById('dArtLbl').textContent='0 to '+sc+' mmHg';
+  document.getElementById('dArtTop').textContent=sc;
+  document.getElementById('nHR').textContent=nc||dead?
+    (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
+      ? Math.round(60/(3.0*(S.ectFreq||6)))  // PVC rate: 60s / (agonal_bp * freq_interval)
+      : '---')
+    : S.hr;
+  const noP=nc||dead||!S.sbp;
+  document.getElementById('nSys').textContent=noP?'---':S.sbp;
+  document.getElementById('nDia').textContent=noP?'---':S.dbp;
+  const mv=noP?'---':m3(S.sbp,S.dbp);
+  document.getElementById('nMap').textContent=mv==='---'?'(---)':'('+mv+')';
+  // Match the divider to the rendered width of the systolic number. Reading
+  // scrollWidth forces layout, so it runs only when that text has changed.
+  const sysTxt=noP?'---':String(S.sbp);
+  if(sysTxt!==lastSysTxt){
+    lastSysTxt=sysTxt;
+    requestAnimationFrame(()=>{
+      const sys=document.getElementById('nSys');
+      const div=document.getElementById('nbpDiv');
+      if(sys&&div) div.style.width=Math.min(sys.scrollWidth, 80)+'px';
+    });
+  }
+  document.getElementById('nEtco2').textContent=nc||!S.etco2On?'---':S.etco2;
+  document.getElementById('nRR').textContent=nc?'---':S.rr;
+  document.getElementById('nSpo2').textContent=nc?'---':S.spo2;
+  const tv=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
+  document.getElementById('nTemp').textContent=nc?'---':tv;
+  const nTuHdr=document.getElementById('nTuHdr');
+  if(nTuHdr) nTuHdr.textContent='Temp  °'+(S.tempUnit||'C');
+  const aSbp=S.artActive?(S.artSbp||S.sbp):0;
+  const aDbp=S.artActive?(S.artDbp||S.dbp):0;
+  const noArt=nc||dead||!S.artActive||!aSbp;
+  const amv=noArt?'---':m3(aSbp,aDbp);
+  document.getElementById('bArt').textContent=noArt?'---/---':aSbp+'/'+aDbp;
+  document.getElementById('bMap').textContent=amv==='---'?'(---)':'('+amv+')';
+
+  // P2 — Swan-Ganz
+  const sgOn=S.sgActive&&!nc&&!dead;
+  const bP2v=document.getElementById('bP2v');
+  const bP2m=document.getElementById('bP2m');
+  const bP2lbl=document.getElementById('bP2lbl'); // mode label in header sq
+  if(sgOn){
+    const mode=S.sgMode||'pa';
+    let valTxt='—', meanTxt='', lbl='P2';
+    switch(mode){
+      case 'pa':
+        valTxt=S.sgSbp+'/'+S.sgDbp;
+        meanTxt='('+Math.round((S.sgSbp+2*S.sgDbp)/3)+')';
+        lbl='PA';
+        break;
+      case 'wedge':
+        valTxt=S.sgPcwp;
+        meanTxt='PCWP';
+        lbl='PCW';
+        break;
+      case 'rv':
+        valTxt=S.sgSbp+'/'+S.sgCvp;
+        meanTxt='(RV)';
+        lbl='RV';
+        break;
+      case 'ra':
+        valTxt=S.sgCvp;
+        meanTxt='CVP';
+        lbl='RA';
+        break;
+    }
+    if(bP2v) bP2v.textContent=valTxt;
+    if(bP2m) bP2m.textContent=meanTxt;
+    if(bP2lbl) bP2lbl.innerHTML=lbl+'<br>mmHg';
+  } else {
+    if(bP2v) bP2v.textContent='—';
+    if(bP2m) bP2m.textContent='';
+    if(bP2lbl) bP2lbl.innerHTML='P2<br>mmHg';
+  }
+  // P2 row visibility handled in sizeAll
+  const dP2Lbl=document.getElementById('dP2Lbl');
+  if(dP2Lbl) dP2Lbl.textContent='0 to '+(S.sgScale||40)+' mmHg';
+  const dP2Top=document.getElementById('dP2Top');
+  if(dP2Top) dP2Top.textContent=S.sgScale||40;
+
+  const ncEl=document.getElementById('notConnected');
+  if(ncEl) ncEl.style.display=nc?'flex':'none';
+  document.getElementById('alm').style.display=(!nc&&S.alarmOn&&!S.alarmMuted&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh||S.spo2<S.spo2AlarmLow))?'block':'none';
+  document.getElementById('rArt').style.opacity=(S.artActive&&!nc)?'1':'0.2';
+
+  // ── LP Skin numerics ──
+  if(currentSkin==='lp'){
+    const dead2=dead,nc2=nc;
+    const setEl=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    setEl('lpHR', nc2||dead2
+      ? (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
+          ? Math.round(60/(3.0*(S.ectFreq||6)))
+          : '---')
+      : S.hr);
+    setEl('lpSP', nc2?'---':S.spo2);
+    setEl('lpCO2v', nc2||!S.etco2On?'---':S.etco2);
+    setEl('lpRR', nc2?'---':S.rr);
+    const tv2=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
+    setEl('lpTMP', nc2?'---':tv2);
+    const el2=document.getElementById('lpTu');if(el2)el2.textContent='°'+(S.tempUnit||'C');
+    setEl('lpSys', noP?'---':S.sbp);
+    setEl('lpDia', noP?'---':S.dbp);
+    setEl('lpMap', mv==='---'?'(---)':'('+mv+')');
+    // P1 box — show when ART active
+    const p1box=document.getElementById('lpP1box');
+    const showP1=S.artActive&&!nc2&&!dead2;
+    if(p1box){
+      p1box.classList.toggle('visible', showP1);
+      if(showP1){
+        const ps=S.artSbp||S.sbp, pd=S.artDbp||S.dbp;
+        setEl('lpP1s', ps);
+        setEl('lpP1d', pd);
+        setEl('lpP1m', '('+m3(ps,pd)+')');
+      }
+    }
+    // Update ART row label in LP skin
+    const wlArtLP=document.getElementById('wlArtLP');
+    if(wlArtLP) wlArtLP.innerHTML='<span style="color:#FFD700;font-weight:bold;">ART</span> <span style="font-size:9px;color:#888;">mmHg</span>';
+    // SpO2 row label stays as SpO2
+    const wlSpo2=document.getElementById('wlSpo2');
+    if(wlSpo2) wlSpo2.innerHTML='<span style="color:#4488ff;font-weight:bold;">SpO2</span> <span style="font-size:9px;color:#777;">1X</span>';
+  }
+}
+
+/* ── Waveform Engine ──────────────────────── */
+// Catmull-Rom spline → LUT
+const LS=2048;
+function cr(a,b,c,d,t){const t2=t*t,t3=t2*t;return.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);}
+function spAt(tbl,p){
+  const n=tbl.length;let i1=n-1;
+  for(let i=0;i<n;i++){if(tbl[i][0]>p){i1=i;break;}}
+  const i0=(i1-1+n)%n,i2=i1%n,i3=(i1+1)%n,im=(i1-2+n)%n;
+  const p1=tbl[i0][0],p2=tbl[i2][0];
+  const sl=p2>p1?p2-p1:p2-p1+1;
+  if(sl<1e-9)return tbl[i0][1];
+  return cr(tbl[im][1],tbl[i0][1],tbl[i2][1],tbl[i3][1],Math.max(0,Math.min(1,((p-p1+1)%1)/sl)));
+}
+function mkL(t){const a=new Float32Array(LS);for(let i=0;i<LS;i++)a[i]=spAt(t,i/LS);return a;}
+function sL(lut,ph){const f=((ph%1)+1)%1*(LS-1),i=Math.floor(f);return lut[i]*(1-(f-i))+lut[Math.min(i+1,LS-1)]*(f-i);}
+
+// Keyframes
+const NSR=[[0,.5],[.04,.5],[.058,.52],[.076,.537],[.09,.542],[.104,.537],[.118,.52],[.135,.5],[.162,.5],[.176,.488],[.184,.464],[.191,.498],[.2,.614],[.209,.828],[.214,.906],[.219,.952],[.224,.964],[.229,.924],[.236,.772],[.243,.596],[.249,.468],[.255,.484],[.264,.5],[.31,.5],[.355,.502],[.398,.51],[.436,.524],[.464,.54],[.482,.552],[.498,.556],[.514,.552],[.535,.54],[.56,.524],[.588,.51],[.622,.502],[.68,.5],[1,.5]];
+const TACHY=[[0,.5],[.038,.5],[.054,.516],[.068,.528],[.08,.532],[.092,.527],[.104,.514],[.118,.5],[.138,.5],[.148,.48],[.155,.459],[.161,.494],[.169,.596],[.176,.798],[.181,.9],[.186,.94],[.191,.902],[.198,.748],[.205,.576],[.211,.468],[.218,.486],[.228,.5],[.268,.5],[.298,.503],[.328,.512],[.354,.526],[.374,.538],[.388,.544],[.402,.543],[.418,.534],[.44,.518],[.462,.505],[.5,.5],[1,.5]];
+const BRADY=[[0,.5],[.022,.5],[.04,.514],[.06,.532],[.078,.542],[.096,.534],[.114,.516],[.132,.5],[.172,.5],[.192,.484],[.204,.458],[.212,.496],[.222,.634],[.234,.852],[.24,.924],[.246,.958],[.252,.966],[.258,.882],[.268,.718],[.278,.562],[.286,.464],[.294,.484],[.31,.5],[.375,.5],[.425,.503],[.48,.514],[.53,.534],[.572,.556],[.598,.566],[.622,.562],[.65,.546],[.685,.524],[.722,.506],[.782,.5],[.9,.5],[1,.5]];
+// ── Atrial Fibrillation Keyframes ────────────────────────────────────────────
+// Reference: LITFL AF ECG Library (Oct 2024), Ed Burns & Robert Buttner
+// Key features per LITFL:
+//   - Irregularly irregular ventricular rate (handled by jitter in sEcg)
+//   - NO P waves — replaced by fibrillatory (f) waves
+//   - ABSENCE of isoelectric baseline — continuous chaotic low-amplitude undulation
+//   - Fine fibrillatory waves throughout (amplitude ~0.5mm = ~0.006 normalised)
+//   - Narrow QRS (<120ms) — normal ventricular conduction
+//   - Normal T wave — upright, slightly broad
+//
+// The keyframe encodes ONE beat cycle. The fibrillatory baseline is baked into
+// the baseline segments — continuous irregular small oscillations replace the
+// flat isoelectric line seen in NSR. Amplitude of f-waves: ±0.012 (coarse AF).
+// Irregularity of R-R interval is applied by the jitter multiplier in sEcg().
+const AFIB=[
+  // ── Fibrillatory baseline — coarse f-waves, no isoelectric line ──
+  [0,.502],
+  [.008,.494],[.016,.508],[.024,.497],[.032,.511],[.040,.495],
+  [.048,.507],[.056,.492],[.064,.506],[.072,.496],[.080,.510],
+  [.088,.493],[.096,.508],[.104,.494],[.112,.507],[.120,.496],
+  [.130,.503],[.138,.491],
+  // ── QRS complex — narrow, normal morphology, no preceding P wave ──
+  // Small Q, rapid R upstroke, S notch — QRS < 120ms
+  [.145,.496],[.150,.479],[.155,.461],   // Q wave
+  [.160,.494],[.167,.636],[.174,.812],   // rapid upstroke
+  [.179,.916],[.184,.958],[.188,.976],   // R peak
+  [.192,.954],[.198,.874],[.205,.746],   // descent
+  [.212,.624],[.218,.530],[.223,.470],   // S wave notch
+  [.228,.492],[.234,.504],               // return to baseline
+  // ── Post-QRS fibrillatory baseline — T wave then f-waves resume ──
+  // T wave: upright, slightly broad, normal morphology
+  [.245,.505],[.260,.512],[.278,.524],
+  [.295,.534],[.312,.540],[.328,.538],   // T wave peak
+  [.345,.528],[.364,.514],[.382,.505],
+  // f-waves resume after T wave
+  [.398,.502],[.410,.494],[.422,.508],[.434,.496],[.446,.509],
+  [.458,.493],[.470,.506],[.482,.495],[.494,.508],[.506,.494],
+  [.520,.507],[.534,.493],[.548,.506],[.562,.495],[.578,.508],
+  [.594,.493],[.612,.506],[.632,.494],[.654,.507],[.678,.494],
+  [.704,.507],[.732,.493],[.762,.505],[.795,.495],[.832,.506],
+  [.872,.495],[.916,.504],[.960,.497],[1,.502]
+];
+
+// AF with Rapid Ventricular Response — same f-wave baseline, shorter R-R cycle
+// Rate ~110-160 bpm per LITFL: "AF most commonly associated with ventricular rate ~110-160"
+// QRS is identical — the rate difference is handled by HR slider + jitter
+// This keyframe is compressed to allow more beats per unit time
+const AFIBRVR=[
+  // ── Fibrillatory baseline — slightly coarser f-waves in RVR ──
+  [0,.503],
+  [.008,.493],[.016,.509],[.024,.495],[.032,.510],[.040,.494],
+  [.048,.508],[.056,.493],[.064,.507],[.072,.494],[.080,.509],
+  [.088,.493],[.096,.507],[.104,.494],[.110,.502],[.116,.492],
+  // ── QRS — same narrow morphology as AF ──
+  [.122,.494],[.127,.476],[.132,.456],   // Q
+  [.137,.490],[.143,.628],[.149,.808],   // upstroke
+  [.154,.912],[.158,.954],[.162,.974],   // R peak
+  [.166,.950],[.171,.868],[.177,.738],   // descent
+  [.183,.616],[.189,.524],[.194,.466],   // S notch
+  [.199,.489],[.204,.501],
+  // ── T wave ──
+  [.213,.506],[.226,.514],[.240,.526],
+  [.255,.536],[.268,.542],[.280,.540],   // T peak
+  [.294,.530],[.310,.516],[.326,.505],
+  // ── f-waves resume ──
+  [.340,.502],[.352,.492],[.364,.507],[.376,.493],[.390,.508],
+  [.404,.493],[.418,.506],[.434,.493],[.450,.507],[.468,.493],
+  [.488,.506],[.510,.493],[.534,.506],[.560,.493],[.590,.506],
+  [.624,.493],[.662,.505],[.706,.494],[.758,.505],[.820,.494],
+  [.892,.505],[.960,.495],[1,.503]
+];
+const AFLUTTER=[[0,.516],[.05,.532],[.09,.536],[.12,.522],[.148,.502],[.16,.5],[.178,.516],[.2,.53],[.222,.522],[.24,.504],[.248,.5],[.254,.48],[.26,.456],[.267,.494],[.275,.678],[.283,.866],[.289,.924],[.295,.956],[.301,.912],[.309,.758],[.317,.572],[.323,.464],[.331,.485],[.345,.5],[.37,.516],[.4,.528],[.428,.534],[.45,.526],[.47,.508],[.48,.5],[.51,.514],[.54,.526],[.562,.52],[.58,.506],[.59,.5],[1,.5]];
+const SVT=[[0,.5],[.018,.5],[.026,.484],[.033,.462],[.04,.498],[.048,.672],[.056,.858],[.062,.934],[.068,.952],[.074,.908],[.082,.756],[.09,.574],[.096,.464],[.103,.484],[.114,.5],[.148,.5],[.185,.504],[.215,.514],[.236,.52],[.25,.518],[.262,.508],[.278,.5],[1,.5]];
+const HB1=[[0,.5],[.028,.5],[.046,.513],[.064,.53],[.08,.54],[.096,.532],[.112,.515],[.128,.5],[.168,.5],[.21,.5],[.248,.5],[.26,.484],[.27,.458],[.278,.496],[.288,.634],[.298,.85],[.304,.922],[.31,.956],[.316,.966],[.323,.882],[.332,.718],[.341,.558],[.349,.462],[.357,.482],[.372,.5],[.42,.5],[.462,.504],[.506,.516],[.545,.533],[.572,.548],[.59,.554],[.608,.55],[.632,.536],[.66,.516],[.695,.502],[.74,.5],[1,.5]];
+const HB2N=[[0,.5],[.028,.5],[.046,.513],[.064,.529],[.08,.538],[.094,.53],[.108,.515],[.122,.5],[.158,.5],[.17,.484],[.178,.46],[.186,.496],[.195,.628],[.204,.842],[.21,.914],[.216,.946],[.222,.956],[.229,.87],[.238,.704],[.247,.548],[.255,.462],[.263,.482],[.278,.5],[.322,.5],[.362,.504],[.402,.516],[.436,.532],[.461,.545],[.478,.549],[.495,.545],[.518,.531],[.545,.512],[.578,.502],[.625,.5],[1,.5]];
+const HB2D=[[0,.5],[.055,.5],[.082,.514],[.11,.532],[.135,.542],[.158,.532],[.18,.514],[.202,.5],[1,.5]];
+const HB3=[[0,.5],[.022,.5],[.038,.51],[.054,.524],[.068,.532],[.08,.526],[.092,.512],[.104,.5],[.155,.5],[.18,.5],[.196,.508],[.212,.52],[.224,.524],[.236,.518],[.248,.502],[.26,.5],[.305,.5],[.32,.476],[.334,.442],[.346,.498],[.36,.594],[.375,.734],[.389,.836],[.4,.898],[.414,.88],[.43,.8],[.448,.682],[.464,.564],[.478,.444],[.49,.382],[.502,.358],[.516,.378],[.528,.416],[.542,.455],[.558,.488],[.576,.5],[.614,.5],[.63,.508],[.644,.518],[.656,.522],[.668,.516],[.68,.502],[.692,.5],[1,.5]];
+const VTACH=[[0,.5],[.038,.5],[.058,.558],[.086,.694],[.116,.836],[.14,.926],[.16,.958],[.176,.918],[.196,.798],[.22,.622],[.246,.444],[.266,.352],[.282,.314],[.298,.34],[.318,.396],[.346,.428],[.375,.418],[.404,.388],[.432,.358],[.462,.368],[.492,.396],[.53,.426],[.568,.446],[.624,.466],[.682,.488],[.758,.498],[.9,.5],[1,.5]];
+const VFIB=[[0,.5],[.055,.672],[.11,.81],[.165,.556],[.22,.304],[.275,.222],[.33,.394],[.385,.69],[.44,.814],[.495,.642],[.55,.346],[.605,.186],[.66,.258],[.715,.532],[.77,.774],[.825,.702],[.88,.524],[.94,.488],[1,.5]];
+// ── Inferior STEMI — Lead II ─────────────────────────────────────────────────
+// References: LITFL, SAEM, NIH StatPearls, Thoracic Key (2024)
+// Morphology: upright P → normal PR → PATHOLOGICAL Q wave (>0.04s, deep) →
+//   tall R → J-point elevation → CONCAVE ("smiley face") ST elevation →
+//   HYPERACUTE broad peaked T wave (broader than normal, taller than QRS in acute phase)
+// Note: ST elevation in II is present but III > II (RCA territory hallmark)
+// Concave (not convex/tombstone) morphology per SAEM/Healio references
+const STEMI=[
+  [0,.500],                   // isoelectric baseline
+  [.025,.500],                // flat pre-P segment
+  // ── Normal upright P wave ──
+  [.040,.506],[.052,.518],[.064,.528],[.076,.532],[.088,.526],
+  [.100,.516],[.112,.505],[.124,.500],
+  // ── PR segment — isoelectric ──
+  [.148,.500],
+  // ── Pathological Q wave — wide (>0.04s) and deep (>25% of R) ──
+  [.156,.496],[.162,.484],[.168,.464],[.174,.446],[.180,.462],
+  // ── R wave — tall, rapid upstroke ──
+  [.188,.530],[.196,.680],[.202,.820],[.208,.920],[.212,.964],
+  [.216,.976],[.220,.956],[.228,.880],[.236,.770],[.243,.660],
+  // ── J point — elevated ~2-3mm above baseline ──
+  [.248,.548],
+  // ── ST segment — CONCAVE upward elevation ("smiley face")
+  //    Gradual rise from J-point, plateau, then blends into T wave
+  //    Per SAEM: "concave upwards" is classic inferior STEMI ──
+  [.262,.554],[.278,.560],[.296,.566],[.318,.572],[.342,.576],
+  [.368,.580],[.392,.582],[.414,.580],
+  // ── Hyperacute T wave — broad, peaked, asymmetric
+  //    Upstroke less steep than downstroke, merges with elevated ST
+  //    Taller than normal T, peak stays above ST baseline level ──
+  [.430,.582],[.446,.592],[.462,.612],[.476,.636],[.490,.658],
+  [.502,.674],[.512,.682],[.520,.678],  // T peak
+  [.530,.664],[.542,.640],[.556,.612],[.572,.582],[.590,.560],
+  [.612,.540],[.638,.522],[.668,.510],[.710,.504],[.780,.501],
+  [1,.500]                    // return to baseline
+];
+// ── Junctional Escape Rhythm ──────────────────────────────────────────────────
+// Reference: LITFL (2025) — junctional-escape-rhythm-ecg-library
+// Features: NO visible P wave (retrograde P buried in QRS or absent),
+//   narrow QRS (<120ms), regular rhythm, rate 40-60bpm (at 18bpm = junctional bradycardia)
+//   Isoelectric baseline → absent P → narrow normal QRS → normal T → long pause
+const JUNCTIONAL=[
+  [0,.500],              // isoelectric baseline — no P wave
+  [.025,.500],
+  [.048,.500],           // PR segment absent — no atrial activity visible
+  [.070,.500],
+  // ── Narrow QRS — rapid upstroke, normal duration (<0.12s) ──
+  [.090,.492],[.097,.470],[.103,.454],[.109,.472],  // small q
+  [.116,.534],[.124,.682],[.130,.824],[.136,.916],
+  [.140,.960],[.144,.980],[.148,.958],[.154,.886],
+  [.162,.758],[.170,.618],[.177,.508],[.183,.484],  // S wave notch
+  [.190,.500],
+  // ── Normal T wave — upright, slightly broad ──
+  [.210,.500],[.240,.503],[.272,.512],[.304,.526],
+  [.330,.538],[.350,.544],[.366,.540],[.385,.528],
+  [.408,.512],[.435,.502],[.470,.500],
+  // ── Long isoelectric pause (slow rate) ──
+  [.550,.500],[.700,.500],[.850,.500],[1,.500]
+];
+// ── Arterial Line Waveforms ─────────────────────────────────────────────────
+// References: ChatPPG (2026), NIH StatPearls/NBK556127, ResearchGate fig (2024),
+//   Michard F. J Clin Monit Comput 2024 (PMC11297833)
+//
+// NORMAL: sharp anacrotic upstroke → systolic peak → incisura/dicrotic notch
+//   (aortic valve closure) → gradual diastolic runoff to end-diastolic pressure
+//   Damping coefficient 0.5–0.7 — faithful signal reproduction
+const ART_NORMAL=[
+  [0,0],
+  [.030,.005],   // end-diastolic baseline
+  // ── Rapid anacrotic upstroke (aortic valve opens) ──
+  [.060,.025],
+  [.085,.140],
+  [.108,.420],
+  [.128,.720],
+  [.148,.920],
+  [.162,.980],
+  [.170,1.000],  // systolic peak — sharp, well-defined
+  // ── Rapid descent from peak ──
+  [.182,.960],
+  [.196,.880],
+  [.210,.800],
+  [.222,.740],
+  // ── Dicrotic notch — incisura (aortic valve closure) — sharp V-dip ──
+  [.234,.700],
+  [.242,.672],   // notch nadir — clear and distinct
+  [.250,.695],   // dicrotic wave rebound
+  [.258,.680],
+  // ── Gradual diastolic runoff ──
+  [.300,.620],
+  [.360,.520],
+  [.440,.400],
+  [.540,.280],
+  [.650,.170],
+  [.760,.090],
+  [.870,.040],
+  [.940,.015],
+  [1,0]
+];
+
+// OVERDAMPED: "blunted and sluggish" (ChatPPG 2026)
+// Systolic peak UNDERESTIMATED, diastolic OVERESTIMATED
+// NO visible dicrotic notch — absorbed by damping
+// Slow broad rounded peak, elevated diastolic floor, narrow pulse pressure
+// Per NIH: "overdamped trace shows fewer than 1.5 oscillations below baseline,
+//   unclear dicrotic notch" (NBK556127)
+const ART_OVER=[
+  [0,.120],      // elevated diastolic floor (overestimated diastolic)
+  [.030,.118],
+  // ── Slow sluggish upstroke — no sharp anacrotic limb ──
+  [.080,.145],
+  [.130,.320],
+  [.180,.550],
+  [.230,.720],
+  [.270,.820],
+  [.310,.870],   // blunted, rounded systolic peak — LOWER than true
+  [.350,.855],
+  [.390,.840],   // broad flat top — no sharp peak
+  // ── Gradual gentle descent — NO dicrotic notch ──
+  [.430,.800],
+  [.480,.750],
+  [.540,.680],
+  [.610,.580],
+  [.680,.460],
+  [.750,.340],
+  [.830,.240],
+  [.900,.175],
+  [.950,.140],
+  [1,.120]       // returns to elevated diastolic
+];
+
+// UNDERDAMPED: "ringing" / resonance oscillation (NIH NBK556127)
+// Systolic OVERESTIMATED, diastolic UNDERESTIMATED
+// Multiple oscillations after peak ("ringing artifact")
+// Per ChatPPG: "overshoots the true pressure — oscillations above and below baseline"
+// Sharp upstroke overshoots, then rings with 3+ oscillations (square wave test finding)
+const ART_UNDER=[
+  [0,-.020],     // below true baseline (underestimated diastolic)
+  [.025,-.022],
+  // ── Exaggerated rapid upstroke — overshoot beyond true systolic ──
+  [.055,.010],
+  [.080,.200],
+  [.100,.600],
+  [.118,.950],
+  [.132,1.050],  // OVERSHOOT — exceeds true systolic (phantom spike)
+  [.140,1.000],
+  // ── Post-systolic ringing oscillations (3+) ──
+  [.150,.820],
+  [.158,.650],   // 1st oscillation trough
+  [.166,.780],   // 1st oscillation rebound
+  [.174,.640],   // 2nd oscillation trough
+  [.182,.750],   // 2nd oscillation rebound
+  [.190,.640],   // 3rd oscillation — dicrotic notch region buried in ringing
+  [.200,.700],
+  [.210,.660],
+  // ── Diastolic descent with residual ringing ──
+  [.240,.580],
+  [.290,.460],
+  [.370,.330],
+  [.460,.220],
+  [.560,.140],
+  [.670,.070],
+  [.780,.020],
+  [.880,-.010],  // dips below true baseline (underestimated diastolic)
+  [.940,-.018],
+  [1,-.020]
+];
+
+const CO2_KF=[[0,0],[.058,0],[.118,.002],[.175,.052],[.22,.22],[.26,.54],[.295,.84],[.326,.96],[.352,.988],[.4,.994],[.46,.994],[.52,.99],[.57,.984],[.614,.975],[.646,.958],[.668,.88],[.682,.648],[.694,.31],[.704,.086],[.716,.01],[.74,0],[1,0]];
+const CO2S_KF=[[0,0],[.04,0],[.095,.04],[.19,.28],[.3,.66],[.4,.94],[.47,.994],[.51,1],[.545,.86],[.572,.56],[.592,.22],[.61,.028],[.64,0],[1,0]];
+const SPO2_KF=[[0,.038],[.02,.038],[.05,.072],[.088,.24],[.122,.52],[.152,.79],[.176,.94],[.196,.992],[.214,1],[.232,.976],[.252,.9],[.27,.8],[.284,.722],[.295,.69],[.304,.68],[.314,.688],[.326,.714],[.34,.718],[.356,.7],[.38,.658],[.42,.556],[.478,.416],[.548,.284],[.626,.176],[.704,.096],[.782,.056],[.86,.04],[.94,.038],[1,.038]];
+
+// Build LUTs
+const L={
+  nsr:mkL(NSR),tachy:mkL(TACHY),brady:mkL(BRADY),afib:mkL(AFIB),afib_rvr:mkL(AFIBRVR),
+  aflutter:mkL(AFLUTTER),svt:mkL(SVT),hb1:mkL(HB1),hb2n:mkL(HB2N),hb2d:mkL(HB2D),
+  hb3:mkL(HB3),vtach:mkL(VTACH),vfib:mkL(VFIB),stemi:mkL(STEMI),junctional:mkL(JUNCTIONAL),
+  art:mkL(ART_NORMAL), artOver:mkL(ART_OVER), artUnder:mkL(ART_UNDER),
+  co2:mkL(CO2_KF),co2s:mkL(CO2S_KF),spo2:mkL(SPO2_KF)
+};
+
+// PA waveform: systolic 25-30mmHg, diastolic 10-15mmHg
+// Sharp upstroke, rounded peak, dicrotic notch on downstroke
+// Values normalised 0-1 where 1=systolic peak, 0=diastolic baseline
+// ── PA Waveform Keyframes ────────────────────────────────────────────────────
+// References: PMC8894225 (Hemodynamically Guided Therapy for Cardiogenic Shock),
+//   Cardiology Clinics 2013 (The Pulmonary Artery Catheter), When the Beat Drops
+//   CCU Guide (2024), ResearchGate PA catheter waveform diagram
+//   Mnemonic: "nickel-quarter-nickel-quarter-dime"
+//   Normal PA: systolic 15-30 / diastolic 5-15 mmHg, mean ~10-20 mmHg
+//
+// PA waveform: sharp rapid upstroke → rounded systolic peak →
+//   DICROTIC NOTCH (pulmonic valve closure — key differentiator from RV) →
+//   gradual diastolic descent → flat diastolic plateau
+// Normalised: 0 = diastolic floor, 1 = systolic peak
+const PA_KF=[
+  [0,.28],      // diastolic baseline (PA diastolic)
+  [.02,.27],    // pre-systole flat — isoelectric
+  [.04,.27],
+  // ── Rapid upstroke (pulmonic valve opens) ──
+  [.07,.34],
+  [.10,.52],
+  [.14,.76],
+  [.17,.91],
+  [.20,.98],
+  [.22,1.00],   // systolic peak
+  // ── Rapid downstroke ──
+  [.25,.95],
+  [.28,.84],
+  [.31,.70],
+  // ── Dicrotic notch (pulmonic valve closure) — sharp V-dip ──
+  [.34,.58],    // pre-notch descent
+  [.36,.54],    // notch nadir
+  [.38,.57],    // notch rebound (dicrotic wave)
+  [.40,.55],
+  // ── Diastolic descent — gradual slope downward ──
+  [.44,.48],
+  [.50,.40],
+  [.56,.34],
+  [.62,.30],
+  [.70,.28],    // diastolic plateau
+  [.80,.27],
+  [.90,.27],
+  [1,.28]       // back to diastolic baseline
+];
+
+// PCWP / Wedge: mean 6-12 mmHg
+// "Similar to RA waveform but at higher pressure and DELAYED vs QRS"
+// (Cardiology Clinics 2013, When the Beat Drops 2024)
+// a-wave = left atrial contraction (precedes mitral valve closure)
+// x descent = atrial relaxation
+// v-wave = passive LA filling during ventricular systole (v > a in normal)
+// y descent = mitral valve opens, LA drains into LV
+// Normalised: baseline 0.4, a-peak 0.70, v-peak 0.78
+const WEDGE_KF=[
+  [0,.38],      // baseline
+  [.04,.38],
+  // ── a-wave: left atrial contraction — delayed after QRS P wave ──
+  [.08,.40],
+  [.12,.52],
+  [.17,.68],
+  [.20,.70],    // a-wave peak
+  [.23,.64],
+  // ── x descent: atrial relaxation + mitral valve closure notch ──
+  [.27,.54],
+  [.30,.44],
+  [.33,.38],    // x trough
+  // ── c-wave: small notch from mitral valve closure (often absent) ──
+  [.36,.40],
+  [.38,.39],
+  // ── v-wave: passive LA filling during LV systole — v > a ──
+  [.42,.44],
+  [.47,.56],
+  [.53,.68],
+  [.58,.76],
+  [.62,.78],    // v-wave peak (larger than a-wave)
+  [.65,.72],
+  // ── y descent: mitral valve opens, rapid LA emptying ──
+  [.69,.60],
+  [.73,.48],
+  [.78,.40],
+  [.84,.38],    // y trough
+  [.90,.38],
+  [1,.38]       // return to baseline
+];
+
+// RV Waveform: systolic pressure = PA systolic (~25 mmHg)
+// Diastolic pressure NEAR ZERO (0-5 mmHg) — KEY differentiator from PA
+// NO dicrotic notch — distinguishes RV from PA on pullback
+// Square-wave rapid upstroke, rapid fall, low diastolic plateau
+// End-diastolic pressure (RVEDP) small bump just before systolic upstroke
+// Normalised: 0 = near-zero diastolic, 1 = systolic peak
+const RV_KF=[
+  [0,.06],      // near-zero diastolic plateau
+  [.02,.05],
+  [.04,.05],
+  // ── End-diastolic pressure bump (RVEDP) ──
+  [.06,.08],
+  [.08,.10],    // RVEDP — small notch just before systole
+  // ── Rapid near-vertical upstroke (faster than PA) ──
+  [.10,.18],
+  [.13,.48],
+  [.16,.78],
+  [.18,.93],
+  [.20,1.00],   // systolic peak
+  // ── Rapid fall — no dicrotic notch ──
+  [.22,.97],
+  [.25,.88],
+  [.28,.72],
+  [.32,.48],
+  [.36,.22],
+  [.40,.09],
+  [.44,.06],    // return to near-zero diastolic
+  // ── Long flat diastolic plateau (near zero) ──
+  [.55,.05],
+  [.70,.05],
+  [.85,.05],
+  [1,.06]
+];
+
+// RA / CVP Waveform: mean 2-8 mmHg
+// Per ResearchGate PA catheter waveform diagram (PMC8894225 reference):
+//   a = atrial systole/contraction (dominant wave — follows P wave)
+//   c = tricuspid valve closure (small, often merged with a or x)
+//   x = atrial relaxation descent
+//   v = ventricular systole (atrial passive filling) — smaller than a in RA
+//   y = passive RV filling (tricuspid valve opens)
+// Normalised: baseline 0.35, a-peak 0.75, v-peak 0.60
+const RA_KF=[
+  [0,.35],      // baseline (between y trough and next a-wave)
+  [.03,.36],
+  // ── a-wave: right atrial contraction — largest wave in RA ──
+  [.06,.40],
+  [.10,.54],
+  [.14,.70],
+  [.17,.75],    // a-wave peak
+  [.20,.68],
+  // ── c-wave: tricuspid valve closure (small notch) ──
+  [.23,.56],
+  [.25,.52],    // c-wave peak (small)
+  [.27,.48],
+  // ── x descent: atrial relaxation — downward slope ──
+  [.31,.40],
+  [.35,.35],    // x trough (nadir)
+  [.38,.33],
+  // ── v-wave: passive RA filling during RV systole — smaller than a ──
+  [.42,.36],
+  [.47,.46],
+  [.52,.56],
+  [.56,.60],    // v-wave peak (smaller than a)
+  [.59,.54],
+  // ── y descent: tricuspid valve opens, RA drains into RV ──
+  [.63,.46],
+  [.67,.38],
+  [.72,.35],    // y trough
+  [.78,.35],
+  [.88,.35],
+  [1,.35]       // return to baseline
+];
+
+// The four PA-catheter keyframe sets are each documented as "0 = diastolic
+// floor, 1 = systolic peak", but none of them actually spans 0 to 1 — PA_KF
+// bottoms out at .27, RA_KF at .33. Since sPA maps the curve onto the entered
+// diastolic and systolic, the trough was rendering above the diastolic the
+// panel displays beside it: a PA of 25/10 drew its diastolic at 14 mmHg.
+// Rescaling each LUT to its own range makes the trace read what the numbers say.
+// The arterial LUTs are deliberately NOT rescaled — underdamped overshoots past
+// systolic and undershoots below diastolic, and that overshoot is the finding.
+function normLut(lut){
+  let lo=Infinity,hi=-Infinity;
+  for(let i=0;i<lut.length;i++){if(lut[i]<lo)lo=lut[i];if(lut[i]>hi)hi=lut[i];}
+  const span=hi-lo;
+  if(span<1e-9) return lut;
+  const out=new Float32Array(lut.length);
+  for(let i=0;i<lut.length;i++) out[i]=(lut[i]-lo)/span;
+  return out;
+}
+const L_PA=normLut(mkL(PA_KF)), L_WEDGE=normLut(mkL(WEDGE_KF)),
+      L_RV=normLut(mkL(RV_KF)), L_RA=normLut(mkL(RA_KF));
+
+function sPA(t){
+  if(!S.patientConnected) return null;
+  if(!S.sgActive) return 0;
+  const hr=Math.max(S.hr,.5), bp=60/hr, ph=((t/bp)%1+1)%1;
+  const sc=S.sgScale||40;
+  let lut, sbp, dbp;
+  switch(S.sgMode){
+    case 'wedge': lut=L_WEDGE; sbp=S.sgPcwp; dbp=S.sgPcwp*.8; break;
+    case 'rv':    lut=L_RV;    sbp=S.sgSbp;  dbp=S.sgCvp;     break;
+    case 'ra':    lut=L_RA;    sbp=S.sgCvp;  dbp=S.sgCvp*.7;  break;
+    default:      lut=L_PA;    sbp=S.sgSbp;  dbp=S.sgDbp;     break;
+  }
+  return Math.max(0,Math.min(1,(dbp/sc)+(sbp/sc-dbp/sc)*sL(lut,ph)));
+}
+
+// PVC keyframe — wide, bizarre QRS, no P wave, compensatory pause, inverted T
+const PVC_KF=[
+  [0,.500],[.040,.500],[.060,.490],[.075,.468],[.090,.440],  // Q descent
+  [.105,.500],[.118,.600],[.132,.730],[.145,.840],[.158,.920],// R upstroke
+  [.168,.960],[.178,.980],[.188,.940],[.200,.860],[.215,.720],// R peak → S
+  [.230,.560],[.248,.400],[.265,.320],[.280,.298],[.295,.310],// S trough
+  [.315,.360],[.340,.400],[.370,.420],[.400,.416],[.430,.400],// ST segment (depressed)
+  [.460,.380],[.490,.366],[.515,.380],[.535,.404],[.552,.440],// inverted T
+  [.568,.468],[.582,.484],[.600,.500],                        // T end
+  [1.000,.500],                                               // compensatory pause
+];
+
+// PAC keyframe — early, narrow QRS, abnormal P wave, slightly short PR
+const PAC_KF=[
+  [0,.500],[.030,.500],[.045,.516],[.062,.528],[.075,.522],  // abnormal P wave
+  [.088,.508],[.100,.500],[.118,.500],                        // shortened PR
+  [.128,.485],[.136,.462],                                    // Q
+  [.143,.498],[.152,.640],[.160,.830],[.165,.910],           // R
+  [.170,.945],[.175,.910],[.182,.762],[.190,.594],           // R peak
+  [.196,.468],[.202,.486],[.212,.500],[.255,.500],           // S
+  [.290,.503],[.325,.512],[.355,.524],[.378,.533],           // T wave
+  [.394,.535],[.410,.530],[.430,.516],[.455,.504],[.490,.500],
+  [1.000,.500],
+];
+
+const L_PVC=mkL(PVC_KF);
+const L_PAC=mkL(PAC_KF);
+
+// Ectopic beat scheduler — fires at random intervals (every 4–8 beats)
+let ectNextBeat={pvc:0,pac:0};  // absolute time of next ectopic beat
+let ectActive={pvc:false,pac:false}; // currently in ectopic beat?
+let ectStartT={pvc:0,pac:0};   // time the ectopic beat started
+const ECT_BP=0.7; // ectopic beat duration in seconds (shorter than a normal beat)
+
+function scheduleEctopic(type,now,bp){
+  // S.ectFreq = target beats between ectopics (2=very frequent, 12=very rare)
+  const freq=S.ectFreq||6;
+  // Add ±1 beat of jitter so ectopics don't feel mechanical
+  ectNextBeat[type]=now+bp*(freq-1+Math.random()*2);
+}
+
+// Noise — advanced ONCE per frame, not per sample.
+// Only the pulse-oximetry channel uses it. Generators for ECG, ART and CO2 were
+// advanced every frame but never read by their sample functions, so those three
+// traces are noise-free by construction; they were dropped rather than left
+// looking like they do something.
+let nS=0,wS=0;
+function lp(v,a){return v*.94+(Math.random()-.5)*a;}
+function wd(v){return v*.9995+(Math.random()-.5)*.008;}
+function advanceNoise(){ nS=lp(nS,.004); wS=wd(wS); }
+
+const SPX=180; // px/sec
+
+// ── Per-lead ECG morphology transform table ────────────────────────────────
+// References: LITFL, ECGwaves.com (2025), Merck Manual, Queen's University ECG,
+//             ECG Utah, Johnson Francis cardiology, Cardiovascular Reference Values
+//
+// Each lead entry defines how the base Lead-II waveform is transformed:
+//   amp    : overall amplitude scale (1.0 = same as Lead II)
+//   inv    : invert entire QRS+T (net-negative lead)
+//   pInv   : invert P wave only (retrograde/opposite P axis)
+//   pBi    : P wave is biphasic (positive then negative) — V1 classic
+//   pAmp   : P wave amplitude scale (relative to base)
+//   rAmp   : R wave amplitude scale (precordial R-wave progression)
+//   sDeep  : add prominent S wave after R (rS or RS pattern)
+//   tInv   : invert T wave
+//   tAmp   : T wave amplitude scale
+//   qSmall : show small septal q before R (normal septal activation)
+//
+// Key clinical rules (NSR baseline):
+//  Lead I   : upright P, QRS, T — lateral view — modest amplitude
+//  Lead II  : tallest P, tallest T, upright all — REFERENCE lead (amp=1.0)
+//  Lead III : variable; P upright, QRS & T may be biphasic/low; q wave common
+//  aVR      : FULLY INVERTED — negative P, QRS, T (right arm = "looking in")
+//  aVL      : low/variable amplitude; P upright, T may be flat or inverted
+//  aVF      : inferior view; upright P, moderate QRS, upright T
+//  V1       : rS pattern (small r, deep S); biphasic P; T inverted (normal)
+//  V2       : rS pattern, S still prominent; T upright and tall
+//  V3       : transitional — R≈S; tall upright T
+//  V4       : R>S transition; tall upright T (precordial T peak near V2-V3)
+//  V5       : qRS pattern; R tall, S small; T upright, slightly smaller
+//  V6       : qR pattern; small septal q, tall R, no S; T upright
+//
+// P wave zone: ph 0.040–0.124  QRS zone: ph 0.148–0.248  T zone: ph 0.420–0.680
+const LEAD_CFG={
+  //         amp  inv  pInv pBi  pAmp rAmp sDeep tInv tAmp qSmall
+  'I':    {  amp:.80, inv:false,pInv:false,pBi:false,pAmp:.85,rAmp:.85,sDeep:.10,tInv:false,tAmp:.85,qSmall:true  },
+  'II':   {  amp:1.0, inv:false,pInv:false,pBi:false,pAmp:1.0,rAmp:1.0,sDeep:.08,tInv:false,tAmp:1.0,qSmall:false },
+  'III':  {  amp:.70, inv:false,pInv:false,pBi:false,pAmp:.65,rAmp:.70,sDeep:.12,tInv:false,tAmp:.70,qSmall:true  },
+  'aVR':  {  amp:.85, inv:true, pInv:false,pBi:false,pAmp:.90,rAmp:.80,sDeep:.05,tInv:false,tAmp:.90,qSmall:false },
+  'aVL':  {  amp:.60, inv:false,pInv:false,pBi:false,pAmp:.55,rAmp:.60,sDeep:.15,tInv:false,tAmp:.50,qSmall:true  },
+  'aVF':  {  amp:.80, inv:false,pInv:false,pBi:false,pAmp:.80,rAmp:.80,sDeep:.10,tInv:false,tAmp:.80,qSmall:false },
+  'V1':   {  amp:.55, inv:false,pInv:false,pBi:true, pAmp:.70,rAmp:.20,sDeep:.75,tInv:true, tAmp:.60,qSmall:false },
+  'V2':   {  amp:.70, inv:false,pInv:false,pBi:false,pAmp:.65,rAmp:.35,sDeep:.60,tInv:false,tAmp:1.1,qSmall:false },
+  'V3':   {  amp:.85, inv:false,pInv:false,pBi:false,pAmp:.75,rAmp:.60,sDeep:.45,tInv:false,tAmp:1.1,qSmall:false },
+  'V4':   {  amp:.95, inv:false,pInv:false,pBi:false,pAmp:.80,rAmp:.85,sDeep:.25,tInv:false,tAmp:1.0,qSmall:false },
+  'V5':   {  amp:.90, inv:false,pInv:false,pBi:false,pAmp:.80,rAmp:1.0,sDeep:.10,tInv:false,tAmp:.85,qSmall:true  },
+  'V6':   {  amp:.80, inv:false,pInv:false,pBi:false,pAmp:.80,rAmp:.90,sDeep:.02,tInv:false,tAmp:.75,qSmall:true  },
+};
+
+// Apply lead transform to a raw 0..1 sample value (baseline = 0.5)
+// ph = beat phase 0..1
+function applyLeadCfg(raw, ph, cfg){
+  let dv = raw - 0.5;
+
+  // Full QRS inversion (aVR)
+  if(cfg.inv) dv = -dv;
+
+  // P wave zone: ph 0.040–0.124
+  const inP = ph>=0.040 && ph<=0.124;
+  // QRS zone: ph 0.148–0.248
+  const inQRS = ph>=0.148 && ph<=0.248;
+  // T wave zone: ph 0.420–0.680
+  const inT = ph>=0.420 && ph<=0.680;
+
+  if(inP){
+    // Scale P wave amplitude
+    dv *= (cfg.pAmp !== undefined ? cfg.pAmp : 1.0);
+    // Biphasic P: first half positive, second half negative (V1 pattern)
+    if(cfg.pBi){
+      const pMid = 0.082; // midpoint of P zone
+      if(ph > pMid) dv = -Math.abs(dv) * 0.6; // negative terminal component
+    }
+    // Inverted P
+    if(cfg.pInv) dv = -dv;
+  } else if(inQRS){
+    // Small septal q wave before R (narrow, <0.04s — ph 0.148–0.170)
+    if(cfg.qSmall && ph>=0.148 && ph<=0.172){
+      // Suppress small portion of Q deflection to show septal q
+      if(dv<0) dv *= 0.4; // allow small q to show naturally but softened
+    }
+    // R wave amplitude scaling
+    if(dv > 0) dv *= (cfg.rAmp !== undefined ? cfg.rAmp : 1.0);
+    // S wave: add downward deflection after R peak (ph 0.216–0.248)
+    if(cfg.sDeep && ph>=0.216 && ph<=0.250){
+      const sShape = Math.sin(Math.PI*(ph-0.216)/0.034);
+      dv -= cfg.sDeep * sShape * 0.8;
+    }
+  } else if(inT){
+    // T wave amplitude scaling
+    dv *= (cfg.tAmp !== undefined ? cfg.tAmp : 1.0);
+    // T wave inversion (V1, aVR)
+    if(cfg.tInv) dv = -Math.abs(dv);
+  }
+
+  // Overall amplitude, applied once to every zone. The baseline/ST branch used
+  // to apply it too and then the tail applied it again, so the ST segment came
+  // out scaled by amp² — on V2 (amp .70) that is half the intended deflection,
+  // and the ST segment is exactly where a STEMI is read.
+  dv *= cfg.amp;
+
+  return dv + 0.5;
+}
+
+// Sample functions — pure math, no noise (noise added at render time)
+function sEcg(t){
+  // null means "draw nothing". A disconnected monitor used to show a flat green
+  // line at baseline, which is the one thing on this screen a student is being
+  // trained to read as asystole. Real equipment shows no trace and says so.
+  if(!S.patientConnected) return null;
+  const r=S.rhythm,hr=Math.max(S.hr,.5);
+  if(r==='vfib') return sL(L.vfib,(t*5%1+1)%1);
+  // Use a slow agonal rate (20 bpm) as the PVC schedule base during asystole
+  const bp=r==='asystole'?3.0:60/hr;
+
+  // ── Ectopic beat injection ──
+  // PVCs allowed in asystole (agonal/escape beats) — check BEFORE flat-line return
+  ['pvc','pac'].forEach(type=>{
+    const on=type==='pvc'?S.pvcOn:S.pacOn;
+    if(!on){ectActive[type]=false;ectNextBeat[type]=0;return;}
+    if(ectNextBeat[type]===0) scheduleEctopic(type,t,bp);
+    if(!ectActive[type]&&t>=ectNextBeat[type]){
+      ectActive[type]=true;
+      ectStartT[type]=t;
+    }
+    if(ectActive[type]&&(t-ectStartT[type])>=ECT_BP){
+      ectActive[type]=false;
+      scheduleEctopic(type,t,bp);
+    }
+  });
+
+  // Render PVC (takes priority — also fires during asystole as agonal beat)
+  if(S.pvcOn&&ectActive.pvc){
+    const ph=(t-ectStartT.pvc)/ECT_BP;
+    return sL(L_PVC,Math.max(0,Math.min(1,ph)));
+  }
+  // Render PAC
+  if(S.pacOn&&ectActive.pac){
+    const ph=(t-ectStartT.pac)/ECT_BP;
+    return sL(L_PAC,Math.max(0,Math.min(1,ph)));
+  }
+
+  // Asystole with no ectopics = flat line
+  if(r==='asystole') return .5;
+
+  // Every branch below ends at the same place: pick a LUT and a phase, then run
+  // the per-lead transform. It used to be applied only on the last branch, so
+  // changing the lead did nothing at all in A-Fib, paced and Mobitz rhythms.
+  const cfg=LEAD_CFG[S.lead||'II']||LEAD_CFG['II'];
+  if(r==='paced'){
+    const ph=((t/bp)%1+1)%1;
+    if(ph>.165&&ph<.172) return .98;   // pacing spike is not a lead-dependent deflection
+    return applyLeadCfg(sL(L.nsr,ph), ph, cfg);
+  }
+  if(r==='afib'||r==='afib_rvr'){
+    const j=r==='afib_rvr'?.28:.22;
+    const ph=((t/bp*(1+Math.sin(t*.8)*j*.5))%1+1)%1;
+    return applyLeadCfg(sL(r==='afib_rvr'?L.afib_rvr:L.afib,ph), ph, cfg);
+  }
+  if(r==='hb2'){
+    const ph=((t/bp)%1+1)%1;
+    return applyLeadCfg(sL(Math.floor(t/bp)%3===2?L.hb2d:L.hb2n,ph), ph, cfg);
+  }
+  const lm={tachy:L.tachy,brady:L.brady,aflutter:L.aflutter,svt:L.svt,hb1:L.hb1,hb3:L.hb3,vtach:L.vtach,stemi:L.stemi,junctional:L.junctional};
+  const ph=((t/bp)%1+1)%1;
+  return applyLeadCfg(sL(lm[r]||L.nsr,ph), ph, cfg);
+}
+function sArt(t){
+  if(!S.patientConnected) return null;
+  const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
+  const sb=S.artActive?(S.artSbp||S.sbp):0;
+  const db=S.artActive?(S.artDbp||S.dbp):0;
+  const sc=S.artScale||180;
+  if(dead||!S.artActive||!sb) return db/sc;
+  const ph=((t/(60/Math.max(S.hr,.5)))%1+1)%1;
+  // Select LUT by damping setting. The control panel's select emits 'over' and
+  // 'under'; this tested for 'overdamped'/'underdamped', so both damping
+  // waveforms were unreachable and the trace stayed normal whatever was picked.
+  // Long forms accepted too, in case an older saved state carries them.
+  const damp=S.artDamping||'normal';
+  const lut=(damp==='over'||damp==='overdamped')?L.artOver
+           :(damp==='under'||damp==='underdamped')?L.artUnder
+           :L.art;
+  return Math.max(0,Math.min(1, db/sc+(sb/sc-db/sc)*sL(lut,ph)));
+}
+function sCo2(t){
+  if(!S.patientConnected) return null;
+  if(S.etco2On===false) return 0;
+  const shape=S.co2Shape||'normal';
+  const etco2=S.etco2||0;
+  const rr=Math.max(S.rr||0,1);
+  if(shape==='flat') return 0;
+  if(shape==='cpr'){
+    const ph=((t/(60/100))%1+1)%1;
+    const n=Math.max(etco2,10)/60;
+    return ph<.35?n*.6*Math.sin(Math.PI*(ph/.35)):0;
+  }
+  if(!etco2||!S.rr) return 0;
+  const bp=60/rr, ph=((t/bp)%1+1)%1;
+  const n=etco2/60;
+  if(shape==='shark') return Math.max(0,Math.min(1,n*sL(L.co2s,ph)));
+  if(shape==='rebreathing'){
+    const base=n*.20;
+    if(ph<.25) return base+n*.75*Math.sin(Math.PI/2*(ph/.25));
+    if(ph<.55) return n;
+    if(ph<.65) return n-(n-base)*((ph-.55)/.10);
+    return base;
+  }
+  if(shape==='curare'){
+    if(ph<.06) return 0;
+    if(ph<.22) return n*.10*((ph-.06)/.16);
+    if(ph<.38) return n*.10+n*.88*((ph-.22)/.16);
+    if(ph<.50) return n;
+    if(ph<.54) return n-n*.30*Math.sin(Math.PI*((ph-.50)/.04));
+    if(ph<.58) return n;
+    if(ph<.66) return n*(1-((ph-.58)/.08)*.9);
+    return 0;
+  }
+  if(shape==='leak'){
+    const lk=Math.sin(t*7.3)*.08+Math.sin(t*13.1)*.06;
+    if(ph<.06) return 0;
+    if(ph<.22) return Math.max(0,n*.10*((ph-.06)/.16)+lk*.2);
+    if(ph<.38) return Math.max(0,n*.10+n*.88*((ph-.22)/.16));
+    if(ph<.68) return Math.max(n*.3,n+lk*.35);
+    if(ph<.76) return Math.max(0,n*(1-((ph-.68)/.08)));
+    return 0;
+  }
+  if(shape==='rosc'){
+    const n2=Math.min(etco2,55)/60;
+    if(ph<.06) return 0;
+    if(ph<.22) return n2*.12*((ph-.06)/.16);
+    if(ph<.38) return n2*.12+n2*.88*((ph-.22)/.16);
+    if(ph<.68) return n2;
+    if(ph<.76) return n2*(1-((ph-.68)/.08));
+    return 0;
+  }
+  if(shape==='hypervent'){
+    const rrf=Math.max(rr,24); const phf=((t/(60/rrf))%1+1)%1;
+    const nf=Math.min(etco2,30)/60;
+    if(phf<.04) return 0;
+    if(phf<.18) return nf*.10*((phf-.04)/.14);
+    if(phf<.32) return nf*.10+nf*.88*((phf-.18)/.14);
+    if(phf<.52) return nf;
+    if(phf<.60) return nf*(1-((phf-.52)/.08));
+    return 0;
+  }
+  if(shape==='hypovent'){
+    const rrs=Math.min(rr,8); const bps=60/Math.max(rrs,1); const phis=((t/bps)%1+1)%1;
+    const nh=Math.min(etco2,60)/60;
+    if(phis<.06) return 0;
+    if(phis<.22) return nh*.10*((phis-.06)/.16);
+    if(phis<.38) return nh*.10+nh*.88*((phis-.22)/.16);
+    if(phis<.68) return nh;
+    if(phis<.76) return nh*(1-((phis-.68)/.08));
+    return 0;
+  }
+  // normal
+  return Math.max(0,Math.min(1,n*sL(L.co2,ph)));
+}
+
+function sSpo2(t){
+  if(!S.patientConnected) return null;
+  const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
+  const quality=S.spo2Quality||'excellent';
+  if(dead||quality==='none') return .04;
+  if(quality==='motion'){nS=lp(nS,.12);return Math.max(.04,Math.min(.95,.5+nS));}
+  const hr=Math.max(S.hr,.5), bp=60/hr, ph=((t/bp)%1+1)%1;
+  const baseAmp=.78*(S.spo2/100)+.06;
+  const amp=quality==='poor'?baseAmp*.40:quality==='good'?baseAmp*.78:baseAmp;
+  const noiseAmt=quality==='poor'?.06:quality==='good'?.012:.003;
+  nS=lp(nS,noiseAmt); wS=wd(wS);
+  return Math.max(0,Math.min(1,amp*sL(L.spo2,ph)+.02+nS*.4+wS));
+}
+
+/* ── 12-Lead ECG Popup ─────────────────────── */
+let w12Lead=null;
+function open12Lead(){
+  // Always open/refresh — never close (close is handled by button toggle)
+  if(w12Lead&&!w12Lead.closed){ w12Lead.focus(); w12Lead=null; } // reset stale ref before reopening
+  w12Lead=window.open('','ECG12Lead','width=1100,height=780,resizable=yes');
+  if(!w12Lead) return;
+
+  // The popup carries its own copy of the keyframes and its own per-lead table
+  // (LEADS, below) because it is a separate document with no access to this
+  // one's scope. It is a snapshot: it renders the rhythm as it stands when the
+  // window opens and does not follow later changes.
+  const rhythmKey = S.rhythm;
+
+  // Build HTML with inline canvas rendering
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>12-Lead ECG — ${rhythmKey.toUpperCase()}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;color:#fff;font-family:'Arial Narrow',Arial,sans-serif;padding:10px;}
+h2{color:#00ff00;font-size:14px;letter-spacing:2px;text-align:center;margin-bottom:4px;text-transform:uppercase;}
+.info{text-align:center;font-size:11px;color:#888;margin-bottom:10px;letter-spacing:1px;}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border:1px solid #222;}
+.lead{border-right:1px solid #222;border-bottom:1px solid #222;padding:2px 4px 2px 4px;position:relative;}
+.lead:nth-child(4n){border-right:none;}
+.lead-name{font-size:10px;color:#aaa;letter-spacing:1px;position:absolute;top:3px;left:5px;z-index:2;}
+canvas{display:block;width:100%;height:100%;}
+.rhythm-row{grid-column:span 4;border-right:none;}
+.rhythm-row canvas{width:100%;height:70px;}
+.footer{text-align:center;font-size:10px;color:#555;margin-top:6px;letter-spacing:1px;}
+.rate-info{display:flex;justify-content:center;gap:30px;margin:4px 0;font-size:11px;}
+.rate-info span{color:#00ff00;}
+.rate-info label{color:#666;}
+</style>
+</head>
+<body>
+<h2>12-Lead Electrocardiogram</h2>
+<div class="info" id="rhythmLabel">Rhythm: —</div>
+<div class="rate-info">
+  <div><label>HR: </label><span id="hrDisp">—</span> <label>bpm</label></div>
+  <div><label>PR: </label><span id="prDisp">—</span> <label>ms</label></div>
+  <div><label>QRS: </label><span id="qrsDisp">—</span> <label>ms</label></div>
+  <div><label>QT: </label><span id="qtDisp">—</span> <label>ms</label></div>
+</div>
+<div class="grid" id="leadGrid">
+  <div class="lead" style="height:90px"><div class="lead-name">I</div><canvas id="L_I"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">aVR</div><canvas id="L_aVR"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">V1</div><canvas id="L_V1"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">V4</div><canvas id="L_V4"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">II</div><canvas id="L_II"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">aVL</div><canvas id="L_aVL"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">V2</div><canvas id="L_V2"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">V5</div><canvas id="L_V5"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">III</div><canvas id="L_III"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">aVF</div><canvas id="L_aVF"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">V3</div><canvas id="L_V3"></canvas></div>
+  <div class="lead" style="height:90px"><div class="lead-name">V6</div><canvas id="L_V6"></canvas></div>
+  <div class="lead rhythm-row" style="height:70px"><div class="lead-name">II (Rhythm Strip)</div><canvas id="L_rhythm"></canvas></div>
+</div>
+<div class="footer">Patient Simulation Monitor — Auto-generated 12-Lead ECG</div>
+<div class="footer" id="qtcRow" style="display:none;margin-top:4px;font-size:12px;color:#ff4444;letter-spacing:1px;">
+  ⚠ QTc: <span id="qtcVal">587</span> ms &nbsp;|&nbsp; PROLONGED QT — Risk of Torsades de Pointes
+</div>
+<div class="footer" id="osbornNote" style="display:none;margin-top:2px;font-size:11px;color:#00ccff;letter-spacing:1px;">
+  J waves (Osborn waves) visible — consistent with hypothermia (LITFL)
+</div>
+
+<scr\ipt>
+// Receive LUT data from parent
+const PARENT_S = ${JSON.stringify({
+  rhythm: S.rhythm, hr: S.hr, sbp: S.sbp, dbp: S.dbp,
+  spo2: S.spo2, etco2: S.etco2, rr: S.rr, patientType: S.patientType,
+  scenario: S.scenario
+})};
+
+// Catmull-Rom spline
+const LS=2048;
+function cr(a,b,c,d,t){const t2=t*t,t3=t2*t;return.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);}
+function spAt(tbl,p){
+  const n=tbl.length;let i1=n-1;
+  for(let i=0;i<n;i++){if(tbl[i][0]>p){i1=i;break;}}
+  const i0=(i1-1+n)%n,i2=i1%n,i3=(i1+1)%n,im=(i1-2+n)%n;
+  const p1=tbl[i0][0],p2=tbl[i2][0];
+  const sl=p2>p1?p2-p1:p2-p1+1;
+  if(sl<1e-9)return tbl[i0][1];
+  return cr(tbl[im][1],tbl[i0][1],tbl[i2][1],tbl[i3][1],Math.max(0,Math.min(1,((p-p1+1)%1)/sl)));
+}
+function mkL(t){const a=new Float32Array(LS);for(let i=0;i<LS;i++)a[i]=spAt(t,i/LS);return a;}
+function sL(lut,ph){const f=((ph%1)+1)%1*(LS-1),i=Math.floor(f);return lut[i]*(1-(f-i))+lut[Math.min(i+1,LS-1)]*(f-i);}
+
+// Base ECG LUT keyframes (same as main monitor)
+const KFs={
+  nsr:[[0,.5],[.04,.5],[.058,.52],[.076,.537],[.09,.542],[.104,.537],[.118,.52],[.135,.5],[.162,.5],[.176,.488],[.184,.464],[.191,.498],[.2,.614],[.209,.828],[.214,.906],[.219,.952],[.224,.964],[.229,.924],[.236,.772],[.243,.596],[.249,.468],[.255,.484],[.264,.5],[.31,.5],[.355,.502],[.398,.51],[.436,.524],[.464,.54],[.482,.552],[.498,.556],[.514,.552],[.535,.54],[.56,.524],[.588,.51],[.622,.502],[.68,.5],[1,.5]],
+  tachy:[[0,.5],[.038,.5],[.054,.516],[.068,.528],[.08,.532],[.092,.527],[.104,.514],[.118,.5],[.138,.5],[.148,.48],[.155,.459],[.161,.494],[.169,.596],[.176,.798],[.181,.9],[.186,.94],[.191,.902],[.198,.748],[.205,.576],[.211,.468],[.218,.486],[.228,.5],[.268,.5],[.298,.503],[.328,.512],[.354,.526],[.374,.538],[.388,.544],[.402,.543],[.418,.534],[.44,.518],[.462,.505],[.5,.5],[1,.5]],
+  brady:[[0,.5],[.022,.5],[.04,.514],[.06,.532],[.078,.542],[.096,.534],[.114,.516],[.132,.5],[.172,.5],[.192,.484],[.204,.458],[.212,.496],[.222,.634],[.234,.852],[.24,.924],[.246,.958],[.252,.966],[.258,.882],[.268,.718],[.278,.562],[.286,.464],[.294,.484],[.31,.5],[.375,.5],[.425,.503],[.48,.514],[.53,.534],[.572,.556],[.598,.566],[.622,.562],[.65,.546],[.685,.524],[.722,.506],[.782,.5],[.9,.5],[1,.5]],
+  afib:[[0,.502],[.008,.494],[.016,.508],[.024,.497],[.032,.511],[.040,.495],[.048,.507],[.056,.492],[.064,.506],[.072,.496],[.080,.510],[.088,.493],[.096,.508],[.104,.494],[.112,.507],[.120,.496],[.130,.503],[.138,.491],[.145,.496],[.150,.479],[.155,.461],[.160,.494],[.167,.636],[.174,.812],[.179,.916],[.184,.958],[.188,.976],[.192,.954],[.198,.874],[.205,.746],[.212,.624],[.218,.530],[.223,.470],[.228,.492],[.234,.504],[.245,.505],[.260,.512],[.278,.524],[.295,.534],[.312,.540],[.328,.538],[.345,.528],[.364,.514],[.382,.505],[.398,.502],[.422,.508],[.446,.509],[.470,.506],[.494,.508],[.520,.507],[.548,.506],[.578,.508],[.612,.506],[.654,.507],[.704,.507],[.762,.505],[.832,.506],[.916,.504],[1,.502]],
+  afib_rvr:[[0,.503],[.008,.493],[.016,.509],[.024,.495],[.032,.510],[.040,.494],[.048,.508],[.056,.493],[.064,.507],[.072,.494],[.080,.509],[.088,.493],[.096,.507],[.104,.494],[.110,.502],[.116,.492],[.122,.494],[.127,.476],[.132,.456],[.137,.490],[.143,.628],[.149,.808],[.154,.912],[.158,.954],[.162,.974],[.166,.950],[.171,.868],[.177,.738],[.183,.616],[.189,.524],[.194,.466],[.199,.489],[.204,.501],[.213,.506],[.226,.514],[.240,.526],[.255,.536],[.268,.542],[.280,.540],[.294,.530],[.310,.516],[.326,.505],[.352,.492],[.376,.493],[.404,.493],[.434,.493],[.468,.493],[.510,.493],[.560,.493],[.624,.493],[.706,.494],[.820,.494],[.960,.495],[1,.503]],
+  aflutter:[[0,.516],[.05,.532],[.09,.536],[.12,.522],[.148,.502],[.16,.5],[.178,.516],[.2,.53],[.222,.522],[.24,.504],[.248,.5],[.254,.48],[.26,.456],[.267,.494],[.275,.678],[.283,.866],[.289,.924],[.295,.956],[.301,.912],[.309,.758],[.317,.572],[.323,.464],[.331,.485],[.345,.5],[.37,.516],[.4,.528],[.428,.534],[.45,.526],[.47,.508],[.48,.5],[.51,.514],[.54,.526],[.562,.52],[.58,.506],[.59,.5],[1,.5]],
+  svt:[[0,.5],[.018,.5],[.026,.484],[.033,.462],[.04,.498],[.048,.672],[.056,.858],[.062,.934],[.068,.952],[.074,.908],[.082,.756],[.09,.574],[.096,.464],[.103,.484],[.114,.5],[.148,.5],[.185,.504],[.215,.514],[.236,.52],[.25,.518],[.262,.508],[.278,.5],[1,.5]],
+  hb1:[[0,.5],[.028,.5],[.046,.513],[.064,.53],[.08,.54],[.096,.532],[.112,.515],[.128,.5],[.168,.5],[.21,.5],[.248,.5],[.26,.484],[.27,.458],[.278,.496],[.288,.634],[.298,.85],[.304,.922],[.31,.956],[.316,.966],[.323,.882],[.332,.718],[.341,.558],[.349,.462],[.357,.482],[.372,.5],[.42,.5],[.462,.504],[.506,.516],[.545,.533],[.572,.548],[.59,.554],[.608,.55],[.632,.536],[.66,.516],[.695,.502],[.74,.5],[1,.5]],
+  hb2:[[0,.5],[.028,.5],[.046,.513],[.064,.529],[.08,.538],[.094,.53],[.108,.515],[.122,.5],[.158,.5],[.17,.484],[.178,.46],[.186,.496],[.195,.628],[.204,.842],[.21,.914],[.216,.946],[.222,.956],[.229,.87],[.238,.704],[.247,.548],[.255,.462],[.263,.482],[.278,.5],[.322,.5],[.362,.504],[.402,.516],[.436,.532],[.461,.545],[.478,.549],[.495,.545],[.518,.531],[.545,.512],[.578,.502],[.625,.5],[1,.5]],
+  hb3:[[0,.5],[.022,.5],[.038,.51],[.054,.524],[.068,.532],[.08,.526],[.092,.512],[.104,.5],[.155,.5],[.18,.5],[.196,.508],[.212,.52],[.224,.524],[.236,.518],[.248,.502],[.26,.5],[.305,.5],[.32,.476],[.334,.442],[.346,.498],[.36,.594],[.375,.734],[.389,.836],[.4,.898],[.414,.88],[.43,.8],[.448,.682],[.464,.564],[.478,.444],[.49,.382],[.502,.358],[.516,.378],[.528,.416],[.542,.455],[.558,.488],[.576,.5],[.614,.5],[.63,.508],[.644,.518],[.656,.522],[.668,.516],[.68,.502],[.692,.5],[1,.5]],
+  vtach:[[0,.5],[.038,.5],[.058,.558],[.086,.694],[.116,.836],[.14,.926],[.16,.958],[.176,.918],[.196,.798],[.22,.622],[.246,.444],[.266,.352],[.282,.314],[.298,.34],[.318,.396],[.346,.428],[.375,.418],[.404,.388],[.432,.358],[.462,.368],[.492,.396],[.53,.426],[.568,.446],[.624,.466],[.682,.488],[.758,.498],[.9,.5],[1,.5]],
+  vfib:[[0,.5],[.055,.672],[.11,.81],[.165,.556],[.22,.304],[.275,.222],[.33,.394],[.385,.69],[.44,.814],[.495,.642],[.55,.346],[.605,.186],[.66,.258],[.715,.532],[.77,.774],[.825,.702],[.88,.524],[.94,.488],[1,.5]],
+  stemi:[[0,.5],[.030,.5],[.050,.516],[.068,.532],[.082,.540],[.096,.532],[.110,.516],[.126,.5],[.148,.5],[.165,.5],[.172,.486],[.178,.472],[.184,.460],[.188,.475],[.195,.590],[.204,.780],[.211,.910],[.216,.956],[.221,.970],[.226,.930],[.234,.780],[.242,.626],[.248,.520],[.254,.540],[.260,.556],[.272,.572],[.290,.584],[.312,.594],[.336,.600],[.360,.596],[.384,.590],[.406,.586],[.428,.580],[.446,.594],[.462,.626],[.476,.664],[.488,.698],[.498,.720],[.508,.710],[.518,.688],[.530,.654],[.544,.618],[.560,.584],[.576,.558],[.592,.536],[.610,.520],[.630,.510],[.700,.502],[1,.5]],
+  paced:[[0,.5],[.04,.5],[.058,.52],[.076,.537],[.09,.542],[.104,.537],[.118,.52],[.135,.5],[.162,.5],[.176,.488],[.184,.464],[.191,.498],[.2,.614],[.209,.828],[.214,.906],[.219,.952],[.224,.964],[.229,.924],[.236,.772],[.243,.596],[.249,.468],[.255,.484],[.264,.5],[.31,.5],[.355,.502],[.398,.51],[.436,.524],[.464,.54],[.482,.552],[.498,.556],[.514,.552],[.535,.54],[.56,.524],[.588,.51],[.622,.502],[.68,.5],[1,.5]],
+  asystole:[[0,.5],[1,.5]],
+  junctional:[[0,.5],[.025,.5],[.048,.5],[.070,.5],[.090,.492],[.097,.470],[.103,.454],[.109,.472],[.116,.534],[.124,.682],[.130,.824],[.136,.916],[.140,.960],[.144,.980],[.148,.958],[.154,.886],[.162,.758],[.170,.618],[.177,.508],[.183,.484],[.190,.5],[.210,.5],[.240,.503],[.272,.512],[.304,.526],[.330,.538],[.350,.544],[.366,.540],[.385,.528],[.408,.512],[.435,.502],[.470,.5],[.550,.5],[.700,.5],[.850,.5],[1,.5]],
+};
+
+// Lead configs: [ampScale, invert, ST_shift]
+const LEADS={
+  'I':   {a:.70, inv:false, st:0},
+  'II':  {a:1.00, inv:false, st:0},
+  'III': {a:.50, inv:false, st:0},
+  'aVR': {a:.80, inv:true,  st:0},
+  'aVL': {a:.40, inv:false, st:0},
+  'aVF': {a:.70, inv:false, st:0},
+  'V1':  {a:.65, inv:true,  st:0},
+  'V2':  {a:.90, inv:false, st:0},
+  'V3':  {a:1.00, inv:false, st:0},
+  'V4':  {a:1.10, inv:false, st:0},
+  'V5':  {a:1.00, inv:false, st:0},
+  'V6':  {a:.80, inv:false, st:0},
+};
+
+// ── Inferior STEMI 12-lead ───────────────────────────────────────────────────
+// References: LITFL (2024), SAEM, NIH StatPearls, Thoracic Key
+// RCA occlusion pattern: ST elevation III > II > aVF
+// Reciprocal: aVL (mirror image of III — most prominent), I (mild), V1-V3 (posterior)
+// Pathological Q waves: III and aVF (>0.04s, >25% R amplitude)
+// Hyperacute T waves: II, III, aVF (tall, broad, peaked)
+// T wave inversion: aVL (true reciprocal — exact mirror of III)
+if(PARENT_S.rhythm==='stemi'){
+  // ── Inferior leads — ST ELEVATION (concave morphology) ──
+  LEADS['II'].st   = +.050;  // moderate — 2-3mm
+  LEADS['III'].st  = +.085;  // LARGEST (III > II hallmark of RCA — LITFL)
+  LEADS['aVF'].st  = +.065;  // intermediate
+
+  // ── High lateral leads — RECIPROCAL ST DEPRESSION ──
+  LEADS['aVL'].st  = -.082;  // mirror of III — most prominent reciprocal change
+  LEADS['I'].st    = -.028;  // mild — I and aVL electrically contiguous
+
+  // ── Posterior/septal involvement — mild ST depression ──
+  LEADS['V1'].st   = -.035;  // V1 depression with inferior STEMI (RCA)
+  LEADS['V2'].st   = -.040;  // V2 often shows posterior reciprocal changes
+  LEADS['V3'].st   = -.015;  // subtle posterior reciprocal
+
+  // ── Amplitude scaling for Q-wave effect ──
+  // Pathological Q waves in III and aVF reduce apparent R amplitude
+  LEADS['III'].a   = 0.70;   // reduced R — prominent Q wave
+  LEADS['aVF'].a   = 0.76;   // reduced R — Q wave formation
+  LEADS['II'].a    = 0.88;   // mildly reduced R
+
+  // ── Hyperacute T wave boost — inferior leads ──
+  // Tall, broad, peaked T waves — often first ECG sign of STEMI
+  LEADS['II'].tBoost   = 1.30;
+  LEADS['III'].tBoost  = 1.40;  // most prominent hyperacute T
+  LEADS['aVF'].tBoost  = 1.25;
+
+  // ── T wave changes in reciprocal leads ──
+  LEADS['aVL'].tInv = true;   // T inversion — reciprocal of inferior hyperacute T
+  LEADS['I'].tInv   = false;  // I: ST depression but T may remain upright
+}
+
+const rhy = PARENT_S.rhythm;
+const baseLUT = mkL(KFs[rhy]||KFs.nsr);
+const hr = Math.max(PARENT_S.hr||78, .5);
+const bp = 60/hr; // seconds per beat
+
+// Interval labels
+const PR_MS  = {nsr:160,tachy:140,brady:180,afib:0,afib_rvr:0,aflutter:0,svt:80,hb1:240,hb2:200,hb3:0,vtach:0,vfib:0,stemi:165,paced:0,asystole:0};
+const QRS_MS = {nsr:90,tachy:85,brady:95,afib:90,afib_rvr:88,aflutter:90,svt:75,hb1:90,hb2:90,hb3:140,vtach:160,vfib:0,stemi:95,paced:120,asystole:0};
+const QT_MS  = {nsr:400,tachy:340,brady:440,afib:380,afib_rvr:360,aflutter:370,svt:280,hb1:410,hb2:400,hb3:480,vtach:380,vfib:0,stemi:440,paced:420,asystole:0};
+const RHYTHM_NAMES={nsr:'Normal Sinus Rhythm',tachy:'Sinus Tachycardia',brady:'Sinus Bradycardia',afib:'Atrial Fibrillation',afib_rvr:'Atrial Fibrillation with RVR',aflutter:'Atrial Flutter',svt:'Supraventricular Tachycardia',hb1:'1st Degree Heart Block',hb2:'2nd Degree Heart Block (Mobitz II)',hb3:'3rd Degree (Complete) Heart Block',vtach:'Ventricular Tachycardia',vfib:'Ventricular Fibrillation',stemi:'Inferior Wall STEMI',paced:'Ventricular Paced Rhythm',asystole:'Asystole',junctional:'Junctional Escape Rhythm'};
+
+document.getElementById('rhythmLabel').textContent='Rhythm: '+(RHYTHM_NAMES[rhy]||rhy.toUpperCase());
+document.getElementById('hrDisp').textContent=PARENT_S.hr||'---';
+document.getElementById('prDisp').textContent=PR_MS[rhy]||'---';
+document.getElementById('qrsDisp').textContent=QRS_MS[rhy]||'---';
+document.getElementById('qtDisp').textContent=QT_MS[rhy]||'---';
+
+// ── Pediatric Drowning — Osborn waves + prolonged QTc ────────────────────────
+// References: LITFL Osborn Wave (J Wave) 2025; LITFL Long QT Syndrome
+// Osborn (J) wave: positive deflection at J point, most prominent in precordial
+//   and inferior leads; negative (reciprocal) in aVR and V1 — hallmark of hypothermia
+// QTc 587ms: severely prolonged — risk of Torsades de Pointes (Long QT per LITFL)
+const isDrowning = PARENT_S.scenario === 'drowning';
+if(isDrowning){
+
+  // Osborn wave amplitude (proportional to degree of hypothermia)
+  // Moderate hypothermia (drowning scenario ~32-34°C): prominent J waves
+  // Most visible in: V3, V4, V5, V6, II, III, aVF
+  // Reciprocal negative deflection: aVR, V1
+  const oAmp = 0.18; // prominent Osborn waves for moderate hypothermia
+
+  LEADS['II'].osborn   = oAmp * 0.80;
+  LEADS['III'].osborn  = oAmp * 0.90;
+  LEADS['aVF'].osborn  = oAmp * 0.85;
+  LEADS['V2'].osborn   = oAmp * 0.70;
+  LEADS['V3'].osborn   = oAmp * 1.00;  // most prominent in mid-precordial
+  LEADS['V4'].osborn   = oAmp * 1.00;
+  LEADS['V5'].osborn   = oAmp * 0.90;
+  LEADS['V6'].osborn   = oAmp * 0.75;
+  LEADS['I'].osborn    = oAmp * 0.50;
+  LEADS['aVL'].osborn  = oAmp * 0.40;
+  // Reciprocal negative J deflection in aVR and V1
+  LEADS['aVR'].osborn  = -(oAmp * 0.75);
+  LEADS['V1'].osborn   = -(oAmp * 0.60);
+
+  // Also widen T wave (QT prolongation effect) in all leads
+  Object.keys(LEADS).forEach(k=>{ LEADS[k].qtWide = true; });
+}
+
+// Every modifier below (ST shift, T boost, T inversion, Osborn wave, QT
+// widening) is a deviation in the same normalised units as the LUT itself,
+// where the R wave is about 0.48 and the baseline is 0. They each used to be
+// multiplied by the panel height as well, and the y mapping at the bottom of
+// this function multiplies by the height again — so on a 90px panel every one
+// of them came out around thirty times too large. The result was that any lead
+// carrying an ST shift railed against the top or bottom of its box and drew as
+// a square: the 12-lead was unreadable for STEMI, which is most of what a
+// 12-lead is opened for.
+//
+// ST_GAIN converts the millimetre-ish values in LEADS[].st into that same
+// normalised space: ~2.5mm of elevation against an R wave of ~10mm.
+const ST_GAIN=1.6;
+// Panel width per cardiac cycle, shared by the twelve leads and the rhythm
+// strip so they all run at one speed.
+const PX_PER_BEAT=108;
+function drawLead(canvasId, cfg){
+  const c=document.getElementById(canvasId);
+  if(!c)return;
+  const W=c.offsetWidth||c.parentElement.clientWidth||240;
+  const H=c.offsetHeight||c.parentElement.clientHeight||90;
+  c.width=W; c.height=H;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=.5;
+  const gx=36;
+  for(let x=0;x<W;x+=gx/5){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=H/8){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='#222'; ctx.lineWidth=.7;
+  for(let x=0;x<W;x+=gx){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=H/2){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // One paper speed for every panel. Deriving beats-per-panel from the width
+  // meant the full-width rhythm strip drew the same 2.5 beats as the quarter-
+  // width leads above it, stretched over four times the distance — the strip
+  // ran at a quarter of their speed and the morphology read as broad humps.
+  const pxPerBeat=PX_PER_BEAT;
+  ctx.strokeStyle='#00ff00'; ctx.lineWidth=1.6;
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.shadowBlur=5; ctx.shadowColor='#00ff00';
+  ctx.beginPath();
+
+  const mid=H*.5;
+  const amp=(H*.38)*cfg.a;
+
+  for(let px=0;px<W;px++){
+    const ph=((px/pxPerBeat)%1+1)%1;
+    let v=sL(baseLUT,ph); // 0..1, baseline .5
+    // Apply pacing spike
+    if(rhy==='paced'&&ph>.165&&ph<.172) v=.98;
+    // Centre around 0
+    let dv=(v-.5);
+    // Apply lead inversion
+    if(cfg.inv) dv=-dv;
+    // Scale amplitude
+    dv*=cfg.a;
+    // ST elevation/depression — apply across entire ST-T segment (post J-point to end of T)
+    // ST zone: ~0.24 to 0.65 of beat cycle
+    if(cfg.st&&ph>.240&&ph<.700){
+      // Graduated effect: full in plateau, taper at edges for smooth transition
+      let stFactor=1.0;
+      if(ph<.265) stFactor=(ph-.240)/.025; // ramp up at J-point
+      if(ph>.620) stFactor=1-(ph-.620)/.080; // ramp down at T end
+      dv+=cfg.st*ST_GAIN*Math.max(0,stFactor);
+    }
+    // T wave boost for hyperacute T (inferior leads in STEMI)
+    if(cfg.tBoost&&ph>.420&&ph<.640){
+      const tCenter=.510;
+      const tShape=Math.exp(-Math.pow((ph-tCenter)/.10,2));
+      const baseT=(v-.5);
+      dv+=(cfg.tBoost-1)*Math.abs(baseT)*tShape;
+    }
+    // T wave inversion for reciprocal leads
+    if(cfg.tInv&&ph>.420&&ph<.640){
+      const tCenter=.510;
+      const tShape=Math.exp(-Math.pow((ph-tCenter)/.10,2));
+      dv-=0.08*tShape; // add downward T deflection
+    }
+    // ── Osborn (J) wave — hypothermia (Pediatric Drowning) ──
+    // Positive dome-shaped deflection immediately after J-point (ph ~0.248–0.310)
+    // "A slow deflection between QRS and ST segment resembling a domed T wave" (Tomaszewski 1938)
+    // Negative reciprocal in aVR and V1
+    if(cfg.osborn&&ph>=0.248&&ph<=0.340){
+      // Gaussian dome centered at ph 0.290 — slow, rounded deflection
+      const oCenter=0.290;
+      const oShape=Math.exp(-Math.pow((ph-oCenter)/0.030,2));
+      dv+=cfg.osborn*oShape;
+    }
+    // QT widening — T wave stretched rightward in hypothermia
+    // Shifts T wave center and broadens it when qtWide is set
+    if(cfg.qtWide&&ph>=0.380&&ph<=0.720){
+      const tCenter=0.560; // shifted right vs normal 0.510
+      const tShape=Math.exp(-Math.pow((ph-tCenter)/0.115,2));
+      const baseTv=(sL(baseLUT,ph)-.5);
+      if(Math.abs(baseTv)>0.01) dv+=baseTv*cfg.a*tShape*0.25;
+    }
+    // Asystole / vfib special
+    if(rhy==='asystole') dv=0;
+    if(rhy==='vfib') dv=(Math.random()-.5)*0.6*cfg.a;
+    const y=mid-dv*(H*.38);
+    px===0?ctx.moveTo(px,y):ctx.lineTo(px,y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+// Draw all 12 leads + rhythm strip — deferred to window.onload so canvases are sized
+window.onload=function(){
+  // Set interval labels
+  document.getElementById('rhythmLabel').textContent='Rhythm: '+(RHYTHM_NAMES[rhy]||rhy.toUpperCase());
+  document.getElementById('hrDisp').textContent=PARENT_S.hr||'---';
+  document.getElementById('prDisp').textContent=PR_MS[rhy]||'---';
+  document.getElementById('qrsDisp').textContent=QRS_MS[rhy]||'---';
+  document.getElementById('qtDisp').textContent=QT_MS[rhy]||'---';
+  if(isDrowning){
+    document.getElementById('qtcRow').style.display='block';
+    document.getElementById('osbornNote').style.display='block';
+    document.getElementById('qtDisp').textContent='587';
+  }
+  // Draw all leads
+  Object.keys(LEADS).forEach(name=>{ drawLead('L_'+name, LEADS[name]); });
+  drawLead('L_rhythm', {a:1.0, inv:false, st:PARENT_S.rhythm==='stemi'?.055:0, tBoost:PARENT_S.rhythm==='stemi'?1.2:1});
+};
+<\/script>
+</body>
+</html>`;
+
+  w12Lead.document.open();
+  w12Lead.document.write(html);
+  w12Lead.document.close();
+}
+
+// Toggle for buttons — close if open, open if not
+function toggle12Lead(){
+  if(w12Lead&&!w12Lead.closed){ w12Lead.close(); w12Lead=null; }
+  else open12Lead();
+}
+
+/* ── Canvas sizing ── */
+function sizeCanvas(id,row){
+  const c=document.getElementById(id);
+  const r=document.getElementById(row);
+  if(!c||!r) return false;
+  const W=r.clientWidth, H=r.clientHeight;
+  if(W<2||H<2) return false;
+  if(cSizes[id]&&cSizes[id].W===W&&cSizes[id].H===H) return true;
+  c.width=W; c.height=H;
+  c.style.width=W+'px'; c.style.height=H+'px';
+  cSizes[id]={W,H};
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  drawGrid(ctx,W,H);
+  return true;
+}
+function sizeAll(){
+  const isLP=currentSkin==='lp';
+  const lpArt=isLP&&S.artActive&&S.patientConnected;
+
+  // Manage rArt visibility
+  const rArt=document.getElementById('rArt');
+  if(rArt){
+    if(isLP){
+      rArt.style.display=lpArt?'block':'none';
+    } else {
+      rArt.style.display=''; // ZX: clear inline style, let CSS rule apply
+    }
+  }
+
+  // Size the always-present canvases — these must all succeed
+  const okEcg=sizeCanvas('cEcg','rEcg');
+  const okCo2=sizeCanvas('cCo2','rCo2');
+  const okSpo2=sizeCanvas('cSpo2','rSpo2');
+
+  // ART canvas sizing:
+  // ZX — must succeed (blocks loop until sized)
+  // LP  — opportunistic: try to size but NEVER block other waveforms
+  //        rArt may still be mid-reflow when first shown, so ignore its result in LP
+  if(!isLP){
+    // ZX: ART row is always visible — must size
+    if(!sizeCanvas('cArt','rArt')) return false;
+  } else if(lpArt){
+    // LP + ART active: attempt resize every frame until it sticks, don't block
+    sizeCanvas('cArt','rArt');
+  } else {
+    // LP + ART off: reset so it starts fresh when re-enabled
+    pxPos['cArt']=0; lastY['cArt']=-1;
+    delete cSizes['cArt'];
+  }
+
+  // P2 — non-blocking: attempt resize, block only if it was already working
+  const rP2=document.getElementById('rP2');
+  if(S.sgActive){
+    if(rP2) rP2.style.display='';
+    sizeCanvas('cP2','rP2'); // opportunistic — don't block loop
+  } else {
+    if(rP2) rP2.style.display='none';
+    pxPos['cP2']=0; lastY['cP2']=-1;
+    delete cSizes['cP2'];
+  }
+
+  return okEcg&&okCo2&&okSpo2;
+}
+function toggleFullscreen(){
+  const btn=document.getElementById('fsBtn');
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+    if(btn) btn.textContent='⛶'; // will update via fullscreenchange
+  } else {
+    document.exitFullscreen().catch(()=>{});
+  }
+}
+document.addEventListener('fullscreenchange',()=>{
+  const btn=document.getElementById('fsBtn');
+  if(btn) btn.textContent=document.fullscreenElement?'✕':'⛶';
+  btn&&(btn.className='skb '+(document.fullscreenElement?'on':''));
+});
+window.addEventListener('keydown',e=>{
+  if(e.key==='f'||e.key==='F') toggleFullscreen();
+});
+window.addEventListener('resize',()=>{
+  Object.keys(cSizes).forEach(k=>delete cSizes[k]);
+  pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
+  Object.keys(lastY).forEach(k=>lastY[k]=-1);
+});
+
+function drawGrid(ctx,W,H){
+  const gx=SPX/5;
+  ctx.lineWidth=.5; ctx.strokeStyle='#1c1c1c';
+  for(let x=0;x<W;x+=gx/5){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=H/20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.lineWidth=.8; ctx.strokeStyle='#252525';
+  for(let x=0;x<W;x+=gx){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=H/4){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+/* ── Ring-buffer pixel writer ──────────────────────────────────
+   Each channel tracks its own pixel position (pxPos).
+   Each frame we advance by (dt * SPX) pixels and only write
+   those new columns — everything else stays untouched.
+   This is exactly how a real monitor draws its trace.
+──────────────────────────────────────────────────────────────── */
+// Erase and grid are redrawn once per frame over the whole advanced band,
+// rather than once per pixel. The per-pixel version issued roughly thirty
+// stroke calls for every column of every channel — around nine hundred a frame
+// — and its 6px-wide erase never wrapped, so it left an unswept sliver at the
+// right edge of each canvas.
+function gridSeg(ctx,x0,w,H){
+  const gx=SPX/5, gmin=gx/5, x1=x0+w;
+  // Same lattice and same weights as drawGrid, so a repainted band is
+  // indistinguishable from the grid laid down when the canvas was sized.
+  ctx.lineWidth=.5; ctx.strokeStyle='#1c1c1c';
+  ctx.beginPath();
+  for(let g=Math.ceil(x0/gmin)*gmin; g<x1; g+=gmin){ ctx.moveTo(g,0); ctx.lineTo(g,H); }
+  for(let y=0;y<H;y+=H/20){ ctx.moveTo(x0,y); ctx.lineTo(x1,y); }
+  ctx.stroke();
+  ctx.lineWidth=.8; ctx.strokeStyle='#252525';
+  ctx.beginPath();
+  for(let g=Math.ceil(x0/gx)*gx; g<x1; g+=gx){ ctx.moveTo(g,0); ctx.lineTo(g,H); }
+  for(let y=0;y<H;y+=H/4){ ctx.moveTo(x0,y); ctx.lineTo(x1,y); }
+  ctx.stroke();
+}
+function clearBand(ctx,x0,w,W,H){
+  x0=((x0%W)+W)%W;
+  const first=Math.min(w,W-x0);
+  ctx.fillStyle='#000';
+  ctx.fillRect(x0,0,first,H);
+  gridSeg(ctx,x0,first,H);
+  if(w>first){ ctx.fillRect(0,0,w-first,H); gridSeg(ctx,0,w-first,H); }
+}
+
+function drawChannel(id, fn, stroke, fill){
+  const c=document.getElementById(id);
+  if(!c||c.width<2||c.height<2) return;
+  const ctx=c.getContext('2d');
+  const W=c.width, H=c.height;
+  const yp=v=>(1-Math.max(0,Math.min(1,v)))*(H-4)+2;
+
+  const newPx=pxPos[id];                       // write head, advanced by the loop
+  const count=pixelsThisFrame+1;
+  const prevPx=((newPx-count)%W+W)%W;          // where the head was last frame
+
+  // Wipe the columns about to be written plus the 6px cursor gap ahead of them.
+  clearBand(ctx, prevPx+2, count+6, W, H);
+
+  // Sample once; a null reading means this channel has nothing to draw (the
+  // patient is not connected) and the trace is left blank rather than flat.
+  const ys=new Array(count+1);
+  for(let i=0;i<=count;i++){
+    const v=fn(TT-(count-i)/SPX);
+    ys[i]=(v===null||v===undefined)?null:yp(v);
+  }
+
+  if(fill){
+    ctx.fillStyle=fill;
+    for(let i=0;i<=count;i++){
+      if(ys[i]===null) continue;
+      ctx.fillRect((prevPx+i)%W, ys[i], 1, H-ys[i]);
+    }
+  }
+
+  // One path for the whole frame's worth of trace, broken at the canvas seam
+  // and wherever the channel has no reading.
+  ctx.strokeStyle=stroke;
+  ctx.lineWidth=2.0;
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  ctx.shadowBlur=7;
+  ctx.shadowColor=stroke;
+  ctx.beginPath();
+  let pen=false;
+  for(let i=0;i<=count;i++){
+    const y=ys[i];
+    if(y===null){ pen=false; lastY[id]=-1; continue; }
+    const px=(prevPx+i)%W;
+    if(!pen){ ctx.moveTo(px, lastY[id]<0?y:lastY[id]); pen=true; }
+    ctx.lineTo(px+1, y);
+    lastY[id]=y;
+    if(px+1>=W) pen=false;                     // do not stroke across the wrap
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+/* ── Main loop ── */
+let TT=0, lastT=performance.now();
+let pixelsThisFrame=0;
+// The numeric panel is ~40 DOM writes and a layout read. Repainting it on every
+// animation frame competed with the waveforms for no gain — nothing on it
+// changes faster than the instructor can move a slider.
+let lastNums=0;
+
+function loop(){
+  const now=performance.now();
+  const dt=Math.min(now-lastT,33)/1000; // cap at 33ms (30fps minimum)
+  lastT=now;
+  TT+=dt;
+
+  advanceBreath(dt);
+
+  if(!sizeAll()){
+    // Clear lastY on first size
+    Object.keys(lastY).forEach(k=>lastY[k]=-1);
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  // How many pixels to advance this frame
+  pixelsThisFrame=Math.max(1,Math.round(dt*SPX));
+
+  // Advance noise once per frame
+  advanceNoise();
+
+  // Advance pixel positions — each canvas uses its own width
+  ['cEcg','cArt','cCo2','cSpo2','cP2'].forEach(id=>{
+    const c=document.getElementById(id);
+    if(c&&c.width>0) pxPos[id]=(pxPos[id]+pixelsThisFrame)%c.width;
+  });
+
+  const sc=skinColors();
+  drawChannel('cEcg',  sEcg,  sc.ecg,  null);
+  // ART: ZX skin always, LP skin only when artActive
+  const lpArt=currentSkin==='lp'&&S.patientConnected&&S.artActive;
+  if(currentSkin!=='lp') drawChannel('cArt', sArt, sc.art, null);
+  if(lpArt)              drawChannel('cArt', sArt, '#ff4444', null); // LP ART = red
+  if(S.sgActive) drawChannel('cP2', sPA, '#00aaff', null);
+  // LP: cSpo2 always draws SpO2 pleth; cCo2 always draws CO2
+  drawChannel('cSpo2', sSpo2, sc.spo2, null);
+  drawChannel('cCo2',  sCo2,  sc.co2,  sc.co2fill);
+
+  if(now-lastNums>=125){ lastNums=now; upNums(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

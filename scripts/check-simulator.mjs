@@ -28,6 +28,13 @@
 //     DBP 10, SpO2 50) meant epinephrine given during asystole wore off to
 //     40/10 instead of back to 0/0.
 //
+// The monitor is checked the same way, plus one cross-file assertion that would
+// have caught the worst of what this pass found: the control panel's damping
+// select emits 'over' and 'under', while the monitor tested for 'overdamped'
+// and 'underdamped', so two carefully built arterial waveforms were unreachable
+// and the trace stayed normal whatever the instructor picked. Nothing in either
+// file could notice that on its own — only something that reads both.
+//
 // Run: node scripts/check-simulator.mjs  (or `npm run check:sim`)
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +42,7 @@ import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const PAGE = join(here, '..', 'public', 'simulator', 'control_panel.html')
+const MONITOR = join(here, '..', 'public', 'simulator', 'patient_monitor_display.html')
 
 let JSDOM
 try {
@@ -54,8 +62,8 @@ function ok(name, cond, detail = '') {
   if (!cond) failures.push(detail ? `${name} — ${detail}` : name)
 }
 
-function load() {
-  const dom = new JSDOM(readFileSync(PAGE, 'utf8'), {
+function load(file = PAGE) {
+  const dom = new JSDOM(readFileSync(file, 'utf8'), {
     runScripts: 'dangerously',
     pretendToBeVisual: true,
     url: 'https://ces.local/simulator/control_panel.html',
@@ -250,6 +258,94 @@ function load() {
   w.applySimState('abdominal_trauma', 0)
   ok('applying a sim state clears drugs on board', w.eval('activeDrugs').length === 0)
   ok('and lands on that state\'s own vitals', S().sbp === 78 && S().hr === 132, `HR ${S().hr} SBP ${S().sbp}`)
+}
+
+// ---------------------------------------------------------------------------
+// The monitor
+//
+// It draws to canvas, which jsdom does not implement. Everything asserted here
+// is the arithmetic behind the trace rather than the pixels, so a no-op 2D
+// context is enough to let the page finish loading.
+// ---------------------------------------------------------------------------
+const MONITOR_SRC = readFileSync(MONITOR, 'utf8')
+
+function loadMonitor(storage = {}) {
+  // A no-op 2D context, installed before the page's script runs. Letting the
+  // page execute as a real script (rather than eval'ing it afterwards) is what
+  // keeps its top-level `let S` reachable from here.
+  const stub = new Proxy({}, { get: (_, k) => (k === 'canvas' ? {} : () => {}), set: () => true })
+  const dom = new JSDOM(MONITOR_SRC, {
+    runScripts: 'dangerously',
+    pretendToBeVisual: true,
+    url: 'https://ces.local/simulator/patient_monitor_display.html',
+    beforeParse(w) {
+      w.HTMLCanvasElement.prototype.getContext = () => stub
+      for (const [k, v] of Object.entries(storage)) w.localStorage.setItem(k, v)
+    },
+  })
+  const w = dom.window
+  return { w, d: w.document, S: () => w.eval('S') }
+}
+
+{
+  const { w, S } = loadMonitor()
+
+  // The trace has to distinguish every damping value the control panel can send.
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  const dampBlock = panelSrc.slice(panelSrc.indexOf('id="artDampSel"'))
+  const dampOptions = [...dampBlock.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]).slice(0, 3)
+  ok('control panel still offers three damping settings', dampOptions.length === 3, dampOptions.join(','))
+
+  const sArt = w.eval('sArt')
+  const curve = () => {
+    const out = []
+    for (let i = 0; i < 120; i++) out.push(sArt((i / 120) * (60 / 78)).toFixed(4))
+    return out.join(',')
+  }
+  Object.assign(S(), {
+    patientConnected: true, hr: 78, rhythm: 'nsr',
+    artActive: true, artSbp: 120, artDbp: 60, artScale: 180, artDamping: 'normal',
+  })
+  const normal = curve()
+  for (const opt of dampOptions.filter((o) => o !== 'normal')) {
+    S().artDamping = opt
+    ok(`damping "${opt}" reaches the monitor`, curve() !== normal, 'renders identically to normal')
+  }
+
+  // Per-lead transform: overall amplitude applied once, not squared.
+  const applyLeadCfg = w.eval('applyLeadCfg')
+  const got = applyLeadCfg(0.6, 0.3, { amp: 0.5, pAmp: 1, rAmp: 1, tAmp: 1, sDeep: 0 }) - 0.5
+  ok('lead amplitude is applied once on the ST segment', Math.abs(got - 0.05) < 1e-9, `got ${got.toFixed(4)}, expected 0.0500`)
+
+  // The PA trace has to agree with the PA numbers printed beside it.
+  Object.assign(S(), { patientConnected: true, sgActive: true, sgMode: 'pa', sgSbp: 25, sgDbp: 10, sgScale: 40, hr: 78 })
+  const sPA = w.eval('sPA')
+  let lo = 1, hi = 0
+  for (let i = 0; i < 400; i++) { const v = sPA((i / 400) * (60 / 78)); lo = Math.min(lo, v); hi = Math.max(hi, v) }
+  ok('PA waveform bottoms out at the entered diastolic', Math.round(lo * 40) === 10, `renders ${(lo * 40).toFixed(1)} for an entered 10`)
+  ok('PA waveform peaks at the entered systolic', Math.round(hi * 40) === 25, `renders ${(hi * 40).toFixed(1)} for an entered 25`)
+
+  // Changing the lead has to do something in every rhythm, not just sinus.
+  const sEcg = w.eval('sEcg')
+  const trace = () => { const a = []; for (let i = 0; i < 200; i++) a.push(sEcg(i / 60).toFixed(4)); return a.join(',') }
+  for (const rhythm of ['nsr', 'afib', 'paced', 'hb2']) {
+    Object.assign(S(), { patientConnected: true, hr: 78, rhythm, lead: 'II', pvcOn: false, pacOn: false })
+    const leadII = trace()
+    S().lead = 'aVR'
+    ok(`lead selection changes the ${rhythm} trace`, trace() !== leadII, 'aVR renders identically to lead II')
+  }
+
+  // A disconnected monitor must not draw a flat line that reads as asystole.
+  S().patientConnected = false
+  ok('disconnected ECG draws nothing', sEcg(1) === null, `returned ${sEcg(1)}`)
+  w.close()
+}
+
+{
+  // A 12-lead command is a timestamped one-shot; localStorage outlives it.
+  const { w } = loadMonitor({ simCmd12Lead: 'open:' + (Date.now() - 86400000) })
+  ok("yesterday's 12-lead command does not replay on load", w.eval('lastCmdT') > 0, 'high-water mark left at zero')
+  w.close()
 }
 
 if (failures.length) {

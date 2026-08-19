@@ -11,10 +11,9 @@ review tools under `public/review/` and `public/necessity/` are.
 
 ## Status
 
-**Partly delivered.** Only the control panel is here so far. The monitor
-(`patient_monitor_display.html`) and the platform landing page have not landed
-yet, so nothing in the app routes here and no tab has been added. `Open Monitor`
-and the 12-lead button both address a file that does not exist yet.
+**Not yet wired into the app.** The control panel and the monitor are both here
+and work together; the platform landing page has not landed yet. No route and no
+tab have been added — see the last section.
 
 ## The contract between the two windows
 
@@ -27,13 +26,42 @@ every change:
   every pixel; anything that hands off to another window (`Open Monitor`) calls
   `flushSave()` first so the monitor never opens against a stale write.
 - `localStorage['simCmd12Lead']`, as `open:<timestamp>` / `close:<timestamp>` —
-  a one-shot command rather than state. It is not part of `S`, so a monitor
-  opened afterwards does not know the 12-lead was left open. Worth folding into
-  `S` when the monitor arrives.
+  a one-shot command rather than state. The monitor keeps a high-water mark of
+  the timestamp it has seen, seeded at load from whatever is already stored, so
+  a window opened tomorrow does not replay yesterday's command. It is still not
+  part of `S`, which is why the two windows can disagree about whether the
+  12-lead is open (see Known gaps).
 
-The key names and every field in `S` were left exactly as delivered, because
-the monitor was written against them and is not here to be changed with them.
-Renaming them is an integration task, not a review one — see below.
+The key names and every field in `S` are exactly as delivered. Renaming them is
+an integration task, not a review one — see below.
+
+## The monitor
+
+`patient_monitor_display.html` is the screen the crew sees. It reads state and
+never writes it. Two skins: **ZX** (numerics down the right) and **LP**
+(numerics down the left, LP-style palette); the switch is in the top bar.
+
+Waveforms are Catmull-Rom splines through hand-authored keyframes, baked once
+into 2048-entry lookup tables, then sampled per pixel. Each channel keeps its
+own write head and only repaints the columns that advanced since the last frame,
+the way a real monitor sweeps. Two things that matter if you touch that loop:
+
+- **Erase, grid and trace are batched per frame, not per pixel.** The per-pixel
+  version issued around nine hundred canvas stroke calls a frame and cost 2.0ms;
+  batched it costs 0.05ms. On a classroom laptop that is the difference between
+  a smooth sweep and a stuttering one.
+- **A sample function may return `null`**, meaning "this channel has nothing to
+  draw". That is how a disconnected patient shows blank traces instead of a flat
+  green line — the one thing on this screen a student is trained to read as
+  asystole.
+
+The 12-lead is a **snapshot**, not a live view: it renders the rhythm as it
+stands when the window opens and does not follow later changes. Its per-lead
+modifiers (ST shift, hyperacute T, T inversion, Osborn wave, QT widening) are
+deviations in the same normalised units as the lookup tables, where the R wave
+is about 0.48. Do not scale them by the panel height — the y mapping already
+does that, and doing it twice is what used to rail every ST-shifted lead against
+the top of its box and draw it as a square.
 
 ## Physiology lock
 
@@ -77,15 +105,21 @@ patient's state, so it neither snaps the vitals back nor strands an effect.
 Applying a scenario or simulation state does the same, since that is a new
 patient state rather than a drugged one.
 
-`scripts/check-simulator.mjs` (`npm run check:sim`) drives the real page in
+`scripts/check-simulator.mjs` (`npm run check:sim`) drives both real pages in
 jsdom through all of this. It skips itself if jsdom is not installed.
+
+One of its checks reads *both* files: it takes the damping values the control
+panel's select can emit and asserts the monitor's arterial trace distinguishes
+each of them. That mismatch — panel sending `over`, monitor testing for
+`overdamped` — meant two carefully built waveforms had never once rendered, and
+neither file could have noticed on its own.
 
 ## Before this is wired into the app
 
-Four things are known to need doing, none of them safe to do while the monitor
-is still unseen:
+Four things are known to need doing. All of them touch both windows at once,
+which is why they were left until the pair was complete and checkable:
 
-- **CSS collides with the app's.** This page defines `.card`, `.row`, `.grid`,
+- **CSS collides with the app's.** The control panel defines `.card`, `.row`, `.grid`,
   `.badge`, `.list` and `.subtitle` as its own, and `src/index.css` defines
   several of those globally. Fine while it is a separate document; not fine if
   the markup is ever lifted into a React screen rather than framed in an
@@ -102,3 +136,21 @@ is still unseen:
 - **Admin gate.** The feature is for administrators only, which in this app is
   the `manageAcademy` capability plus a route-level `Gated` wrapper — hiding
   the tab is not access control, since a bookmark still resolves.
+
+## Known gaps
+
+- **The alarm is visual only.** The control panel offers alarm ON / MUTE and the
+  monitor honours them, but only by blinking the banner — there is no tone. A
+  browser will not start audio until the page itself has been interacted with,
+  so a tone added naively would be silent until someone clicked the monitor,
+  which is worse than clearly having none. If it is wanted, it needs an
+  AudioContext resumed on first interaction and a visible indication of whether
+  audio is armed.
+- **P3 on the bottom bar is a placeholder** with no state behind it.
+- **The 12-lead does not follow the rhythm** once open (see above), and closing
+  it from the monitor's own `12` button leaves the control panel's toggle
+  believing it is still open, so the next click there is swallowed.
+- **Both pages assume a wide screen.** The monitor is an absolutely positioned
+  fixed layout; the control panel's grid is authored against 960px with
+  breakpoints below that. Neither is usable on a phone, which is worth knowing
+  given CES is installed as a phone PWA.
