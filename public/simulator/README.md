@@ -64,6 +64,44 @@ is about 0.48. Do not scale them by the panel height — the y mapping already
 does that, and doing it twice is what used to rail every ST-shifted lead against
 the top of its box and draw it as a square.
 
+## Facilitating and grading
+
+One person runs these scenarios. They drive the patient and assess the crew at
+the same time, so both live in one band across the top of the console: the
+patient states on the left (click to drive), the state's **Expected Actions** in
+the middle (tap as observed), and the transition triggers and facilitator notes
+on the right. Ticking an action is the whole of grading.
+
+The band is full width because it has to be. Measured at 1280×800 and 1440×900,
+the same content inside the third-of-a-grid Simulation State card came to 895px
+— the End run button and the last actions sat below the fold on every laptop.
+Full width it is 350px and the entire run is on screen at once, which is the
+point.
+
+**There is no score.** The scenarios come from Medical Director-approved Word
+documents, and neither carries a scoring rubric. Inventing one would assess
+crews against something nobody approved. What a run records is what the
+facilitator observed: which expected actions the crew performed, in which state,
+and how long the patient spent in each. That is what a debrief is read from.
+
+`SCENARIO_DOCS` in `control_panel.html` holds the transcription — the brief a
+facilitator would otherwise keep the Word document open for (dispatch, hand-off,
+SAMPLE, primary and secondary assessment, labs), plus per state the Expected
+Actions and Transition Triggers. It sits beside `SIMULATIONS` rather than inside
+it so the vitals table stays the vitals table. Only the quarterly scenarios are
+graded; the quick scenarios are vitals presets with no approved action list.
+
+Ending a run posts it to the CES app, which stamps the facilitator from
+`Settings.reviewer` and writes a `SimRun` record. Records are listed on the
+**Runs** tab beside the console, and sync between administrator devices like any
+other CES record. Run the panel outside CES and the summary still appears on
+screen — it simply says it was not saved.
+
+Adding a scenario means adding its vitals states to `SIMULATIONS` and its
+reference and actions to `SCENARIO_DOCS` under the same key. `npm run check:sim`
+asserts the two stay in step — an action list per state, a trigger per state,
+and a complete brief.
+
 ## Physiology lock
 
 On by default. It exists so an instructor cannot broadcast a combination that
