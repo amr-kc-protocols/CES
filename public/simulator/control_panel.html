@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulator Control Panel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0d1b2a;color:#e0e0e0;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;}
+h1{color:#00e5ff;font-size:1.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;text-shadow:0 0 10px #00e5ff88;}
+.subtitle{color:#888;font-size:.78rem;margin-bottom:20px;letter-spacing:1px;}
+
+.scenario-bar{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.scenario-bar label{color:#00e5ff;font-size:.72rem;letter-spacing:1px;white-space:nowrap;}
+.scenario-bar select{flex:1;margin-bottom:0;}
+.apply-btn{
+  padding:10px 22px;
+  background:linear-gradient(135deg,#003355,#005588);
+  border:2px solid #00e5ff;
+  border-radius:7px;
+  color:#00e5ff;
+  font-size:.82rem;
+  font-weight:bold;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .2s;
+  box-shadow:0 0 10px #00e5ff22;
+  flex-shrink:0;
+}
+.apply-btn:hover{
+  background:linear-gradient(135deg,#004477,#0077bb);
+  box-shadow:0 0 18px #00e5ff55;
+  transform:translateY(-1px);
+}
+
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;width:100%;max-width:960px;}
+.card{background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:16px;}
+.card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;}
+.card.ecg h2{color:#00ff00;}.card.bp h2{color:#ff4444;}.card.spo2 h2{color:#ffff00;}.card.etco2 h2{color:#ff00ff;}.card.temp h2{color:#00e5ff;}.card.alarms h2{color:#ff00ff;}
+
+label{display:block;font-size:.7rem;color:#aaa;margin-bottom:4px;margin-top:8px;}
+label:first-of-type{margin-top:0;}
+input[type=range]{flex:1;accent-color:#00e5ff;cursor:pointer;}
+select{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:#fff;padding:5px 8px;font-size:.8rem;margin-bottom:4px;outline:none;}
+select:focus{border-color:#00e5ff;}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.badge{background:#0a0f1a;border:1px solid #1e3a52;border-radius:4px;padding:2px 6px;font-size:.8rem;font-weight:bold;min-width:42px;text-align:center;}
+
+/* Keyboard focus. Every control below is reachable by Tab — the clickable
+   divs are given button semantics in script, and a focus ring is the only
+   thing that tells a keyboard user where they are. */
+:focus-visible{outline:2px solid #00e5ff;outline-offset:2px;}
+
+/* Rhythm grid */
+.rcat{font-size:.58rem;color:#555;letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px;}
+.rgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:4px;}
+.rbtn{background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:#ccc;font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
+.rbtn:hover{border-color:#00ff00;color:#00ff00;}
+.rbtn.on{background:#003300;border-color:#00ff00;color:#00ff00;}
+
+/* ART card */
+.card.art{grid-column:span 3;}
+.art-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:10px;}
+.art-toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #1e3a52;}
+.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:2px solid #333;background:#0a0f1a;color:#555;font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
+.art-btn.on{border-color:#ff4444;background:#2a0000;color:#ff4444;box-shadow:0 0 10px #ff444433;}
+.art-btn .dot{width:9px;height:9px;border-radius:50%;background:#333;transition:all .2s;}
+.art-btn.on .dot{background:#ff4444;box-shadow:0 0 6px #ff4444;}
+.art-readings{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.arbox{background:#0a0f1a;border:1px solid #1e3a52;border-radius:6px;padding:7px 10px;}
+.arbox.wide{grid-column:span 2;}
+.arbox.pulse{border-color:#ff4444;background:#1a0000;}
+.arbox .arl{font-size:.6rem;color:#888;text-transform:uppercase;letter-spacing:.5px;}
+.arbox .arv{font-size:1.1rem;font-weight:bold;color:#ff6666;line-height:1.2;}
+.arbox .aru{font-size:.58rem;color:#666;}
+
+/* Alarm toggles */
+.alarm-row{display:flex;gap:6px;margin-bottom:8px;}
+.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid #1e3a52;background:#0a0f1a;color:#888;cursor:pointer;text-align:center;transition:all .15s;}
+.atog.on{background:#1a3300;border-color:#00ff00;color:#00ff00;}
+.atog.off{background:#330000;border-color:#ff4444;color:#ff4444;}
+
+/* Alarms card span 3 */
+.card.alarms{grid-column:span 3;}
+.alarms-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+
+/* Simulation State card */
+.card.simstate h2{color:#ff9900;}
+.sim-scenario-name{font-size:.75rem;color:#ff9900;font-weight:bold;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1e3a52;line-height:1.3;}
+.sim-states{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+.state-btn{padding:8px 10px;border-radius:6px;border:1px solid #1e3a52;background:#0a0f1a;color:#888;font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;}
+.state-btn:hover{border-color:#ff9900;color:#ff9900;}
+.state-btn.active{background:#1a0e00;border-color:#ff9900;color:#ff9900;}
+.state-btn .sname{font-weight:bold;font-size:.72rem;display:block;margin-bottom:2px;}
+.state-btn .svitals{font-size:.62rem;color:#666;display:block;}
+.state-btn.active .svitals{color:#cc7700;}
+.sim-note{font-size:.62rem;color:#555;line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
+.no-sim{font-size:.72rem;color:#444;text-align:center;padding:20px 0;line-height:1.6;}
+
+/* Drug card — positioned via inline grid-column/row */
+.card.drugs h2{color:#ff6600;}
+.drug-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px;}
+
+/* ECG card spans rows 1-2 in col 1 */
+.card.ecg{grid-column:1;grid-row:1/3;}
+
+/* Drug card spans rows 1-2 in col 2 */
+
+/* NIBP in col 3 row 1, Sim State in col 3 row 2 */
+.card.bp{grid-column:3;grid-row:1;}
+.card.simstate{grid-column:3;grid-row:2;}
+
+/* SpO2, EtCO2, Temp in row 3 */
+.card.spo2{grid-column:1;grid-row:3;}
+.card.etco2{grid-column:2;grid-row:3;}
+.card.temp{grid-column:3;grid-row:3;}
+.drug-btn{
+  background:#0a0f1a;border:1px solid #1e3a52;border-radius:7px;
+  padding:8px 6px;cursor:pointer;text-align:center;transition:all .2s;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.drug-btn:hover{border-color:#ff6600;background:#1a0800;}
+.drug-btn.fired{border-color:#ff6600;background:#1a0800;animation:drugPulse .4s ease-out;}
+.drug-btn.running{border-color:#ff660088;background:#150700;}
+@keyframes drugPulse{0%{box-shadow:0 0 0 0 #ff660088}100%{box-shadow:0 0 0 12px #ff660000}}
+.drug-btn .dname{font-size:.68rem;font-weight:bold;color:#ff8844;line-height:1.2;}
+.drug-btn .ddose{font-size:.58rem;color:#666;line-height:1.2;}
+.drug-btn .deffect{font-size:.55rem;color:#444;line-height:1.2;margin-top:1px;}
+.drug-log{margin-top:10px;padding-top:8px;border-top:1px solid #1e3a52;max-height:90px;overflow-y:auto;}
+.drug-log-entry{font-size:.6rem;color:#888;line-height:1.5;display:flex;justify-content:space-between;}
+.drug-log-entry .dlt{color:#ff8844;}
+.drug-log-entry .dltime{color:#555;}
+.drug-clear{font-size:.6rem;color:#444;cursor:pointer;text-align:right;margin-top:3px;}
+.drug-clear:hover{color:#ff6600;}
+
+/* Make BP and SpO2 cards more compact */
+.card.bp label:first-of-type,.card.spo2 label:first-of-type{margin-top:0;}
+.card.bp,.card.spo2{padding:12px 14px;}
+.card.bp h2,.card.spo2 h2{margin-bottom:8px;padding-bottom:6px;}
+
+/* Connect Patient button */
+.connect-bar{
+  width:100%;max-width:960px;margin-bottom:14px;
+  display:flex;gap:12px;align-items:stretch;
+}
+.connect-btn{
+  flex:1;padding:14px 18px;font-size:.9rem;font-weight:bold;
+  letter-spacing:3px;text-transform:uppercase;
+  border-radius:10px;cursor:pointer;transition:all .25s;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.connect-btn.disconnected{
+  background:#1a0000;border:2px solid #cc0000;color:#ff3333;
+  box-shadow:0 0 20px #cc000033;
+  animation:disconnectPulse 2s infinite;
+}
+@keyframes disconnectPulse{
+  0%,100%{box-shadow:0 0 12px #cc000033;}
+  50%{box-shadow:0 0 28px #cc000066;}
+}
+.connect-btn.connected{
+  background:#001a00;border:2px solid #00cc00;color:#00ff00;
+  box-shadow:0 0 20px #00cc0033;
+  animation:none;
+}
+.connect-dot{
+  width:10px;height:10px;border-radius:50%;
+  display:inline-block;flex-shrink:0;
+}
+.connect-btn.disconnected .connect-dot{background:#ff3333;box-shadow:0 0 8px #ff3333;}
+.connect-btn.connected .connect-dot{background:#00ff00;box-shadow:0 0 8px #00ff00;}
+.phys-btn{
+  flex:0 0 180px;padding:14px 12px;font-size:.72rem;font-weight:bold;
+  letter-spacing:2px;text-transform:uppercase;
+  border-radius:10px;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  border:2px solid;
+}
+.phys-btn.on{background:#001a33;border-color:#0088cc;color:#00aaff;box-shadow:0 0 16px #0088cc33;}
+.phys-btn.off{background:#1a1a1a;border-color:#444;color:#666;}
+.phys-btn:hover{opacity:.85;}
+.launch-btn{display:block;width:100%;max-width:960px;margin:20px auto 0;padding:16px;font-size:1rem;font-weight:bold;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,#003366,#005599);border:2px solid #00e5ff;border-radius:10px;color:#00e5ff;cursor:pointer;transition:all .2s;box-shadow:0 0 20px #00e5ff22;}
+.launch-btn:hover{background:linear-gradient(135deg,#004488,#0077bb);box-shadow:0 0 30px #00e5ff55;}
+
+/* Narrow screens. The three-column grid is authored against a 960px canvas;
+   below that the explicit grid-column/grid-row placements have to be released
+   or the cards overlap into each other. */
+@media (max-width:860px){
+  .grid{grid-template-columns:1fr 1fr;}
+  .card.ecg,.card.bp,.card.simstate,.card.spo2,.card.etco2,.card.temp,.card.drugs{
+    grid-column:auto !important;grid-row:auto !important;
+  }
+  .card.art,.card.alarms{grid-column:1 / -1;}
+  .art-inner,.alarms-inner{grid-template-columns:1fr;}
+}
+@media (max-width:600px){
+  body{padding:12px;}
+  .grid{grid-template-columns:1fr;}
+  .connect-bar{flex-direction:column;}
+  .phys-btn{flex:none;}
+}
+</style>
+</head>
+<body>
+
+<h1>Control Panel</h1>
+<p class="subtitle">Adjust parameters below, then click Open Monitor</p>
+
+<div class="connect-bar" style="max-width:960px;margin:0 auto 14px;">
+  <button class="connect-btn disconnected" id="connectBtn" onclick="toggleConnect()">
+    <span class="connect-dot" id="connectDot"></span>
+    <span id="connectLabel">NOT CONNECTED — Click to Connect</span>
+  </button>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 180px;">
+    <button class="phys-btn on" id="physLockBtn2" onclick="togglePhysLock()" title="Prevents impossible vital sign combinations" style="width:100%;flex:none;">
+      <span id="physLockIcon">🔒 PHYS LOCK</span>&nbsp;<span id="physLockLbl2">ON</span>
+    </button>
+    <div style="font-size:.55rem;color:#444;line-height:1.3;text-align:center;">Prevents impossible vital combinations<br>(e.g. VF + BP 180/100)</div>
+  </div>
+</div>
+
+<div class="scenario-bar">
+  <label for="scenarioSel">QUICK SCENARIO</label>
+  <select id="scenarioSel">
+    <option value="">— Select a scenario —</option>
+    <option value="normal">Normal Adult</option>
+    <option value="tachy">Sinus Tachycardia</option>
+    <option value="brady">Sinus Bradycardia</option>
+    <option value="afib">Atrial Fibrillation</option>
+    <option value="vfib">Ventricular Fibrillation</option>
+    <option value="vtach">Ventricular Tachycardia</option>
+    <option value="pea">PEA (Pulseless Electrical Activity)</option>
+    <option value="shock">Septic Shock</option>
+    <option value="hypertensive">Hypertensive Crisis</option>
+    <option value="hypotensive">Hypotensive Crisis</option>
+    <option value="hypoxia">Hypoxia</option>
+    <option value="asystole">Asystole</option>
+  </select>
+  <button class="apply-btn" onclick="applyScenario()">Apply</button>
+</div>
+
+<div class="scenario-bar" style="margin-top:-8px;">
+  <label for="simScenarioSel">QUARTERLY SIMULATIONS</label>
+  <select id="simScenarioSel">
+    <option value="">— Select a simulation —</option>
+    <option value="drowning_initial">Pediatric Drowning</option>
+    <option value="asthma_initial">Adult Asthma Exacerbation</option>
+    <option value="abdominal_trauma_initial">Adult Abdominal Trauma / Hemorrhagic Shock</option>
+    <option value="peds_tbi_initial">Pediatric TBI / Closed Head Injury</option>
+  </select>
+  <button class="apply-btn" onclick="applySimScenario()">Apply</button>
+</div>
+
+<div class="grid">
+
+<!-- ECG -->
+<div class="card ecg">
+  <h2>ECG / Heart Rate</h2>
+  <button id="btn12Lead" onclick="open12LeadCP()" style="width:100%;padding:10px;margin-bottom:10px;background:#001a2e;border:1px solid #00c8e0;border-radius:7px;color:#00c8e0;font-family:'Courier New',monospace;font-size:.75rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='#002a40'" onmouseout="this.style.background='#001a2e'">⊞ Open 12-Lead ECG</button>
+  <label for="hr">Heart Rate (bpm)</label>
+  <div class="row">
+    <input type="range" id="hr" min="0" max="250" value="78" oninput="sv('hr',+this.value)">
+    <span class="badge" id="hrv">78</span>
+  </div>
+  <div class="rcat">Sinus</div>
+  <div class="rgrid">
+    <div class="rbtn on" data-rhythm="nsr" onclick="setR('nsr')">Normal Sinus</div>
+    <div class="rbtn" data-rhythm="brady" onclick="setR('brady')">Sinus Brady</div>
+    <div class="rbtn" data-rhythm="tachy" onclick="setR('tachy')">Sinus Tachy</div>
+  </div>
+  <div class="rcat">Atrial</div>
+  <div class="rgrid">
+    <div class="rbtn" data-rhythm="afib" onclick="setR('afib')">A-Fib</div>
+    <div class="rbtn" data-rhythm="afib_rvr" onclick="setR('afib_rvr')">A-Fib w/RvR</div>
+    <div class="rbtn" data-rhythm="aflutter" onclick="setR('aflutter')">A-Flutter</div>
+    <div class="rbtn" data-rhythm="svt" onclick="setR('svt')">SVT</div>
+    <div class="rbtn" data-rhythm="paced" onclick="setR('paced')">Paced</div>
+  </div>
+  <div class="rcat">Heart Block</div>
+  <div class="rgrid">
+    <div class="rbtn" data-rhythm="hb1" onclick="setR('hb1')">1° Block</div>
+    <div class="rbtn" data-rhythm="hb2" onclick="setR('hb2')">2° Block</div>
+    <div class="rbtn" data-rhythm="hb3" onclick="setR('hb3')">3° Block</div>
+  </div>
+  <div class="rcat">Ventricular / Ischemic</div>
+  <div class="rgrid">
+    <div class="rbtn" data-rhythm="vtach" onclick="setR('vtach')">V-Tach</div>
+    <div class="rbtn" data-rhythm="vfib" onclick="setR('vfib')">V-Fib</div>
+    <div class="rbtn" data-rhythm="stemi" onclick="setR('stemi')">Inf. STEMI</div>
+    <div class="rbtn" data-rhythm="asystole" onclick="setR('asystole')">Asystole</div>
+    <div class="rbtn" data-rhythm="junctional" onclick="setR('junctional')">Junctional</div>
+  </div>
+
+  <div class="rcat" style="margin-top:10px;">Ectopic Beats</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;">
+    <div class="rbtn" id="pvcBtn" onclick="toggleEctopic('pvc')" style="border-color:#ff8800;color:#ff8800;">PVC</div>
+    <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:#00aaff;color:#00aaff;">PAC</div>
+  </div>
+  <label for="ectFreq">Ectopic Frequency <span id="ectFreqLbl" style="color:#aaa;">— every 6 beats</span></label>
+  <div class="row">
+    <input type="range" id="ectFreq" min="2" max="12" value="6" step="1"
+      oninput="sv('ectFreq',+this.value);updateEctFreqLbl(+this.value)">
+    <span class="badge" id="ectFreqV">6</span>
+  </div>
+  <label for="leadSel">Lead</label>
+  <select id="leadSel" onchange="sv('lead',this.value)">
+    <option value="II">Lead II</option>
+    <option value="I">Lead I</option>
+    <option value="III">Lead III</option>
+    <option value="aVR">aVR</option>
+    <option value="aVL">aVL</option>
+    <option value="aVF">aVF</option>
+    <option value="V1">V1</option>
+    <option value="V2">V2</option>
+    <option value="V3">V3</option>
+    <option value="V4">V4</option>
+    <option value="V5">V5</option>
+    <option value="V6">V6</option>
+  </select>
+</div>
+
+<!-- NIBP -->
+<div class="card bp">
+  <h2>Blood Pressure (NIBP)</h2>
+  <label for="sbp">Systolic (mmHg)</label>
+  <div class="row">
+    <input type="range" id="sbp" min="0" max="250" value="121" oninput="sv('sbp',+this.value)">
+    <span class="badge" id="sbpv">121</span>
+  </div>
+  <label for="dbp">Diastolic (mmHg)</label>
+  <div class="row">
+    <input type="range" id="dbp" min="0" max="160" value="79" oninput="sv('dbp',+this.value)">
+    <span class="badge" id="dbpv">79</span>
+  </div>
+</div>
+
+<!-- Drug Interactions — col 2, spans rows 1+2 -->
+<div class="card drugs" style="grid-column:2;grid-row:1/3;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;">
+    <h2 style="margin-bottom:0;padding-bottom:0;border-bottom:none;">Medication Administration</h2>
+    <button id="drugHoldBtn" onclick="toggleDrugHold()"
+      style="padding:4px 10px;font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;
+             border-radius:5px;border:1px solid #555;background:#0a0f1a;color:#888;cursor:pointer;
+             transition:all .2s;white-space:nowrap;"
+      title="Cancels every medication still running and keeps the vitals where they are now">
+      ⏹ STOP
+    </button>
+  </div>
+  <div style="font-size:.6rem;color:#555;margin-bottom:8px;line-height:1.4;">Click to apply physiologic effect to current vitals. Effects taper after duration.</div>
+  <div class="drug-grid">
+
+    <div class="drug-btn" data-drug="adenosine" onclick="giveDrug('adenosine')">
+      <div class="dname">Adenosine</div>
+      <div class="ddose">6 mg rapid IV push</div>
+      <div class="deffect">↓↓↓HR transient · ↓BP</div>
+    </div>
+
+    <div class="drug-btn" data-drug="amiodarone" onclick="giveDrug('amiodarone')">
+      <div class="dname">Amiodarone</div>
+      <div class="ddose">150 mg IV over 10 min</div>
+      <div class="deffect">↓HR · ↓BP · rhythm stabilize</div>
+    </div>
+
+    <div class="drug-btn" data-drug="amiodarone_300" onclick="giveDrug('amiodarone_300')">
+      <div class="dname">Amiodarone 300mg</div>
+      <div class="ddose">300 mg IV push — ACLS</div>
+      <div class="deffect">↓↓HR · ↓BP · VF/VT arrest</div>
+    </div>
+
+    <div class="drug-btn" data-drug="epi_acls" onclick="giveDrug('epi_acls')">
+      <div class="dname">Epinephrine</div>
+      <div class="ddose">1 mg IV push — ACLS</div>
+      <div class="deffect">↑↑↑HR · ↑↑↑BP · ROSC aid</div>
+    </div>
+
+    <div class="drug-btn" data-drug="fentanyl" onclick="giveDrug('fentanyl')">
+      <div class="dname">Fentanyl</div>
+      <div class="ddose">1–2 mcg/kg IV</div>
+      <div class="deffect">↓RR · ↓BP mild · ↓HR mild</div>
+    </div>
+
+    <div class="drug-btn" data-drug="fluid_nacl" onclick="giveDrug('fluid_nacl')">
+      <div class="dname">Fluid Bolus</div>
+      <div class="ddose">NS / LR 500 mL</div>
+      <div class="deffect">↑BP · ↑HR transient</div>
+    </div>
+
+    <div class="drug-btn" data-drug="ketamine" onclick="giveDrug('ketamine')">
+      <div class="dname">Ketamine</div>
+      <div class="ddose">1–2 mg/kg IV (sed)</div>
+      <div class="deffect">↑HR · ↑BP · maintain RR</div>
+    </div>
+
+    <div class="drug-btn" data-drug="labetalol" onclick="giveDrug('labetalol')">
+      <div class="dname">Labetalol</div>
+      <div class="ddose">20 mg IV slow</div>
+      <div class="deffect">↓HR · ↓↓BP · ↓SVR</div>
+    </div>
+
+    <div class="drug-btn" data-drug="nitroglycerin" onclick="giveDrug('nitroglycerin')">
+      <div class="dname">Nitroglycerin Drip</div>
+      <div class="ddose">5–200 mcg/min IV</div>
+      <div class="deffect">↓↓BP · ↓preload · ↓HR mild</div>
+    </div>
+
+    <div class="drug-btn" data-drug="norepinephrine" onclick="giveDrug('norepinephrine')">
+      <div class="dname">Norepinephrine</div>
+      <div class="ddose">0.1–0.5 mcg/kg/min</div>
+      <div class="deffect">↑↑BP · ↑SVR · HR variable</div>
+    </div>
+
+    <div class="drug-btn" data-drug="whole_blood" onclick="giveDrug('whole_blood')">
+      <div class="dname">O+ LTWB</div>
+      <div class="ddose">Low-Titer Whole Blood</div>
+      <div class="deffect">↑BP · ↑SpO₂ · ↑Hgb</div>
+    </div>
+
+    <div class="drug-btn" data-drug="push_epi" onclick="giveDrug('push_epi')">
+      <div class="dname">Push Dose Epi</div>
+      <div class="ddose">10–20 mcg IV</div>
+      <div class="deffect">↑↑HR · ↑↑BP · ↑SVR</div>
+    </div>
+
+  </div>
+
+  <div class="drug-log" id="drugLog">
+    <div style="font-size:.6rem;color:#333;text-align:center;">No drugs administered</div>
+  </div>
+  <div class="drug-clear" onclick="clearDrugLog()">✕ Clear log</div>
+</div>
+<!-- Simulation State — col 3, row 2 -->
+<div class="card simstate">
+  <h2>Simulation State</h2>
+  <div id="simStatePanel">
+    <div class="no-sim">No simulation active.<br>Select a scenario or simulation<br>from the pickers above.</div>
+  </div>
+</div>
+
+<!-- SpO2 — col 1, row 3 -->
+<div class="card spo2">
+  <h2>SpO₂ / Pulse Ox</h2>
+  <label for="spo2">SpO₂ (%)</label>
+  <div class="row">
+    <input type="range" id="spo2" min="0" max="100" value="97" oninput="sv('spo2',+this.value)">
+    <span class="badge" id="spo2v">97</span>
+  </div>
+  <label for="rr_spo2">Respiratory Rate (br/min)</label>
+  <div class="row">
+    <input type="range" id="rr_spo2" min="0" max="60" value="11" oninput="sv('rr',+this.value)">
+    <span class="badge" id="rrv_spo2">11</span>
+  </div>
+  <label for="spo2QualSel">Signal Quality</label>
+  <select id="spo2QualSel" onchange="sv('spo2Quality',this.value)">
+    <option value="excellent">Excellent</option>
+    <option value="good">Good</option>
+    <option value="poor">Poor (low perfusion)</option>
+    <option value="motion">Motion Artifact</option>
+    <option value="none">No Signal</option>
+  </select>
+  <label for="probeSel" style="margin-top:4px">Probe Position</label>
+  <select id="probeSel" onchange="sv('probe',this.value)">
+    <option>Finger</option><option>Ear</option><option>Forehead</option>
+  </select>
+</div>
+
+<!-- EtCO2 — col 2, row 3 -->
+<div class="card etco2">
+  <h2>EtCO₂ / Capnography</h2>
+  <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <div class="atog off" id="etco2OnBtn" onclick="toggleEtco2()" style="flex:1;text-align:center;">⬤ EtCO₂ OFF</div>
+  </div>
+  <label for="etco2">EtCO₂ (mmHg)</label>
+  <div class="row">
+    <input type="range" id="etco2" min="0" max="80" value="36" oninput="sv('etco2',+this.value)">
+    <span class="badge" id="etco2v">36</span>
+  </div>
+  <label for="co2ShapeSel">Waveform Shape</label>
+  <select id="co2ShapeSel" onchange="sv('co2Shape',this.value)">
+    <optgroup label="Normal">
+      <option value="normal">Normal Capnogram</option>
+      <option value="hypervent">Hyperventilation (↑RR, ↓EtCO₂)</option>
+      <option value="hypovent">Hypoventilation (↓RR, ↑EtCO₂)</option>
+    </optgroup>
+    <optgroup label="Airway / Pulmonary">
+      <option value="shark">Shark Fin — Bronchospasm / Obstruction</option>
+      <option value="rebreathing">Rebreathing (elevated baseline)</option>
+      <option value="leak">Leak (irregular baseline)</option>
+      <option value="curare">Curare Cleft (notch in plateau)</option>
+    </optgroup>
+    <optgroup label="Critical / Arrest">
+      <option value="flat">Flat — Apnea / Esophageal intubation</option>
+      <option value="cpr">CPR — Cardiac Arrest</option>
+      <option value="rosc">ROSC (↑EtCO₂ abrupt rise)</option>
+    </optgroup>
+  </select>
+</div>
+
+<!-- Temp — col 3, row 3 -->
+<div class="card temp">
+  <h2>Temperature</h2>
+  <label for="temp">Temperature</label>
+  <div class="row">
+    <input type="range" id="temp" min="30" max="42" step="0.1" value="36.9" oninput="sv('temp',+this.value);updateTempDisplay()">
+    <span class="badge" id="tempv">36.9</span>
+  </div>
+  <label for="tempUnitSel">Unit</label>
+  <select id="tempUnitSel" onchange="sv('tempUnit',this.value);updateTempDisplay()">
+    <option value="C">Celsius (°C)</option><option value="F">Fahrenheit (°F)</option>
+  </select>
+  <label for="tempSiteSel">Site</label>
+  <select id="tempSiteSel" onchange="sv('tempSite',this.value)">
+    <option>Esophageal</option><option>Rectal</option><option>Axillary</option><option>Tympanic</option>
+  </select>
+</div>
+
+<!-- ART Line -->
+<div class="card art">
+  <h2>Arterial Line (A-Line)</h2>
+  <div class="art-toggle">
+    <div class="art-btn" id="artBtn" onclick="toggleArt()">
+      <span class="dot"></span><span id="artLbl">A-LINE OFF</span>
+    </div>
+    <span style="font-size:.65rem;color:#666;">Toggles arterial waveform on monitor</span>
+  </div>
+  <div class="art-inner">
+    <div>
+      <label for="artSbp">Systolic (mmHg)</label>
+      <div class="row">
+        <input type="range" id="artSbp" min="0" max="260" value="121" oninput="sv('artSbp',+this.value);refreshArt()">
+        <span class="badge" id="artSbpv">121</span>
+      </div>
+      <label for="artDbp">Diastolic (mmHg)</label>
+      <div class="row">
+        <input type="range" id="artDbp" min="0" max="160" value="79" oninput="sv('artDbp',+this.value);refreshArt()">
+        <span class="badge" id="artDbpv">79</span>
+      </div>
+      <label>Link to NIBP</label>
+      <div class="alarm-row">
+        <div class="atog on" id="artLinkBtn" onclick="toggleArtLink()" title="Mirror NIBP values to A-Line">🔗 LINKED TO NIBP</div>
+      </div>
+      <div style="font-size:.6rem;color:#555;margin-top:2px;line-height:1.3;">Unlink to set A-Line values independently</div>
+      <label for="artDampSel" style="margin-top:6px;">Damping</label>
+      <select id="artDampSel" onchange="sv('artDamping',this.value);refreshArt()">
+        <option value="normal">Normal</option>
+        <option value="over">Overdamped</option>
+        <option value="under">Underdamped</option>
+      </select>
+      <label for="artScaleSel" style="margin-top:6px;">Scale</label>
+      <select id="artScaleSel" onchange="sv('artScale',+this.value)">
+        <option value="180">0–180 mmHg</option><option value="120">0–120 mmHg</option>
+        <option value="240">0–240 mmHg</option><option value="300">0–300 mmHg</option>
+      </select>
+      <label for="artSiteSel" style="margin-top:6px;">Access Site</label>
+      <select id="artSiteSel" onchange="sv('artSite',this.value);refreshArt()">
+        <option>Radial — Left</option><option>Radial — Right</option>
+        <option>Femoral — Left</option><option>Femoral — Right</option>
+        <option>Brachial</option><option>Dorsalis Pedis</option><option>Axillary</option>
+      </select>
+    </div>
+    <div></div>
+    <div>
+      <div style="font-size:.62rem;color:#ff6666;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
+      <div class="art-readings">
+        <div class="arbox pulse wide"><div class="arl">Arterial BP</div><div class="arv" id="arBP">121 / 79</div><div class="aru">mmHg</div></div>
+        <div class="arbox"><div class="arl">MAP</div><div class="arv" id="arMAP">93</div><div class="aru">mmHg</div></div>
+        <div class="arbox"><div class="arl">Pulse Pressure</div><div class="arv" id="arPP">42</div><div class="aru">mmHg</div></div>
+        <div class="arbox"><div class="arl">Est. SVR</div><div class="arv" id="arSVR">—</div><div class="aru">dynes·s/cm⁵</div></div>
+        <div class="arbox"><div class="arl">Est. SVI</div><div class="arv" id="arSVI">—</div><div class="aru">mL/beat/m²</div></div>
+        <div class="arbox wide"><div class="arl">Waveform Quality</div><div class="arv" style="font-size:.85rem;" id="arDamp">Normal — Adequate fidelity</div></div>
+        <div class="arbox wide"><div class="arl">Access Site</div><div class="arv" style="font-size:.85rem;color:#ff8888;" id="arSite">Radial — Left</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Swan-Ganz Catheter (PA Catheter) -->
+<div class="card art" style="grid-column:span 3;margin-top:0;">
+  <h2 style="color:#00aaff;">Swan-Ganz / PA Catheter (P2)</h2>
+  <div class="art-toggle">
+    <div class="art-btn" id="sgBtn" onclick="toggleSG()" style="border-color:#333;color:#555;">
+      <span class="dot" style="background:#333;"></span><span id="sgLbl">PA CATHETER OFF</span>
+    </div>
+    <span style="font-size:.65rem;color:#666;">Displays PA waveform in P2 channel on monitor</span>
+  </div>
+  <div class="art-inner" id="sgInner" style="opacity:.4;">
+    <div>
+      <label for="sgSbp">PA Systolic (mmHg)</label>
+      <div class="row">
+        <input type="range" id="sgSbp" min="10" max="80" value="25" oninput="sv('sgSbp',+this.value);refreshSG()">
+        <span class="badge" id="sgSbpv">25</span>
+      </div>
+      <label for="sgDbp">PA Diastolic (mmHg)</label>
+      <div class="row">
+        <input type="range" id="sgDbp" min="2" max="40" value="10" oninput="sv('sgDbp',+this.value);refreshSG()">
+        <span class="badge" id="sgDbpv">10</span>
+      </div>
+      <label for="sgPcwp">PCWP (mmHg)</label>
+      <div class="row">
+        <input type="range" id="sgPcwp" min="1" max="30" value="8" oninput="sv('sgPcwp',+this.value);refreshSG()">
+        <span class="badge" id="sgPcwpv">8</span>
+      </div>
+      <label for="sgCvp">CVP (mmHg)</label>
+      <div class="row">
+        <input type="range" id="sgCvp" min="0" max="20" value="5" oninput="sv('sgCvp',+this.value);refreshSG()">
+        <span class="badge" id="sgCvpv">5</span>
+      </div>
+      <label for="sgModeSel">Waveform Mode</label>
+      <select id="sgModeSel" onchange="sv('sgMode',this.value);refreshSG()">
+        <option value="pa">Pulmonary Artery (PA)</option>
+        <option value="wedge">Wedge (PCWP)</option>
+        <option value="rv">Right Ventricle (RV)</option>
+        <option value="ra">Right Atrium / CVP (RA)</option>
+      </select>
+    </div>
+    <div>
+      <label for="sgScaleSel">Scale</label>
+      <select id="sgScaleSel" onchange="sv('sgScale',+this.value)">
+        <option value="40">0–40 mmHg</option>
+        <option value="60">0–60 mmHg</option>
+        <option value="80">0–80 mmHg</option>
+      </select>
+      <label for="sgSiteSel" style="margin-top:8px;">Insertion Site</label>
+      <select id="sgSiteSel" onchange="sv('sgSite',this.value);refreshSG()">
+        <option>Right Internal Jugular</option>
+        <option>Left Subclavian</option>
+        <option>Femoral — Right</option>
+        <option>Left Internal Jugular</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:.62rem;color:#00aaff;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
+      <div class="art-readings">
+        <div class="arbox wide" style="border-color:#00aaff;background:#001428;"><div class="arl" style="color:#4488ff;">PA Pressure</div><div class="arv" id="sgPA" style="color:#4499ff;">--- / ---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Mean PA</div><div class="arv" id="sgMPA" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">PCWP</div><div class="arv" id="sgPCWP" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">CVP</div><div class="arv" id="sgCVP" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox wide" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Waveform Mode</div><div class="arv" id="sgModeDisp" style="font-size:.85rem;color:#4499ff;">Pulmonary Artery (PA)</div></div>
+        <div class="arbox wide" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Insertion Site</div><div class="arv" id="sgSiteDisp" style="font-size:.85rem;color:#4499ff;">Right Internal Jugular</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Alarms -->
+<div class="card alarms">
+  <h2>Alarms &amp; Patient</h2>
+  <div class="alarms-inner">
+    <div>
+      <label for="patientTypeSel">Patient Type</label>
+      <select id="patientTypeSel" onchange="sv('patientType',this.value)">
+        <option>Adult</option><option>Pediatric</option><option>Neonate</option>
+      </select>
+      <label>Alarm Sound</label>
+      <div class="alarm-row">
+        <div class="atog on" id="almOn" onclick="toggleAlm()">ON</div>
+        <div class="atog" id="almMute" onclick="muteAlm()">MUTE</div>
+      </div>
+
+    </div>
+    <div>
+      <label for="hrLo">HR Alarm Low</label>
+      <div class="row">
+        <input type="range" id="hrLo" min="20" max="100" value="50" oninput="sv('hrAlarmLow',+this.value);document.getElementById('hrLov').textContent=this.value">
+        <span class="badge" id="hrLov">50</span>
+      </div>
+      <label for="hrHi">HR Alarm High</label>
+      <div class="row">
+        <input type="range" id="hrHi" min="80" max="250" value="120" oninput="sv('hrAlarmHigh',+this.value);document.getElementById('hrHiv').textContent=this.value">
+        <span class="badge" id="hrHiv">120</span>
+      </div>
+    </div>
+    <div>
+      <label for="spLo">SpO₂ Alarm Low</label>
+      <div class="row">
+        <input type="range" id="spLo" min="70" max="99" value="94" oninput="sv('spo2AlarmLow',+this.value);document.getElementById('spLov').textContent=this.value">
+        <span class="badge" id="spLov">94</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /grid -->
+
+<button class="launch-btn" onclick="openMonitor()">▶ &nbsp;OPEN MONITOR</button>
+
+<script>
+// ── BroadcastChannel ──────────────────────────────────────────
+let bc;
+try{ bc=new BroadcastChannel('simState'); }catch(e){ bc=null; }
+
+// ── State — defined first so ALL functions can safely reference S ──
+const DEF={
+  hr:78,rhythm:'nsr',lead:'II',
+  sbp:121,dbp:79,
+  spo2:97,spo2Quality:'excellent',probe:'Finger',
+  etco2:36,rr:11,co2Shape:'normal',
+  temp:36.9,tempUnit:'C',tempSite:'Esophageal',
+  patientType:'Adult',
+  alarmOn:true,alarmMuted:false,
+  hrAlarmLow:50,hrAlarmHigh:120,spo2AlarmLow:94,
+  artActive:false,artSbp:121,artDbp:79,artLinked:true,
+  artScale:180,artDamping:'normal',artSite:'Radial — Left',
+  sgActive:false,sgSbp:25,sgDbp:10,sgPcwp:8,sgCvp:5,
+  sgMode:'pa',sgScale:40,sgSite:'Right Internal Jugular',
+  pvcOn:false,pacOn:false,ectFreq:6,
+  physLock:true,
+  patientConnected:false,
+  scenario:'',
+  etco2On:false,
+};
+let S={...DEF};
+
+let cp12Open=false;
+function updateTempDisplay(){
+  const iF=S.tempUnit==='F';
+  const val=iF?(S.temp*9/5+32):S.temp;
+  document.getElementById('tempv').textContent=val.toFixed(1);
+}
+
+function toggleEtco2(){
+  S.etco2On=!S.etco2On;
+  syncToggles();
+  save();
+}
+
+function open12LeadCP(){
+  cp12Open=!cp12Open;
+  const btn=document.getElementById('btn12Lead');
+  if(cp12Open){
+    btn.textContent='✕ Close 12-Lead ECG';
+    btn.style.borderColor='#ff4444';
+    btn.style.color='#ff4444';
+    localStorage.setItem('simCmd12Lead','open:'+Date.now());
+  } else {
+    btn.textContent='⊞ Open 12-Lead ECG';
+    btn.style.borderColor='#00c8e0';
+    btn.style.color='#00c8e0';
+    localStorage.setItem('simCmd12Lead','close:'+Date.now());
+  }
+}
+
+// ── Persistence ───────────────────────────────────────────────
+// The monitor reads state two ways: live over the BroadcastChannel, and from
+// localStorage when it first opens. The channel post is in-memory and cheap, so
+// it goes out on every change; the localStorage write is a stringify plus a
+// disk hit and a slider drag fires this on every pixel, so it is coalesced.
+let saveTimer=null;
+function writeState(){
+  try{ localStorage.setItem('simState',JSON.stringify(S)); }
+  catch(e){ /* private mode or quota — the channel still carries live state */ }
+}
+function save(){
+  if(bc) bc.postMessage(S);
+  if(saveTimer) return;
+  saveTimer=setTimeout(()=>{ saveTimer=null; writeState(); },50);
+}
+// Anything that hands off to another window has to land on disk first, or the
+// monitor opens against whatever was there 50ms ago.
+function flushSave(){
+  if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; }
+  writeState();
+}
+
+// ── Connect Patient ───────────────────────────────────────────
+function toggleConnect(){
+  S.patientConnected=!S.patientConnected;
+  const btn=document.getElementById('connectBtn');
+  const lbl=document.getElementById('connectLabel');
+  if(S.patientConnected){
+    btn.className='connect-btn connected';
+    lbl.textContent='PATIENT CONNECTED';
+    // Load Normal Adult defaults
+    Object.assign(S,SCENARIOS.normal||{});
+    S.patientConnected=true;
+    S.artActive=false; // A-Line OFF by default — requires separate invasive setup
+    S.etco2On=false;   // EtCO2 OFF by default — enable when probe attached
+    stopDrugs();       // a fresh patient carries nothing from the last one
+    updateAllUI();
+  } else {
+    btn.className='connect-btn disconnected';
+    lbl.textContent='NOT CONNECTED — Click to Connect';
+    S.patientConnected=false;
+  }
+  save();
+}
+
+// Paints every control that is not a slider or a select from S. Called after
+// anything that changes state in bulk, so the panel can never disagree with
+// what the monitor is being told.
+function syncToggles(){
+  const set=(id,fn)=>{const e=document.getElementById(id);if(e)fn(e);};
+
+  set('pvcBtn',b=>{b.style.background=S.pvcOn?'#2a1400':'';b.style.opacity=S.pvcOn?'1':'0.6';b.style.boxShadow=S.pvcOn?'0 0 8px #ff880066':'none';});
+  set('pacBtn',b=>{b.style.background=S.pacOn?'#001428':'';b.style.opacity=S.pacOn?'1':'0.6';b.style.boxShadow=S.pacOn?'0 0 8px #00aaff66':'none';});
+
+  set('etco2OnBtn',b=>{b.className='atog '+(S.etco2On?'on':'off');b.textContent=S.etco2On?'⬤ EtCO₂ ON':'⬤ EtCO₂ OFF';});
+
+  set('artBtn',b=>b.classList.toggle('on',S.artActive));
+  set('artLbl',l=>l.textContent=S.artActive?'A-LINE ACTIVE':'A-LINE OFF');
+  set('artLinkBtn',b=>{b.className='atog '+(S.artLinked?'on':'off');b.textContent=S.artLinked?'🔗 LINKED TO NIBP':'⛓ DECOUPLED';});
+
+  set('almOn',b=>{b.className='atog '+(S.alarmOn?'on':'off');b.textContent=S.alarmOn?'ON':'OFF';});
+  set('almMute',b=>{b.className='atog '+(S.alarmMuted?'off':'');b.textContent=S.alarmMuted?'MUTED':'MUTE';});
+
+  set('physLockBtn2',b=>b.className='phys-btn '+(S.physLock?'on':'off'));
+  set('physLockIcon',e=>e.textContent=S.physLock?'🔒 PHYS LOCK':'🔓 FREE PLAY');
+  set('physLockLbl2',e=>e.textContent=S.physLock?'ON':'OFF');
+
+  set('connectBtn',b=>b.className='connect-btn '+(S.patientConnected?'connected':'disconnected'));
+  set('connectLabel',l=>l.textContent=S.patientConnected?'PATIENT CONNECTED':'NOT CONNECTED — Click to Connect');
+}
+
+function sv(k,v){
+  S[k]=v;
+  // Physiology lock first, so the value the A-Line mirrors is the corrected
+  // one. Mirroring before the lock ran let refreshArt() write the unclamped
+  // number straight back into S.sbp and undo the correction.
+  if(S.physLock) enforcePhysiology(k);
+  // If ART is linked to NIBP, mirror NIBP changes
+  if(S.artLinked&&(k==='sbp'||k==='dbp')){
+    S.artSbp=S.sbp;S.artDbp=S.dbp;
+    syncSlider('artSbp',S.artSbp);syncSlider('artDbp',S.artDbp);
+  }
+  // The slider that moved owns its own badge; enforcePhysiology repaints any
+  // other vital it had to correct.
+  syncSlider(k,S[k]);
+  // A-Line readings are derived from sbp/dbp, so a NIBP move has to repaint
+  // them or MAP and pulse pressure sit at the previous patient's numbers.
+  if(k==='sbp'||k==='dbp'||k==='artSbp'||k==='artDbp') refreshArt();
+  save();
+}
+
+// ── Swan-Ganz ────────────────────────────────────────────────
+function toggleSG(){
+  S.sgActive=!S.sgActive;
+  const btn=document.getElementById('sgBtn');
+  const lbl=document.getElementById('sgLbl');
+  const inner=document.getElementById('sgInner');
+  if(S.sgActive){
+    btn.style.borderColor='#00aaff';btn.style.background='#001428';btn.style.color='#00aaff';
+    btn.style.boxShadow='0 0 10px #00aaff44';
+    btn.querySelector('.dot').style.background='#00aaff';
+    btn.querySelector('.dot').style.boxShadow='0 0 6px #00aaff';
+    lbl.textContent='PA CATHETER ACTIVE';
+    inner.style.opacity='1';
+  } else {
+    btn.style.borderColor='#333';btn.style.background='';btn.style.color='#555';
+    btn.style.boxShadow='none';
+    btn.querySelector('.dot').style.background='#333';
+    btn.querySelector('.dot').style.boxShadow='none';
+    lbl.textContent='PA CATHETER OFF';
+    inner.style.opacity='.4';
+  }
+  // Disabling the real controls rather than only pointer-events: a keyboard
+  // user could otherwise tab into a panel that reads as switched off.
+  inner.querySelectorAll('input,select').forEach(el=>{el.disabled=!S.sgActive;});
+  refreshSG();save();
+}
+
+function refreshSG(){
+  const s=S.sgSbp,d=S.sgDbp;
+  const mpa=Math.round((s+2*d)/3);
+  const modeLabels={pa:'Pulmonary Artery (PA)',wedge:'Wedge (PCWP)',rv:'Right Ventricle (RV)',ra:'Right Atrium / CVP (RA)'};
+  const setEl=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  const on=S.sgActive;
+  setEl('sgPA', on?s+' / '+d:'--- / ---');
+  setEl('sgMPA', on?mpa:'---');
+  setEl('sgPCWP', on?S.sgPcwp:'---');
+  setEl('sgCVP', on?S.sgCvp:'---');
+  setEl('sgModeDisp', modeLabels[S.sgMode]||S.sgMode);
+  setEl('sgSiteDisp', S.sgSite);
+}
+
+// ── Physiology lock ──────────────────────────────────────────
+// Keeps the instructor from broadcasting a combination that cannot exist —
+// V-Fib with a blood pressure, a diastolic above the systolic. It corrects the
+// state, it does not pin it: anything a scenario author wrote deliberately has
+// to survive, and any vital the instructor is not currently dragging has to
+// stay where the scenario put it.
+function setVital(k,v){ if(S[k]!==v){S[k]=v;syncSlider(k,v);} }
+
+// Diastolic below systolic, for either pressure channel. A systolic of zero is
+// an arrest, not a narrow pulse pressure: without that first branch the old
+// `Math.max(sbp-10,10)` handed every arrest rhythm a diastolic of 10 against a
+// systolic of 0 the moment anything else was touched.
+function clampPressurePair(hi,lo){
+  if(S[hi]<=0) setVital(lo,0);
+  else if(S[lo]>=S[hi]) setVital(lo,Math.max(S[hi]-10,0));
+}
+
+function enforcePhysiology(changedKey){
+  const r=S.rhythm;
+  // V-Fib and asystole — no perfusion. The arterial channel is pinned along
+  // with the cuff, linked or not: an A-Line in either rhythm shows no
+  // pulsatile pressure, and leaving it free was a way to drag a blood
+  // pressure back onto a fibrillating patient through the other card.
+  if(r==='vfib'||r==='asystole'){
+    setVital('sbp',0);setVital('dbp',0);
+    setVital('artSbp',0);setVital('artDbp',0);
+    if(r==='vfib'){
+      if(S.spo2>3) setVital('spo2',3);
+      if(S.etco2>7) setVital('etco2',7);
+    }else{
+      if(S.spo2>0) setVital('spo2',0);
+      if(S.etco2>0) setVital('etco2',0);
+      // PVCs allowed in asystole (agonal rhythm / escape beats)
+    }
+    if(S.rr!==0) setVital('rr',0);
+  }
+  // VTach — severe hemodynamic compromise (pulseless or near-pulseless).
+  // Ceilings only. EtCO2 and RR used to be pinned to the scenario's 56/28,
+  // which meant those two sliders did nothing at all while V-Tach was up.
+  if(r==='vtach'){
+    if(S.sbp>62) setVital('sbp',62);
+    if(S.dbp>30) setVital('dbp',30);
+    if(S.artSbp>62) setVital('artSbp',62);
+    if(S.artDbp>30) setVital('artDbp',30);
+    if(S.spo2>88) setVital('spo2',88);
+  }
+  // Rate bounds apply only while the instructor is dragging the HR slider.
+  // Applied unconditionally they rewrote authored scenario states — the
+  // pediatric TBI rows carry HR 67 and 72 on a sinus brady, correct for a
+  // 5-year-old, and both were being pulled down to 60 the moment any other
+  // slider moved.
+  if(changedKey==='hr'){
+    if(r==='svt'&&S.hr<150) setVital('hr',150);
+    if(r==='brady'&&S.hr>60) setVital('hr',60);
+    if(r==='tachy'&&S.hr<100) setVital('hr',100);
+  }
+  clampPressurePair('sbp','dbp');
+  clampPressurePair('artSbp','artDbp');
+}
+
+function syncSlider(id,val){
+  const el=document.getElementById(id);if(el)el.value=val;
+  const b=document.getElementById(id+'v');if(b)b.textContent=val;
+  // rr only lives in the SpO2 card now
+  if(id==='rr'){
+    const s=document.getElementById('rr_spo2');if(s)s.value=val;
+    const sv=document.getElementById('rrv_spo2');if(sv)sv.textContent=val;
+  }
+  if(id==='temp') updateTempDisplay();
+}
+
+function togglePhysLock(){
+  S.physLock=!S.physLock;
+  syncToggles();
+  save();
+}
+
+// ── ART Link ─────────────────────────────────────────────────
+function toggleArtLink(){
+  S.artLinked=!S.artLinked;
+  // If relinking, snap ART to current NIBP
+  if(S.artLinked){
+    S.artSbp=S.sbp;S.artDbp=S.dbp;
+    syncSlider('artSbp',S.artSbp);
+    syncSlider('artDbp',S.artDbp);
+  }
+  syncToggles();
+  refreshArt();
+  save();
+}
+
+function toggleEctopic(type){
+  const key=type==='pvc'?'pvcOn':'pacOn';
+  S[key]=!S[key];
+  syncToggles();
+  save();
+}
+
+const ECT_LABELS={2:'very frequent',3:'frequent',4:'frequent',5:'occasional',6:'occasional',7:'infrequent',8:'infrequent',9:'rare',10:'rare',11:'very rare',12:'very rare'};
+function updateEctFreqLbl(v){
+  document.getElementById('ectFreqLbl').textContent='— every '+v+' beats ('+(ECT_LABELS[v]||'')+')';
+  document.getElementById('ectFreqV').textContent=v;
+}
+
+// ── Rhythm ─────────────────────────────────────────────────
+// Junctional escape runs 40–60. The 18 that used to sit here belongs to the
+// agonal escape state in the asystole simulation, which sets its own HR.
+const HR_DEF={nsr:78,brady:42,tachy:120,afib:110,afib_rvr:150,aflutter:75,svt:180,hb1:72,hb2:50,hb3:40,vtach:180,vfib:0,stemi:88,asystole:0,paced:70,junctional:45};
+
+// The vitals an arrest rhythm implies. Applied when the lock is on; in FREE
+// PLAY the instructor keeps whatever is on the sliders, which is the whole
+// point of turning the lock off.
+const RHYTHM_VITALS={
+  vfib:{sbp:0,dbp:0,spo2:3,etco2:7,rr:0},
+  asystole:{sbp:0,dbp:0,spo2:0,etco2:0,rr:0},
+  vtach:{sbp:62,dbp:30,spo2:88,etco2:56,rr:28},
+};
+
+function setR(r){
+  document.querySelectorAll('.rbtn[data-rhythm]').forEach(b=>b.classList.toggle('on',b.dataset.rhythm===r));
+  S.rhythm=r;
+  const h=HR_DEF[r];
+  if(h!==undefined){S.hr=h;syncSlider('hr',h);}
+  // Snap vitals immediately when rhythm changes — but only under the lock.
+  const snap=S.physLock&&RHYTHM_VITALS[r];
+  if(snap){
+    Object.assign(S,snap);
+    if(S.artLinked){S.artSbp=S.sbp;S.artDbp=S.dbp;}
+    Object.keys(snap).forEach(k=>syncSlider(k,S[k]));
+    syncSlider('artSbp',S.artSbp);syncSlider('artDbp',S.artDbp);
+    refreshArt();
+  }
+  save();
+}
+
+// ── ART ─────────────────────────────────────────────────────
+function toggleArt(){
+  S.artActive=!S.artActive;
+  syncToggles();
+  refreshArt();save();
+}
+function refreshArt(){
+  const s=S.artSbp,d=S.artDbp,on=S.artActive;
+  // When linked, ART sliders also drive NIBP
+  if(S.artLinked&&on){
+    S.sbp=s; S.dbp=d;
+    syncSlider('sbp',s); syncSlider('dbp',d);
+  }
+  const mv=Math.round((s+2*d)/3);
+  document.getElementById('arBP').textContent=on?s+' / '+d:'--- / ---';
+  document.getElementById('arMAP').textContent=on?mv:'---';
+  document.getElementById('arPP').textContent=on?(s-d):'---';
+  // SVR = (MAP − CVP) / CO × 80. CVP comes off the PA catheter when one is in;
+  // cardiac output is assumed at 5 L/min, which is why both read "Est.".
+  const cvp=S.sgActive?S.sgCvp:5;
+  document.getElementById('arSVR').textContent=on?Math.round(((mv-cvp)/5)*80):'---';
+  document.getElementById('arSVI').textContent=on?Math.round((5000/Math.max(S.hr,1))/1.8):'---';
+  // Keys have to match the select's values, or every choice reads as Normal.
+  const dl={normal:'Normal — Adequate fidelity',over:'Overdamped — Rounded waveform',under:'Underdamped — Ringing'};
+  document.getElementById('arDamp').textContent=dl[S.artDamping]||dl.normal;
+  document.getElementById('arSite').textContent=S.artSite;
+  save();
+}
+
+// ── Alarms ──────────────────────────────────────────────────
+function toggleAlm(){
+  S.alarmOn=!S.alarmOn;
+  syncToggles();
+  save();
+}
+function muteAlm(){
+  S.alarmMuted=!S.alarmMuted;
+  syncToggles();
+  save();
+}
+
+// ── Scenarios ────────────────────────────────────────────────
+const SCENARIOS={
+  normal:{hr:78,rhythm:'nsr',sbp:121,dbp:79,spo2:97,etco2:36,rr:12,temp:36.9},
+  tachy:{hr:130,rhythm:'tachy',sbp:105,dbp:68,spo2:96,etco2:38,rr:18,temp:37.4},
+  brady:{hr:40,rhythm:'brady',sbp:88,dbp:55,spo2:95,etco2:34,rr:22,temp:36.2},
+  afib:{hr:110,rhythm:'afib',sbp:118,dbp:76,spo2:96,etco2:35,rr:14,temp:37.1},
+  vfib:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:7,rr:0,temp:36.8},
+  vtach:{hr:180,rhythm:'vtach',sbp:62,dbp:30,spo2:88,etco2:56,rr:28,temp:37.0},
+  asystole:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:36.5},
+  pea:{hr:56,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:6,rr:0,temp:36.5},
+  shock:{hr:125,rhythm:'tachy',sbp:78,dbp:45,spo2:93,etco2:28,rr:27,temp:38.8},
+  hypertensive:{hr:103,rhythm:'nsr',sbp:210,dbp:130,spo2:95,etco2:37,rr:16,temp:37.0},
+  hypotensive:{hr:118,rhythm:'tachy',sbp:72,dbp:42,spo2:94,etco2:30,rr:22,temp:36.8},
+  hypoxia:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},
+  // Drowning initial state — loads the simulation
+  drowning_initial:{hr:128,rhythm:'tachy',sbp:92,dbp:58,spo2:82,etco2:65,rr:7,temp:34.5,patientType:'Pediatric'},
+  // Asthma initial state — loads the simulation
+  asthma_initial:{hr:122,rhythm:'tachy',sbp:116,dbp:70,spo2:90,etco2:50,rr:32,temp:37.0,patientType:'Adult'},
+  // Abdominal trauma initial state — loads the simulation
+  abdominal_trauma_initial:{hr:132,rhythm:'tachy',sbp:78,dbp:50,spo2:92,etco2:30,rr:28,temp:35.5,patientType:'Adult'},
+  // Pediatric TBI initial state — loads the simulation
+  peds_tbi_initial:{hr:87,rhythm:'nsr',sbp:135,dbp:75,spo2:96,etco2:44,rr:14,temp:37.1,patientType:'Pediatric'},
+};
+
+// ── Simulation Definitions ────────────────────────────────────
+// Generic structure: each sim has a name, states array with vitals + notes
+const SIMULATIONS={
+
+  qs_normal:{name:'Normal Adult',subtitle:'Baseline Adult Patient',patientType:'Adult',states:[
+    {label:'Initial State',color:'#00cc44',vitals:{hr:78,rhythm:'nsr',sbp:121,dbp:79,spo2:97,etco2:36,rr:12,temp:36.9},display:'HR 78 | BP 121/79 | SpO₂ 97% | EtCO₂ 36 | RR 12',note:'Patient stable. Normal sinus rhythm. All vitals within normal limits.'},
+    {label:'Slightly Worsening',color:'#ffcc00',vitals:{hr:95,rhythm:'nsr',sbp:108,dbp:70,spo2:95,etco2:38,rr:16,temp:37.2},display:'HR 95 | BP 108/70 | SpO₂ 95% | EtCO₂ 38 | RR 16',note:'Mild deterioration. Slight tachycardia, BP trending down. Monitor closely and identify cause.'},
+    {label:'Worsening',color:'#ff6600',vitals:{hr:118,rhythm:'tachy',sbp:90,dbp:58,spo2:92,etco2:42,rr:22,temp:37.6},display:'HR 118 | BP 90/58 | SpO₂ 92% | EtCO₂ 42 | RR 22',note:'Significant deterioration. Tachycardia, hypotension, dropping SpO₂. Intervention required immediately.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:82,rhythm:'nsr',sbp:118,dbp:76,spo2:97,etco2:36,rr:14,temp:37.0},display:'HR 82 | BP 118/76 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Patient responding to treatment. Vitals improving toward normal limits.'},
+  ]},
+  qs_tachy:{name:'Sinus Tachycardia',subtitle:'Compensatory — Unknown Etiology',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:130,rhythm:'tachy',sbp:105,dbp:68,spo2:96,etco2:38,rr:18,temp:37.4},display:'HR 130 | BP 105/68 | SpO₂ 96% | EtCO₂ 38 | RR 18',note:'Sinus tachycardia. Identify and treat underlying cause — pain, hypovolemia, fever, anxiety.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:142,rhythm:'tachy',sbp:96,dbp:62,spo2:94,etco2:40,rr:22,temp:37.8},display:'HR 142 | BP 96/62 | SpO₂ 94% | EtCO₂ 40 | RR 22',note:'HR increasing, BP dropping. Underlying cause not adequately treated. Increase fluids, assess for hemorrhage.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:158,rhythm:'tachy',sbp:82,dbp:50,spo2:90,etco2:28,rr:28,temp:38.2},display:'HR 158 | BP 82/50 | SpO₂ 90% | EtCO₂ 28 | RR 28',note:'Decompensating. Severe tachycardia with hypotension and hypoxia. Aggressive resuscitation required.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:114,dbp:72,spo2:97,etco2:36,rr:16,temp:37.2},display:'HR 102 | BP 114/72 | SpO₂ 97% | EtCO₂ 36 | RR 16',note:'Responding to treatment. HR trending down, BP improving. Continue monitoring and treat underlying cause.'},
+  ]},
+  qs_brady:{name:'Sinus Bradycardia',subtitle:'Symptomatic Bradycardia',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:40,rhythm:'brady',sbp:88,dbp:55,spo2:95,etco2:34,rr:22,temp:36.2},display:'HR 40 | BP 88/55 | SpO₂ 95% | EtCO₂ 34 | RR 22',note:'Symptomatic bradycardia. Assess hemodynamic instability. Consider Atropine 0.5mg IV or transcutaneous pacing.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:34,rhythm:'brady',sbp:80,dbp:48,spo2:93,etco2:30,rr:18,temp:36.1},display:'HR 34 | BP 80/48 | SpO₂ 93% | EtCO₂ 30 | RR 18',note:'HR dropping. Hypotension worsening. Initiate transcutaneous pacing. Dopamine/Epinephrine infusion if needed.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:28,rhythm:'brady',sbp:68,dbp:40,spo2:88,etco2:22,rr:10,temp:36.0},display:'HR 28 | BP 68/40 | SpO₂ 88% | EtCO₂ 22 | RR 10',note:'Severe bradycardia with cardiogenic shock. Immediate TCP or transvenous pacing. Push-dose Epi. Airway management.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:62,rhythm:'nsr',sbp:110,dbp:70,spo2:97,etco2:36,rr:14,temp:36.5},display:'HR 62 | BP 110/70 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Effective pacing or Atropine response. Hemodynamics improving. Prepare for transport.'},
+  ]},
+  qs_afib:{name:'Atrial Fibrillation',subtitle:'New Onset A-Fib with RVR',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:110,rhythm:'afib',sbp:118,dbp:76,spo2:96,etco2:35,rr:14,temp:37.1},display:'HR 110 | BP 118/76 | SpO₂ 96% | EtCO₂ 35 | RR 14',note:'A-Fib with controlled rate. Mildly symptomatic. Assess for hemodynamic instability and stroke risk.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:138,rhythm:'afib_rvr',sbp:104,dbp:66,spo2:94,etco2:36,rr:18,temp:37.2},display:'HR 138 | BP 104/66 | SpO₂ 94% | EtCO₂ 36 | RR 18',note:'Rate increasing — now RVR. BP dropping. Consider rate control: Diltiazem or Metoprolol if stable.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:162,rhythm:'afib_rvr',sbp:86,dbp:54,spo2:91,etco2:34,rr:22,temp:37.3},display:'HR 162 | BP 86/54 | SpO₂ 91% | EtCO₂ 34 | RR 22',note:'Unstable A-Fib with RVR. Hemodynamically compromised. Synchronized cardioversion indicated. Sedate if conscious.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:88,rhythm:'afib',sbp:116,dbp:74,spo2:97,etco2:36,rr:14,temp:37.1},display:'HR 88 | BP 116/74 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Rate controlled. Hemodynamics improved. Anticoagulation per protocol. Transport to ED.'},
+  ]},
+  qs_vfib:{name:'Ventricular Fibrillation',subtitle:'Cardiac Arrest — Shockable Rhythm',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff3333',vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:7,rr:0,temp:36.8},display:'HR 0 | V-Fib | BP 0/0 | SpO₂ 3% | EtCO₂ <8',note:'V-Fib arrest. Begin CPR immediately. Defibrillate 200J. Minimize interruptions. Epi 1mg IV/IO. EtCO₂ <8 — no organized perfusion.'},
+    {label:'Slightly Worsening',color:'#cc0000',vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:5,rr:0,temp:36.7},display:'HR 0 | V-Fib | SpO₂ 3% | EtCO₂ 5',note:'Still in V-Fib. EtCO₂ critically low — reassess CPR quality. Rate, depth, recoil. Shock delivered?'},
+    {label:'Worsening',color:'#880000',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:36.6},display:'HR 0 | Asystole | SpO₂ 0% | EtCO₂ 0',note:'Deteriorated to Asystole. Continue CPR. Epi every 3–5 min. Consider reversible causes (H\'s and T\'s).'},
+    {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:72,rhythm:'nsr',sbp:98,dbp:62,spo2:94,etco2:38,rr:16,temp:36.8},display:'HR 72 | ROSC | BP 98/62 | SpO₂ 94% | EtCO₂ 38',note:'ROSC achieved. Post-cardiac arrest care: 12-lead ECG, targeted temperature management, vasopressors if hypotensive.'},
+  ]},
+  qs_vtach:{name:'Ventricular Tachycardia',subtitle:'Unstable V-Tach',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff3333',vitals:{hr:180,rhythm:'vtach',sbp:62,dbp:30,spo2:88,etco2:56,rr:28,temp:37.0},display:'HR 180 | BP 62/30 | SpO₂ 88% | EtCO₂ 56 | RR 28',note:'Unstable V-Tach. Severe hemodynamic compromise. Synchronized cardioversion 100J. Sedate if conscious. Amiodarone 150mg.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:188,rhythm:'vtach',sbp:58,dbp:34,spo2:84,etco2:15,rr:24,temp:37.1},display:'HR 188 | BP 58/34 | SpO₂ 84% | EtCO₂ 15 | RR 24',note:'Hemodynamics worsening. Cardioversion not effective. Repeat shock at higher energy. Amiodarone infusion.'},
+    {label:'Worsening (Pulseless)',color:'#cc0000',vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:37.0},display:'HR 0 | V-Fib | BP 0/0 | Pulseless Arrest',note:'Deteriorated to pulseless V-Fib. Unsynchronized defibrillation 200J. CPR. Epi 1mg. Amiodarone 300mg.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:88,rhythm:'nsr',sbp:104,dbp:66,spo2:95,etco2:36,rr:16,temp:37.0},display:'HR 88 | BP 104/66 | SpO₂ 95% | EtCO₂ 36 | RR 16',note:'Converted to NSR. Continue Amiodarone infusion. 12-lead ECG. Transport to cath lab if STEMI.'},
+  ]},
+  qs_asystole:{name:'Asystole',subtitle:'Non-Shockable Cardiac Arrest',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff3333',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:36.5},display:'HR 0 | Asystole | BP 0/0 | SpO₂ 0%',note:'Asystole confirmed in 2 leads. CPR immediately. Epi 1mg IV/IO every 3–5 min. Search for reversible causes.'},
+    {label:'Worsening',color:'#880000',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:2,rr:0,temp:36.3},display:'HR 0 | Asystole | EtCO₂ 2 | Prolonged',note:'Prolonged asystole. Consider termination of efforts per medical direction if no reversible cause found.'},
+    {label:'Slightly Improved',color:'#ff6600',vitals:{hr:18,rhythm:'junctional',sbp:20,dbp:6,spo2:0,etco2:0,rr:0,temp:36.3},display:'HR 18 | Junctional Escape | BP 20/6 | SpO₂ 0% | EtCO₂ 0',note:'Junctional escape rhythm at 18 bpm. Narrow QRS, no visible P wave. Electrical activity present but no effective perfusion — confirm no pulse. Continue CPR. Epi 1mg IV/IO. Do not confuse with ROSC.'},
+    {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:48,rhythm:'brady',sbp:63,dbp:31,spo2:73,etco2:26,rr:8,temp:36.5},display:'HR 48 | ROSC | BP 63/31 | SpO₂ 73% | EtCO₂ 26 | RR 8',note:'ROSC — bradycardic, hypotensive. Vasopressors for hypotension. Targeted temp management. 12-lead ECG. Rapid transport.'},
+  ]},
+  qs_pea:{name:'PEA (Pulseless Electrical Activity)',subtitle:'Organized Rhythm — No Pulse',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff3333',vitals:{hr:56,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:6,rr:0,temp:36.5},display:'HR 56 | PEA | BP 0/0 | SpO₂ 0% | EtCO₂ 6',note:'PEA — organized ECG, no pulse. CPR immediately. Treat H\'s and T\'s: tension pneumo, tamponade, hypovolemia, hypoxia.'},
+    {label:'Slightly Worsening',color:'#cc0000',vitals:{hr:48,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:4,rr:0,temp:36.4},display:'HR 48 | PEA | EtCO₂ 4',note:'Rate slowing. EtCO₂ dropping. Epi given? Reversible cause identified and treated?'},
+    {label:'Worsening',color:'#880000',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:2,rr:0,temp:36.3},display:'HR 0 | Asystole | EtCO₂ 2',note:'Deteriorated to asystole. Cause not reversed. Continue CPR and Epi. Consider termination of efforts.'},
+    {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:53,rhythm:'brady',sbp:76,dbp:33,spo2:82,etco2:27,rr:14,temp:36.6},display:'HR 53 | ROSC | BP 76/33 | SpO₂ 82% | EtCO₂ 27',note:'ROSC after reversible cause treated. Bradycardic, hypotensive — vasopressors and airway support. 12-lead ECG. Transport immediately.'},
+  ]},
+  qs_shock:{name:'Septic Shock',subtitle:'Undifferentiated Septic Shock',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:125,rhythm:'tachy',sbp:78,dbp:45,spo2:93,etco2:28,rr:27,temp:38.8},display:'HR 125 | BP 78/45 | SpO₂ 93% | EtCO₂ 28 | RR 27',note:'Septic shock. Fluid resuscitation 30mL/kg. Blood cultures, broad-spectrum antibiotics. Vasopressors if no fluid response.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:138,rhythm:'tachy',sbp:68,dbp:38,spo2:90,etco2:24,rr:30,temp:39.2},display:'HR 138 | BP 68/38 | SpO₂ 90% | EtCO₂ 24 | RR 30',note:'Worsening despite fluids. Initiate Norepinephrine. Supplemental O₂/CPAP. Consider intubation if respiratory failure.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:148,rhythm:'tachy',sbp:56,dbp:30,spo2:86,etco2:18,rr:34,temp:39.6},display:'HR 148 | BP 56/30 | SpO₂ 86% | EtCO₂ 18 | RR 34',note:'Refractory septic shock. RSI indicated. Vasopressin add-on. Hydrocortisone. Emergent transport to ICU.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:108,rhythm:'tachy',sbp:94,dbp:60,spo2:96,etco2:32,rr:20,temp:38.4},display:'HR 108 | BP 94/60 | SpO₂ 96% | EtCO₂ 32 | RR 20',note:'MAP improving >65 with vasopressors. SpO₂ recovering. Continue resuscitation en route. Reassess every 5 min.'},
+  ]},
+  qs_hypertensive:{name:'Hypertensive Crisis',subtitle:'Hypertensive Emergency',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:103,rhythm:'nsr',sbp:210,dbp:130,spo2:95,etco2:37,rr:16,temp:37.0},display:'HR 103 | BP 210/130 | SpO₂ 95% | EtCO₂ 37 | RR 16',note:'Hypertensive emergency. Assess for end-organ damage. Nitroglycerin or Labetalol per protocol. Avoid rapid BP drops.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:110,rhythm:'nsr',sbp:228,dbp:140,spo2:94,etco2:38,rr:18,temp:37.1},display:'HR 110 | BP 228/140 | SpO₂ 94% | EtCO₂ 38 | RR 18',note:'BP rising further. New neuro symptoms or chest pain? Initiate antihypertensive. 10–20% reduction goal first hour.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:118,rhythm:'nsr',sbp:244,dbp:152,spo2:91,etco2:40,rr:22,temp:37.2},display:'HR 118 | BP 244/152 | SpO₂ 91% | EtCO₂ 40 | RR 22',note:'Hypertensive crisis with pulmonary edema or stroke. Aggressive airway management. Nitroglycerin drip. Emergent transport.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:92,rhythm:'nsr',sbp:178,dbp:108,spo2:96,etco2:37,rr:14,temp:37.0},display:'HR 92 | BP 178/108 | SpO₂ 96% | EtCO₂ 37 | RR 14',note:'BP trending down with treatment. Neurological status stable. Goal SBP <180 initially. Continue en route.'},
+  ]},
+  qs_hypotensive:{name:'Hypotensive Crisis',subtitle:'Undifferentiated Hypotension',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:118,rhythm:'tachy',sbp:72,dbp:42,spo2:94,etco2:30,rr:22,temp:36.8},display:'HR 118 | BP 72/42 | SpO₂ 94% | EtCO₂ 30 | RR 22',note:'Hypotension — identify cause. IV access ×2, fluid bolus, supine positioning, O₂. Reassess after 500mL.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:132,rhythm:'tachy',sbp:62,dbp:36,spo2:92,etco2:26,rr:26,temp:36.7},display:'HR 132 | BP 62/36 | SpO₂ 92% | EtCO₂ 26 | RR 26',note:'Worsening despite fluids. Push Dose Epi. Reassess for tension pneumo, tamponade, hemorrhage. Norepinephrine if distributive.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:148,rhythm:'tachy',sbp:50,dbp:28,spo2:88,etco2:20,rr:30,temp:36.5},display:'HR 148 | BP 50/28 | SpO₂ 88% | EtCO₂ 20 | RR 30',note:'Decompensated shock. Impending arrest. RSI if airway compromised. Vasopressors. Blood products if hemorrhagic.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:90,dbp:58,spo2:95,etco2:32,rr:18,temp:36.8},display:'HR 102 | BP 90/58 | SpO₂ 95% | EtCO₂ 32 | RR 18',note:'MAP improving. Continue resuscitation. Vasopressors titrated. Goal MAP >65. Rapid transport to definitive care.'},
+  ]},
+  qs_hypoxia:{name:'Hypoxia',subtitle:'Acute Hypoxic Respiratory Failure',patientType:'Adult',states:[
+    {label:'Initial State',color:'#ff9900',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
+    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:128,rhythm:'tachy',sbp:94,dbp:60,spo2:76,etco2:58,rr:32,temp:37.4},display:'HR 128 | BP 94/60 | SpO₂ 76% | EtCO₂ 58 | RR 32',note:'Worsening hypoxia. CPAP/BiPAP initiated? Consider RSI if patient tiring. Albuterol if bronchospasm.'},
+    {label:'Worsening',color:'#ff3333',vitals:{hr:140,rhythm:'tachy',sbp:82,dbp:50,spo2:68,etco2:66,rr:38,temp:37.6},display:'HR 140 | BP 82/50 | SpO₂ 68% | EtCO₂ 66 | RR 38',note:'Respiratory failure — RSI indicated. Pre-oxygenate aggressively. Post-intubation vent management critical.'},
+    {label:'Improved',color:'#00cc44',vitals:{hr:104,rhythm:'tachy',sbp:108,dbp:68,spo2:94,etco2:42,rr:18,temp:37.2},display:'HR 104 | BP 108/68 | SpO₂ 94% | EtCO₂ 42 | RR 18',note:'SpO₂ improving with intervention. Titrate FiO₂. Address underlying cause. Reassess frequently en route.'},
+  ]},
+
+  drowning:{
+    name:'Pediatric Drowning (7yo)',
+    subtitle:'Post-ROSC — Ice Water Submersion',
+    patientType:'Pediatric',
+    states:[
+      {
+        id:'initial',
+        label:'Initial State',
+        color:'#ff9900',
+        vitals:{hr:128,rhythm:'tachy',sbp:92,dbp:58,spo2:82,etco2:65,rr:7,temp:34.5},
+        display:'HR 128 | BP 92/58 | SpO₂ 82% | EtCO₂ 65 | RR 7 | Temp 34.5°C',
+        note:'Patient found in recovery position. Gurgling frothy secretions. Shallow/irregular breathing. GCS 9.',
+      },
+      {
+        id:'worsening',
+        label:'Worsening State',
+        color:'#ff3333',
+        vitals:{hr:110,rhythm:'tachy',sbp:86,dbp:50,spo2:78,etco2:60,rr:8,temp:34.3},
+        display:'HR 110 | BP 86/50 | SpO₂ 78% | EtCO₂ 60 | RR 8 | Temp 34.3°C',
+        note:'Triggered by: excessive suctioning, hyperventilation, failure to rewarm, or premature RSI. End sim if crew fails to correct within 4 min.',
+      },
+      {
+        id:'slightly_improved',
+        label:'Slightly Improved State',
+        color:'#ffcc00',
+        vitals:{hr:112,rhythm:'tachy',sbp:100,dbp:64,spo2:94,etco2:40,rr:16,temp:35.3},
+        display:'HR 112 | BP 100/64 | SpO₂ 94% | EtCO₂ 40 | RR 16 | Temp 35.3°C',
+        note:'Oxygenation/airway support initiated, wet clothes removed, rewarming started. Intrinsic RR still 7 irregular. Discuss advanced airway.',
+      },
+      {
+        id:'improved',
+        label:'Improved State',
+        color:'#00cc44',
+        vitals:{hr:98,rhythm:'nsr',sbp:108,dbp:68,spo2:98,etco2:38,rr:20,temp:36.2},
+        display:'HR 98 | BP 108/68 | SpO₂ 98% | EtCO₂ 38 | RR 20 | Temp 36.2°C',
+        note:'Proper ventilator management (lung protective, increased PEEP), sedation/analgesia given. Transport to Pediatric Level 1 Trauma Center. End sim on hospital report.',
+      },
+    ],
+  },// end drowning
+  asthma:{
+    name:'Adult Asthma Exacerbation (18yo)',
+    subtitle:'Severe Exacerbation — Interfacility Transfer',
+    patientType:'Adult',
+    states:[
+      {
+        id:'initial',
+        label:'Initial State',
+        color:'#ff9900',
+        vitals:{hr:122,rhythm:'tachy',sbp:116,dbp:70,spo2:90,etco2:50,rr:32,temp:37.0,co2Shape:'shark'},
+        display:'HR 122 | BP 116/70 | SpO₂ 90% | EtCO₂ 50 | RR 32 | Shark-fin',
+        note:'Tripoding, anxious. Speaks 2–3 words. Diffuse expiratory wheeze, prolonged expiration. GCS 15. Initiate nebulizer/MDI — patient will worsen after 5 min regardless.',
+      },
+      {
+        id:'slightly_worsening',
+        label:'Slightly Worsening State',
+        color:'#ff6600',
+        vitals:{hr:134,rhythm:'tachy',sbp:116,dbp:70,spo2:89,etco2:55,rr:30,temp:37.0,co2Shape:'shark'},
+        display:'HR 134 | BP 116/70 | SpO₂ 89% | EtCO₂ 55 | RR 30 | Shark-fin',
+        note:'Speaks 1-word sentences. Initiate BiPAP (IPAP ~10, EPAP ~6). Give epinephrine, magnesium 2g, steroids. Failure to do so → Worsening State. Avoid intubation.',
+      },
+      {
+        id:'worsening',
+        label:'Worsening State',
+        color:'#ff3333',
+        vitals:{hr:140,rhythm:'tachy',sbp:116,dbp:70,spo2:85,etco2:65,rr:38,temp:37.0,co2Shape:'shark'},
+        display:'HR 140 | BP 116/70 | SpO₂ 85% | EtCO₂ 65 | RR 38 | Shark-fin',
+        note:'GCS 10. Triggered by: inappropriate NIV settings, missed steroids/epi, or intubation attempt. Allow crew to correct — end simulation after 3 minutes in this state.',
+      },
+      {
+        id:'improved',
+        label:'Improved State',
+        color:'#00cc44',
+        vitals:{hr:122,rhythm:'tachy',sbp:116,dbp:70,spo2:95,etco2:52,rr:22,temp:37.0,co2Shape:'shark'},
+        display:'HR 122 | BP 116/70 | SpO₂ 95% | EtCO₂ 52 | RR 22 | Shark-fin',
+        note:'GCS 15. All appropriate interventions completed. Continue treatment and transport. End simulation after 3 minutes in this state.',
+      },
+    ],
+  },
+  abdominal_trauma:{
+    name:'Adult Abdominal Trauma (34yo F)',
+    subtitle:'Hemorrhagic Shock — High-Speed MVC',
+    patientType:'Adult',
+    states:[
+      {
+        id:'phase1',
+        label:'Phase 1 — Initial State',
+        color:'#ff9900',
+        vitals:{hr:132,rhythm:'tachy',sbp:78,dbp:50,spo2:92,etco2:30,rr:28,temp:35.5},
+        display:'HR 132 | BP 78/50 | SpO₂ 92% | EtCO₂ 30 | RR 28 | Temp 35.5°C',
+        note:'Pt on backboard, moaning, pale/cool/diaphoretic, abdomen distended, GCS 9. Expected: Scene safety, pelvic binder, permissive hypotension (SBP 80–90), TXA, blood/fluids, RSI prep. → Improvement if actions within 5 min. → Deterioration if delayed.',
+      },
+      {
+        id:'phase2_improve',
+        label:'Phase 2 — Improvement',
+        color:'#ffcc00',
+        vitals:{hr:110,rhythm:'tachy',sbp:90,dbp:60,spo2:95,etco2:35,rr:24,temp:36.0},
+        display:'HR 110 | BP 90/60 | SpO₂ 95% | EtCO₂ 35 | RR 24 | Temp 36.0°C',
+        note:'After binder, TXA, fluids/blood initiated. GCS 9, vomiting continues, airway still unprotected. Expected: Continue resuscitation, normothermia, TXA maintenance, prepare and execute RSI. → Progress to Phase 3 after successful RSI.',
+      },
+      {
+        id:'phase2a_deterioration',
+        label:'Phase 2A — Deterioration',
+        color:'#ff3333',
+        vitals:{hr:140,rhythm:'tachy',sbp:70,dbp:40,spo2:90,etco2:25,rr:30,temp:35.2},
+        display:'HR 140 | BP 70/40 | SpO₂ 90% | EtCO₂ 25 | RR 30 | Temp 35.2°C',
+        note:'Triggered by: delayed binder, TXA, or fluid/blood administration. GCS 8 (E2,V2,M4), worsening perfusion. Expected: Immediate binder, TXA, fluids/blood, minimize crystalloids, RSI with push-dose pressor. Coach: resuscitate before intubate.',
+      },
+      {
+        id:'phase3_rsi',
+        label:'Phase 3 — RSI & Stabilization',
+        color:'#00cc44',
+        vitals:{hr:105,rhythm:'nsr',sbp:92,dbp:60,spo2:96,etco2:38,rr:16,temp:36.2},
+        display:'HR 105 | BP 92/60 | SpO₂ 96% | EtCO₂ 38 | RR 16 | Temp 36.2°C',
+        note:'Post-intubation. Vent: Vt 6–8 mL/kg, RR 16–18, PEEP 5, FiO₂ titrate to SpO₂ ≥94%. Expected: Confirm tube, maintain permissive hypotension, continue blood/fluids, warm patient, rapid transport, concise handoff. End sim after successful handoff.',
+      },
+    ],
+  },
+  peds_tbi:{
+    name:'Pediatric TBI — Elliot, 5yo M (23 kg)',
+    subtitle:'Closed Head Injury / Subdural Hematoma — IFT',
+    patientType:'Pediatric',
+    states:[
+      {
+        id:'primary_assessment',
+        label:'Primary Assessment by Crew',
+        color:'#ff9900',
+        vitals:{hr:87,rhythm:'nsr',sbp:135,dbp:75,spo2:96,etco2:44,rr:14,temp:37.1},
+        display:'HR 87 | BP 135/75 | SpO₂ 96% | EtCO₂ 44 | RR 14 | Temp 37.1°C',
+        note:'Lethargic, opens eyes to pain, inappropriate words, withdraws from pain. GCS 10. Pupils 3mm sluggish. Hematoma L forehead, C-collar present, dry emesis in airway, coughing/dry heaving. Expected: Intubate (RSI per Broselow) — aspiration risk + declining GCS. If no intubation → Decompensation state.',
+      },
+      {
+        id:'intubated_icp',
+        label:'Intubated — Increased ICP',
+        color:'#ff6600',
+        vitals:{hr:67,rhythm:'brady',sbp:147,dbp:79,spo2:98,etco2:38,rr:16,temp:37.1},
+        display:'HR 67 | BP 147/79 | SpO₂ 98% | EtCO₂ 38 | RR 16 (vent)',
+        note:'Post-intubation, paralytic wearing off — irregular spontaneous breaths. Pupils 6mm non-reactive. Signs of ↑ICP. → SEIZURE: HR 54, BP 127/71, SpO₂ 84%, rigidity all extremities. Expected: Recognize ↑ICP, treat seizure per PCG, administer 3% HTS or Mannitol, HOB elevated, neutral neck. If seizure treated + HTS/Mannitol → Stabilization. If seizure treated only → Post-Ictal Herniation.',
+      },
+      {
+        id:'no_intubation_decomp',
+        label:'No Intubation — Decompensation',
+        color:'#ff3333',
+        vitals:{hr:72,rhythm:'brady',sbp:154,dbp:71,spo2:87,etco2:35,rr:10,temp:37.1},
+        display:'HR 72 | BP 154/71 | SpO₂ 87% | EtCO₂ 35 | RR 10 irregular',
+        note:'GCS 5 (E1V1M3). Pupils 6mm non-reactive. → SEIZURE with HR 54, BP 127/71, SpO₂ 84%, rigidity. Expected: Intubate NOW (RSI per Broselow), treat seizure, 3% HTS or Mannitol, HOB elevated, neutral neck. If seizure treated + HTS/Mannitol → Stabilization. If not → Post-Ictal Herniation.',
+      },
+      {
+        id:'post_ictal_herniation',
+        label:'Post-Ictal Herniation',
+        color:'#cc0000',
+        vitals:{hr:48,rhythm:'brady',sbp:161,dbp:87,spo2:85,etco2:32,rr:8,temp:37.3},
+        display:'HR 48 | BP 161/87 | SpO₂ 85% | EtCO₂ 32 | RR irreg.',
+        note:"Cushing's Triad: ↑BP, ↓HR, irregular respirations. R pupil 4mm / L pupil 6mm. Decorticate posturing. Expected: 3% HTS or Mannitol NOW, HOB elevated, neutral neck, adequate sedation, optimize vitals. If HTS/Mannitol given → Stabilization. If not → call report and hand off (end sim).",
+      },
+      {
+        id:'stabilization',
+        label:'Stabilization & Handoff',
+        color:'#00cc44',
+        vitals:{hr:68,rhythm:'nsr',sbp:138,dbp:74,spo2:96,etco2:38,rr:16,temp:37.2},
+        display:'HR 68 | BP 138/74 | SpO₂ 96% | EtCO₂ 38 | RR 16 (vent)',
+        note:'Posturing stops, no further seizure activity. Vent settings maintained. Expected: Call report to receiving pediatric trauma center — include change in status en route. End sim after report is given. Optional add-on: introduce fever + low EtCO₂ for additional debrief points.',
+      },
+    ],
+  },
+};
+let activeSim=null;
+let activeStateIdx=-1;
+
+function applyVitals(vitals, patType){
+  // A new patient state clears anything still circulating, so a drug given
+  // against the last state cannot wear off into this one.
+  stopDrugs();
+  Object.assign(S, vitals);
+  if(patType) S.patientType=patType;
+  // Only mirror into the A-Line while it is linked. Overwriting an unlinked
+  // A-Line threw away values the instructor had set independently.
+  if(S.artLinked){ S.artSbp=S.sbp; S.artDbp=S.dbp; }
+  updateAllUI();
+  save();
+}
+
+// Every select that reflects a piece of state, so a scenario that sets one
+// (the asthma states set a shark-fin capnogram; the pediatric sims set the
+// patient type) moves the control the instructor is looking at too.
+const SELECT_BINDINGS={
+  leadSel:'lead', spo2QualSel:'spo2Quality', probeSel:'probe', co2ShapeSel:'co2Shape',
+  tempUnitSel:'tempUnit', tempSiteSel:'tempSite', patientTypeSel:'patientType',
+  artDampSel:'artDamping', artScaleSel:'artScale', artSiteSel:'artSite',
+  sgModeSel:'sgMode', sgScaleSel:'sgScale', sgSiteSel:'sgSite',
+};
+
+function updateAllUI(){
+  ['hr','sbp','dbp','spo2','etco2','rr','temp','artSbp','artDbp','ectFreq',
+   'sgSbp','sgDbp','sgPcwp','sgCvp'].forEach(k=>syncSlider(k,S[k]));
+  Object.entries(SELECT_BINDINGS).forEach(([id,key])=>{
+    const el=document.getElementById(id);
+    if(el) el.value=String(S[key]);
+  });
+  document.querySelectorAll('.rbtn[data-rhythm]').forEach(b=>b.classList.toggle('on',b.dataset.rhythm===S.rhythm));
+  updateEctFreqLbl(S.ectFreq);
+  syncToggles();
+  refreshArt();
+  refreshSG();
+}
+
+function applyScenario(){
+  const key=document.getElementById('scenarioSel').value;
+  if(!key) return;
+  // Load matching quick scenario states into sim panel
+  const qsKey='qs_'+key;
+  if(SIMULATIONS[qsKey]){
+    activeSim=qsKey;
+    activeStateIdx=0;
+    renderSimPanel(qsKey);
+    applySimState(qsKey,0);
+    document.getElementById('simScenarioSel').value='';
+    return;
+  }
+  // Fallback — no states defined, just apply vitals and clear panel
+  activeSim=null; activeStateIdx=-1;
+  renderSimPanel(null);
+  const sc=SCENARIOS[key];
+  if(!sc) return;
+  S.scenario=key;
+  applyVitals(sc, sc.patientType);
+}
+
+function applySimScenario(){
+  const key=document.getElementById('simScenarioSel').value;
+  if(!key) return;
+  const simMap={
+    drowning_initial:     {sim:'drowning',    idx:0},
+    asthma_initial:       {sim:'asthma',      idx:0},
+    abdominal_trauma_initial:{sim:'abdominal_trauma',idx:0},
+    peds_tbi_initial:     {sim:'peds_tbi',    idx:0},
+  };
+  const entry=simMap[key];
+  if(!entry) return;
+  activeSim=entry.sim;
+  activeStateIdx=entry.idx;
+  renderSimPanel(entry.sim);
+  applySimState(entry.sim,entry.idx);
+  // Clear the quick scenario dropdown so it doesn't look selected
+  document.getElementById('scenarioSel').value='';
+}
+
+function applySimState(simKey, stateIdx){
+  const sim=SIMULATIONS[simKey];
+  if(!sim) return;
+  const st=sim.states[stateIdx];
+  if(!st) return;
+  activeStateIdx=stateIdx;
+  activeSim=simKey;
+  S.scenario=simKey; // track active scenario for monitor popup
+  applyVitals(st.vitals, sim.patientType);
+  // Repaint so the active state's own note is the one showing.
+  renderSimPanel(simKey);
+}
+
+function renderSimPanel(simKey){
+  const panel=document.getElementById('simStatePanel');
+  if(!simKey||!SIMULATIONS[simKey]){
+    panel.innerHTML='<div class="no-sim">No simulation active.<br>Select a scenario or simulation<br>from the pickers above.</div>';
+    return;
+  }
+  const sim=SIMULATIONS[simKey];
+  let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:#888;font-weight:normal;">${sim.subtitle}</span></div>`;
+  html+=`<div class="sim-states">`;
+  sim.states.forEach((st,i)=>{
+    html+=`<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
+      <span class="sname" style="color:${st.color}">${st.label}</span>
+      <span class="svitals">${st.display}</span>
+    </div>`;
+  });
+  html+=`</div>`;
+  // Show note for active state
+  if(activeStateIdx>=0 && sim.states[activeStateIdx]){
+    html+=`<div class="sim-note">💡 ${sim.states[activeStateIdx].note}</div>`;
+  }
+  panel.innerHTML=html;
+}
+
+// ── Open Monitor ─────────────────────────────────────────────
+function openMonitor(){
+  flushSave(); // the monitor reads localStorage as it loads
+  window.open('patient_monitor_display.html','Monitor','width=1280,height=720,resizable=yes');
+}
+
+// ── Drug Interactions Engine ──────────────────────────────────
+// `effect(base, p)` returns the vitals the drug alone would produce, given the
+// patient's undrugged baseline and its progress from 0 to 1. Every curve has
+// to return to `base` at p=1 — a drug that is still holding an effect when its
+// duration runs out leaves the patient permanently altered.
+//
+// ramp() is for infusions: onset, plateau, then washout over the last quarter.
+function ramp(p,onset){
+  onset=onset||.35;
+  if(p<onset) return p/onset;
+  if(p>.75) return Math.max(0,(1-p)/.25);
+  return 1;
+}
+const DRUGS={
+  adenosine:{name:'Adenosine',duration:20,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);const drop=p<.5?pk*70:pk*40;return{hr:Math.max(0,Math.round(b.hr-drop)),sbp:Math.round(b.sbp-pk*25),dbp:Math.round(b.dbp-pk*15)};}},
+  amiodarone:{name:'Amiodarone',duration:180,
+    effect:(b,p)=>{const pk=ramp(p,.5);return{hr:Math.round(b.hr-pk*18),sbp:Math.round(b.sbp-pk*12),dbp:Math.round(b.dbp-pk*6)};}},
+  amiodarone_300:{name:'Amiodarone 300mg (ACLS)',duration:60,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.max(0,Math.round(b.hr-pk*25)),sbp:Math.round(b.sbp-pk*20),dbp:Math.round(b.dbp-pk*10)};}},
+  epi_acls:{name:'Epinephrine 1mg (ACLS)',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*35),sbp:Math.round(b.sbp+pk*45),dbp:Math.round(b.dbp+pk*22)};}},
+  fentanyl:{name:'Fentanyl',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp-pk*12),dbp:Math.round(b.dbp-pk*6),hr:Math.round(b.hr-pk*8),rr:Math.max(6,Math.round(b.rr-pk*6))};}},
+  fluid_nacl:{name:'Fluid Bolus (NS/LR)',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*8),hr:Math.round(b.hr-pk*6)};}},
+  ketamine:{name:'Ketamine',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*18),dbp:Math.round(b.dbp+pk*10),hr:Math.round(b.hr+pk*16)};}},
+  labetalol:{name:'Labetalol',duration:120,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp-pk*30),dbp:Math.round(b.dbp-pk*16),hr:Math.round(b.hr-pk*20)};}},
+  nitroglycerin:{name:'Nitroglycerin Drip',duration:150,
+    effect:(b,p)=>{const pk=ramp(p,.25);return{sbp:Math.round(b.sbp-pk*35),dbp:Math.round(b.dbp-pk*20),hr:Math.round(b.hr-pk*8)};}},
+  norepinephrine:{name:'Norepinephrine',duration:120,
+    effect:(b,p)=>{const pk=ramp(p,.2);return{sbp:Math.round(b.sbp+pk*35),dbp:Math.round(b.dbp+pk*22),hr:Math.round(b.hr-pk*8)};}},
+  push_epi:{name:'Push Dose Epi',duration:45,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*40),dbp:Math.round(b.dbp+pk*20),hr:Math.round(b.hr+pk*30)};}},
+  whole_blood:{name:'O+ LTWB',duration:120,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*22),dbp:Math.round(b.dbp+pk*12),hr:Math.round(b.hr-pk*10),spo2:Math.min(99,Math.round(b.spo2+pk*5))};}},
+};
+
+// Floors are zero because arrest is a state this simulator ships: with the
+// old 40/10/50 floors a drug given during asystole left the patient at BP
+// 40/10 once it wore off instead of back at 0.
+const VITAL_LIMITS={hr:[0,250],sbp:[0,260],dbp:[0,260],rr:[0,60],spo2:[0,100]};
+
+// Medications currently on board, and the patient's vitals with none of them
+// applied. Every tick recomputes the whole picture as baseline + the sum of
+// each drug's deviation, so two drugs running at once add together. Capturing
+// live vitals per drug instead — which is what this did before — meant the
+// second drug adopted the first one's effect as the patient's own state, and
+// the patient never came back down.
+let activeDrugs=[];
+let drugBase=null;
+let drugTimer=null;
+let drugLog=[];
+
+function stopDrugs(){
+  activeDrugs=[];
+  if(drugTimer){clearInterval(drugTimer);drugTimer=null;}
+  // Whatever is on the monitor now becomes the patient's own state. Nothing
+  // snaps back, and nothing is left circulating.
+  drugBase=null;
+  document.querySelectorAll('.drug-btn.running').forEach(b=>b.classList.remove('running'));
+}
+
+function toggleDrugHold(){
+  stopDrugs();
+  const btn=document.getElementById('drugHoldBtn');
+  if(!btn) return;
+  // Flash red briefly to confirm, then reset
+  btn.style.background='#2a0000';
+  btn.style.borderColor='#ff3333';
+  btn.style.color='#ff3333';
+  btn.style.boxShadow='0 0 8px #ff333355';
+  setTimeout(()=>{
+    btn.style.background='#0a0f1a';
+    btn.style.borderColor='#555';
+    btn.style.color='#888';
+    btn.style.boxShadow='none';
+  },600);
+  save();
+}
+
+function giveDrug(key){
+  const drug=DRUGS[key];
+  if(!drug) return;
+  // Log
+  const n=new Date();
+  const ts=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+  drugLog.unshift({name:drug.name,time:ts});
+  if(drugLog.length>8) drugLog.pop();
+  renderDrugLog();
+  // Flash the button. Matched on the exact key — a substring match also lit
+  // Amiodarone 300 every time plain Amiodarone was given.
+  const btn=document.querySelector('.drug-btn[data-drug="'+key+'"]');
+  if(btn){btn.classList.add('fired','running');setTimeout(()=>btn.classList.remove('fired'),500);}
+  // First drug on board establishes the undrugged baseline.
+  if(!activeDrugs.length||!drugBase) drugBase={hr:S.hr,sbp:S.sbp,dbp:S.dbp,rr:S.rr,spo2:S.spo2};
+  // Re-dosing the same drug restarts its clock rather than stacking with itself.
+  activeDrugs=activeDrugs.filter(a=>a.key!==key);
+  activeDrugs.push({key,drug,startT:performance.now()});
+  if(!drugTimer) drugTimer=setInterval(drugTick,100);
+  drugTick();
+}
+
+function drugTick(){
+  if(!drugBase){stopDrugs();return;}
+  const now=performance.now();
+  const totals={hr:0,sbp:0,dbp:0,rr:0,spo2:0};
+  const finished=[];
+  activeDrugs=activeDrugs.filter(a=>{
+    const p=Math.min((now-a.startT)/(a.drug.duration*1000),1);
+    const d=a.drug.effect(drugBase,p);
+    // Sum deviations from the shared baseline, not absolute values, so
+    // concurrent drugs combine instead of the last one winning.
+    for(const k in totals) if(d[k]!==undefined) totals[k]+=d[k]-drugBase[k];
+    if(p>=1){finished.push(a.key);return false;}
+    return true;
+  });
+  finished.forEach(k=>{
+    const b=document.querySelector('.drug-btn[data-drug="'+k+'"]');
+    if(b) b.classList.remove('running');
+  });
+  // Drug effects deliberately ignore the physiology lock: giving epinephrine
+  // in an arrest is exactly the case where the instructor wants the numbers to
+  // move off what the rhythm would otherwise pin them to.
+  for(const k in totals){
+    const lim=VITAL_LIMITS[k];
+    S[k]=Math.max(lim[0],Math.min(lim[1],Math.round(drugBase[k]+totals[k])));
+  }
+  // Diastolic still cannot exceed systolic.
+  S.dbp=Math.min(S.dbp,Math.max(S.sbp-5,0));
+  ['hr','sbp','dbp','rr','spo2'].forEach(k=>syncSlider(k,S[k]));
+  if(S.artLinked){S.artSbp=S.sbp;S.artDbp=S.dbp;syncSlider('artSbp',S.artSbp);syncSlider('artDbp',S.artDbp);}
+  refreshArt();
+  // Everything has worn off — the patient is back at baseline, so stop the
+  // timer rather than ticking against a fixed picture forever.
+  if(!activeDrugs.length) stopDrugs();
+  save();
+}
+
+function renderDrugLog(){
+  const el=document.getElementById('drugLog');
+  if(!el) return;
+  if(!drugLog.length){el.innerHTML='<div style="font-size:.6rem;color:#333;text-align:center;">No drugs administered</div>';return;}
+  el.innerHTML=drugLog.map(e=>`<div class="drug-log-entry"><span class="dlt">${e.name}</span><span class="dltime">${e.time}</span></div>`).join('');
+}
+function clearDrugLog(){drugLog=[];renderDrugLog();}
+
+// ── Keyboard access ──────────────────────────────────────────
+// The rhythm, toggle, drug and state controls are <div>s carrying onclick.
+// Giving them button semantics and an Enter/Space handler is what makes the
+// panel usable without a mouse — an instructor running a sim on a laptop at
+// the back of the room should not need to aim at a 6px target.
+function makeFocusable(){
+  document.querySelectorAll('.rbtn,.atog,.drug-btn,.art-btn,.state-btn,.drug-clear').forEach(el=>{
+    if(!el.hasAttribute('role')) el.setAttribute('role','button');
+    if(!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
+  });
+}
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(!t||typeof t.matches!=='function'||!t.matches('[role="button"]')) return;
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();t.click();}
+});
+
+// ── Init ─────────────────────────────────────────────────────
+// Paint every control from S, then publish the starting state, so the panel
+// and the monitor agree before anything is touched.
+makeFocusable();
+document.getElementById('sgInner').querySelectorAll('input,select').forEach(el=>{el.disabled=true;});
+updateAllUI();
+flushSave();
+</script>
+</body>
+</html>
