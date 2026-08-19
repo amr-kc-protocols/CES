@@ -102,6 +102,54 @@ reference and actions to `SCENARIO_DOCS` under the same key. `npm run check:sim`
 asserts the two stay in step — an action list per state, a trigger per state,
 and a complete brief.
 
+## ACLS megacodes
+
+Megacodes 1–5 from the AHA ACLS Instructor Manual (pp. 235–239), graded against
+the **AHA Megacode Testing Checklist, © 2025 American Heart Association**, as
+used by this AHA Training Center for megacode testing.
+
+These differ from the quarterly scenarios in one way that matters: the checklist
+**is** an approved instrument, with critical performance steps and a PASS / NR
+the instructor circles. So a megacode run records an outcome where a quarterly
+run does not.
+
+The published steps live once, in `ACLS_CHECKLISTS`. A scenario names the
+checklist it is tested against and its per-phase expected actions are filled
+from it at load — they are never transcribed a second time, so a run cannot be
+graded against a stale copy. Three of the six published checklists are here,
+covering megacodes 1–5:
+
+| Checklist | Path | Megacodes |
+|---|---|---|
+| `brady_pvt_pea` | Bradycardia → Pulseless VT → PEA → PCAC | 1, 3 |
+| `brady_vf_asys` | Bradycardia → VF → Asystole → PCAC | 2, 5 |
+| `tachy_vf_pea` | Tachycardia → VF → PEA → PCAC | 4 |
+
+The checklist also assesses two things once for the whole code rather than in
+any one rhythm — Team Leader/team behaviour and CPR quality (rate, depth and
+recoil ticked; compression fraction and ventilation rate written in). Those sit
+in a strip under the run header with the PASS / NR buttons, so they are never
+mistaken for a step in the rhythm on screen.
+
+**Where the manual leaves a vital blank**, the value in `SIMULATIONS` is ours,
+inferred from the rhythm and the described state, and `SCENARIO_DOCS` says so
+in the brief. Nobody should mistake a clinical inference of ours for something
+the AHA specified.
+
+### Two physiology-lock rules this content corrected
+
+- **EtCO₂ is no longer pinned in arrest.** It was forced to 7 in V-Fib and 0 in
+  asystole, on the reasoning that neither perfuses. But an arrest being *run*
+  has CPR in progress, and EtCO₂ is the one number that reflects how good those
+  compressions are — under 10 means push harder, an abrupt rise is ROSC. The
+  megacodes run at 22, 25 and 48 mmHg mid-arrest. Ceiling only now (50), above
+  which it implies a perfusing rhythm rather than compressions.
+- **V-Tach is capped at 110/70, not 62/30.** The old cap assumed pulseless or
+  near-pulseless VT, which made unstable-VT-with-a-pulse unreachable — Megacode
+  4 runs monomorphic wide-complex tachycardia at 84/54 with palpable carotid and
+  radial pulses, and that patient is the whole reason the tachycardia algorithm
+  exists. These are upper bounds, so pulseless VT at 0/0 is still expressible.
+
 ## Physiology lock
 
 On by default. It exists so an instructor cannot broadcast a combination that
