@@ -1332,6 +1332,79 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     w.close()
   }
 
+  // ---- The monitor on a second device -----------------------------------
+  // Reported from a live scenario: the iPad joined the session, drew a few
+  // seconds of the relayed rhythm and went blank. Two independent causes, both
+  // of them about localStorage being a *local* thing.
+  ok(
+    'the localStorage poll asks whether it is allowed to run',
+    /setInterval\(\(\)=>\{\n\s*if\(localStateAllowed\(\)\) ld\(\);/.test(MONITOR_SRC),
+    'the poll merges the local snapshot unconditionally',
+  )
+  ok(
+    'a joined relay session stops it',
+    /if\(relay&&relayState!=='error'\) return false;/.test(MONITOR_SRC),
+  )
+  ok('and a channel that has delivered stops it too', /return !bcDelivered;/.test(MONITOR_SRC))
+  ok('the channel says when it has delivered', /bcDelivered=true;/.test(MONITOR_SRC))
+
+  {
+    // Behavioural, with the stale copy an iPad carries after the panel has
+    // ever been open on it — patientConnected:false, which is how the monitor
+    // draws no patient at all.
+    const stale = JSON.stringify({ hr: 78, rhythm: 'nsr', patientConnected: false, spo2: 97 })
+    const { w } = loadMonitor({ simState: stale })
+    w.eval(`window.CESRelay={normaliseCode:c=>String(c).toUpperCase().slice(0,6),
+      joinSession:o=>{window.__feed=o.onState;o.onStatus('live');return{send(){},sendBack(){}}},
+      leaveSession(){}}`)
+    w.eval("joinSession('ABC234')")
+    const RELAYED = { hr: 176, rhythm: 'vtach', patientConnected: true, spo2: 84 }
+    w.eval(`window.__feed(${JSON.stringify(RELAYED)})`)
+    ok('relayed state lands', w.eval('S.hr') === 176 && w.eval('S.patientConnected') === true)
+    // The poll's own body, run directly: 250ms of real time is not worth
+    // waiting for, and this is exactly what the interval does.
+    w.eval('if(localStateAllowed()) ld()')
+    ok(
+      'and the poll leaves it alone while a session is live',
+      w.eval('S.hr') === 176 && w.eval('S.patientConnected') === true,
+      `HR ${w.eval('S.hr')}, connected ${w.eval('S.patientConnected')}`,
+    )
+    // ...and the stale copy really would have wrecked it, so the check above
+    // is not passing because there was nothing to clobber.
+    w.eval('ld()')
+    ok(
+      'the local snapshot really is the thing that used to blank the screen',
+      w.eval('S.patientConnected') === false,
+      'nothing stale in localStorage — the guard above proves nothing',
+    )
+    w.close()
+  }
+  {
+    // With no session and no channel delivery, the poll is still the fallback
+    // it was built as.
+    const { w } = loadMonitor({ simState: JSON.stringify({ hr: 44, rhythm: 'brady' }) })
+    ok('a monitor on its own still reads local state', w.eval('localStateAllowed()') === true)
+    w.eval('bcDelivered=true')
+    ok('and stands down once the channel has proven itself', w.eval('localStateAllowed()') === false)
+    w.close()
+  }
+
+  // Broadcast keeps no history, so a monitor only hears what is said after it
+  // subscribes. The panel publishes on change, which left an iPad that joined
+  // mid-scenario — the normal order — on its defaults until the next slider
+  // moved, and put it back there after every reconnect.
+  const keepalive = panelSrc.match(/setInterval\(\(\)=>\{ if\(relayReady\(\)\) relay\.send\(S\); \},(\d+)\);/)
+  ok('the panel republishes state while a session is live', !!keepalive, 'a monitor joining late hears nothing')
+  ok(
+    'often enough that joining is not a wait',
+    keepalive && +keepalive[1] <= 5000 && +keepalive[1] >= 500,
+    keepalive ? `${keepalive[1]}ms` : 'no cadence',
+  )
+  ok(
+    'and it does not send into a session that is not live',
+    /function relayReady\(\)\{ return relay&&relayState==='live'; \}/.test(panelSrc),
+  )
+
   // Two strip items on the ZX skin were divs with an onclick and no way in
   // from the keyboard.
   const stripButtons = (MONITOR_SRC.match(/class="ic"[^>]*role="button"/g) || []).length

@@ -1038,6 +1038,19 @@ function startSession(code){
   setSessionUi('joining',c);
   localStorage.setItem('ces.sim.session',c);
 }
+// Broadcast keeps no history, so a monitor only ever hears what is said after
+// it subscribes. The panel publishes on change, which means an iPad that joins
+// mid-scenario — the normal order, since the facilitator starts the session
+// and the crew type the code afterwards — sits on the monitor's defaults until
+// the next slider moves. Defaults carry patientConnected:false, which is how
+// that screen draws "no patient": blank traces. The same happens after any
+// reconnect, and an iPad that sleeps for a moment reconnects.
+//
+// So the whole of S goes out again on a slow cadence while a session is live.
+// One small message every two seconds, against an eventsPerSecond budget of
+// 20, and the monitor merges it, so a repeat of what it already has is a no-op.
+setInterval(()=>{ if(relayReady()) relay.send(S); },2000);
+
 function endSession(){
   if(window.CESRelay) window.CESRelay.leaveSession();
   relay=null; relayState='off';

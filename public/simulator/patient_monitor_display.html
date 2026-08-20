@@ -904,6 +904,32 @@ const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
 function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
 ld(); // load saved state on startup
 
+/* Where patient state is allowed to come from.
+
+   localStorage is a *local* snapshot. On one machine it is how this window
+   picks up the panel's state when it opens, and the 250ms poll of it further
+   down is the fallback for browsers where BroadcastChannel is unavailable. On
+   a second device it is something else entirely: the leftovers of whatever was
+   last run on *that* device.
+
+   Reported from a live scenario — the iPad joined the session, drew a few
+   seconds of the relayed rhythm and went blank. The poll was merging a stale
+   local simState back over the relayed state four times a second, and that
+   stale copy carried patientConnected:false, which is exactly how this screen
+   draws "no patient": blank traces, not a flatline.
+
+   So the poll stands down as soon as something better is proven to work — a
+   joined relay session, because this device is then a client of another
+   machine and its own disk has nothing to say about the patient; or a
+   BroadcastChannel that has actually delivered, because the fallback is only
+   there for when it cannot. A relay session that failed to join is not a
+   source, so local state comes back rather than leaving the screen stuck. */
+let bcDelivered=false;
+function localStateAllowed(){
+  if(relay&&relayState!=='error') return false;
+  return !bcDelivered;
+}
+
 /* ── Cross-device session ──────────────────────────────────────────────────
    The channel below only reaches other windows in this browser. On an iPad in
    the bay, the panel is on the facilitator's laptop and there is no shared
@@ -967,6 +993,7 @@ try{
   stateBc.onmessage=e=>{
     if(!e.data||e.data.__monitor||e.data.__device) return;
     S={...S,...e.data};
+    bcDelivered=true;
   };
   // The heartbeat carries the one piece of monitor state the panel needs back:
   // whether the 12-lead window is actually up. The panel's toggle used to be a
@@ -991,8 +1018,10 @@ let lastCmdT=(()=>{
   catch(e){ return 0; }
 })();
 setInterval(()=>{
-  ld();
+  if(localStateAllowed()) ld();
   try{
+    // The 12-lead command is not patient state and is always local: it is the
+    // panel in the next window asking this one to open a popup.
     const raw=localStorage.getItem('simCmd12Lead')||'';
     if(raw){
       const [action,ts]=(raw+':0').split(':');
