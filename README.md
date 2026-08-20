@@ -90,12 +90,41 @@ src/
     ce/           Module B — CE deadline tracker
     cqmp/         Module F — monthly KPI review + PowerPoint generator
     academy/      Module D — cohorts, curriculum checklist, FTO release
+    sections/     the four section landings behind the bottom bar
     settings/     reviewer/sample defaults, data backup, about
 ```
 
 All state flows through `src/lib/store.ts`. Reads/writes go through that one
 module, so the persistence layer can be swapped without touching UI or domain
 logic.
+
+## Navigation
+
+The bottom bar holds **Home and four sections** — Training, Tools, Reference,
+More — and every screen lives inside one of them. It used to be flat, one cell
+per feature, which reached ten cells for an administrator: 37px wide on a 375px
+phone, under Apple's 44pt touch minimum and Google's 48dp, and a different
+shape for every role. Sections are fixed; the leaves move inside them.
+
+`src/lib/nav.ts` is the whole tree, and the only place it is written down. The
+bar reads it and so does each section landing, so the two cannot disagree.
+Adding a screen means adding one item there — its path, its icon, the line its
+row shows, and which capability guards it — plus its route in `App.tsx`. No new
+tab, and nothing to add to `Layout.tsx`.
+
+Two things stay true when you do:
+
+- **Routes never change.** `/academy`, `/simulator`, `/history` and the rest
+  keep the paths they always had, so bookmarks, shared links and anything the
+  service worker cached still resolve.
+- **Hiding is not access control.** The gate on a nav item decides whether a
+  row is drawn; the route gates in `App.tsx` and the screens themselves decide
+  whether the data renders. Both are required.
+
+`npm run check:nav` verifies the tree against the router and against the gate
+policy — that every destination is a real route, that no path is claimed twice,
+that each capability withholds exactly the screens it should, and that the bar
+never grows past five cells.
 
 ## Decisions made in this build (spec §8 open questions)
 

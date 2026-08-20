@@ -39,6 +39,12 @@ const SimulatorView = lazy(() => import('./modules/simulator/SimulatorView'))
 const CqmpView = lazy(() => import('./modules/cqmp/CqmpView'))
 const CqmpReportView = lazy(() => import('./modules/cqmp/CqmpReportView'))
 const Settings = lazy(() => import('./modules/settings/Settings'))
+// Section landings. Each is the screen behind one tab; the leaves they list
+// keep the routes they always had (see lib/nav).
+const TrainingHub = lazy(() => import('./modules/sections/TrainingHub'))
+const ToolsHub = lazy(() => import('./modules/sections/ToolsHub'))
+const ReferenceHub = lazy(() => import('./modules/sections/ReferenceHub'))
+const MoreHub = lazy(() => import('./modules/sections/MoreHub'))
 const QAQueue = lazy(() => import('./modules/qa/QAQueue'))
 const QAPeriodView = lazy(() => import('./modules/qa/QAPeriodView'))
 const ChartReviewScreen = lazy(() => import('./modules/qa/ChartReviewScreen'))
@@ -177,6 +183,10 @@ export default function App() {
       />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
+        <Route path="training" element={<TrainingHub />} />
+        <Route path="tools" element={<ToolsHub />} />
+        <Route path="reference" element={<ReferenceHub />} />
+        <Route path="more" element={<MoreHub />} />
         {CE_ENABLED && <Route path="ce" element={<CETracker />} />}
         {QA_ENABLED && (
           <>
