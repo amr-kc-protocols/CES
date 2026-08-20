@@ -19,13 +19,17 @@ files is not used: the CES tab replaces the chooser it offered.
 ## The contract between the two windows
 
 The control panel is the only writer. It publishes the whole state object on
-every change:
+every change, over three paths:
 
 - `bc.postMessage(S)` on a `BroadcastChannel` named `simState` — the live path.
 - `localStorage['simState']`, as JSON — what a monitor window reads at load.
   Writes are coalesced on a 50ms trailing timer because a slider drag fires on
   every pixel; anything that hands off to another window (`Open Monitor`) calls
   `flushSave()` first so the monitor never opens against a stale write.
+- **A Supabase Realtime channel**, when a session is running — the path that
+  reaches a monitor on a *different device*. The two above are same-origin and
+  same-**browser**: they carry two windows on one laptop and cannot reach an
+  iPad across the room at all. See "A monitor on a second device" below.
 - `localStorage['simCmd12Lead']`, as `open:<timestamp>` / `close:<timestamp>` —
   a one-shot command rather than state. The monitor keeps a high-water mark of
   the timestamp it has seen, seeded at load from whatever is already stored, so
@@ -64,6 +68,54 @@ deviations in the same normalised units as the lookup tables, where the R wave
 is about 0.48. Do not scale them by the panel height — the y mapping already
 does that, and doing it twice is what used to rail every ST-shifted lead against
 the top of its box and draw it as a square.
+
+## A monitor on a second device
+
+The intended setup is the monitor on an iPad the crew reads and the panel on
+the facilitator's laptop. That needs state to leave the machine, which
+BroadcastChannel and localStorage cannot do.
+
+The panel starts a **session** and shows a six-character code; the monitor
+joins it. Both then talk over a Realtime channel on the Supabase project CES
+already carries — broadcast, not the database, because the state a scenario is
+in is worth nothing once the scenario is over and a row per slider drag would
+be absurd. Nothing is persisted.
+
+Three things worth knowing:
+
+- **It is additive.** Two windows on one laptop keep working with no session
+  and no network; a dropped connection degrades to that rather than to
+  nothing. The panel publishes on both paths whenever a session is live.
+- **One channel carries three kinds of message** — patient state down,
+  heartbeats and device events up — so the monitor explicitly refuses to adopt
+  a heartbeat or a device event as patient state. The same guard the
+  same-machine channel needed, for the same reason.
+- **Session codes drop the ambiguous characters.** No O/0, I/1/L, S/5 or B/8:
+  they are read off a laptop screen and typed on an iPad by someone standing
+  up.
+
+The relay is built as its own Vite entry at a stable filename
+(`/simulator/relay.js`) so the two static pages can load it without a bundler
+of their own, and Supabase sits in its own chunk — left in the shared app
+chunk, loading the relay on the monitor would have dragged React and the whole
+CES bundle onto a page whose entire job is painting canvases at 60fps.
+
+## Pacing capture
+
+The crew can pace, and nothing happens — which is correct, and was still a
+usability failure. Capture is the patient answering the impulse, so it belongs
+to the facilitator; but "set the rhythm to Paced and the rate to theirs" is not
+something anyone should have to know under time pressure.
+
+So when PACER comes on with current set, the run card surfaces the crew's rate
+and milliamps with one button that gives electrical capture at their rate.
+Losing capture returns the rhythm that was there before, not a generic
+bradycardia. Both land on the same timeline as the crew's presses, so the
+debrief reads as one sequence.
+
+Worth remembering for Megacode 1: **not capturing is the point.** Its brief has
+the pacing impulse producing VT with no pulse, and the crew is expected to stop
+pacing and defibrillate. The prompt offers capture; it does not assume it.
 
 ## The LIFEPAK 15 skin
 

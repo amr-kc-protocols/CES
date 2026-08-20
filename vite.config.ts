@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -113,7 +114,18 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
+      // The simulator's two pages are static HTML under public/ with no
+      // bundler of their own, and they need a Supabase Realtime client to
+      // reach a monitor on another device. This entry gives them one at a
+      // filename that does not move between deploys, so the pages can carry a
+      // plain <script src> instead of chasing a content hash.
+      input: {
+        index: resolve(__dirname, 'index.html'),
+        'sim-relay': resolve(__dirname, 'src/simulator/relay.ts'),
+      },
       output: {
+        entryFileNames: (chunk) =>
+          chunk.name === 'sim-relay' ? 'simulator/relay.js' : 'assets/[name]-[hash].js',
         // Keep the framework in its own chunk so app-code changes don't force
         // returning users to re-download React/router across deploys.
         manualChunks: {
@@ -124,6 +136,11 @@ export default defineConfig({
           // app (~120 KB gzipped) so an administrator can still build the
           // month's deck with no network — which is the point of a PWA.
           'pptx-vendor': ['pptxgenjs'],
+          // Its own chunk so the simulator's relay entry pulls only the cloud
+          // client. Left in the shared app chunk, loading the relay on the
+          // monitor would have dragged React and the whole CES bundle onto a
+          // page whose entire job is painting canvases at 60fps.
+          'supabase-vendor': ['@supabase/supabase-js'],
         },
       },
     },
