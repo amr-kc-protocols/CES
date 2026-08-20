@@ -648,6 +648,17 @@ function loadMonitor(storage = {}) {
   ok('and it is a spike, not a level', spikeAt(0.5) < 0.9, String(spikeAt(0.5)))
   w.eval('D.pacer = false; D.pacerMa = 0')
 
+  // --- Area 4 -------------------------------------------------------------
+  // Table 3-4 gives PRINT as "starts and stops printer", which makes it a
+  // toggle. It shipped as a one-shot burst like the two record keys beside it,
+  // so a crew could not run a strip and could not stop one either.
+  ok('PRINT starts the printer', (call('printerRun(true)'), D().printing === true))
+  ok('and PRINT stops it again', (call('printerRun(false)'), D().printing === false))
+  ok(
+    'the record keys print without latching the strip on',
+    (w.eval('printerBurst(10)'), D().printing === false),
+  )
+
   w.close()
 }
 
@@ -687,6 +698,10 @@ function loadMonitor(storage = {}) {
   // whose pattern matches no real step simply never fires, which looks exactly
   // like a crew that did not do the thing.
   const panelSrc = readFileSync(PAGE, 'utf8')
+
+  // Area 4 keys, labelled as Table 3-4 labels them.
+  for (const label of ['12-LEAD', 'TRANSMIT', 'CODE', 'PRINT'])
+    ok(`the unit has a ${label} key`, MONITOR_SRC.includes(`>${label}`), 'missing from Area 4')
 
   const emitted = [...MONITOR_SRC.matchAll(/logEvent\('([a-zA-Z0-9]+)'/g)].map((m) => m[1])
   const uniq = [...new Set(emitted)]

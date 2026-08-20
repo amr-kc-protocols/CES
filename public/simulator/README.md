@@ -67,13 +67,16 @@ the top of its box and draw it as a square.
 
 ## The LIFEPAK 15 skin
 
-The LP skin is the whole unit, not just its screen: the display sits top-left,
-the three control areas run down the right, and the therapy keys and printer
-sit underneath. Control grouping, labels, LED behaviour and the numbered 1-2-3
-therapy path come from Figures 3-2 to 3-4 and Tables 3-1 to 3-3 of the LIFEPAK
-15 operating instructions. The home-screen layout — parameter column left,
-three waveform channels right, channel labels at the right-hand end of each
-trace — follows the reference screen the operation supplied.
+The LP skin is the whole unit, not just its screen. Laid out as Figure 3-1:
+carry handle over the top, connector panel down the left edge, Area 4 keys
+beside the display rather than under it, the display itself under its
+`LIFEPAK 15 MONITOR/DEFIBRILLATOR` label, speaker, printer door and therapy
+port along the bottom, and Areas 1 to 3 down the right. Control grouping,
+labels, LED behaviour and the numbered 1-2-3 therapy path come from Figures
+3-2 to 3-5 and Tables 3-1 to 3-4 of the LIFEPAK 15 operating instructions. The
+home-screen layout — parameter column left, three waveform channels right,
+channel labels at the right-hand end of each trace — follows the reference
+screen the operation supplied.
 
 The chassis is laid out fluidly rather than drawn at a fixed size and scaled.
 A transform would keep the proportions exact at any window size, but it also
@@ -118,8 +121,12 @@ with `RATE`, `CURRENT` and hold-to-`PAUSE` · `NIBP` takes the reading away for
 `OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects ·
 `HOME SCREEN` · the display-mode key toggles **SunVue**, the unit's
 high-contrast outdoor mode, which repaints the canvases on a light ground with
-dark traces rather than recolouring the chrome · `12 LEAD`, `TRANSMIT`,
-`CODE SUMMARY` and `PRINT` run the printer.
+dark traces rather than recolouring the chrome.
+
+Area 4 follows Table 3-4 exactly: `12-LEAD` acquires and prints one record,
+`TRANSMIT` sends it, `CODE SUMMARY` prints the critical event record, and
+`PRINT` **starts and stops** the printer — it is a toggle running a continuous
+strip, not a one-shot like the two record keys beside it.
 
 ### The timeline
 

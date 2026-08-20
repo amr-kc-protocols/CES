@@ -177,14 +177,57 @@ body.lp-skin #device{
   position:absolute;inset:0;display:flex;flex-direction:column;gap:7px;
   padding:7px;background:linear-gradient(180deg,#c2c4bd,#a9aca4);
 }
-body.lp-skin #devMain{position:static;flex:1;display:flex;gap:7px;min-height:0;}
+body.lp-skin #devMain{position:static;flex:1;display:flex;gap:6px;min-height:0;}
+body.lp-skin #screenCol{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
 body.lp-skin #screenWrap{
   position:relative;inset:auto;flex:1;min-width:0;
   background:#000;border:5px solid #26282a;border-radius:5px;
   box-shadow:inset 0 0 0 1px #000,0 1px 3px rgba(0,0,0,.4);
 }
 body.lp-skin #chromeRight{display:flex;flex-direction:column;gap:6px;width:206px;flex:none;}
-body.lp-skin #devBottom{display:flex;gap:8px;height:118px;flex:none;align-items:stretch;}
+body.lp-skin #chromeLeft{display:flex;flex-direction:column;gap:6px;width:82px;flex:none;
+  align-self:flex-start;}
+body.lp-skin #ports{display:flex;}
+body.lp-skin #devHandle{display:flex;}
+body.lp-skin #devFoot{display:block;}
+body.lp-skin #devUnder{display:flex;}
+
+/* ---- carry handle, screen label, footer ---- */
+#devHandle,#devFoot,#ports,#devUnder,#chromeLeft{display:none;}
+#devHandle{height:20px;flex:none;align-items:flex-end;justify-content:center;}
+/* The carry handle arches over the top of the unit; only the top of the arch
+   and its two posts are above the body line. */
+.handlebar{position:relative;width:260px;height:14px;border-radius:9px 9px 0 0;
+  background:linear-gradient(180deg,#dcdeD8,#a6a9a2);border:1px solid #8e918a;border-bottom:none;}
+.handlebar::before,.handlebar::after{content:'';position:absolute;bottom:-6px;width:13px;height:8px;
+  background:linear-gradient(180deg,#c2c4bd,#9fa29b);border:1px solid #8e918a;border-top:none;border-radius:0 0 3px 3px;}
+.handlebar::before{left:9px;} .handlebar::after{right:9px;}
+.screenLabel{flex:none;display:flex;align-items:baseline;gap:7px;padding:1px 8px;border-radius:3px;
+  background:linear-gradient(180deg,#4a4d50,#303336);color:#e8e8e6;
+  font:700 11px/1.5 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;}
+.screenLabel span{font-size:8px;font-weight:700;color:#a9adb1;letter-spacing:1px;}
+#devFoot{flex:none;text-align:center;color:#4a4d50;font:400 7px/1.5 'Arial Narrow',Arial,sans-serif;}
+#devFoot b{color:#1b1d1f;}
+
+/* ---- connector panel ---- */
+#ports{flex-direction:column;justify-content:flex-start;gap:15px;width:34px;flex:none;
+  background:#9b9e98;border-radius:5px;padding:5px 3px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
+.port{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.phole{width:17px;height:17px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#4a4d50,#17191b 70%);
+  border:1px solid #6f7276;box-shadow:inset 0 1px 2px #000;}
+.phole.sq{border-radius:3px;width:15px;height:12px;}
+.phole.big{width:21px;height:21px;}
+.plbl{font:700 6px/1 'Arial Narrow',Arial,sans-serif;color:#1b1d1f;letter-spacing:.3px;}
+
+/* ---- under the display ---- */
+#devUnder{height:92px;flex:none;gap:6px;align-items:stretch;}
+.speaker{width:62px;flex:none;border-radius:5px;background:#9b9e98;
+  background-image:radial-gradient(#6f7276 1px,transparent 1.2px);background-size:6px 6px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
+.therapy{width:78px;flex:none;border-radius:5px;background:#9b9e98;display:flex;align-items:center;
+  justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
+.tport{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#5a5d60,#17191b 72%);
+  border:2px solid #6f7276;box-shadow:inset 0 2px 4px #000;}
 
 /* ---- control areas ---- */
 .area{background:#83878a;border-radius:6px;padding:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.3);}
@@ -286,13 +329,12 @@ body.lp-skin #devBottom{display:flex;gap:8px;height:118px;flex:none;align-items:
   box-shadow:inset 0 0 3px #000;transition:transform .12s;}
 
 /* ---- keys under the display, and the printer ---- */
-.fkeys{display:flex;flex-direction:column;gap:4px;width:96px;flex:none;}
-.fk{flex:1;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
+.fk{flex:0 0 34px;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
   border-radius:11px;font:700 9px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;cursor:pointer;}
 .fk:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
 .fk:active{background:#0d0e0f;transform:translateY(1px);}
 .fk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
-.printer{flex:1;background:#9b9e98;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);padding:7px;}
+.printer{flex:1;min-width:0;background:#9b9e98;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);padding:7px;}
 .printdoor{height:100%;background:linear-gradient(180deg,#d3d5d0,#b9bcb6);border-radius:4px;border:1px solid #8d908a;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative;overflow:hidden;}
 .printslot{width:70%;height:5px;background:#3a3c39;border-radius:2px;box-shadow:inset 0 1px 2px #000;}
@@ -301,10 +343,11 @@ body.lp-skin #devBottom{display:flex;gap:8px;height:118px;flex:none;align-items:
   content:'';position:absolute;left:15%;right:15%;top:0;height:0;background:#f4f4ef;
   border:1px solid #b9bcb6;animation:paperOut 1.4s ease-out forwards;
 }
+/* Continuous strip: the paper keeps coming until PRINT is pressed again. */
+.printdoor.rolling::after{animation:paperRoll 1.4s linear infinite;}
 @keyframes paperOut{to{height:78%;}}
-.devbrand{width:96px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  font:800 15px/1 'Arial Narrow',Arial,sans-serif;color:#43464a;letter-spacing:.5px;}
-.devbrand span{font-size:22px;color:#1b1d1f;}
+@keyframes paperRoll{0%{height:0;}100%{height:78%;}}
+.a5{padding:5px;}
 
 /* =====================================================================
    Home screen
@@ -434,8 +477,34 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
      what it always did.
      --------------------------------------------------------------------- -->
 <div id="device">
+ <!-- Carry handle across the top, as on the unit. -->
+ <div id="devHandle"><span class="handlebar"></span></div>
  <div id="devMain">
-  <div id="screenWrap"><div id="screen">
+
+  <!-- The connector panel down the left edge. Not interactive, but it is what
+       tells a crew which cable goes where, and the unit is unrecognisable
+       without it. Order as on the device. -->
+  <div id="ports" aria-hidden="true">
+    <div class="port"><span class="phole"></span><span class="plbl">CO2</span></div>
+    <div class="port"><span class="phole sq"></span><span class="plbl">SpO2</span></div>
+    <div class="port"><span class="phole sq"></span><span class="plbl">NIBP</span></div>
+    <div class="port"><span class="phole big"></span><span class="plbl">ECG</span></div>
+    <div class="port"><span class="phole"></span><span class="plbl">P1</span></div>
+    <div class="port"><span class="phole"></span><span class="plbl">P2</span></div>
+  </div>
+
+  <!-- Area 4 — Figure 3-5 / Table 3-4. It runs down the left of the display
+       on the unit, not under it. -->
+  <div id="chromeLeft" class="area a5">
+    <button class="fk" id="k12LEAD">12-LEAD</button>
+    <button class="fk" id="kTRANSMIT">TRANSMIT</button>
+    <button class="fk" id="kCODESUM">CODE<br>SUMMARY</button>
+    <button class="fk" id="kPRINT">PRINT</button>
+  </div>
+
+  <div id="screenCol">
+   <div class="screenLabel"><b>LIFEPAK 15</b><span>MONITOR/DEFIBRILLATOR</span></div>
+   <div id="screenWrap"><div id="screen">
 
 <div id="alm">⚠ ALARM</div>
 
@@ -589,7 +658,15 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
   </div>
 </div>
 
-  </div></div>
+   </div></div>
+   <!-- Under the display: speaker, printer door, therapy connector. -->
+   <div id="devUnder">
+     <div class="speaker" aria-hidden="true"></div>
+     <div class="printer" id="printer"><div class="printdoor"><div class="printslot"></div><div class="printgrip"></div></div></div>
+     <div class="therapy" aria-hidden="true"><span class="tport"></span></div>
+   </div>
+  </div>
+
   <div id="chromeRight" class="chrome">
 
     <!-- Area 1 — defibrillation. Layout and labels from Figure 3-2 / Table 3-1
@@ -667,15 +744,9 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
     </div>
   </div>
  </div>
- <div id="devBottom">
-   <div class="fkeys">
-     <button class="fk" id="k12LEAD">12 LEAD</button>
-     <button class="fk" id="kTRANSMIT">TRANSMIT</button>
-     <button class="fk" id="kCODESUM">CODE<br>SUMMARY</button>
-     <button class="fk" id="kPRINT">PRINT</button>
-   </div>
-   <div class="printer" id="printer"><div class="printdoor"><div class="printslot"></div><div class="printgrip"></div></div></div>
-   <div class="devbrand">LIFEPAK<span>15</span></div>
+ <div id="devFoot" aria-hidden="true">
+   <b>DANGER</b> Explosion hazard. Do not use in the presence of flammable gases.
+   &nbsp;<b>WARNING</b> Hazardous electrical output. For use only by qualified personnel.
  </div>
 </div>
 
@@ -2447,7 +2518,7 @@ const D={
   nibpUntil:0,
   leadIx:1, leadFromPanel:null,
   sizeIx:2,
-  menu:null, menuIx:0,
+  menu:null, menuIx:0, printing:false,
   banner:null, bannerUntil:0, bannerWarn:false,
   log:[],
 };
@@ -2664,13 +2735,23 @@ function menuSelect(){
 }
 
 /* ── Printing ────────────────────────────────────────────────────────── */
-function runPrinter(ms){
+/* Two behaviours, because the manual gives them separately: 12-LEAD and CODE
+   SUMMARY print one record and stop, while PRINT "starts and stops printer"
+   (Table 3-4) — it runs the strip until it is pressed again. */
+function printerBurst(ms){
   const d=document.querySelector('.printdoor');
-  if(!d) return;
+  if(!d||D.printing) return;
   d.classList.remove('printing');
   void d.offsetWidth;              // restart the animation
   d.classList.add('printing');
-  setTimeout(()=>d.classList.remove('printing'),ms||1600);
+  setTimeout(()=>{ if(!D.printing) d.classList.remove('printing'); },ms||1600);
+}
+function printerRun(on){
+  D.printing=on;
+  const d=document.querySelector('.printdoor');
+  if(d){ d.classList.toggle('rolling',on); d.classList.toggle('printing',on); }
+  const k=document.getElementById('kPRINT');
+  if(k) k.classList.toggle('held',on);
 }
 
 /* ── Power ───────────────────────────────────────────────────────────── */
@@ -2679,7 +2760,7 @@ function setPower(on){
   document.body.classList.toggle('powered-off',!on);
   if(!on){
     disarm(); cprMetronome(false); D.cpr=false; D.pacer=false; D.analyzing=false;
-    closeMenu(); banner(null);
+    printerRun(false); closeMenu(); banner(null);
   }
   logEvent('power',on?'ON':'OFF','');
 }
@@ -2761,12 +2842,13 @@ bind('kSUN',()=>{ if(!D.on) return; D.sunvue=!D.sunvue;
   document.body.classList.toggle('sunvue',D.sunvue); invalidateCanvases();
   logEvent('display',D.sunvue?'SunVue display':'Color display',''); });
 
-bind('k12LEAD',()=>{ if(!D.on) return; toggle12Lead(); runPrinter(2200);
+bind('k12LEAD',()=>{ if(!D.on) return; toggle12Lead(); printerBurst(2200);
   logEvent('ecg12','12-LEAD','acquired'); });
 bind('kTRANSMIT',()=>{ if(!D.on) return; banner('TRANSMITTING…',2200);
   setTimeout(()=>banner('TRANSMIT COMPLETE',2200),2300); logEvent('transmit','TRANSMIT','12-lead sent'); });
-bind('kCODESUM',()=>{ if(!D.on) return; runPrinter(2600); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
-bind('kPRINT',()=>{ if(!D.on) return; runPrinter(1800); logEvent('print','PRINT','continuous strip'); });
+bind('kCODESUM',()=>{ if(!D.on) return; printerBurst(2600); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
+bind('kPRINT',()=>{ if(!D.on) return; printerRun(!D.printing);
+  logEvent('print',D.printing?'PRINT started':'PRINT stopped','continuous strip'); });
 
 /* Speed dial: wheel or drag to scroll, click or Enter to select. */
 (function(){
