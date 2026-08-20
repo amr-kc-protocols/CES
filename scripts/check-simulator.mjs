@@ -1008,6 +1008,66 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   )
 }
 
+// ---------------------------------------------------------------------------
+// Facilitator usability
+//
+// One person drives the scenario and grades the crew. Measured on a 1280x720
+// laptop, the things they touch every few seconds — the patient states, the
+// expected actions, the device timeline — were being pushed below the fold by
+// things touched once: two scenario pickers, the brief, and the team/CPR/
+// PASS-NR strip that is filled in at the debrief. The rhythm buttons and the
+// drug grid sat 800px further down again.
+// ---------------------------------------------------------------------------
+{
+  const panelSrc = readFileSync(PAGE, 'utf8')
+
+  ok(
+    'the run card follows the facilitator down the page',
+    /\.run-card\{[^}]*position:sticky/s.test(panelSrc),
+    'scrolling to the drug grid would cost sight of the phase and the unticked actions',
+  )
+  ok(
+    'and cannot grow taller than the screen it is stuck to',
+    /\.run-card\{max-height:calc\(100vh/.test(panelSrc),
+  )
+  ok(
+    'setup furniture stands down once a run is under way',
+    /body\.run-active \.scenario-row\{display:none;\}/.test(panelSrc),
+  )
+  ok('and can be brought back without ending the run', /function toggleSetup\(\)/.test(panelSrc))
+  ok(
+    'the debrief checklist starts collapsed',
+    /let clOpen=false;/.test(panelSrc),
+    'it was 190px of the most valuable space on the screen, for controls nobody touches until the end',
+  )
+  ok('and its summary keeps the tally in view', /cl-tally/.test(panelSrc) && /cl-res/.test(panelSrc))
+
+  // Exactly one. A second delegated handler double-fires every activation, and
+  // on a toggle — every expected action is one — two clicks cancel out, so
+  // ticking an action from the keyboard silently does nothing.
+  const keyHandlers = (panelSrc.match(/document\.addEventListener\('keydown'/g) || []).length
+  ok(
+    'there is exactly one keyboard-activation handler',
+    keyHandlers === 1,
+    `${keyHandlers} of them — two would cancel each other out on anything that toggles`,
+  )
+
+  // The 12-lead lives in a window the crew can close. The panel's button used
+  // to be a local boolean, so closing it at the unit left the facilitator's
+  // button reading "Close" and swallowed their next press.
+  ok(
+    'the monitor reports whether the 12-lead is actually up',
+    /__monitor:1,lead12:/.test(MONITOR_SRC),
+  )
+  ok('and the panel follows it rather than guessing', /function sync12Lead\(/.test(panelSrc))
+  ok('the panel acts on that heartbeat field', /sync12Lead\(!!e\.data\.lead12\)/.test(panelSrc))
+
+  // Two strip items on the ZX skin were divs with an onclick and no way in
+  // from the keyboard.
+  const stripButtons = (MONITOR_SRC.match(/class="ic"[^>]*role="button"/g) || []).length
+  ok('the ZX strip controls are reachable from the keyboard', stripButtons === 2, `${stripButtons} of 2`)
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)

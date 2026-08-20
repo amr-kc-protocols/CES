@@ -87,6 +87,7 @@ html,body{
 }
 
 .ic:last-child{border-bottom:none;}
+.ic:focus-visible{outline:2px solid #ffd24a;outline-offset:-2px;}
 
 #nums{position:absolute;top:26px;right:0;bottom:56px;width:155px;display:flex;flex-direction:column;background:#000;z-index:10;}
 .nb{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:0 0 3px;border-bottom:1px solid #111;overflow:hidden;min-height:0;}
@@ -613,7 +614,8 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 
 <div id="strip">
   <div class="ic" style="color:#00ff00;font-size:9px;font-weight:bold;letter-spacing:.5px;">I, II,<br>III...</div>
-  <div class="ic" onclick="toggle12Lead()" title="12-Lead ECG"
+  <div class="ic" role="button" tabindex="0" onclick="toggle12Lead()"
+       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggle12Lead();}" title="12-Lead ECG"
        style="font-size:18px;font-weight:bold;color:#fff;background:#0a0a1e;border-bottom:1px solid #2e2e2e;position:relative;">
     12
     <div style="position:absolute;bottom:3px;left:0;right:0;height:3px;background:linear-gradient(90deg,#0f0,#0a0,#0f0);opacity:.6;border-radius:1px;"></div>
@@ -622,7 +624,9 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
   <div class="ic" style="color:#00ff88;font-size:20px;font-weight:bold;">✛</div>
   <div class="ic" style="color:#cccccc;font-size:9px;font-weight:bold;letter-spacing:.5px;">SYNC</div>
   <div class="ic" style="font-size:16px;">🖫</div>
-  <div class="ic" onclick="window.open('control_panel.html','ControlPanel','width=1100,height=900,resizable=yes,scrollbars=yes')"
+  <div class="ic" role="button" tabindex="0"
+       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"
+       onclick="window.open('control_panel.html','ControlPanel','width=1100,height=900,resizable=yes,scrollbars=yes')"
        style="font-size:20px;color:#00aaff;background:#001020;" title="Open Control Panel">↩</div>
 </div>
 
@@ -881,8 +885,13 @@ try{
     if(!e.data||e.data.__monitor||e.data.__device) return;
     S={...S,...e.data};
   };
-  setInterval(()=>{ try{ stateBc.postMessage({__monitor:1}); }catch(e){} },1000);
-  try{ stateBc.postMessage({__monitor:1}); }catch(e){}
+  // The heartbeat carries the one piece of monitor state the panel needs back:
+  // whether the 12-lead window is actually up. The panel's toggle used to be a
+  // local boolean, so a crew closing the 12-lead at the unit left the
+  // facilitator's button reading "Close" and swallowed their next press.
+  const beat=()=>{ try{ stateBc.postMessage({__monitor:1,lead12:!!(w12Lead&&!w12Lead.closed)}); }catch(e){} };
+  setInterval(beat,1000);
+  beat();
 }catch(e){}
 // Fallback: poll localStorage every 250ms in case BC unavailable or cross-origin
 //

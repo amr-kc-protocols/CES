@@ -181,7 +181,17 @@ select:focus{border-color:#00e5ff;}
    below the fold on every laptop. At full width the same content is ~260px, so
    the whole run is on screen at once, which is the point of one person being
    able to drive and grade together. */
-.run-card{width:100%;max-width:960px;margin-bottom:12px;padding:12px 16px 14px;}
+/* The run card is what a facilitator touches every few seconds; the rhythm
+   buttons and the drug grid are 800px further down. Sticking it to the top
+   means scrolling to give a drug no longer costs sight of which phase the
+   patient is in and which actions are still unticked. */
+.run-card{width:100%;max-width:960px;margin-bottom:12px;padding:12px 16px 14px;
+  position:sticky;top:0;z-index:30;
+  background:var(--card,#0b1220);
+  box-shadow:0 6px 18px rgba(0,0,0,.55);}
+/* Sticky only helps if it is not itself taller than the viewport. On a short
+   screen the card scrolls internally rather than pushing the controls off. */
+.run-card{max-height:calc(100vh - 12px);overflow-y:auto;}
 .run-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;
   padding-bottom:9px;border-bottom:1px solid #1e3a52;}
 .run-head .rh-name{font-size:.76rem;color:#ff9900;font-weight:bold;line-height:1.3;}
@@ -197,6 +207,15 @@ select:focus{border-color:#00e5ff;}
 /* The AHA checklist assesses team behaviour and CPR quality once for the whole
    code rather than in any one rhythm, and ends in a PASS / NR. One strip under
    the header, so it is never mistaken for a step in the state on screen. */
+.cl-wrap{margin-top:10px;border-top:1px solid #1e3a52;padding-top:8px;}
+.cl-head{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.66rem;color:var(--t);
+  padding:4px 2px;border-radius:5px;}
+.cl-head:hover{background:#0d1b2a;}
+.cl-head:focus-visible{outline:2px solid #00c8e0;outline-offset:1px;}
+.cl-chev{color:var(--t-dim);width:10px;}
+.cl-tally{color:var(--t-dim);font-size:.6rem;}
+.cl-res{margin-left:auto;font-size:.6rem;letter-spacing:1px;color:var(--t-faint);}
+.cl-res.pass{color:#7fe0a5;} .cl-res.nr{color:#ff8844;}
 .cl-strip{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;
   margin:0 0 10px;padding:8px 10px;border-radius:7px;background:#0a0f1a;border:1px solid #1e3a52;}
 .cl-grp{display:flex;flex-direction:column;gap:4px;}
@@ -225,6 +244,14 @@ select:focus{border-color:#00e5ff;}
    in-grid card would be a duplicate. Hiding it leaves a hole at column 3 row 2,
    which the pressure card fills by spanning both rows. */
 body.run-mode .card.simstate{display:none;}
+/* Scenario pickers and the brief are setup, touched once. During a run they
+   give their height back to the things being used — together they were 150px
+   of the first screenful on a 1280x720 laptop. */
+body.run-active .scenario-row{display:none;}
+body.run-active .brief-card{margin-bottom:8px;}
+/* One way back to the pickers without ending the run. */
+.setup-restore{display:none;}
+body.run-active.setup-open .scenario-row{display:flex;}
 body.run-mode .card.bp{grid-row:1/3;}
 
 /* Scenario brief — everything the facilitator would otherwise have the Word
@@ -878,7 +905,11 @@ let lastMonitorPing=0;
 if(bc){
   bc.onmessage=e=>{
     if(!e.data) return;
-    if(e.data.__monitor){ lastMonitorPing=Date.now(); return; }
+    if(e.data.__monitor){
+      lastMonitorPing=Date.now();
+      sync12Lead(!!e.data.lead12);
+      return;
+    }
     if(e.data.__device){ onDeviceEvent(e.data.__device); return; }
   };
   setInterval(()=>{
@@ -925,20 +956,27 @@ function toggleEtco2(){
   save();
 }
 
+/* The button reflects what the monitor is showing, not what this window last
+   asked for. Those two used to be the same variable: a crew closing the
+   12-lead at the unit left this reading "Close", so the facilitator's next
+   press sent another close — a no-op — and only the press after that reopened
+   it. The monitor now reports the window's real state on its heartbeat. */
+function paint12Lead(){
+  const btn=document.getElementById('btn12Lead');
+  if(!btn) return;
+  btn.textContent=cp12Open?'✕ Close 12-Lead ECG':'⊞ Open 12-Lead ECG';
+  btn.style.borderColor=cp12Open?'#ff4444':'#00c8e0';
+  btn.style.color=cp12Open?'#ff4444':'#00c8e0';
+}
+function sync12Lead(open){
+  if(open===cp12Open) return;
+  cp12Open=open;
+  paint12Lead();
+}
 function open12LeadCP(){
   cp12Open=!cp12Open;
-  const btn=document.getElementById('btn12Lead');
-  if(cp12Open){
-    btn.textContent='✕ Close 12-Lead ECG';
-    btn.style.borderColor='#ff4444';
-    btn.style.color='#ff4444';
-    localStorage.setItem('simCmd12Lead','open:'+Date.now());
-  } else {
-    btn.textContent='⊞ Open 12-Lead ECG';
-    btn.style.borderColor='#00c8e0';
-    btn.style.color='#00c8e0';
-    localStorage.setItem('simCmd12Lead','close:'+Date.now());
-  }
+  paint12Lead();
+  localStorage.setItem('simCmd12Lead',(cp12Open?'open:':'close:')+Date.now());
 }
 
 // ── Persistence ───────────────────────────────────────────────
@@ -2199,6 +2237,8 @@ function endRun(){
   renderSimPanel(rec.scenario);
 }
 
+function toggleSetup(){ document.body.classList.toggle('setup-open'); }
+
 function newRun(){ lastRun=null; const k=activeSim; if(k&&SCENARIO_DOCS[k]){ startRun(k); applySimState(k,0); } }
 
 // ── What the crew did at the defibrillator ───────────────────────────────────
@@ -2333,8 +2373,28 @@ function renderBrief(simKey){
 
 // The run-level half of the AHA checklist: team behaviour, CPR quality, and the
 // PASS / NR the instructor circles at the end.
+/* Collapsed while the run is live. Team behaviour, CPR quality and PASS / NR
+   are graded once at the end, but the strip was sitting between the run header
+   and the columns — 190px of the most valuable space on the screen, occupied
+   by controls nobody touches until the debrief. The summary line keeps the
+   tally visible so nothing is forgotten. */
+let clOpen=false;
+function toggleChecklist(){ clOpen=!clOpen; renderSimPanel(activeSim); }
 function checklistStripHtml(){
   if(!run||!run.checklist) return '';
+  const teamDone=run.team.filter(t=>t.done).length;
+  const cprDone=ACLS_CPR_FIELDS.filter(f=>f.type==='check'&&run.cpr[f.id]).length;
+  const cprChecks=ACLS_CPR_FIELDS.filter(f=>f.type==='check').length;
+  const head=`<div class="cl-head" role="button" tabindex="0" onclick="toggleChecklist()">
+      <span class="cl-chev">${clOpen?'▾':'▸'}</span>
+      <span>Team &amp; CPR quality</span>
+      <span class="cl-tally">${teamDone}/${run.team.length} team · ${cprDone}/${cprChecks} CPR</span>
+      <span class="cl-res ${run.result||''}">${run.result==='pass'?'PASS':run.result==='nr'?'NR':'no result yet'}</span>
+    </div>`;
+  if(!clOpen) return `<div class="cl-wrap">${head}</div>`;
+  return `<div class="cl-wrap">${head}${checklistBodyHtml()}</div>`;
+}
+function checklistBodyHtml(){
   const team=run.team.map((t,i)=>
     `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" onclick="toggleTeam(${i})">
        <span class="box">${t.done?'✓':''}</span><span>${esc(t.text)}</span></div>`).join('');
@@ -2363,6 +2423,7 @@ function renderSimPanel(simKey){
   const card=document.getElementById('runCard');
   const graded=!!SCENARIO_DOCS[simKey];
   document.body.classList.toggle('run-mode',graded);
+  document.body.classList.toggle('run-active',!!run);
   if(card) card.hidden=!graded;
 
   if(!simKey||!SIMULATIONS[simKey]){
@@ -2418,10 +2479,11 @@ function renderSimPanel(simKey){
                  oninput="setRunField('crew',this.value)">
           <input id="noteIn" placeholder="Debrief note" value="${esc(run?run.notes:'')}"
                  oninput="setRunField('notes',this.value)">
+          <button class="apply-btn" style="padding:7px 12px;" onclick="toggleSetup()"
+                  title="Show the scenario pickers without ending the run">⚙</button>
           <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
         </div>
       </div>
-      ${run&&run.checklist?checklistStripHtml():''}
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}</div>
         <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
@@ -2429,7 +2491,8 @@ function renderSimPanel(simKey){
           <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
           <div id="devFeed" class="dev-feed"></div>
         </div>
-      </div>`;
+      </div>
+      ${run&&run.checklist?checklistStripHtml():''}`;
     renderDeviceFeed();
     return;
   }

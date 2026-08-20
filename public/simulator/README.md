@@ -281,6 +281,28 @@ the assessor of record.
 
 ## Facilitating and grading
 
+One person drives the scenario and grades the crew, so the layout is measured
+against that. On a 1280x720 laptop the things touched every few seconds — the
+patient states, the expected actions, the device timeline — were being pushed
+below the fold by things touched once: two scenario pickers, the brief, and the
+team/CPR/PASS-NR strip that is filled in at the debrief. The rhythm buttons and
+the drug grid sat 800px further down again, so giving a drug meant losing sight
+of the phase and the unticked actions.
+
+Three changes, all measured:
+
+- **The run card is sticky.** Scroll to the drug grid and the states, the
+  expected actions and the device feed stay pinned at the top. It also carries
+  its own max height, so it can never be taller than the screen it is stuck to.
+- **The scenario pickers stand down during a run** and come back on a button
+  that does not end it.
+- **The debrief checklist is collapsed** behind a summary line carrying the
+  tally and the result, because team behaviour, CPR quality and PASS / NR are
+  graded once at the end.
+
+Together those took the run card from about 500px to 397px and put everything
+needed during a code above the fold at 1280x720.
+
 One person runs these scenarios. They drive the patient and assess the crew at
 the same time, so both live in one band across the top of the console: the
 patient states on the left (click to drive), the state's **Expected Actions** in
@@ -528,9 +550,11 @@ improvement.
   drawn on the assumption the crew works the unit on a touchscreen or laptop.
   Thrown on a TV it is still readable, but the buttons are then decoration.
 - **P3 on the bottom bar is a placeholder** with no state behind it.
-- **The 12-lead does not follow the rhythm** once open (see above), and closing
-  it from the monitor's own `12` button leaves the control panel's toggle
-  believing it is still open, so the next click there is swallowed.
+- **The 12-lead does not follow the rhythm** once open (see above). It is a
+  snapshot by design. The panel's toggle no longer desyncs, though: the
+  monitor reports whether the window is actually up on its heartbeat, so a
+  crew closing it at the unit leaves the facilitator one press from
+  reopening it rather than two.
 - **Both pages assume a wide screen.** The monitor is an absolutely positioned
   fixed layout; the control panel's grid is authored against 960px with
   breakpoints below that. Neither is usable on a phone, which is worth knowing
