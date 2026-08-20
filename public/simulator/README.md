@@ -90,6 +90,48 @@ A transform would keep the proportions exact at any window size, but it also
 scales the waveform canvases, and a trace resampled by the compositor is the
 one thing on this screen that has to stay sharp.
 
+### On an iPad
+
+The unit is worked with gloved thumbs on a tablet, so control sizes are not
+styling. Measured before the usability pass, **twelve of eighteen controls were
+under Apple's 44pt minimum on every iPad**, and the three rockers — ENERGY
+SELECT, RATE and CURRENT, the ones tapped repeatedly under pressure — were 20
+to 23pt, half the floor.
+
+Every control is now at least 48 design pixels in its smallest dimension. 48
+rather than 44 because the chassis scales: the worst landscape scale it reaches
+is about 0.93 on an iPad mini, and 48 x 0.93 is 44.6. Verified at iPad Pro 11,
+iPad 10.9, iPad 10.2 and iPad mini — 0 of 18 under 44pt at all four.
+
+Alongside the sizes:
+
+- **The chassis is `position:fixed`.** At 1141px wide, positioned absolutely it
+  widened the layout viewport on a touch device: `innerWidth` came back as 1141
+  instead of the iPad's 834, and the fit concluded the unit already fitted. In
+  portrait it never scaled at all.
+- **Zoom is off** — `maximum-scale=1, user-scalable=no`. This is a fixed-layout
+  instrument that fits itself to the screen; pinching only hides half of it,
+  and a stray double-tap zoom mid-code is a crew that cannot find the shock
+  button.
+- **Long press does not raise the iOS callout.** Holding ON to power the unit
+  down looks exactly like a text selection to iOS.
+- **Hover styles sit behind `@media (hover:hover)`.** iOS leaves `:hover` stuck
+  on whatever was tapped last, so a key looked held long after it was let go.
+- **The speed dial claims its own gesture** with `touch-action:none`, or
+  dragging it scrolls the page instead of turning it.
+- **The fit follows `visualViewport`** where it exists — Safari's toolbar
+  slides and `innerHeight` lags behind it, leaving the unit hanging off the
+  bottom for the length of the animation.
+- **Short screens drop the carry handle and the hazard strip.** They are the
+  only two parts of the chassis that carry nothing, and 36px of them is the
+  difference between a 43pt key and a 45pt one on an iPad mini.
+
+**Portrait shows a rotate prompt rather than a stacked layout.** A LIFEPAK is a
+landscape object and where its controls sit is half of what a crew is here to
+learn; rearranging them into a column would teach the wrong muscle memory, and
+at the 0.73 scale portrait allows every control would fall under the touch
+floor anyway. The unit stays live behind the prompt.
+
 ### Who owns what
 
 One boundary carries the whole design:

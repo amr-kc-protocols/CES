@@ -2,11 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- maximum-scale/user-scalable: this is a fixed-layout instrument that fits
+     itself to the screen. Pinch-zooming it only ever hides half the unit, and
+     double-tap zoom on a control is worse — a stray zoom mid-code is a crew
+     that cannot find the shock button. viewport-fit=cover for the iPad's
+     rounded corners and home indicator. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Monitor</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Arial Narrow',Arial,sans-serif;color:#fff;}
+html,body{
+  width:100%;height:100%;overflow:hidden;background:#000;
+  font-family:'Arial Narrow',Arial,sans-serif;color:#fff;
+  /* Touch hygiene for the iPad. A long press on a key would otherwise raise
+     the selection callout — which is exactly what holding ON to power the
+     unit down looks like to iOS — and a swipe would rubber-band the page
+     out from under the crew. */
+  overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
 
 #top{position:absolute;top:0;left:0;right:0;height:26px;background:#1a1a1a;border-bottom:2px solid #333;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:12px;z-index:20;}
 .tseg{display:flex;align-items:center;gap:10px;}
@@ -68,7 +85,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
   text-align:center;line-height:1.3;min-height:0;
   transition:background .12s;
 }
-.ic:hover{background:#1e1e1e;}
+
 .ic:last-child{border-bottom:none;}
 
 #nums{position:absolute;top:26px;right:0;bottom:56px;width:155px;display:flex;flex-direction:column;background:#000;z-index:10;}
@@ -141,10 +158,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 .yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
 /* -- Skin switcher — floats over the corner in both skins, so it never has to
    live inside a status line that is meant to look like the real device. -- */
-#skinbar{position:fixed;bottom:2px;right:2px;z-index:60;display:flex;border:1px solid #444;border-radius:4px;
-  overflow:hidden;opacity:.3;transition:opacity .15s;}
+#skinbar{position:fixed;bottom:calc(4px + env(safe-area-inset-bottom));left:calc(4px + env(safe-area-inset-left));
+  z-index:90;display:flex;border:1px solid #444;border-radius:6px;overflow:hidden;
+  opacity:.35;transition:opacity .15s;}
 #skinbar:hover,#skinbar:focus-within{opacity:1;}
-.skb{padding:2px 7px;font-size:10px;font-weight:bold;cursor:pointer;background:#222;color:#a8a8a8;border:none;letter-spacing:1px;transition:all .15s;}
+.skb{min-width:44px;min-height:44px;padding:0 10px;font-size:13px;font-weight:bold;cursor:pointer;
+  background:#222;color:#a8a8a8;border:none;letter-spacing:1px;transition:all .15s;touch-action:manipulation;}
 .skb.on{background:#004466;color:#00e5ff;}
 
 /* =====================================================================
@@ -186,7 +205,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 
 body.lp-skin{background:#14161a;}
 body.lp-skin #device{
-  position:absolute;inset:auto;left:0;top:0;transform-origin:0 0;
+  /* Fixed, not absolute. At 1141px wide an absolutely-positioned chassis
+     widens the layout viewport on a touch device, so window.innerWidth came
+     back as 1141 instead of the iPad's 834 and the fit maths concluded it
+     already fitted. A fixed element is measured against the viewport and
+     cannot push it out. */
+  position:fixed;inset:auto;left:0;top:0;transform-origin:0 0;
   width:1141px;height:800px;
   display:flex;flex-direction:column;gap:6px;
   padding:7px;background:linear-gradient(180deg,#c2c4bd,#a9aca4);
@@ -244,10 +268,13 @@ body.lp-skin #devUnder{display:flex;}
 .speaker{flex:none;align-self:center;margin-top:auto;width:96px;height:96px;border-radius:50%;
   background:#8f938d;background-image:radial-gradient(#5f6266 1.5px,transparent 1.8px);
   background-size:8px 8px;box-shadow:inset 0 2px 5px rgba(0,0,0,.3);}
-.therapy{width:150px;flex:none;border-radius:5px;background:#9b9e98;display:flex;align-items:center;
-  justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
-.tport{width:86px;height:86px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#5a5d60,#17191b 72%);
-  border:2px solid #6f7276;box-shadow:inset 0 2px 4px #000;}
+.therapy{width:150px;flex:none;border-radius:5px;background:#9b9e98;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
+.tport{width:80px;height:80px;border-radius:50%;position:relative;
+  background:radial-gradient(circle at 50% 50%,#0d0e0f 0 46%,#3c3f42 46% 100%);
+  border:3px solid #7d807a;box-shadow:inset 0 3px 7px rgba(0,0,0,.85);}
+.tkey{position:absolute;left:50%;top:9px;width:7px;height:13px;margin-left:-3.5px;border-radius:2px;background:#7d807a;}
+.tlbl{font:700 8px/1 'Arial Narrow',Arial,sans-serif;color:#43464a;letter-spacing:1.4px;}
 
 /* ---- control areas ---- */
 .area{background:#83878a;border-radius:6px;padding:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.3);}
@@ -267,38 +294,46 @@ body.lp-skin #devUnder{display:flex;}
 /* ---- keys ---- */
 .k{
   position:relative;display:flex;align-items:center;justify-content:center;
-  min-height:34px;padding:4px 6px 4px 20px;
+  min-height:48px;padding:4px 6px 4px 22px;
   background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;
   border:1px solid #0b0c0d;border-radius:12px;
   font:700 13px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.7px;text-align:center;
   cursor:pointer;user-select:none;
 }
-.k:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
+
 .k:active,.k.held{background:#0d0e0f;transform:translateY(1px);}
 .k:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
-.krow{display:flex;gap:4px;}
+.k,.fk,.rk,.shock{touch-action:manipulation;}
+.krow{display:flex;gap:5px;}
 .k.half{flex:1;padding-left:4px;min-width:0;}
 .on-k{background:linear-gradient(180deg,#3fb45f,#217a3b);border-color:#14532a;color:#fff;}
-.on-k:hover{background:linear-gradient(180deg,#4cc46d,#288a44);}
+
 .charge-k{background:linear-gradient(180deg,#f0ab3f,#cf7f16);border-color:#8a5407;color:#1a1204;padding-left:4px;}
-.charge-k:hover{background:linear-gradient(180deg,#ffbb52,#dd8b1c);}
+
 .charge-k.armed{animation:chargePulse .45s steps(1,end) infinite;}
 @keyframes chargePulse{0%,49%{filter:brightness(1)}50%,100%{filter:brightness(1.7)}}
-.arow .k{font-size:11px;letter-spacing:.4px;padding-left:17px;min-height:31px;}
-.arow .updown{padding-left:3px;}
-.arow .updown .udlbl{font-size:10px;}
+.arow .k{font-size:11px;letter-spacing:.4px;padding-left:18px;min-height:48px;}
+.arow .updown{padding-left:2px;padding-right:2px;}
+.arow .updown .udlbl{font-size:10px;letter-spacing:0;padding:0 2px;}
 .alarms-k{background:linear-gradient(180deg,#f0c04a,#cf9412);border-color:#8a6207;color:#1a1204;}
-.alarms-k:hover{background:linear-gradient(180deg,#ffd05c,#dda11a);}
+
 
 /* Up/down rockers — one key with a label between two arrows, as on the unit. */
-.updown{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:2px 3px;}
+/* Up/down rockers. On the unit these are one key with a label between two
+   arrows; here each arrow owns a full-height, 44pt-wide slice of it, because
+   ENERGY SELECT and CURRENT are the controls a crew taps most and they were
+   the smallest things on the screen — 23pt on an iPad Pro. */
+.updown{display:flex;align-items:stretch;justify-content:space-between;gap:0;padding:0;min-height:48px;}
 .updown .ud{
-  background:none;border:none;color:#f2f2f2;font-size:12px;line-height:1;cursor:pointer;
-  padding:5px 4px;border-radius:3px;flex:none;
+  background:none;border:none;color:#f2f2f2;font-size:13px;line-height:1;cursor:pointer;
+  flex:0 0 48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  touch-action:manipulation;
 }
-.updown .ud:hover{background:#3f4245;}
+
 .updown .ud:active{background:#000;}
-.updown .udlbl{font:700 11.5px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;text-align:center;flex:1;}
+.updown .udlbl{font:700 11.5px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.4px;text-align:center;
+  flex:1;min-width:0;align-self:center;}
+.a1right .udlbl{font-size:10px;letter-spacing:.2px;}
 
 /* Indicator LEDs. Dark until the function is active — the operating
    instructions describe most of these as "LED illuminated when ...", and
@@ -319,7 +354,7 @@ body.lp-skin #devUnder{display:flex;}
 .shockrow{display:flex;align-items:center;gap:5px;justify-content:center;padding-top:1px;}
 .shockrow .led{position:static;transform:none;}
 .shock{
-  width:60px;height:60px;border-radius:50%;flex:none;cursor:pointer;
+  width:64px;height:64px;border-radius:50%;flex:none;cursor:pointer;
   background:radial-gradient(circle at 35% 30%,#ff7a52,#d9381e 70%);
   border:2px solid #7d1c0c;box-shadow:0 2px 3px rgba(0,0,0,.45);
   display:flex;align-items:center;justify-content:center;
@@ -335,14 +370,14 @@ body.lp-skin #devUnder{display:flex;}
 /* Round nav keys and the speed dial. */
 .rk{background:none;border:none;cursor:pointer;color:#1b1d1f;display:flex;flex-direction:column;align-items:center;
   gap:3px;font:700 9px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.3px;padding:3px;}
-.rk svg{width:32px;height:32px;background:#2b2d2f;color:#e9e9e9;border-radius:50%;padding:6px;}
-.rk:hover svg{background:#3f4245;}
+.rk svg{width:44px;height:44px;background:#2b2d2f;color:#e9e9e9;border-radius:50%;padding:9px;}
+
 .rk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;border-radius:4px;}
 .rk.sun svg{border-radius:4px;}
 .dialwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;}
 .diallbl{font:700 9px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:2px;color:#1b1d1f;}
 .dial{
-  width:74px;height:74px;border-radius:50%;cursor:grab;
+  width:80px;height:80px;touch-action:none;border-radius:50%;cursor:grab;
   background:radial-gradient(circle at 40% 32%,#5a5d60,#1a1b1d 72%);
   border:2px solid #0d0e0f;box-shadow:0 2px 4px rgba(0,0,0,.45);
   display:flex;align-items:center;justify-content:center;
@@ -353,9 +388,9 @@ body.lp-skin #devUnder{display:flex;}
   box-shadow:inset 0 0 3px #000;transition:transform .12s;}
 
 /* ---- keys under the display, and the printer ---- */
-.fk{flex:0 0 46px;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
+.fk{flex:0 0 54px;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
   border-radius:14px;font:700 12px/1.15 'Arial Narrow',Arial,sans-serif;letter-spacing:.7px;cursor:pointer;}
-.fk:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
+
 .fk:active{background:#0d0e0f;transform:translateY(1px);}
 .fk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
 .printer{flex:1;min-width:0;background:#9b9e98;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);padding:7px;}
@@ -474,6 +509,19 @@ body.lp-skin #rEcg .wh{justify-content:flex-start;padding-left:6px;}
 body.lp-skin .yl{left:auto;right:5px;width:26px;top:2px;text-align:right;align-items:flex-end;font-size:8px;}
 body.lp-skin .wt{font-size:13px;}
 
+/* Hover belongs to pointers. iOS leaves a :hover style stuck on whatever was
+   tapped last, so on the chassis a key looks held long after it was let go. */
+@media (hover:hover) and (pointer:fine){
+  .k:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
+  .on-k:hover{background:linear-gradient(180deg,#4cc46d,#288a44);}
+  .charge-k:hover{background:linear-gradient(180deg,#ffbb52,#dd8b1c);}
+  .alarms-k:hover{background:linear-gradient(180deg,#ffd05c,#dda11a);}
+  .updown .ud:hover{background:#3f4245;}
+  .rk:hover svg{background:#3f4245;}
+  .fk:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
+  .ic:hover{background:#1e1e1e;}
+}
+
 /* ---- on-screen menus, driven by the speed dial ---- */
 #lpMenu{
   display:none;position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:26;
@@ -484,6 +532,20 @@ body.lp-skin .wt{font-size:13px;}
 #lpMenu .mh{background:#2e353f;padding:4px 9px;letter-spacing:1.2px;color:#fff;}
 #lpMenu .mi{padding:5px 9px;border-top:1px solid #1b2027;}
 #lpMenu .mi.sel{background:#2f6b45;color:#fff;}
+
+body.lp-skin.compact #devHandle,body.lp-skin.compact #devFoot{display:none;}
+
+/* ---- portrait ---- */
+#rotate{display:none;}
+body.lp-skin.portrait #rotate{
+  display:flex;position:fixed;inset:0;z-index:80;
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:28px;text-align:center;background:rgba(10,12,15,.93);
+  color:#d8dde3;font-family:'Arial Narrow',Arial,sans-serif;
+}
+#rotate svg{width:64px;height:64px;color:#ffd24a;}
+#rotate b{font-size:21px;letter-spacing:.6px;}
+#rotate span{font-size:14px;line-height:1.55;color:#9aa2ab;max-width:340px;}
 
 /* ---- power off ---- */
 body.lp-skin.powered-off #screen>*{visibility:hidden;}
@@ -694,7 +756,13 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
    <!-- Under the display: speaker, printer door, therapy connector. -->
    <div id="devUnder">
      <div class="printer" id="printer"><div class="printdoor"><div class="printslot"></div><div class="printgrip"></div></div></div>
-     <div class="therapy" aria-hidden="true"><span class="tport"></span></div>
+     <!-- The therapy cable connector, not a control. Drawn recessed with the
+          connector key visible so it does not read as a second speed dial —
+          which is exactly how it read before. -->
+     <div class="therapy" aria-hidden="true">
+       <span class="tport"><span class="tkey"></span></span>
+       <span class="tlbl">THERAPY</span>
+     </div>
    </div>
   </div>
 
@@ -783,6 +851,22 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
    <b>DANGER</b> Explosion hazard. Do not use in the presence of flammable gases.
    &nbsp;<b>WARNING</b> Hazardous electrical output. For use only by qualified personnel.
  </div>
+</div>
+
+<!-- Portrait. A LIFEPAK is a landscape object and its control geography is
+     half of what a crew is here to learn, so the unit is not rearranged into
+     a column — the buttons would no longer be where they are on the real one.
+     The prompt is shown instead, and the unit stays live behind it. -->
+<div id="rotate">
+  <svg viewBox="0 0 48 48" aria-hidden="true">
+    <rect x="9" y="4" width="30" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <path d="M24 39.5h.02" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    <path d="M40 14a17 17 0 0 1 5 12M8 34a17 17 0 0 1-5-12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="m43 22 2 5 3-4M5 26l-2-5-3 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <b>Turn the iPad sideways</b>
+  <span>The LIFEPAK 15 is a landscape unit. Held upright, every control would
+  sit below the size a gloved thumb can reliably hit.</span>
 </div>
 
 <div id="skinbar">
@@ -2391,6 +2475,8 @@ document.addEventListener('fullscreenchange',()=>{
 window.addEventListener('keydown',e=>{
   if(e.key==='f'||e.key==='F') toggleFullscreen();
 });
+if(window.visualViewport) window.visualViewport.addEventListener('resize',fitDevice);
+window.addEventListener('orientationchange',()=>setTimeout(fitDevice,120));
 window.addEventListener('resize',()=>{
   fitDevice();
   Object.keys(cSizes).forEach(k=>delete cSizes[k]);
@@ -2654,6 +2740,11 @@ function cprMetronome(on){
    stretched: a defibrillator with the wrong aspect is a defibrillator whose
    buttons are not where the crew reaches for them. */
 const DEV_W=1141, DEV_H=800;
+/* On a screen too short to give the unit its full height, the carry handle
+   and the hazard strip go rather than the controls: they are the only two
+   parts of the chassis that carry nothing, and 36px of them is the
+   difference between a 43pt key and a 45pt one on an iPad mini. */
+const DEV_H_COMPACT=764;
 let devScale=1;
 function fitDevice(){
   const el=document.getElementById('device');
@@ -2663,10 +2754,21 @@ function fitDevice(){
     if(devScale!==1){ devScale=1; invalidateCanvases(); }
     return;
   }
-  const vw=window.innerWidth, vh=window.innerHeight;
-  const k=Math.min(vw/DEV_W, vh/DEV_H);
-  el.style.width=DEV_W+'px'; el.style.height=DEV_H+'px';
-  el.style.transform='translate('+Math.round((vw-DEV_W*k)/2)+'px,'+Math.round((vh-DEV_H*k)/2)+'px) scale('+k+')';
+  // visualViewport where it exists: Safari's toolbar slides in and out and
+  // innerHeight lags behind it, which leaves the unit hanging off the bottom
+  // of the screen for as long as the animation lasts.
+  const vp=window.visualViewport;
+  const vw=Math.round(vp?vp.width:window.innerWidth);
+  const vh=Math.round(vp?vp.height:window.innerHeight);
+  const compact=vh<790;
+  document.body.classList.toggle('compact',compact);
+  const k=Math.min(vw/DEV_W, vh/(compact?DEV_H_COMPACT:DEV_H));
+  // Portrait is not a shape this unit has. Rather than shrink it to 70% and
+  // put every control below the touch minimum, say so — see #rotate.
+  document.body.classList.toggle('portrait', vh>vw*1.05);
+  const dh=compact?DEV_H_COMPACT:DEV_H;
+  el.style.width=DEV_W+'px'; el.style.height=dh+'px';
+  el.style.transform='translate('+Math.round((vw-DEV_W*k)/2)+'px,'+Math.round((vh-dh*k)/2)+'px) scale('+k+')';
   // Only repaint when the scale actually moved: the canvases are sized in
   // device pixels against it, so every change means a full re-render.
   if(Math.abs(k-devScale)>0.002){ devScale=k; invalidateCanvases(); }

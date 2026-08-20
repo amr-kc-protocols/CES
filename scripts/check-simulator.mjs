@@ -726,6 +726,80 @@ function loadMonitor(storage = {}) {
   ok('auto-ticks are marked in the UI', /auto-tag/.test(panelSrc) && /from monitor/.test(panelSrc))
   ok('and clicking one clears the mark', /if\(a\.auto\) delete a\.auto/.test(panelSrc))
 
+  // ---- iPad usability ----------------------------------------------------
+  // The unit is worked with gloved thumbs on a tablet, so the sizes below are
+  // not styling. Measured before this pass, twelve of eighteen controls were
+  // under Apple's 44pt minimum on every iPad and the three rockers — ENERGY
+  // SELECT, RATE and CURRENT, the ones tapped repeatedly under pressure —
+  // were 20 to 23pt. The floors are set in design pixels against the worst
+  // landscape scale the chassis reaches (~0.93 on an iPad mini), so 48 design
+  // px is what clears 44pt there.
+  const cssNum = (re, what) => {
+    const m = MONITOR_SRC.match(re)
+    ok(`${what} is still declared`, !!m, 'rule is gone')
+    return m ? parseFloat(m[1]) : 0
+  }
+  const TOUCH_FLOOR = 48
+  ok(
+    'chassis keys clear the touch floor',
+    cssNum(/\.k\{[^}]*?min-height:(\d+)px/s, 'the key height') >= TOUCH_FLOOR,
+    'below 48 design px',
+  )
+  ok(
+    'the two-column areas clear it too',
+    cssNum(/\.arow \.k\{[^}]*?min-height:(\d+)px/s, 'the two-column key height') >= TOUCH_FLOOR,
+    'below 48 design px',
+  )
+  ok(
+    'rocker arrows clear it',
+    cssNum(/\.updown \.ud\{[^}]*?flex:0 0 (\d+)px/s, 'the rocker arrow width') >= TOUCH_FLOOR,
+    'below 48 design px — these were the smallest controls on the unit',
+  )
+  ok(
+    'the Area 4 keys clear it',
+    cssNum(/\.fk\{flex:0 0 (\d+)px/, 'the Area 4 key height') >= TOUCH_FLOOR,
+    'below 48 design px',
+  )
+  ok(
+    'the skin switch clears the raw 44pt minimum',
+    cssNum(/\.skb\{min-width:(\d+)px/, 'the skin switch size') >= 44,
+    'below 44px — it does not scale with the chassis',
+  )
+
+  // The chassis is 1141px wide. Positioned absolutely it widened the layout
+  // viewport on a touch device, so innerWidth came back as 1141 rather than
+  // the iPad's 834 and the fit concluded it already fitted.
+  ok(
+    'the chassis cannot widen the layout viewport',
+    /body\.lp-skin #device\{[^}]*?position:fixed/s.test(MONITOR_SRC),
+    'position:fixed is gone — portrait will report the wrong viewport width',
+  )
+  ok('pinch and double-tap zoom are off', /user-scalable=no/.test(MONITOR_SRC))
+  ok('the page cannot rubber-band', /overscroll-behavior:none/.test(MONITOR_SRC))
+  ok(
+    'a long press does not raise the iOS callout',
+    /-webkit-touch-callout:none/.test(MONITOR_SRC),
+    'holding ON to power down would select text instead',
+  )
+  ok(
+    'the speed dial takes the gesture rather than the page',
+    /\.dial\{[^}]*?touch-action:none/s.test(MONITOR_SRC),
+    'dragging it would scroll instead of turning it',
+  )
+  // iOS leaves :hover stuck on whatever was tapped last.
+  const hoverBlock = MONITOR_SRC.slice(MONITOR_SRC.indexOf('@media (hover:hover)'))
+  const strayHover = /^\s*\.(k|fk|rk|updown|on-k|charge-k|alarms-k|ic)[^{]*:hover/m.test(
+    MONITOR_SRC.slice(0, MONITOR_SRC.indexOf('@media (hover:hover)')),
+  )
+  ok('control hover styles are behind a pointer query', !strayHover, 'a bare :hover would stick on iOS')
+  ok('and the query actually contains them', /\.k:hover/.test(hoverBlock.slice(0, 700)))
+  ok('portrait is handled rather than shrunk into', /id="rotate"/.test(MONITOR_SRC))
+  ok(
+    'the fit follows the visual viewport',
+    /visualViewport/.test(MONITOR_SRC),
+    "Safari's toolbar would leave the unit hanging off the bottom",
+  )
+
   // A channel delivers to every other subscriber in the same page, so the
   // monitor hears its own device posts. Merging one would put a __device key
   // into the patient state.
