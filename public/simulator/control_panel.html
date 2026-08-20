@@ -32,6 +32,18 @@ h1{color:#00e5ff;font-size:1rem;letter-spacing:2px;text-transform:uppercase;marg
 .mon-chip.on{color:#00ff88;border-color:#00ff8855;background:#00ff8814;}
 .mon-chip.off{color:#ff8844;border-color:#ff884455;background:#ff884414;}
 
+/* Second-device session. Off by default: most runs are two windows on one
+   laptop and need no network at all. */
+.sess{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;max-width:960px;
+  margin:0 auto 10px;padding:7px 12px;border:1px solid #1e3a52;border-radius:8px;background:#0d1b2a;}
+.sess-lbl{font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);}
+.sess-note{font-size:.58rem;color:var(--t-faint);}
+.sess-code{font:bold 1.05rem/1 monospace;letter-spacing:4px;color:#00e5ff;
+  padding:4px 10px;border:1px solid #00c8e0;border-radius:5px;background:#04222b;}
+.sess.live{border-color:#00cc66;} .sess.live .sess-lbl{color:#7fe0a5;}
+.sess.error{border-color:#8a3a3a;} .sess.error .sess-lbl{color:#ff8844;}
+body.run-active .sess.off{display:none;}
+
 .scenario-row{width:100%;max-width:960px;display:flex;gap:12px;margin-bottom:12px;}
 .scenario-row .scenario-bar{flex:1;min-width:0;margin-bottom:0;}
 .scenario-bar{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
@@ -141,6 +153,20 @@ select:focus{border-color:#00e5ff;}
 .act.auto{border-style:dashed;}
 .act .auto-tag{margin-left:auto;flex:none;font-size:.52rem;letter-spacing:.5px;color:#8fb6ff;
   text-transform:uppercase;align-self:center;white-space:nowrap;}
+
+/* The crew has the pacer running. Capture is the facilitator's to give, so
+   this is a prompt rather than an automatic response — but it carries their
+   settings and does the work in one press. */
+.pacer-prompt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;
+  padding:8px 10px;border:1px solid #6a4ea8;border-radius:6px;background:#1a1230;}
+.pacer-prompt[hidden]{display:none;}
+.pp-lbl{font-size:.63rem;font-weight:bold;color:#c0a6ff;letter-spacing:.5px;}
+.pp-set{font-size:.6rem;color:var(--t-dim);font-variant-numeric:tabular-nums;}
+.pp-btn{margin-left:auto;padding:6px 11px;border-radius:5px;cursor:pointer;
+  background:#3d2a70;border:1px solid #6a4ea8;color:#e6dcff;font-size:.62rem;font-weight:bold;}
+.pp-btn:hover{background:#4d3690;}
+.pp-btn.lose{background:#3a1a1a;border-color:#8a3a3a;color:#ffc9c9;}
+.pp-btn.lose:hover{background:#5a2626;}
 
 /* The device timeline. Newest at the top, because during a code the last thing
    that happened is the thing being asked about. */
@@ -408,6 +434,8 @@ body.run-mode .card.bp{grid-row:1/3;}
     <div class="phys-note" style="font-size:.55rem;color:var(--t-dim);line-height:1.3;text-align:center;">Prevents impossible vital combinations<br>(e.g. VF + BP 180/100)</div>
   </div>
 </div>
+
+<div id="sessBox" class="sess off"></div>
 
 <div class="scenario-row">
 <div class="scenario-bar">
@@ -894,6 +922,9 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <button class="launch-btn" onclick="openMonitor()">▶ &nbsp;OPEN MONITOR</button>
 
+<!-- Cross-device relay. A module, and deliberately optional: if it fails to
+     load, everything below still works between two windows on one machine. -->
+<script type="module" src="/simulator/relay.js"></script>
 <script>
 // ── BroadcastChannel ──────────────────────────────────────────
 let bc;
@@ -919,6 +950,52 @@ if(bc){
     chip.className='mon-chip '+(live?'on':'off');
     chip.textContent=live?'\u25cf Monitor live':'\u25cc Monitor not open';
   },1000);
+}
+
+// ── Cross-device session ──────────────────────────────────────
+// The BroadcastChannel above only reaches other windows in this browser. When
+// the monitor is an iPad across the room, state has to leave the machine, so
+// the panel also publishes to a Supabase Realtime channel named by a session
+// code the iPad joins. Additive: with no session, or with the relay failing,
+// the same-machine path is untouched.
+let relay=null, relayState='off';
+function relayReady(){ return relay&&relayState==='live'; }
+
+function startSession(code){
+  if(!window.CESRelay){ setSessionUi('error','Relay unavailable — reload the page'); return; }
+  const c=window.CESRelay.normaliseCode(code||window.CESRelay.newSessionCode());
+  relay=window.CESRelay.joinSession({
+    code:c, role:'panel',
+    onBack:msg=>{
+      if(!msg) return;
+      if(msg.__monitor){ lastMonitorPing=Date.now(); sync12Lead(!!msg.lead12); return; }
+      if(msg.__device){ onDeviceEvent(msg.__device); return; }
+    },
+    onStatus:(st,detail)=>{ relayState=st; setSessionUi(st,detail); if(st==='live') relay.send(S); },
+  });
+  setSessionUi('joining',c);
+  localStorage.setItem('ces.sim.session',c);
+}
+function endSession(){
+  if(window.CESRelay) window.CESRelay.leaveSession();
+  relay=null; relayState='off';
+  localStorage.removeItem('ces.sim.session');
+  setSessionUi('off');
+}
+function setSessionUi(st,detail){
+  const box=document.getElementById('sessBox');
+  if(!box) return;
+  const code=relay?relay.code():'';
+  const label={off:'Not sharing',joining:'Connecting…',live:'iPad can join',error:'Relay problem'}[st]||st;
+  box.className='sess '+st;
+  box.innerHTML=st==='off'
+    ? `<span class="sess-lbl">Second device</span>
+       <button class="apply-btn" onclick="startSession()">Start a session</button>
+       <span class="sess-note">for a monitor on an iPad</span>`
+    : `<span class="sess-lbl">${label}</span>
+       <span class="sess-code">${code}</span>
+       <span class="sess-note">${st==='error'?(detail||''):'Open the monitor on the iPad and enter this code'}</span>
+       <button class="apply-btn" onclick="endSession()">Stop</button>`;
 }
 
 // ── State — defined first so ALL functions can safely reference S ──
@@ -991,6 +1068,7 @@ function writeState(){
 }
 function save(){
   if(bc) bc.postMessage(S);
+  if(relayReady()) relay.send(S);
   if(saveTimer) return;
   saveTimer=setTimeout(()=>{ saveTimer=null; writeState(); },50);
 }
@@ -2253,6 +2331,12 @@ function newRun(){ lastRun=null; const k=activeSim; if(k&&SCENARIO_DOCS[k]){ sta
 // answers those afterwards, and it is saved with the run.
 
 let deviceFeed=[];       // last few events, shown whether or not a run is open
+/* What the crew has the pacer set to. Capture is the patient's answer to the
+   pacing impulse and stays the facilitator's to give — the monitor never
+   writes patient state. But "set rhythm to Paced and the rate to theirs" is
+   not something anyone should have to know under time pressure, so the panel
+   surfaces their settings with a button that does exactly that. */
+let pacer={on:false,rate:70,ma:0};
 
 // Auto-tick.
 //
@@ -2286,6 +2370,12 @@ function onDeviceEvent(ev){
   deviceFeed.push(ev);
   if(deviceFeed.length>60) deviceFeed.shift();
 
+  if(ev.type==='pacer')        pacer.on=ev.label==='PACER ON';
+  if(ev.type==='pacerRate')    pacer.rate=parseInt(ev.detail)||pacer.rate;
+  if(ev.type==='pacerCurrent') pacer.ma=parseInt(ev.detail)||0;
+  if(ev.type==='pacer'&&!pacer.on) pacer.ma=0;
+  renderPacerPrompt();
+
   if(run){
     const at=Math.max(0,Math.round((now-Date.parse(run.startedAt))/1000));
     run.device.push({at,type:ev.type,label:ev.label,detail:ev.detail||''});
@@ -2318,8 +2408,55 @@ function autoTick(re,ev){
 const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
   pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
   ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
-  alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',
+  alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',capture:'⌁',
   power:'⏻',display:'☀',disarm:'⚡'};
+
+/* Electrical capture: the paced rhythm at the rate the crew dialled in. One
+   press, and it is still a press the facilitator makes. */
+let preCapture=null;
+function giveCapture(){
+  // Remember what the patient was doing, so losing capture returns them to it
+  // rather than to a generic bradycardia.
+  preCapture={rhythm:S.rhythm,hr:S.hr};
+  setR('paced');
+  S.hr=pacer.rate;
+  syncSlider('hr',S.hr);
+  updateAllUI();
+  save();
+  logLocal('capture','CAPTURE GIVEN',pacer.rate+' ppm at '+pacer.ma+' mA');
+  renderPacerPrompt();
+}
+function loseCapture(){
+  const back=preCapture||{rhythm:'brady',hr:40};
+  preCapture=null;
+  setR(back.rhythm);
+  S.hr=back.hr;
+  syncSlider('hr',S.hr);
+  updateAllUI();
+  save();
+  logLocal('capture','CAPTURE LOST','');
+  renderPacerPrompt();
+}
+/* Facilitator actions belong on the same timeline as the crew's, so the
+   debrief reads as one sequence rather than two. */
+function logLocal(type,label,detail){
+  const ev={t:new Date().toISOString(),ms:Date.now(),type,label,detail:detail||''};
+  onDeviceEvent(ev);
+}
+
+function renderPacerPrompt(){
+  const el=document.getElementById('pacerPrompt');
+  if(!el) return;
+  const live=pacer.on&&pacer.ma>0;
+  el.hidden=!live;
+  if(!live) return;
+  const captured=S.rhythm==='paced';
+  el.innerHTML=`<span class="pp-lbl">⌗ Crew is pacing</span>`+
+    `<span class="pp-set">${pacer.rate} ppm · ${pacer.ma} mA</span>`+
+    (captured
+      ? `<button class="pp-btn lose" onclick="loseCapture()">Take capture away</button>`
+      : `<button class="pp-btn" onclick="giveCapture()">Give capture at ${pacer.rate} ppm</button>`);
+}
 
 function renderDeviceFeed(){
   const el=document.getElementById('devFeed');
@@ -2489,11 +2626,13 @@ function renderSimPanel(simKey){
         <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
         <div>${triggerHtml}${noteHtml}
           <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
+          <div id="pacerPrompt" class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
         </div>
       </div>
       ${run&&run.checklist?checklistStripHtml():''}`;
     renderDeviceFeed();
+    renderPacerPrompt();
     return;
   }
 
@@ -2717,6 +2856,7 @@ document.addEventListener('keydown',e=>{
 // Paint every control from S, then publish the starting state, so the panel
 // and the monitor agree before anything is touched.
 makeFocusable();
+setSessionUi('off');
 document.getElementById('sgInner').querySelectorAll('input,select').forEach(el=>{el.disabled=true;});
 updateAllUI();
 flushSave();
