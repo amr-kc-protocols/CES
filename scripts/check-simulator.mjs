@@ -1201,6 +1201,46 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('and the panel follows it rather than guessing', /function sync12Lead\(/.test(panelSrc))
   ok('the panel acts on that heartbeat field', /sync12Lead\(!!e\.data\.lead12\)/.test(panelSrc))
 
+  // ...and the crew at the unit need a way out of it. Reported from a live
+  // scenario: once the 12-lead was up there was no way off it. The popup had
+  // no close control of its own, and HOME SCREEN — the key the manual makes
+  // the way back to the home display — tested for an in-page element named
+  // `lead12` that has never existed, because the 12-lead is a separate window
+  // held in `w12Lead`. So the guard was always false and HOME did nothing.
+  const twelve = MONITOR_SRC.slice(
+    MONITOR_SRC.indexOf('function open12Lead'),
+    MONITOR_SRC.indexOf('function close12Lead'),
+  )
+  ok('the 12-lead window carries its own close control', /class="closebtn"/.test(twelve))
+  ok('that control calls close12()', /onclick="close12\(\)"/.test(twelve))
+  ok('and Escape works from inside it', /if\(e\.key==='Escape'\) close12\(\)/.test(twelve))
+  ok(
+    'a window that cannot close itself says so rather than looking stuck',
+    /id="closeHint"/.test(twelve),
+  )
+  ok(
+    'nothing looks for the 12-lead as an element in this document',
+    !/getElementById\('lead12'\)/.test(MONITOR_SRC),
+    'a popup window is not a node here — that guard can never be true',
+  )
+  {
+    // Behavioural: HOME SCREEN closes an open 12-lead, and does not open one.
+    const { w } = loadMonitor()
+    w.eval('setPower(true)')
+    let closed = 0
+    w.eval('w12Lead={closed:false,close(){this.closed=true;window.__closed=(window.__closed||0)+1}}')
+    w.document.getElementById('kHOME').dispatchEvent(new w.MouseEvent('click', { bubbles: true }))
+    closed = w.eval('window.__closed||0')
+    ok('HOME SCREEN closes the 12-lead window', closed === 1, `close() called ${closed} times`)
+    ok('and lets go of the handle', w.eval('w12Lead===null'))
+    let opened = 0
+    w.eval('open12Lead=function(){window.__opened=(window.__opened||0)+1}')
+    w.document.getElementById('kHOME').dispatchEvent(new w.MouseEvent('click', { bubbles: true }))
+    opened = w.eval('window.__opened||0')
+    ok('HOME SCREEN never opens one', opened === 0, 'it is a way back, not a toggle')
+    w.close()
+  }
+
   // Two strip items on the ZX skin were divs with an onclick and no way in
   // from the keyboard.
   const stripButtons = (MONITOR_SRC.match(/class="ic"[^>]*role="button"/g) || []).length

@@ -69,6 +69,17 @@ is about 0.48. Do not scale them by the panel height — the y mapping already
 does that, and doing it twice is what used to rail every ST-shifted lead against
 the top of its box and draw it as a square.
 
+It opens as a **separate window**, not an element in this document, so the only
+handle on it is `w12Lead`. Everything that closes it goes through
+`close12Lead()`; the old HOME SCREEN binding tested for an in-page element named
+`lead12`, which has never existed, so the guard was always false and the key did
+nothing — the crew at the unit had no way off the 12-lead. There are now four
+ways out: the **✕ Close** button in the window's own bar, **Escape** inside it,
+the **12-LEAD** key (a toggle), and **HOME SCREEN** (a way back, so it closes
+but never opens). A popup this page did not open itself cannot always close
+itself; when `window.close()` is refused the window shows a line telling the
+reader to switch tabs rather than sitting there looking stuck.
+
 ## A monitor on a second device
 
 The intended setup is the monitor on an iPad the crew reads and the panel on
