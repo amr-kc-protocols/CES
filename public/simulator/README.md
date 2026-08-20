@@ -418,6 +418,60 @@ been asked for yet. Every auto-tick is labelled **from monitor** in the console
 and comes off on a click, and the click makes it the facilitator's: they remain
 the assessor of record.
 
+## Reachability, and the check that measures it
+
+Every simulator defect reported from a live scenario so far has been the same
+shape. Not one was a missing feature; every one was a control that existed with
+a dead path to it:
+
+- the 12-lead popup had no close button, and HOME SCREEN tested for an in-page
+  element that has never existed;
+- the pacing strip was rendered only inside the graded run card, so on a quick
+  preset there was nothing on the page to press;
+- the condensed run bar shrank in the flow, which fought the scroll and pinned
+  the page near the top;
+- the ENERGY, RATE and CURRENT rockers fell to 43.5pt at the chassis scale a
+  1024x768 iPad reaches, behind a floor that looked correct.
+
+That last one says why `check-simulator.mjs` could never have caught any of
+them. It runs in jsdom, which has no layout, so it can only assert what the
+stylesheet *says* — and the rule was right: `min-height:48px` set the arrow's
+**width**. Its height came from the key around it, landed at 46, and scaled to
+43.5. **A declaration is not a result.**
+
+`scripts/check-reach.mjs` opens the real pages in a real browser and measures
+what a thumb would hit. For every control that is actually displayed, across a
+matrix of viewports and states, it asks: does it have a box, can it be scrolled
+into view, does the page answer with *it* at its own centre, can the keyboard
+get to it, and does it clear 44pt where a finger is plausible. Run it with
+`npm run check:reach` (or `npm run check:all` for everything). It needs a build
+and Playwright's Chromium, and skips cleanly without either — it is not in
+`npm run check`, which stays a three-second command.
+
+Two things it deliberately does *not* flag, both of which it flagged first:
+
+- A control inside a `display:none` ancestor reports its own computed `display`
+  as normal, so testing the element alone lets an entire hidden skin through as
+  "zero-sized". `checkVisibility()` walks the ancestry.
+- A control mid-fade — opacity still 1, `pointer-events` already `none` — fails
+  a hit test while being deliberately out of play.
+
+And one thing it looks for that nothing else would: the inverse. A control with
+no box, or one behind an overlay, that the keyboard can still reach and fire.
+That is how the portrait notice was caught — `#rotate` covers the unit and says
+to turn the iPad round, but covering is only paint, and the whole chassis stayed
+in the tab order behind it, SHOCK included. It is `inert` in portrait now, which
+takes it out of hit-testing and the tab order together.
+
+**Where the 44pt floor applies.** On the monitor, at the sizes an iPad presents
+— not every small window. A 960x720 browser window on a laptop is a mouse, and
+holding it to a thumb's minimum would be measuring a room nobody is in. On the
+panel, only the controls tapped *while a code is running*: the expected
+actions, the checklist, the result, the patient states and the way out. The
+vitals sliders, rhythm buttons and setup selects stay at the density a pointer
+wants — this page is compact on purpose, and every pixel above the cards is a
+pixel of the scenario the facilitator cannot see.
+
 ## Facilitating and grading
 
 One person drives the scenario and grades the crew, so the layout is measured

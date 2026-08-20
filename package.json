@@ -19,7 +19,9 @@
     "check:neop": "node scripts/check-neop-exam.mjs",
     "check:sim": "node scripts/check-simulator.mjs",
     "check:nav": "node scripts/check-nav.mjs",
-    "gen:neop": "node scripts/gen-neop-exam.mjs"
+    "gen:neop": "node scripts/gen-neop-exam.mjs",
+    "check:reach": "node scripts/check-reach.mjs",
+    "check:all": "npm run check && npm run build && npm run check:reach"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
