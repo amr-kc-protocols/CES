@@ -1064,50 +1064,138 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
 // ---------------------------------------------------------------------------
 // Pacing capture, and the second device
 // ---------------------------------------------------------------------------
+//
+// Reported twice from live scenarios: the patient will not capture however far
+// the crew turn the current up. Two reasons.
+//
+// The prompt only ever existed inside the graded run card, so on a quick preset
+// — or a megacode scrolled far enough for the card to condense — there was no
+// control to press and the pacer did nothing at all.
+//
+// And capture was a press somebody had to find. It now answers the current at a
+// threshold, which is what a patient does. The monitor still writes nothing:
+// this is the panel deciding, on an event the crew generated.
 {
   const { w, d, S } = load()
+  const strips = () => [...d.querySelectorAll('.pacer-prompt')]
+  // A stub rather than undefined, so a page with no strip at all fails the
+  // assertion above and every one after it, instead of crashing the run.
+  const strip = () => strips()[0] || { hidden: null, textContent: '' }
+  const feed = (type, label, detail) =>
+    w.onDeviceEvent({ t: new Date().toISOString(), ms: Date.now(), type, label, detail })
+  const crank = (ma) => feed('pacerCurrent', 'PACING CURRENT', ma + ' mA')
+
+  // No scenario at all: the strip has to be reachable anyway.
+  ok('there is a pacing strip before any scenario is picked', strips().length >= 1)
+  ok('and it is out of the way while the pacer is off', strip().hidden === true)
+
+  w.eval("document.getElementById('scenarioSel').value='brady'; applyScenario()")
+  ok('the patient is a symptomatic bradycardia', S().rhythm === 'brady', S().rhythm)
+
+  feed('pacer', 'PACER ON', '70 ppm · 0 mA')
+  ok('the pacer coming on brings the strip up', strip().hidden === false)
+  ok('nothing captures at zero current', S().rhythm === 'brady', S().rhythm)
+
+  const threshold = w.eval('captureThreshold')
+  ok('there is a capture threshold to answer', threshold >= 40 && threshold <= 100, `${threshold} mA`)
+  crank(threshold - 10)
+  ok('under the threshold the patient stays where they were', S().rhythm === 'brady', S().rhythm)
+  ok('and the strip says what it is waiting for', /NO CAPTURE/.test(strip().textContent))
+
+  feed('pacerRate', 'PACING RATE', '80 ppm')
+  crank(threshold)
+  ok('at the threshold the patient captures', S().rhythm === 'paced', S().rhythm)
+  ok('at the rate the crew dialled in', S().hr === 80, String(S().hr))
+  ok('and the strip says so', /CAPTURED/.test(strip().textContent))
+
+  feed('pacerRate', 'PACING RATE', '90 ppm')
+  ok('a captured patient follows the rate dial', S().hr === 90, String(S().hr))
+
+  crank(threshold - 10)
+  ok('backing the current off loses capture', S().rhythm === 'brady', S().rhythm)
+  ok('and gives back the rhythm that was there', S().hr === 40, String(S().hr))
+  crank(threshold)
+  ok('and putting it back regains it', S().rhythm === 'paced')
+
+  // The facilitator overruling the model, in both directions.
+  w.loseCapture(false)
+  ok(
+    'taking capture away by hand says this patient needs more than that',
+    w.eval('captureThreshold') > threshold,
+    `${w.eval('captureThreshold')} mA, crew at ${threshold}`,
+  )
+  ok('and it is not handed straight back on the next press', S().rhythm === 'brady')
+  crank(w.eval('captureThreshold'))
+  ok('the crew turning it up further gets there', S().rhythm === 'paced', S().rhythm)
+  crank(20)
+  w.giveCapture(false)
+  ok(
+    'giving it by hand at a low current says this one captures early',
+    w.eval('captureThreshold') === 20,
+    `${w.eval('captureThreshold')} mA`,
+  )
+
+  feed('pacer', 'PACER OFF', '')
+  ok('switching the pacer off drops capture', S().rhythm === 'brady', S().rhythm)
+  ok('and stands the strip down', strip().hidden === true)
+
+  // Pacing does nothing to VF or pulseless VT, and a simulator that converted
+  // them on a current dial would teach the wrong thing.
+  for (const r of ['vfib', 'vtach']) {
+    w.setR(r)
+    w.eval('setCaptureThreshold(70)')
+    feed('pacer', 'PACER ON', '70 ppm · 0 mA')
+    crank(200)
+    ok(`pacing does not convert ${r}`, S().rhythm === r, S().rhythm)
+    ok('and the strip says why', /will not capture/.test(strip().textContent))
+    feed('pacer', 'PACER OFF', '')
+  }
+
+  // Capture is evaluated on what the crew did, never on a timer — otherwise a
+  // facilitator moving the patient to the next phase with the pacer still
+  // running would be undone the moment they let go.
   const key = Object.keys(w.eval('SCENARIO_DOCS')).find((k) => k.startsWith('megacode'))
   w.applySimState(key, 0)
   w.startRun(key)
   w.enterRunState(0)
   w.renderSimPanel(key)
-  const prompt = () => d.getElementById('pacerPrompt')
-  const feed = (type, label, detail) =>
-    w.onDeviceEvent({ t: new Date().toISOString(), ms: Date.now(), type, label, detail })
-
-  ok('no pacing prompt before the crew paces', prompt() && prompt().hidden === true)
+  ok('there is a strip in the run card too', strips().length >= 2, `${strips().length}`)
+  w.eval('setCaptureThreshold(70)')
   feed('pacer', 'PACER ON', '70 ppm · 0 mA')
+  crank(70)
+  ok('the megacode bradycardia captures', S().rhythm === 'paced', S().rhythm)
   ok(
-    'and none at zero current',
-    prompt().hidden === true,
-    'the pacer is on but delivering nothing — there is nothing to capture yet',
+    'and every strip on the page carries it, not just the first',
+    strips().every((el) => /CAPTURED/.test(el.textContent)),
+    strips().map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40)).join(' // '),
   )
-  feed('pacerCurrent', 'PACING CURRENT', '70 mA')
-  feed('pacerRate', 'PACING RATE', '90 ppm')
-  ok('the prompt appears once current is set', prompt().hidden === false)
+  w.applySimState(key, 1)
+  const chosen = S().rhythm
   ok(
-    'and carries the settings the crew dialled in',
-    /90 ppm/.test(prompt().textContent) && /70 mA/.test(prompt().textContent),
-    prompt().textContent.replace(/\s+/g, ' ').trim(),
+    'and the next phase is not undone by a pacer still switched on',
+    chosen !== 'paced',
+    `${chosen} — the phase the facilitator chose was overwritten`,
   )
+  // The crew are still working, and none of what they do next is a pacer
+  // press. The patient the facilitator has just chosen is one pacing *would*
+  // capture and the pacer is still on above the threshold, so evaluating on
+  // any device event at all would hand them straight back to it.
+  w.setR('brady')
+  ok('the facilitator puts up a rhythm pacing would capture', w.eval('pacingIndicated()') === true)
+  ok('with the crew still pacing above the threshold', w.eval('pacer.on && pacer.ma >= captureThreshold') === true)
+  feed('cpr', 'CPR ON', '')
+  feed('shock', 'SHOCK DELIVERED', '200 J')
+  feed('analyze', 'ANALYZING', '')
+  ok(
+    'and nothing that is not a pacer press re-captures them',
+    S().rhythm === 'brady',
+    `${S().rhythm} — a press that was not at the pacer moved the patient`,
+  )
+  ok('while the next pacer press still does', (crank(w.eval('captureThreshold')), S().rhythm === 'paced'), S().rhythm)
 
-  // Capture is the patient answering the impulse, so it stays a press the
-  // facilitator makes — but at the crew's rate, in one press, rather than
-  // requiring them to know that "Paced" in the rhythm list is the answer.
-  const before = { rhythm: S().rhythm, hr: S().hr }
-  w.giveCapture()
-  ok('giving capture paces the patient', S().rhythm === 'paced', S().rhythm)
-  ok('at the rate the crew set', S().hr === 90, String(S().hr))
-  ok('and the prompt offers to take it away', /Take capture away/.test(prompt().textContent))
-  w.loseCapture()
   ok(
-    'losing capture returns the rhythm that was there',
-    S().rhythm === before.rhythm && S().hr === before.hr,
-    `${S().rhythm} ${S().hr}, expected ${before.rhythm} ${before.hr}`,
-  )
-  ok(
-    'both are on the same timeline as the crew’s presses',
-    w.eval("run.device.filter(e => e.type === 'capture').length") === 2,
+    'every capture is on the same timeline as the crew’s presses',
+    w.eval("run.device.filter(e => e.type === 'capture').length") > 0,
   )
   w.close()
 }
@@ -1282,6 +1370,49 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   )
 
   ok('narrow screens get a condensed bar instead', /\.run-card\.condensed \.run-cols/.test(panelSrc))
+  // The bar must leave the flow rather than shrink in it. Shrinking took 357px
+  // out of the document above the scroll position, which pulled the sentinel
+  // back into view, which expanded the card again — measured, the page went
+  // 150 -> 0 -> 150 -> 0 on repeated wheels and a scrollTo(600) settled at 244,
+  // exactly where the sentinel's bottom edge sits. Reported as the panel being
+  // "sticky at the top and not scrolling down properly".
+  ok(
+    'the condensed bar is out of the flow',
+    /\.run-card\.condensed\{[^}]*?position:fixed/s.test(panelSrc),
+    'shrinking it in place changes the document height and fights the scroll',
+  )
+  ok(
+    'and the space it left is held open',
+    /if\(want&&wrap\) wrap\.style\.height=card\.offsetHeight\+'px';/.test(panelSrc),
+    'without this the sentinel moves and the card oscillates',
+  )
+  ok(
+    'measured before the class changes, not after',
+    panelSrc.indexOf("wrap.style.height=card.offsetHeight+'px'") <
+      panelSrc.indexOf("card.classList.toggle('condensed',want)"),
+    'after the class lands the card is 52px and the wrapper freezes at the wrong height',
+  )
+  ok(
+    'and released when it expands again',
+    /if\(!want&&wrap\) wrap\.style\.height='';/.test(panelSrc),
+  )
+  {
+    // Behavioural: the document height must not move when the bar condenses.
+    const { w } = load()
+    w.eval("document.getElementById('simScenarioSel').value='megacode1'; applySimScenario()")
+    const card = w.document.getElementById('runCard')
+    const wrap = w.document.getElementById('runWrap')
+    ok('the card sits in a wrapper that can hold its place', !!wrap && wrap.contains(card))
+    // jsdom has no layout, so offsetHeight is 0 either way — what is checkable
+    // here is that the wrapper is frozen and released in step with the class.
+    w.eval("document.getElementById('runSentinel').getBoundingClientRect=()=>({bottom:-10})")
+    Object.defineProperty(w, 'innerWidth', { value: 1180, configurable: true })
+    w.eval('RAIL_MQ=null; applyRunCondense()')
+    ok('condensing freezes the wrapper', wrap.style.height !== '', `height "${wrap.style.height}"`)
+    w.eval('expandRunCard()')
+    ok('and expanding releases it', wrap.style.height === '', `height "${wrap.style.height}"`)
+    w.close()
+  }
   ok('the bar carries the phase, the tally and the clock', /id="rmClock"/.test(panelSrc) && /rm-phase/.test(panelSrc) && /rm-num/.test(panelSrc))
   ok('and a way to end the run without opening the card', /class="end-btn rm-end"/.test(panelSrc))
   ok('the bar is a tap target in its own right', /\.run-mini\{[^}]*?min-height:52px/s.test(panelSrc))

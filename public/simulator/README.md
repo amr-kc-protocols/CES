@@ -80,6 +80,44 @@ but never opens). A popup this page did not open itself cannot always close
 itself; when `window.close()` is refused the window shows a line telling the
 reader to switch tabs rather than sitting there looking stuck.
 
+## Pacing and capture
+
+Reported twice from live scenarios: the bradycardia will not capture however
+far the crew turn the current up. Two reasons.
+
+**There was nowhere to say yes.** The pacing strip only ever existed inside the
+graded run card, so on a quick preset — or a megacode scrolled far enough for
+the card to condense — there was no control on the page and the pacer did
+nothing at all, whatever the crew did. It is now rendered into every
+`.pacer-prompt` on the page, and one of those lives in the ECG card, which is
+up in every scenario.
+
+**And capture was a press somebody had to find.** It now answers the current,
+the way a patient does. A transcutaneous pacer captures somewhere around 40 to
+100 mA on a real patient, so the threshold defaults to **70 mA** — seven presses
+of CURRENT from zero — and the crew crossing it captures at the rate they
+dialled in. Backing off below it loses capture; so does switching the pacer off;
+and a rate change while capture is holding takes the patient with it.
+
+The facilitator still owns the number, and both buttons move it rather than
+setting a flag:
+
+- **Give capture** at a current below the threshold means *this patient captures
+  there*, so the threshold drops to it.
+- **Take capture away** while the crew are at or above it means *this patient
+  needs more than that*, so the threshold goes 10 mA above what they are giving
+  — otherwise the next pacer press would hand capture straight back.
+
+Two rules keep it honest. Pacing does nothing to VF or pulseless VT, so the
+current is only answered where pacing is indicated; a simulator that converted
+those on a current dial would teach the wrong thing. And capture is evaluated
+**only on something the crew did at the pacer**, never on a timer — otherwise a
+facilitator moving the patient to the next phase with the pacer still running
+would be undone the moment compressions restarted.
+
+The monitor still writes nothing. This is the panel deciding, on an event the
+crew generated, and the boundary check on the monitor page is untouched.
+
 ## A monitor on a second device
 
 The intended setup is the monitor on an iPad the crew reads and the panel on
@@ -427,6 +465,17 @@ permanently. Two answers, by how much room there is:
 The clock on that bar counts the state on screen, not just the banked totals:
 `run.states[i].seconds` is only written when a state is *left*, so summing the
 totals alone would show a run frozen at 0:00 until the first transition.
+
+The condensed bar is **fixed, not shrunk in place**. Shrinking it looked right
+and fought the page: collapsing 411px to 52px takes 357px out of the document
+*above* the scroll position, which pulls the sentinel back into view, which
+expands the card again. Reported as the panel being "sticky at the top and not
+scrolling down properly" — measured, the page went 150 → 0 → 150 → 0 on
+repeated wheel events and a `scrollTo(600)` settled at 244, exactly where the
+sentinel's bottom edge sits. So the bar leaves the flow and `#runWrap` is
+frozen at the height the card had, measured *before* the class changes. Nothing
+about the layout moves when it condenses, so there is nothing to oscillate
+against.
 
 One person runs these scenarios. They drive the patient and assess the crew at
 the same time, so both live in one band across the top of the console: the
