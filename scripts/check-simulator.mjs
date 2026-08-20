@@ -803,6 +803,75 @@ for (let i = 0; i < 2000; i++) if (pacePulsed(i / 200)) paused++
 ok('PAUSE slows the pacing rate', paused === 4, `${paused} in 10s at 80ppm paused — a quarter of 13`)
 w.eval('D.pacer = false; D.pacerMa = 0; D.pacePaused = false')
 
+// ---- the speed dial ----------------------------------------------------
+// "Scrolls through and selects screen or menu items", Table 3-3. Both halves:
+// the menu half worked, the screen half did nothing at all.
+const SCREEN_ITEMS = w.eval('SCREEN_ITEMS')
+call('closeMenu(); clearHomeSel()')
+ok('the home screen starts with nothing selected', w.eval('D.homeSel') === -1)
+call('dialTurn(1)')
+ok('turning the dial selects a screen item', w.eval('D.homeSel') === 0, String(w.eval('D.homeSel')))
+call('dialTurn(1); dialTurn(1)')
+ok('and moves along them', w.eval('D.homeSel') === 2, String(w.eval('D.homeSel')))
+call('dialTurn(-1)')
+ok('and back', w.eval('D.homeSel') === 1, String(w.eval('D.homeSel')))
+for (let i = 0; i < SCREEN_ITEMS.length; i++) call('dialTurn(1)')
+ok('and wraps rather than stopping', w.eval('D.homeSel') === 1, String(w.eval('D.homeSel')))
+ok(
+  'the selected item is the one highlighted',
+  w.eval(
+    'D.homeSel >= 0 && !!document.getElementById(SCREEN_ITEMS[D.homeSel].el) &&' +
+      ' document.getElementById(SCREEN_ITEMS[D.homeSel].el).classList.contains("sel")',
+  ),
+  `homeSel is ${w.eval('D.homeSel')}`,
+)
+
+// Pressing on the ECG channel reaches the lead and size lists, and picking
+// from them drives the real controls rather than a display of them.
+call('closeMenu(); clearHomeSel(); D.homeSel = 0; dialPress()')
+ok('pressing on a screen item opens its menu', w.eval('D.menu && D.menu.title') === 'ECG', String(w.eval('D.menu && D.menu.title')))
+call('D.menuIx = 0; menuSelect()')
+ok('and the ECG menu reaches the lead list', w.eval('D.menu && D.menu.title') === 'LEAD')
+const leadBefore = w.eval('devLead()')
+call('D.menuIx = 3; menuSelect()')
+ok('choosing a lead actually changes the lead', w.eval('devLead()') === 'aVR', `${leadBefore} -> ${w.eval('devLead()')}`)
+ok('and returns to the ECG menu', w.eval('D.menu && D.menu.title') === 'ECG')
+call('D.menuIx = 1; menuSelect()')
+ok('the ECG menu reaches the size list', w.eval('D.menu && D.menu.title') === 'SIZE')
+call('D.menuIx = 3; menuSelect()')
+ok('and choosing a size changes the gain', w.eval('ecgSize()') === 2, String(w.eval('ecgSize()')))
+
+// Parameter menus read the limits actually in force rather than inventing an
+// editor whose result the panel would overwrite a second later.
+w.eval('S.hrAlarmLow = 44; S.hrAlarmHigh = 133')
+call('closeMenu(); D.homeSel = 1; dialPress()')
+const hrLines = w.eval('D.menu.items.map(i => i.label)').join(' | ')
+ok('a parameter menu shows the live alarm limits', /44/.test(hrLines) && /133/.test(hrLines), hrLines)
+call('closeMenu(); D.homeSel = 4; dialPress()')
+ok(
+  'and says so plainly where there are none',
+  /No alarm limits/.test(w.eval('D.menu.items.map(i => i.label)').join(' ')),
+)
+call('closeMenu(); clearHomeSel()')
+
+// A press in the EVENT menu marks exactly one event.
+call('openMenu(eventMenu())')
+const evBefore = w.eval("D.log.filter(e => e.type === 'event').length")
+call('D.menuIx = 3; menuSelect()')
+const evAfter = w.eval("D.log.filter(e => e.type === 'event').length")
+ok('selecting an event marks one event', evAfter === evBefore + 1, `${evBefore} -> ${evAfter}`)
+ok('and closes the menu', w.eval('D.menu') === null)
+
+// The drag-versus-press decision. Taken on the step remainder, a drag that
+// happened to land on an exact multiple of the step size was read as a press
+// — and in the EVENT menu that silently logged an event nobody chose.
+ok(
+  'drag-versus-press is decided on distance travelled, not the step remainder',
+  /const moved=dragY!==null&&travel>6;/.test(MONITOR_SRC),
+  'a drag landing on a step boundary would select whatever it stopped on',
+)
+ok('and travel accumulates the absolute movement', /travel\+=Math\.abs\(dy\);/.test(MONITOR_SRC))
+
 // "Charges the defibrillator in Manual mode" / "Increases or decreases
 // energy level in Manual mode", Table 3-1. Neither is available while the
 // Shock Advisory System is running.

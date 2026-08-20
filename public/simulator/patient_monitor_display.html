@@ -513,6 +513,12 @@ body.lp-skin .wt{font-size:13px;}
   .ic:hover{background:#1e1e1e;}
 }
 
+/* The dial's highlight on the home screen. Outlined rather than filled: the
+   numbers underneath are the thing being read, and a wash over them would
+   cost more than the selection is worth. */
+.lpb.sel,.wr.sel{outline:2px solid #ffd24a;outline-offset:-2px;}
+#lpMenu .mi.info{color:#9aa2ab;}
+
 /* ---- on-screen menus, driven by the speed dial ---- */
 #lpMenu{
   display:none;position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:26;
@@ -2640,7 +2646,7 @@ const D={
   nibpUntil:0,
   leadIx:1, leadFromPanel:null,
   sizeIx:2,
-  menu:null, menuIx:0, printing:false,
+  menu:null, menuIx:0, homeSel:-1, printing:false,
   banner:null, bannerUntil:0, bannerWarn:false,
   log:[],
 };
@@ -2874,15 +2880,18 @@ function startNibp(){
 }
 const nibpBusy=()=>Date.now()<D.nibpUntil;
 
-/* ── Menus ───────────────────────────────────────────────────────────── */
-const MENUS={
-  options:{title:'OPTIONS',items:['Patient Mode','Alarms','Date / Time','Print Settings','Transmit Sites','Exit']},
-  event:{title:'EVENT',items:['IV Access','Medication','Intubation','ROSC','Handover','Other']},
-};
-function openMenu(name){
-  D.menu=name; D.menuIx=0; renderMenu();
-}
+/* ── Menus and screen selection ───────────────────────────────────────────
+   "Scrolls through and selects screen or menu items" — Table 3-3. Both
+   halves: with a menu open the dial moves the selection inside it, and on the
+   home screen it moves a highlight across the parameter blocks and the ECG
+   channel, which is what the second half of that sentence is describing.
+
+   A menu is an object rather than a key into a table, so a menu can be built
+   from live state — the lead list has to show which lead is current, and the
+   parameter menus have to show the limits actually in force. */
+function openMenu(m){ D.menu=m||null; D.menuIx=0; renderMenu(); }
 function closeMenu(){ D.menu=null; renderMenu(); }
+
 function renderMenu(){
   let el=document.getElementById('lpMenu');
   if(!D.menu){ if(el) el.style.display='none'; return; }
@@ -2891,24 +2900,93 @@ function renderMenu(){
     el.id='lpMenu';
     document.getElementById('screen').appendChild(el);
   }
-  const m=MENUS[D.menu];
+  const m=D.menu;
   el.style.display='block';
   el.innerHTML='<div class="mh">'+m.title+'</div>'+m.items.map((t,i)=>
-    '<div class="mi'+(i===D.menuIx?' sel':'')+'">'+t+'</div>').join('');
+    '<div class="mi'+(i===D.menuIx?' sel':'')+(t.info?' info':'')+'">'+t.label+'</div>').join('');
 }
 function menuMove(dir){
   if(!D.menu) return;
-  const n=MENUS[D.menu].items.length;
+  const n=D.menu.items.length;
   D.menuIx=(D.menuIx+dir+n)%n;
   renderMenu();
   beep(1500,25,.05,'square');
 }
 function menuSelect(){
   if(!D.menu) return;
-  const m=MENUS[D.menu], pick=m.items[D.menuIx];
-  if(D.menu==='event'&&pick!=='Exit') logEvent('event','EVENT',pick);
-  closeMenu();
+  const it=D.menu.items[D.menuIx];
   beep(1800,60,.08,'square');
+  if(it&&it.run) it.run(); else closeMenu();
+}
+const exitItem={label:'Exit',run:()=>closeMenu()};
+
+const optionsMenu=()=>({title:'OPTIONS',items:[
+  {label:'Patient Mode'},{label:'Alarms'},{label:'Date / Time'},
+  {label:'Print Settings'},{label:'Transmit Sites'},exitItem,
+].map(i=>i.run?i:{label:i.label,run:()=>closeMenu()})});
+
+const eventMenu=()=>({title:'EVENT',items:
+  ['IV Access','Medication','Intubation','ROSC','Handover','Other'].map(t=>
+    ({label:t,run:()=>{ logEvent('event','EVENT',t); closeMenu(); }})).concat(exitItem)});
+
+/* ---- screen items ---- */
+/* Each entry names a block on the home screen, the element that carries the
+   highlight, and the menu the dial opens on it. */
+const SCREEN_ITEMS=[
+  {key:'ecg',   el:'rEcg',    menu:()=>ecgMenu()},
+  {key:'hr',    el:'lpHRbox', menu:()=>limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
+  {key:'spo2',  el:'lpSPbox', menu:()=>limitsMenu('SpO2','%',S.spo2AlarmLow,null)},
+  {key:'co2',   el:'lpCO2box',menu:()=>limitsMenu('CO2','mmHg',null,null)},
+  {key:'temp',  el:'lpTMPbox',menu:()=>limitsMenu('Temp','°'+(S.tempUnit||'C'),null,null)},
+  {key:'nibp',  el:'lpBPbox', menu:()=>limitsMenu('NIBP','mmHg',null,null)},
+];
+
+const ecgMenu=()=>({title:'ECG',items:[
+  {label:'Lead &nbsp;'+devLead(),run:()=>openMenu(leadMenu())},
+  {label:'Size &nbsp;'+ecgSize().toFixed(2)+' cm/mV',run:()=>openMenu(sizeMenu())},
+  exitItem,
+]});
+const leadMenu=()=>({title:'LEAD',items:LEADS.map((L,i)=>
+  ({label:(L===devLead()?'• ':'&nbsp;&nbsp;')+L,run:()=>{
+    takeLead(); D.leadIx=i; logEvent('lead','LEAD',L); openMenu(ecgMenu());
+  }})).concat({label:'Exit',run:()=>openMenu(ecgMenu())})});
+const sizeMenu=()=>({title:'SIZE',items:SIZES.map((z,i)=>
+  ({label:(z===ecgSize()?'• ':'&nbsp;&nbsp;')+z.toFixed(2)+' cm/mV',run:()=>{
+    D.sizeIx=i; logEvent('size','SIZE',z.toFixed(2)+' cm/mV'); openMenu(ecgMenu());
+  }})).concat({label:'Exit',run:()=>openMenu(ecgMenu())})});
+
+/* Alarm limits are the facilitator's to set from the panel, so these read
+   them out rather than offering to edit them — a monitor-side edit would be
+   overwritten by the panel's next broadcast a second later. */
+function limitsMenu(name,unit,low,high){
+  const items=[];
+  if(low==null&&high==null) items.push({label:'No alarm limits on this parameter',info:true});
+  else{
+    if(low!=null)  items.push({label:'Low &nbsp;'+low+' '+unit,info:true});
+    if(high!=null) items.push({label:'High &nbsp;'+high+' '+unit,info:true});
+    items.push({label:D.alarms?'Alarms enabled':'Alarms off',info:true});
+  }
+  items.push(exitItem);
+  return {title:name,items};
+}
+
+function homeMove(dir){
+  const n=SCREEN_ITEMS.length;
+  D.homeSel=D.homeSel<0?(dir>0?0:n-1):(D.homeSel+dir+n)%n;
+  renderHomeSel();
+  beep(1500,25,.05,'square');
+}
+function clearHomeSel(){ D.homeSel=-1; renderHomeSel(); }
+function renderHomeSel(){
+  SCREEN_ITEMS.forEach((it,i)=>{
+    const e=document.getElementById(it.el);
+    if(e) e.classList.toggle('sel',i===D.homeSel);
+  });
+}
+function homeSelect(){
+  if(D.homeSel<0) return false;
+  openMenu(SCREEN_ITEMS[D.homeSel].menu());
+  return true;
 }
 
 /* ── Printing ────────────────────────────────────────────────────────── */
@@ -2937,7 +3015,7 @@ function setPower(on){
   document.body.classList.toggle('powered-off',!on);
   if(!on){
     disarm(); cprMetronome(false); D.cpr=false; D.pacer=false; D.analyzing=false;
-    printerRun(false); closeMenu(); banner(null);
+    printerRun(false); closeMenu(); clearHomeSel(); banner(null);
   }
   logEvent('power',on?'ON':'OFF','');
 }
@@ -3013,9 +3091,9 @@ bind('kALARMS',()=>{
   else if(Date.now()<D.silenceUntil){ D.silenceUntil=0; logEvent('alarms','ALARMS UNSILENCED',''); }
   else { D.silenceUntil=Date.now()+SILENCE_MS; logEvent('alarms','ALARMS SILENCED','2 min'); }
 });
-bind('kOPTIONS',()=>{ if(D.on) openMenu(D.menu==='options'?null:'options'); });
-bind('kEVENT',()=>{ if(D.on) openMenu(D.menu==='event'?null:'event'); });
-bind('kHOME',()=>{ if(!D.on) return; closeMenu(); if(document.getElementById('lead12')) toggle12Lead(); });
+bind('kOPTIONS',()=>{ if(!D.on) return; clearHomeSel(); openMenu(D.menu&&D.menu.title==='OPTIONS'?null:optionsMenu()); });
+bind('kEVENT',()=>{ if(!D.on) return; clearHomeSel(); openMenu(D.menu&&D.menu.title==='EVENT'?null:eventMenu()); });
+bind('kHOME',()=>{ if(!D.on) return; closeMenu(); clearHomeSel(); if(document.getElementById('lead12')) toggle12Lead(); });
 bind('kSUN',()=>{ if(!D.on) return; D.sunvue=!D.sunvue;
   document.body.classList.toggle('sunvue',D.sunvue); invalidateCanvases();
   logEvent('display',D.sunvue?'SunVue display':'Color display',''); });
@@ -3028,45 +3106,62 @@ bind('kCODESUM',()=>{ if(!D.on) return; printerBurst(2600); logEvent('codeSummar
 bind('kPRINT',()=>{ if(!D.on) return; printerRun(!D.printing);
   logEvent('print',D.printing?'PRINT started':'PRINT stopped','continuous strip'); });
 
-/* Speed dial: wheel or drag to scroll, click or Enter to select. */
+/* Speed dial. Wheel or drag to scroll, press or Enter to select.
+   Turning it moves the selection inside an open menu, or the highlight across
+   the home screen when none is open — the two halves of Table 3-3. */
+function dialTurn(dir){
+  if(!D.on) return;
+  if(D.menu) menuMove(dir); else homeMove(dir);
+}
+function dialPress(){
+  if(!D.on) return;
+  if(D.menu) menuSelect();
+  else homeSelect();
+}
 (function(){
   const dial=document.getElementById('kDIAL'); if(!dial) return;
   const grip=dial.querySelector('.dialgrip');
-  let angle=0, dragY=null, accum=0;
+  const STEP=14;
+  let angle=0, dragY=null, accum=0, travel=0;
   function turn(d){
     angle+=d*24; if(grip) grip.style.transform='rotate('+angle+'deg)';
-    menuMove(d);
+    dialTurn(d);
   }
   dial.addEventListener('wheel',e=>{ e.preventDefault(); ac(); turn(e.deltaY>0?1:-1); },{passive:false});
-  dial.addEventListener('pointerdown',e=>{ ac(); dragY=e.clientY; accum=0; dial.setPointerCapture(e.pointerId); });
+  dial.addEventListener('pointerdown',e=>{ ac(); dragY=e.clientY; accum=0; travel=0; dial.setPointerCapture(e.pointerId); });
   dial.addEventListener('pointermove',e=>{
     if(dragY===null) return;
-    accum+=e.clientY-dragY; dragY=e.clientY;
-    while(Math.abs(accum)>=14){ turn(accum>0?1:-1); accum-=Math.sign(accum)*14; }
+    const dy=e.clientY-dragY; dragY=e.clientY;
+    accum+=dy;
+    // Total distance travelled, tracked separately from the step remainder.
+    // Deciding drag-vs-press on the remainder meant a drag that happened to
+    // land on an exact multiple of the step size was taken as a press — and
+    // in the EVENT menu that silently logged an event nobody chose.
+    travel+=Math.abs(dy);
+    while(Math.abs(accum)>=STEP){ turn(accum>0?1:-1); accum-=Math.sign(accum)*STEP; }
   });
-  dial.addEventListener('pointerup',e=>{
-    const moved=dragY!==null&&Math.abs(accum)>2;
-    dragY=null; if(!moved) menuSelect();
+  dial.addEventListener('pointerup',()=>{
+    const moved=dragY!==null&&travel>6;
+    dragY=null;
+    if(!moved) dialPress();
   });
+  dial.addEventListener('pointercancel',()=>{ dragY=null; });
   dial.addEventListener('keydown',e=>{
     if(e.key==='ArrowDown'){ e.preventDefault(); turn(1); }
     else if(e.key==='ArrowUp'){ e.preventDefault(); turn(-1); }
-    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); menuSelect(); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); ac(); dialPress(); }
   });
 })();
 
 /* ── QRS detection, for Sync ─────────────────────────────────────────────
    "LED illuminated when Sync mode is active and flashes with detection of
-   each QRS" — Table 3-1. Detection, not a timer: this watches the same signal
-   the trace is drawn from and fires on the rising edge of each R wave, so it
-   finds nothing in asystole and fires erratically in VF, which is exactly
-   what a crew needs to see before attempting a synchronized cardioversion. */
-/* Runs over the per-pixel samples the ECG channel is already drawing — about
-   one every 8ms at 25mm/s — rather than once per animation frame. Sampling
-   per frame gives one reading every 17ms, and an R wave is narrow enough to
-   fall between two of them: beats went missing and the flash rate stopped
-   tracking the heart rate at all. Detecting on the drawn samples also means
-   the LED and the marker cannot disagree with the complex on screen. */
+   each QRS" — Table 3-1. Detection, not a timer: this runs over the per-pixel
+   samples the ECG channel is already drawing — about one every 8ms — rather
+   than once per animation frame. A 60fps loop reads once every 17ms and an R
+   wave is narrow enough to fall between two readings, so beats went missing
+   and the flash rate stopped tracking the heart rate. Detecting on the drawn
+   samples also means the LED and the marker cannot disagree with the complex
+   on screen. */
 const QRS_ON=0.74;
 /* Refractory blanking, as a real detector uses. Without it a tall complex was
    counted twice — once on the R upstroke and again on the rebound out of the

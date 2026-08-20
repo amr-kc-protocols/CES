@@ -164,6 +164,28 @@ are drawn:
 - **ECG size** is display gain. It scales the trace about the baseline, so it
   can never turn a flat line into a complex.
 
+### The speed dial
+
+"Scrolls through and selects screen **or menu** items" — Table 3-3, and both
+halves matter. Turning it inside a menu moves the selection; turning it on the
+home screen moves a highlight across the parameter blocks and the ECG channel,
+which is the half that did nothing at all.
+
+Pressing on a highlighted item opens its menu. The ECG channel reaches the
+lead and size lists and picking from them drives the real controls — this is a
+second route to LEAD and SIZE, not a display of them. A parameter opens a
+read-out of the alarm limits actually in force, and says plainly when there are
+none. Those are deliberately read-only: limits are the facilitator's to set
+from the panel, and a monitor-side edit would be overwritten by the panel's
+next broadcast a second later.
+
+One defect worth recording. Drag-versus-press was decided on the step
+remainder — the leftover pixels after the 14px detent — so a drag that happened
+to land on an exact multiple of the step size was read as a press. In the EVENT
+menu that silently logged an event nobody chose, straight into the run
+timeline the facilitator grades from. It is decided on total distance
+travelled now.
+
 ### Checked against the manufacturer's tables
 
 Every control was audited against Tables 3-1 to 3-4 by driving it and reading
@@ -212,7 +234,7 @@ rising tone and disarms itself after 60s · `SHOCK` only fires armed · `PACER`
 with `RATE`, `CURRENT` and hold-to-`PAUSE` · `NIBP` takes the reading away for
 25s while the cuff cycles · `ALARMS` enables, then silences for two minutes ·
 `OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects ·
-`HOME SCREEN` · the display-mode key toggles **SunVue**, the unit's
+`HOME SCREEN` clears any selection and closes menus · the display-mode key toggles **SunVue**, the unit's
 high-contrast outdoor mode, which repaints the canvases on a light ground with
 dark traces rather than recolouring the chrome.
 
