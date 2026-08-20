@@ -356,17 +356,21 @@ body.lp-skin #devUnder{display:flex;}
 
 .rk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;border-radius:4px;}
 .rk.sun svg{border-radius:4px;}
-.dialwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;}
-.diallbl{font:700 9px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:2px;color:#1b1d1f;}
+.dialwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;}
+.diallbl{font:700 10px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:2.4px;color:#1b1d1f;}
+/* The speed dial is the unit's primary navigation control and the only one
+   worked by dragging rather than tapping, so it gets the slack the right-hand
+   column had left under it — 132 design px, which is ~144pt on a landscape
+   iPad. */
 .dial{
-  width:80px;height:80px;touch-action:none;border-radius:50%;cursor:grab;
+  width:132px;height:132px;touch-action:none;border-radius:50%;cursor:grab;
   background:radial-gradient(circle at 40% 32%,#5a5d60,#1a1b1d 72%);
   border:2px solid #0d0e0f;box-shadow:0 2px 4px rgba(0,0,0,.45);
   display:flex;align-items:center;justify-content:center;
 }
 .dial:active{cursor:grabbing;}
 .dial:focus-visible{outline:2px solid #ffd24a;outline-offset:2px;}
-.dialgrip{width:32px;height:32px;border-radius:50%;background:repeating-conic-gradient(#3c3f42 0 8deg,#232527 8deg 16deg);
+.dialgrip{width:56px;height:56px;border-radius:50%;background:repeating-conic-gradient(#3c3f42 0 8deg,#232527 8deg 16deg);
   box-shadow:inset 0 0 3px #000;transition:transform .12s;}
 
 /* ---- keys under the display, and the printer ---- */
