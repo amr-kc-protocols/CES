@@ -68,10 +68,6 @@ html,body{
 .bP2 .bsq{background:#0081a1;color:#fff;}
 .bP2 .bv{color:#00ccee;}
 
-/* P3 — blue square */
-.bP3 .bsq{background:#005588;color:#fff;}
-.bP3 .bv{color:#4499cc;}
-
 /* Temp — right-aligned, white label square */
 .bTmp{justify-content:flex-end;}
 .bTmp .bsq{background:#cccccc;color:#000;}
@@ -159,6 +155,19 @@ html,body{
 .yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
 /* -- Skin switcher — floats over the corner in both skins, so it never has to
    live inside a status line that is meant to look like the real device. -- */
+#armAudio{
+  position:fixed;top:calc(6px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  z-index:95;min-height:44px;padding:0 16px;cursor:pointer;
+  background:#7a1f14;color:#ffe7c2;border:1px solid #a8341f;border-radius:22px;
+  font:700 13px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;
+  box-shadow:0 3px 12px rgba(0,0,0,.5);touch-action:manipulation;
+}
+#armAudio .a-on{display:none;}
+/* Armed: it has nothing left to say, so it stops saying it. */
+#armAudio.armed{opacity:0;pointer-events:none;transition:opacity .6s .8s;}
+#armAudio.armed .a-on{display:inline;}
+#armAudio.armed .a-off{display:none;}
+
 #skinbar{position:fixed;bottom:calc(4px + env(safe-area-inset-bottom));left:calc(4px + env(safe-area-inset-left));
   z-index:90;display:flex;border:1px solid #444;border-radius:6px;overflow:hidden;
   opacity:.35;transition:opacity .15s;}
@@ -735,10 +744,6 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
     <div class="bsq" id="bP2lbl">P2<br>mmHg</div>
     <div class="bvals"><div class="bv" id="bP2v">—</div><div class="bs" id="bP2m"></div></div>
   </div>
-  <div class="bc bP3">
-    <div class="bsq">P3<br>mmHg</div>
-    <div class="bvals"><div class="bv">—</div></div>
-  </div>
 </div>
 
    </div></div>
@@ -850,6 +855,13 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
   <span>The LIFEPAK 15 is a landscape unit. Held upright, every control would
   sit below the size a gloved thumb can reliably hit.</span>
 </div>
+
+<!-- Shown only while the alarm tone cannot sound. Pressing it is the gesture
+     the browser needs, so the notice and the fix are the same control. -->
+<button id="armAudio" onclick="armAudio()" title="Enable the alarm tone">
+  <span class="a-off">🔇 Alarm sound off — tap to enable</span>
+  <span class="a-on">🔊 Alarm sound on</span>
+</button>
 
 <div id="skinbar">
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
@@ -1157,7 +1169,10 @@ function upNums(){
   if(spBreach) alarms.push('SpO\u2082 LOW');
   const almEl=document.getElementById('alm');
   almEl.textContent='\u26a0 '+alarms.join('   \u26a0 ');
+  // Same condition as the banner: a breach the facilitator has not muted and
+  // the crew has not silenced at the unit.
   const almShow=!!alarms.length&&!S.alarmMuted&&Date.now()>=D.silenceUntil;
+  alarmTone(almShow);
   almEl.classList.toggle('shown',almShow);
   almEl.style.display=currentSkin==='lp'?'':(almShow?'block':'none');
   layoutBands();
@@ -2715,6 +2730,37 @@ function chargeTone(on){
     chargeOsc=null; chargeGain=null;
   }
 }
+/* Alarm tone.
+   Why this needed an affordance rather than just an oscillator: a browser
+   will not start audio until the page has been interacted with, and nothing
+   guarantees anybody has touched the monitor window before a parameter goes
+   out of range. An alarm that is silent until someone happens to click the
+   screen is worse than one that is honestly visual, because the crew learns
+   to trust a sound that may never come.
+   So the page says plainly that the sound is off until it is armed, and the
+   chip that says so is itself the thing you press. Pressing any key on the
+   unit arms it too — by then the audio context is live either way. */
+let audioArmed=false;
+function armAudio(){
+  const c=ac();
+  audioArmed=!!(c&&c.state==='running');
+  const chip=document.getElementById('armAudio');
+  if(chip) chip.classList.toggle('armed',audioArmed);
+  return audioArmed;
+}
+/* Two-tone, repeating, and deliberately not pretty — this is the sound a
+   crew is meant to turn and look at. */
+let almTimer=null;
+function alarmTone(on){
+  if(on&&!audioArmed) on=false;
+  if(!!almTimer===!!on) return;
+  clearInterval(almTimer); almTimer=null;
+  if(!on) return;
+  const burst=()=>{ beep(880,150,.13,'square'); setTimeout(()=>beep(660,150,.13,'square'),190); };
+  burst();
+  almTimer=setInterval(burst,1100);
+}
+
 let readyTimer=null;
 function readyTone(on){
   clearInterval(readyTimer); readyTimer=null;
@@ -3030,7 +3076,7 @@ function setPower(on){
 }
 
 /* ── Wiring ──────────────────────────────────────────────────────────── */
-function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();ac();fn();}); }
+function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();armAudio();fn();}); }
 /* Press-and-hold, for the two controls the manual describes that way: ON
    turns the unit off when held, PAUSE slows pacing only while held. */
 function bindHold(id,ms,onHold,onRelease,onTap){

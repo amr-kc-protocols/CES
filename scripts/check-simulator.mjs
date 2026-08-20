@@ -803,6 +803,56 @@ for (let i = 0; i < 2000; i++) if (pacePulsed(i / 200)) paused++
 ok('PAUSE slows the pacing rate', paused === 4, `${paused} in 10s at 80ppm paused — a quarter of 13`)
 w.eval('D.pacer = false; D.pacerMa = 0; D.pacePaused = false')
 
+// ---- the alarm tone ----------------------------------------------------
+// A browser will not start audio until the page has been interacted with, and
+// nothing guarantees anyone has touched the monitor window before a parameter
+// goes out of range. So the tone is gated on being armed, and the notice
+// saying it is not armed is itself the control that arms it — an alarm that is
+// silent until someone happens to click the screen is worse than one that is
+// honestly visual, because a crew learns to trust a sound that may never come.
+call('audioArmed = false; alarmTone(false)')
+call('alarmTone(true)')
+ok('an unarmed page stays silent', w.eval('!almTimer'), 'a tone nobody could hear was started')
+call('audioArmed = true; alarmTone(true)')
+ok('and sounds once armed', w.eval('!!almTimer'))
+call('alarmTone(false)')
+ok('and stops when the breach clears', w.eval('!almTimer'))
+ok('the notice is the control that arms it', /id="armAudio" onclick="armAudio\(\)"/.test(MONITOR_SRC))
+ok('and it stands down once armed', /#armAudio\.armed\{opacity:0/.test(MONITOR_SRC))
+ok(
+  'pressing any key on the unit arms it too',
+  /addEventListener\('click',e=>\{e\.preventDefault\(\);armAudio\(\);/.test(MONITOR_SRC),
+)
+
+// The tone follows the banner exactly: both mute paths silence both.
+const alarmState = (patch) => {
+  Object.assign(w.eval('S'), patch)
+  w.eval('audioArmed = true')
+  call('upNums()')
+  return {
+    tone: !!w.eval('almTimer'),
+    banner: w.eval("document.getElementById('alm').classList.contains('shown')"),
+  }
+}
+const alarmBase = {
+  patientConnected: true, rhythm: 'nsr', hr: 38, spo2: 96,
+  alarmOn: true, alarmMuted: false, hrAlarmLow: 50, hrAlarmHigh: 120, spo2AlarmLow: 94,
+}
+w.eval('D.alarms = true; D.silenceUntil = 0')
+let al = alarmState(alarmBase)
+ok('a breach sounds and shows', al.tone && al.banner, `tone ${al.tone}, banner ${al.banner}`)
+w.eval('D.silenceUntil = Date.now() + 6e4')
+al = alarmState(alarmBase)
+ok('silencing at the unit stops both', !al.tone && !al.banner, `tone ${al.tone}, banner ${al.banner}`)
+w.eval('D.silenceUntil = 0')
+al = alarmState({ ...alarmBase, alarmMuted: true })
+ok('and so does muting from the panel', !al.tone && !al.banner, `tone ${al.tone}, banner ${al.banner}`)
+al = alarmState({ ...alarmBase, hr: 72, alarmMuted: false })
+ok('a resolved breach falls silent', !al.tone && !al.banner, `tone ${al.tone}, banner ${al.banner}`)
+call('alarmTone(false)')
+
+ok('the P3 placeholder is gone', !/class="bc bP3"/.test(MONITOR_SRC), 'a cell with no state behind it')
+
 // ---- the speed dial ----------------------------------------------------
 // "Scrolls through and selects screen or menu items", Table 3-3. Both halves:
 // the menu half worked, the screen half did nothing at all.

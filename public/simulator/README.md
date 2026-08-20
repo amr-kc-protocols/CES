@@ -538,24 +538,24 @@ improvement.
 
 ## Known gaps
 
-- **Alarms are still visual only.** The device keys have tones — charging,
-  charge-ready, the CPR metronome, the shock, menu clicks — because pressing a
-  key is itself the gesture a browser needs before it will start audio. The
-  *alarm* has no tone for the same reason it never did: nothing guarantees
-  anyone has touched the monitor window before a parameter goes out of range,
-  and an alarm that is silent until someone clicks the screen is worse than one
-  that is clearly visual. Arming it properly needs a visible "audio on"
-  affordance, which is still unbuilt.
-- **The crew cannot reach the keys on a wall display.** The full chassis is
-  drawn on the assumption the crew works the unit on a touchscreen or laptop.
-  Thrown on a TV it is still readable, but the buttons are then decoration.
-- **P3 on the bottom bar is a placeholder** with no state behind it.
-- **The 12-lead does not follow the rhythm** once open (see above). It is a
-  snapshot by design. The panel's toggle no longer desyncs, though: the
-  monitor reports whether the window is actually up on its heartbeat, so a
-  crew closing it at the unit leaves the facilitator one press from
-  reopening it rather than two.
-- **Both pages assume a wide screen.** The monitor is an absolutely positioned
-  fixed layout; the control panel's grid is authored against 960px with
-  breakpoints below that. Neither is usable on a phone, which is worth knowing
-  given CES is installed as a phone PWA.
+- **The crew cannot reach the keys on a wall display.** The chassis is drawn on
+  the assumption the crew works the unit on a touchscreen or a laptop. Thrown
+  on a TV it is still readable, but the buttons are then decoration. That is a
+  consequence of drawing the whole unit rather than a defect in it.
+- **The 12-lead is a snapshot.** It renders the rhythm as it stands when the
+  window opens and does not follow later changes, which is what a printed
+  acquisition is. Re-acquiring re-renders it.
+- **The control panel assumes a wide screen.** Its grid is authored against
+  960px with breakpoints below that, so it works on a laptop or a landscape
+  iPad and not on a phone. The monitor no longer has this problem — it is a
+  fixed layout scaled to the window, with a rotate prompt in portrait — but the
+  panel has not had the same treatment. It is a facilitator's console rather
+  than something carried, so this has not been worth the rework yet.
+- **Three LEDs are stated rather than simulated.** AC and BATTERY are held
+  illuminated — a trainer on mains with full batteries — and SERVICE stays dark
+  because there is no fault model behind it.
+- **Megacodes 6 to 12** exist on the AHA checklist but are not built: only
+  pages 235-239 of the manual were scanned, so three of the six checklists are
+  transcribed.
+- **Adult Abdominal Trauma and Pediatric TBI have no source document.** They
+  keep their vitals and notes but are not graded.
