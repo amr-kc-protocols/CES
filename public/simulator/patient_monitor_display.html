@@ -158,12 +158,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
    2. The home screen — parameter column down the left, three waveform
       channels to the right, status line across the top.
 
-   The chassis is laid out fluidly rather than drawn at a fixed size and
-   scaled: the control column and the key row under the display keep their
-   dimensions and the display takes whatever is left. A transform would have
-   let the proportions stay exactly right at any window size, but it also
-   scales the waveform canvases, and a trace resampled by the compositor is
-   the one thing on this screen that has to stay sharp.
+   The chassis is drawn once at the unit's own proportions and scaled to the
+   window as a single object. The front face is 317 x 216 mm and the display
+   170 x 128 mm, so the display is 54% of the width and 59% of the height and
+   sits at 4:3 — and it stays there at any window size.
+
+   The fluid version this replaced could not hold that. Its control columns
+   were fixed pixels and the display took whatever was left, so the display
+   grew from 72% of the width at 1280 to 82% at 1920 and its aspect drifted
+   from 1.49 to 1.74. The buttons shrank away as the window grew, which is
+   the opposite of what a real unit does.
+
+   Scaling costs nothing on the traces because the canvases are sized in
+   device pixels rather than layout pixels: the backing store is the logical
+   size times the current scale times the display's own pixel ratio, and a
+   matching transform on the context lets everything above keep drawing in
+   logical units. Without that the compositor would resample the trace, which
+   is the one thing on this screen that has to stay sharp.
    ===================================================================== */
 
 /* ---- chassis ---- */
@@ -173,9 +184,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 #screen{position:absolute;inset:0;}
 #chromeRight,#devBottom{display:none;}
 
+body.lp-skin{background:#14161a;}
 body.lp-skin #device{
-  position:absolute;inset:0;display:flex;flex-direction:column;gap:7px;
+  position:absolute;inset:auto;left:0;top:0;transform-origin:0 0;
+  width:1141px;height:800px;
+  display:flex;flex-direction:column;gap:6px;
   padding:7px;background:linear-gradient(180deg,#c2c4bd,#a9aca4);
+  border-radius:4px;box-shadow:0 6px 26px rgba(0,0,0,.55);
 }
 body.lp-skin #devMain{position:static;flex:1;display:flex;gap:6px;min-height:0;}
 body.lp-skin #screenCol{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
@@ -184,9 +199,10 @@ body.lp-skin #screenWrap{
   background:#000;border:5px solid #26282a;border-radius:5px;
   box-shadow:inset 0 0 0 1px #000,0 1px 3px rgba(0,0,0,.4);
 }
-body.lp-skin #chromeRight{display:flex;flex-direction:column;gap:6px;width:206px;flex:none;}
-body.lp-skin #chromeLeft{display:flex;flex-direction:column;gap:6px;width:82px;flex:none;
-  align-self:flex-start;}
+body.lp-skin #chromeRight{display:flex;flex-direction:column;gap:7px;width:296px;flex:none;}
+body.lp-skin #chromeLeft{display:flex;flex-direction:column;gap:8px;width:118px;flex:none;}
+.lspacer{flex:1 1 34%;min-height:0;}
+.a5{flex:none;display:flex;flex-direction:column;gap:7px;padding:6px;}
 body.lp-skin #ports{display:flex;}
 body.lp-skin #devHandle{display:flex;}
 body.lp-skin #devFoot{display:block;}
@@ -194,62 +210,67 @@ body.lp-skin #devUnder{display:flex;}
 
 /* ---- carry handle, screen label, footer ---- */
 #devHandle,#devFoot,#ports,#devUnder,#chromeLeft{display:none;}
-#devHandle{height:20px;flex:none;align-items:flex-end;justify-content:center;}
+#devHandle{height:22px;flex:none;align-items:flex-end;justify-content:center;}
 /* The carry handle arches over the top of the unit; only the top of the arch
    and its two posts are above the body line. */
-.handlebar{position:relative;width:260px;height:14px;border-radius:9px 9px 0 0;
+.handlebar{position:relative;width:330px;height:16px;border-radius:9px 9px 0 0;
   background:linear-gradient(180deg,#dcdeD8,#a6a9a2);border:1px solid #8e918a;border-bottom:none;}
 .handlebar::before,.handlebar::after{content:'';position:absolute;bottom:-6px;width:13px;height:8px;
   background:linear-gradient(180deg,#c2c4bd,#9fa29b);border:1px solid #8e918a;border-top:none;border-radius:0 0 3px 3px;}
 .handlebar::before{left:9px;} .handlebar::after{right:9px;}
-.screenLabel{flex:none;display:flex;align-items:baseline;gap:7px;padding:1px 8px;border-radius:3px;
+.screenLabel{flex:none;height:24px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:3px;
   background:linear-gradient(180deg,#4a4d50,#303336);color:#e8e8e6;
   font:700 11px/1.5 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;}
 .screenLabel span{font-size:8px;font-weight:700;color:#a9adb1;letter-spacing:1px;}
-#devFoot{flex:none;text-align:center;color:#4a4d50;font:400 7px/1.5 'Arial Narrow',Arial,sans-serif;}
+#devFoot{flex:none;height:14px;text-align:center;color:#4a4d50;font:400 8px/14px 'Arial Narrow',Arial,sans-serif;}
 #devFoot b{color:#1b1d1f;}
 
 /* ---- connector panel ---- */
-#ports{flex-direction:column;justify-content:flex-start;gap:15px;width:34px;flex:none;
-  background:#9b9e98;border-radius:5px;padding:5px 3px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
+/* Strictly this is the left side of the case rather than the front face, and
+   it is drawn darker and narrower so it reads as turning away from the
+   viewer. Kept because it is what tells a crew which cable goes where. */
+#ports{flex-direction:column;justify-content:flex-start;gap:14px;width:52px;flex:none;
+  background:linear-gradient(90deg,#7e817b,#9b9e98);border-radius:4px 2px 2px 4px;padding:9px 3px;
+  box-shadow:inset -2px 0 4px rgba(0,0,0,.22);}
 .port{display:flex;flex-direction:column;align-items:center;gap:2px;}
-.phole{width:17px;height:17px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#4a4d50,#17191b 70%);
+.phole{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#4a4d50,#17191b 70%);
   border:1px solid #6f7276;box-shadow:inset 0 1px 2px #000;}
-.phole.sq{border-radius:3px;width:15px;height:12px;}
-.phole.big{width:21px;height:21px;}
-.plbl{font:700 6px/1 'Arial Narrow',Arial,sans-serif;color:#1b1d1f;letter-spacing:.3px;}
+.phole.sq{border-radius:3px;width:23px;height:18px;}
+.phole.big{width:32px;height:32px;}
+.plbl{font:700 8px/1 'Arial Narrow',Arial,sans-serif;color:#1b1d1f;letter-spacing:.3px;}
 
 /* ---- under the display ---- */
-#devUnder{height:92px;flex:none;gap:6px;align-items:stretch;}
-.speaker{width:62px;flex:none;border-radius:5px;background:#9b9e98;
-  background-image:radial-gradient(#6f7276 1px,transparent 1.2px);background-size:6px 6px;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
-.therapy{width:78px;flex:none;border-radius:5px;background:#9b9e98;display:flex;align-items:center;
+#devUnder{height:240px;flex:none;gap:7px;align-items:stretch;}
+.speaker{flex:none;align-self:center;margin-top:auto;width:96px;height:96px;border-radius:50%;
+  background:#8f938d;background-image:radial-gradient(#5f6266 1.5px,transparent 1.8px);
+  background-size:8px 8px;box-shadow:inset 0 2px 5px rgba(0,0,0,.3);}
+.therapy{width:150px;flex:none;border-radius:5px;background:#9b9e98;display:flex;align-items:center;
   justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
-.tport{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#5a5d60,#17191b 72%);
+.tport{width:86px;height:86px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#5a5d60,#17191b 72%);
   border:2px solid #6f7276;box-shadow:inset 0 2px 4px #000;}
 
 /* ---- control areas ---- */
 .area{background:#83878a;border-radius:6px;padding:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.3);}
 .a1{display:flex;flex-direction:column;gap:4px;}
-.a1 .vfdose{background:#d7d9d4;color:#111;font-size:8px;line-height:1.25;text-align:center;padding:2px 3px;border-radius:3px;letter-spacing:.2px;}
+.a1 .vfdose{background:#d7d9d4;color:#111;font-size:11px;line-height:1.25;text-align:center;padding:2px 3px;border-radius:3px;letter-spacing:.2px;}
 .a1body{display:flex;gap:3px;align-items:stretch;}
 .a1left{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;}
-.a1num{width:11px;display:flex;flex-direction:column;justify-content:space-around;align-items:center;
-  font-size:15px;font-weight:800;color:#1b1d1f;padding:16px 0 22px;}
+.a1num{width:15px;display:flex;flex-direction:column;justify-content:space-around;align-items:center;
+  font-size:20px;font-weight:800;color:#1b1d1f;padding:22px 0 30px;}
 .a1right{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;
   background:#6f7376;border-radius:5px;padding:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.35);}
-.a2{display:flex;flex-direction:column;gap:4px;background:#2f6b45;}
-.a3{display:flex;flex-direction:column;gap:4px;}
-.a4{display:flex;align-items:center;gap:6px;background:#83878a;}
+.arow{display:flex;gap:6px;align-items:stretch;}
+.a2{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;background:#2f6b45;}
+.a3{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
+.a4{display:flex;align-items:center;gap:6px;background:#83878a;margin-top:auto;}
 
 /* ---- keys ---- */
 .k{
   position:relative;display:flex;align-items:center;justify-content:center;
-  min-height:24px;padding:3px 4px 3px 15px;
+  min-height:34px;padding:4px 6px 4px 20px;
   background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;
   border:1px solid #0b0c0d;border-radius:12px;
-  font:700 9.5px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;text-align:center;
+  font:700 13px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.7px;text-align:center;
   cursor:pointer;user-select:none;
 }
 .k:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
@@ -263,23 +284,26 @@ body.lp-skin #devUnder{display:flex;}
 .charge-k:hover{background:linear-gradient(180deg,#ffbb52,#dd8b1c);}
 .charge-k.armed{animation:chargePulse .45s steps(1,end) infinite;}
 @keyframes chargePulse{0%,49%{filter:brightness(1)}50%,100%{filter:brightness(1.7)}}
+.arow .k{font-size:11px;letter-spacing:.4px;padding-left:17px;min-height:31px;}
+.arow .updown{padding-left:3px;}
+.arow .updown .udlbl{font-size:10px;}
 .alarms-k{background:linear-gradient(180deg,#f0c04a,#cf9412);border-color:#8a6207;color:#1a1204;}
 .alarms-k:hover{background:linear-gradient(180deg,#ffd05c,#dda11a);}
 
 /* Up/down rockers — one key with a label between two arrows, as on the unit. */
 .updown{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:2px 3px;}
 .updown .ud{
-  background:none;border:none;color:#f2f2f2;font-size:9px;line-height:1;cursor:pointer;
-  padding:3px 2px;border-radius:3px;flex:none;
+  background:none;border:none;color:#f2f2f2;font-size:12px;line-height:1;cursor:pointer;
+  padding:5px 4px;border-radius:3px;flex:none;
 }
 .updown .ud:hover{background:#3f4245;}
 .updown .ud:active{background:#000;}
-.updown .udlbl{font:700 8.5px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.4px;text-align:center;flex:1;}
+.updown .udlbl{font:700 11.5px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;text-align:center;flex:1;}
 
 /* Indicator LEDs. Dark until the function is active — the operating
    instructions describe most of these as "LED illuminated when ...", and
    several as flashing, so both states are represented. */
-.led{position:absolute;left:5px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;
+.led{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;
   background:#2a2c2e;box-shadow:inset 0 0 1px #000;flex:none;}
 .led.on{background:#4dff70;box-shadow:0 0 5px #4dff70;}
 .led.amber{background:#ffc043;box-shadow:0 0 5px #ffc043;}
@@ -289,18 +313,18 @@ body.lp-skin #devUnder{display:flex;}
 .ledrow{display:flex;justify-content:space-around;align-items:center;padding:1px 0 2px;}
 .lediz{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;color:#e6e6e6;}
 .lediz .led{position:static;transform:none;}
-.gl{width:11px;height:11px;display:block;}
+.gl{width:15px;height:15px;display:block;}
 
 /* Shock button — the one round control on the unit. */
 .shockrow{display:flex;align-items:center;gap:5px;justify-content:center;padding-top:1px;}
 .shockrow .led{position:static;transform:none;}
 .shock{
-  width:42px;height:42px;border-radius:50%;flex:none;cursor:pointer;
+  width:60px;height:60px;border-radius:50%;flex:none;cursor:pointer;
   background:radial-gradient(circle at 35% 30%,#ff7a52,#d9381e 70%);
   border:2px solid #7d1c0c;box-shadow:0 2px 3px rgba(0,0,0,.45);
   display:flex;align-items:center;justify-content:center;
 }
-.shock svg{width:22px;height:22px;}
+.shock svg{width:32px;height:32px;}
 .shock:active{transform:translateY(1px);}
 /* Never greyed. The button is red on the unit whether or not it is armed;
    pressing it unarmed does nothing but sound the reject tone, which is the
@@ -310,35 +334,35 @@ body.lp-skin #devUnder{display:flex;}
 
 /* Round nav keys and the speed dial. */
 .rk{background:none;border:none;cursor:pointer;color:#1b1d1f;display:flex;flex-direction:column;align-items:center;
-  gap:2px;font:700 7px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.3px;padding:2px;}
-.rk svg{width:22px;height:22px;background:#2b2d2f;color:#e9e9e9;border-radius:50%;padding:4px;}
+  gap:3px;font:700 9px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.3px;padding:3px;}
+.rk svg{width:32px;height:32px;background:#2b2d2f;color:#e9e9e9;border-radius:50%;padding:6px;}
 .rk:hover svg{background:#3f4245;}
 .rk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;border-radius:4px;}
 .rk.sun svg{border-radius:4px;}
 .dialwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;}
-.diallbl{font:700 7px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:1.6px;color:#1b1d1f;}
+.diallbl{font:700 9px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:2px;color:#1b1d1f;}
 .dial{
-  width:52px;height:52px;border-radius:50%;cursor:grab;
+  width:74px;height:74px;border-radius:50%;cursor:grab;
   background:radial-gradient(circle at 40% 32%,#5a5d60,#1a1b1d 72%);
   border:2px solid #0d0e0f;box-shadow:0 2px 4px rgba(0,0,0,.45);
   display:flex;align-items:center;justify-content:center;
 }
 .dial:active{cursor:grabbing;}
 .dial:focus-visible{outline:2px solid #ffd24a;outline-offset:2px;}
-.dialgrip{width:22px;height:22px;border-radius:50%;background:repeating-conic-gradient(#3c3f42 0 8deg,#232527 8deg 16deg);
+.dialgrip{width:32px;height:32px;border-radius:50%;background:repeating-conic-gradient(#3c3f42 0 8deg,#232527 8deg 16deg);
   box-shadow:inset 0 0 3px #000;transition:transform .12s;}
 
 /* ---- keys under the display, and the printer ---- */
-.fk{flex:0 0 34px;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
-  border-radius:11px;font:700 9px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;cursor:pointer;}
+.fk{flex:0 0 46px;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
+  border-radius:14px;font:700 12px/1.15 'Arial Narrow',Arial,sans-serif;letter-spacing:.7px;cursor:pointer;}
 .fk:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
 .fk:active{background:#0d0e0f;transform:translateY(1px);}
 .fk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
 .printer{flex:1;min-width:0;background:#9b9e98;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);padding:7px;}
-.printdoor{height:100%;background:linear-gradient(180deg,#d3d5d0,#b9bcb6);border-radius:4px;border:1px solid #8d908a;
+.printdoor{height:100%;background:linear-gradient(180deg,#b5b8b2,#9ea19b);border-radius:4px;border:1px solid #8d908a;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative;overflow:hidden;}
-.printslot{width:70%;height:5px;background:#3a3c39;border-radius:2px;box-shadow:inset 0 1px 2px #000;}
-.printgrip{width:44%;height:11px;background:#c6c8c3;border:1px solid #8d908a;border-radius:3px;}
+.printslot{width:70%;height:7px;background:#3a3c39;border-radius:2px;box-shadow:inset 0 1px 2px #000;}
+.printgrip{width:44%;height:18px;background:#aaada7;border:1px solid #82857f;border-radius:3px;}
 .printdoor.printing::after{
   content:'';position:absolute;left:15%;right:15%;top:0;height:0;background:#f4f4ef;
   border:1px solid #b9bcb6;animation:paperOut 1.4s ease-out forwards;
@@ -347,7 +371,7 @@ body.lp-skin #devUnder{display:flex;}
 .printdoor.rolling::after{animation:paperRoll 1.4s linear infinite;}
 @keyframes paperOut{to{height:78%;}}
 @keyframes paperRoll{0%{height:0;}100%{height:78%;}}
-.a5{padding:5px;}
+
 
 /* =====================================================================
    Home screen
@@ -358,15 +382,15 @@ body.lp-skin #bot{display:none;}
 body.lp-skin #lpNums{display:flex;top:0;bottom:0;}
 /* The status line spans the waveform side only — the parameter column runs
    the full height of the display, starting with HR at the very top. */
-body.lp-skin #top{left:152px;height:22px;background:#000;border-bottom:1px solid #1c1c1c;padding:0 6px;}
-body.lp-skin #wavearea{top:22px;left:152px;right:0;bottom:0;}
+body.lp-skin #top{left:138px;height:22px;background:#000;border-bottom:1px solid #1c1c1c;padding:0 6px;}
+body.lp-skin #wavearea{top:22px;left:138px;right:0;bottom:0;}
 body.lp-skin #rArt{display:none;}
 
 /* ---- parameter column ---- */
 #lpTop{display:none;flex:1;align-items:center;justify-content:space-between;}
 body.lp-skin #lpTop{display:flex;}
 body.lp-skin .zxseg{display:none;}
-#lpNums{display:none;position:absolute;left:0;width:152px;flex-direction:column;background:#000;z-index:10;}
+#lpNums{display:none;position:absolute;left:0;width:138px;flex-direction:column;background:#000;z-index:10;}
 .lpb{flex:1;display:flex;flex-direction:column;padding:0 0 2px;min-height:0;position:relative;
   border-bottom:1px solid #171c22;}
 .lpb:last-child{border-bottom:none;}
@@ -384,14 +408,15 @@ body.lp-skin .zxseg{display:none;}
   flex:1;display:flex;align-items:center;justify-content:flex-end;min-height:0;}
 .lpsub{text-align:right;padding:0 7px 1px 2px;font-weight:700;line-height:1;flex:none;}
 
-.lpHR .lphd{color:#31d63a;} .lpHR .lpval{color:#31d63a;font-size:52px;}
-.lpSP .lphd{color:#4aa8ff;} .lpSP .lpval{color:#4aa8ff;font-size:48px;}
-.lpCO2 .lphd{color:#e08a3c;} .lpCO2 .lpval{color:#e08a3c;font-size:44px;} .lpCO2 .lpsub{color:#e08a3c;font-size:14px;}
+.lpHR .lphd{color:#31d63a;} .lpHR .lpval{color:#31d63a;font-size:46px;}
+.lpSP .lphd{color:#4aa8ff;} .lpSP .lpval{color:#4aa8ff;font-size:43px;}
+.lpCO2 .lphd{color:#e08a3c;} .lpCO2 .lpval{color:#e08a3c;font-size:39px;} .lpCO2 .lpsub{color:#e08a3c;font-size:14px;}
 .lpTMP{flex:0 0 56px;} .lpTMP .lphd{color:#e8e8e8;} .lpTMP .lpval{color:#e8e8e8;font-size:26px;}
-.lpBP .lphd{color:#e8e8e8;} .lpBP .lpval{color:#e8e8e8;font-size:38px;} .lpBP .lpsub{color:#c7ccd2;font-size:19px;}
-.lpBP .lpsub .lpmap{color:#8d949c;font-size:14px;margin-right:8px;}
+.lpBP .lphd{color:#e8e8e8;} .lpBP .lpval{color:#e8e8e8;font-size:32px;flex:0 1 auto;}
+.lpBP .lpdia{font-size:26px;}
+.lpBP .lpsub{color:#8d949c;font-size:14px;text-align:left;padding-left:8px;}
 .lpP1{display:none;} .lpP1.visible{display:flex;}
-.lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:34px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
+.lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:31px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
 /* A cuff cycle in progress, or a parameter the patient is not wearing. */
 .lpb.pending .lpval,.lpb.pending .lpsub{opacity:.45;}
 
@@ -412,14 +437,14 @@ body.lp-skin .zxseg{display:none;}
    a banner drawn over the clock is a banner that hides the one number a
    resuscitation is timed against. */
 body.lp-skin #alm{
-  display:none;position:absolute;top:22px;left:152px;right:0;height:21px;
+  display:none;position:absolute;top:22px;left:138px;right:0;height:21px;
   transform:none;border-radius:0;background:#7a1f14;color:#ffe7c2;
   font:700 13px/21px 'Arial Narrow',Arial,sans-serif;letter-spacing:1.2px;
   text-align:center;padding:0;z-index:24;animation:none;
 }
 body.lp-skin #alm.shown{display:block;}
 #lpBanner{
-  display:none;position:absolute;top:22px;left:152px;right:0;height:21px;z-index:22;
+  display:none;position:absolute;top:22px;left:138px;right:0;height:21px;z-index:22;
   align-items:center;justify-content:center;gap:14px;
   font:700 13px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:1.4px;
   background:#1d2126;color:#ffd24a;border-bottom:1px solid #333a42;
@@ -495,11 +520,17 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 
   <!-- Area 4 — Figure 3-5 / Table 3-4. It runs down the left of the display
        on the unit, not under it. -->
-  <div id="chromeLeft" class="area a5">
+  <!-- Area 4 sits below the midline of the left face, with the speaker in the
+       bottom corner under it. -->
+  <div id="chromeLeft">
+   <div class="lspacer"></div>
+   <div class="area a5">
     <button class="fk" id="k12LEAD">12-LEAD</button>
     <button class="fk" id="kTRANSMIT">TRANSMIT</button>
     <button class="fk" id="kCODESUM">CODE<br>SUMMARY</button>
     <button class="fk" id="kPRINT">PRINT</button>
+   </div>
+   <div class="speaker" aria-hidden="true"></div>
   </div>
 
   <div id="screenCol">
@@ -572,7 +603,8 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
   <div class="lpb lpBP" id="lpBPbox">
     <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
     <div class="lpval" id="lpSys">---</div>
-    <div class="lpsub"><span class="lpmap" id="lpMap">(--)</span><span id="lpDia">--</span></div>
+    <div class="lpval lpdia" id="lpDia">--</div>
+    <div class="lpsub"><span class="lpmap" id="lpMap">--</span></div>
   </div>
   <div class="lpb lpP1" id="lpP1box">
     <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>P1</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
@@ -599,7 +631,7 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
   </div>
   <div class="wr" id="rCo2">
     <div class="wh"><span class="wt" id="wlCo2" style="color:#ff44ff;">CO2</span><span class="ws" id="co2Scale" style="color:#ff88ff;">0 to 60 mmHg</span></div>
-    <div class="yl" style="color:#ff88ff;"><span>60</span><span>30</span><span>0</span></div>
+    <div class="yl" style="color:#ff88ff;"><span id="co2Top">60</span><span id="co2Mid">30</span><span>0</span></div>
     <canvas id="cCo2"></canvas>
   </div>
   <div class="wr" id="rSpo2">
@@ -661,7 +693,6 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
    </div></div>
    <!-- Under the display: speaker, printer door, therapy connector. -->
    <div id="devUnder">
-     <div class="speaker" aria-hidden="true"></div>
      <div class="printer" id="printer"><div class="printdoor"><div class="printslot"></div><div class="printgrip"></div></div></div>
      <div class="therapy" aria-hidden="true"><span class="tport"></span></div>
    </div>
@@ -709,24 +740,28 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
       </div>
     </div>
 
-    <!-- Area 2 — pacing. Figure 3-3 / Table 3-2. -->
-    <div class="area a2">
-      <button class="k" id="kPACER"><i class="led" id="ledPACER"></i>PACER</button>
-      <div class="k updown" id="kRATE">
-        <button class="ud" id="kRateDn" aria-label="Pacing rate down">▼</button><span class="udlbl">RATE</span><button class="ud" id="kRateUp" aria-label="Pacing rate up">▲</button>
+    <!-- Areas 3 and 2 sit side by side on the front face, monitoring keys to
+         the left of the pacing keys — see the front-face photograph and the
+         highlighted regions on the device thumbnails in Figures 3-3 and 3-4.
+         They are two separate tables in the manual, which is why they were
+         stacked here first; the unit puts them shoulder to shoulder. -->
+    <div class="arow">
+      <div class="area a3">
+        <button class="k" id="kNIBP"><i class="led" id="ledNIBP"></i>NIBP</button>
+        <button class="k alarms-k" id="kALARMS"><i class="led" id="ledALARMS"></i>ALARMS</button>
+        <button class="k" id="kOPTIONS">OPTIONS</button>
+        <button class="k" id="kEVENT">EVENT</button>
       </div>
-      <div class="k updown" id="kCURRENT">
-        <button class="ud" id="kCurDn" aria-label="Pacing current down">▼</button><span class="udlbl">CURRENT</span><button class="ud" id="kCurUp" aria-label="Pacing current up">▲</button>
+      <div class="area a2">
+        <button class="k" id="kPACER"><i class="led" id="ledPACER"></i>PACER</button>
+        <div class="k updown" id="kRATE">
+          <button class="ud" id="kRateDn" aria-label="Pacing rate down">▼</button><span class="udlbl">RATE</span><button class="ud" id="kRateUp" aria-label="Pacing rate up">▲</button>
+        </div>
+        <div class="k updown" id="kCURRENT">
+          <button class="ud" id="kCurDn" aria-label="Pacing current down">▼</button><span class="udlbl">CURRENT</span><button class="ud" id="kCurUp" aria-label="Pacing current up">▲</button>
+        </div>
+        <button class="k" id="kPAUSE">PAUSE</button>
       </div>
-      <button class="k" id="kPAUSE">PAUSE</button>
-    </div>
-
-    <!-- Area 3 — monitoring and navigation. Figure 3-4 / Table 3-3. -->
-    <div class="area a3">
-      <button class="k" id="kNIBP"><i class="led" id="ledNIBP"></i>NIBP</button>
-      <button class="k alarms-k" id="kALARMS"><i class="led" id="ledALARMS"></i>ALARMS</button>
-      <button class="k" id="kOPTIONS">OPTIONS</button>
-      <button class="k" id="kEVENT">EVENT</button>
     </div>
 
     <div class="area a4">
@@ -843,18 +878,24 @@ function setSkin(skin){
     document.getElementById('wlEcg').style.color=LP_G;
     document.getElementById('wlSpo2').innerHTML='<span style="color:'+LP_B+'">SpO2</span>';
     document.getElementById('wlCo2').style.color=LP_Y;
-    {const e=document.getElementById('co2Scale'); if(e) e.style.color='#a9702f';}
+    {const e=document.getElementById('co2Scale'); if(e){ e.style.color='#a9702f'; e.textContent='0 to 50 mmHg'; }}
+    {const e=document.getElementById('co2Top'); if(e) e.textContent='50';}
+    {const e=document.getElementById('co2Mid'); if(e) e.textContent='25';}
     {const e=document.querySelector('#rCo2 .yl'); if(e) e.style.color='#a9702f';}
     {const e=document.querySelector('#rEcg .wt'); if(e) e.style.color=LP_G;}
   } else {
     document.getElementById('wlEcg').style.color='#00ff00';
     document.getElementById('wlSpo2').innerHTML='SpO2 <span style="font-size:9px;color:#777;font-weight:normal;">1X</span>';
     document.getElementById('wlCo2').style.color='#ff44ff';
+    {const e=document.getElementById('co2Scale'); if(e) e.textContent='0 to 60 mmHg';}
+    {const e=document.getElementById('co2Top'); if(e) e.textContent='60';}
+    {const e=document.getElementById('co2Mid'); if(e) e.textContent='30';}
   }
   // The two banner bands only exist in the LIFEPAK skin; clear their layout
   // so the ZX skin gets its own full-height waveform area back.
   bandState='';
   {const wa=document.getElementById('wavearea'); if(wa&&skin!=='lp') wa.style.top='';}
+  fitDevice();
   if(skin==='lp') layoutBands();
   // Full reset — invalidate all cached sizes and positions
   Object.keys(cSizes).forEach(k=>delete cSizes[k]);
@@ -1073,7 +1114,7 @@ function upNums(){
     if(bpBox) bpBox.classList.toggle('pending',cuff);
     setEl('lpSys', cuff||noP?'---':S.sbp);
     setEl('lpDia', cuff||noP?'--':S.dbp);
-    setEl('lpMap', cuff||mv==='---'?'(--)':'('+mv+')');
+    setEl('lpMap', cuff||mv==='---'?'--':mv);
 
     const p1box=document.getElementById('lpP1box');
     const showP1=S.artActive&&!nc&&!dead;
@@ -1823,12 +1864,12 @@ function sCo2(t){
   if(shape==='flat') return 0;
   if(shape==='cpr'){
     const ph=((t/(60/100))%1+1)%1;
-    const n=Math.max(etco2,10)/60;
+    const n=Math.max(etco2,10)/co2Ceiling();
     return ph<.35?n*.6*Math.sin(Math.PI*(ph/.35)):0;
   }
   if(!etco2||!S.rr) return 0;
   const bp=60/rr, ph=((t/bp)%1+1)%1;
-  const n=etco2/60;
+  const n=etco2/co2Ceiling();
   if(shape==='shark') return Math.max(0,Math.min(1,n*sL(L.co2s,ph)));
   if(shape==='rebreathing'){
     const base=n*.20;
@@ -2261,17 +2302,27 @@ function toggle12Lead(){
 }
 
 /* ── Canvas sizing ── */
+/* The canvas keeps two sizes: the logical one everything above draws in
+   (clientWidth/clientHeight, unaffected by the chassis transform) and a
+   backing store at logical x chassis scale x device pixel ratio. A matching
+   context transform bridges them, so scaling the unit up on a large display
+   renders the trace at real device pixels instead of letting the compositor
+   resample it. Ratio is capped at 2 — past that the memory costs more than
+   the sharpness is worth. */
 function sizeCanvas(id,row){
   const c=document.getElementById(id);
   const r=document.getElementById(row);
   if(!c||!r) return false;
   const W=r.clientWidth, H=r.clientHeight;
   if(W<2||H<2) return false;
-  if(cSizes[id]&&cSizes[id].W===W&&cSizes[id].H===H) return true;
-  c.width=W; c.height=H;
+  const k=devScale*Math.min(window.devicePixelRatio||1,2);
+  const prev=cSizes[id];
+  if(prev&&prev.W===W&&prev.H===H&&prev.k===k) return true;
+  c.width=Math.max(1,Math.round(W*k)); c.height=Math.max(1,Math.round(H*k));
   c.style.width=W+'px'; c.style.height=H+'px';
-  cSizes[id]={W,H};
+  cSizes[id]={W,H,k};
   const ctx=c.getContext('2d');
+  ctx.setTransform(k,0,0,k,0,0);   // survives until the next resize
   drawGrid(ctx,W,H);
   return true;
 }
@@ -2341,6 +2392,7 @@ window.addEventListener('keydown',e=>{
   if(e.key==='f'||e.key==='F') toggleFullscreen();
 });
 window.addEventListener('resize',()=>{
+  fitDevice();
   Object.keys(cSizes).forEach(k=>delete cSizes[k]);
   pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
   Object.keys(lastY).forEach(k=>lastY[k]=-1);
@@ -2408,6 +2460,10 @@ function clearBand(ctx,x0,w,W,H){
    unit runs CO2 slower — the shape of the plateau is the whole point of
    waveform capnography, and you cannot see a shape you only get one of. */
 const CH_SPX={cCo2:0.25};
+/* The channel ceiling in mmHg. The unit scales CO2 0-50; the ZX skin's own
+   channel is 0-60, and the sample function normalises against whichever is
+   showing so a 37 sits at the same height as the printed scale says. */
+function co2Ceiling(){ return currentSkin==='lp'?50:60; }
 function chSpx(id){ return SPX*(CH_SPX[id]||1); }
 const pxAccum={};
 function stepFor(id,dt){
@@ -2419,12 +2475,14 @@ function stepFor(id,dt){
 
 function drawChannel(id, fn, stroke, fill){
   const c=document.getElementById(id);
-  if(!c||c.width<2||c.height<2) return;
+  const sz=cSizes[id];
+  if(!c||!sz||c.width<2||c.height<2) return;
   const step=pxStep[id]||0;
   if(step<1) return;                           // nothing new to draw this frame
   const spx=chSpx(id);
   const ctx=c.getContext('2d');
-  const W=c.width, H=c.height;
+  // Logical, not the backing store: the context carries the scale.
+  const W=sz.W, H=sz.H;
   const yp=v=>(1-Math.max(0,Math.min(1,v)))*(H-4)+2;
 
   const newPx=pxPos[id];                       // write head, advanced by the loop
@@ -2587,6 +2645,31 @@ let cprTimer=null;
 function cprMetronome(on){
   clearInterval(cprTimer); cprTimer=null;
   if(on) cprTimer=setInterval(()=>beep(880,60,.09,'square'),60000/110);
+}
+
+/* ── Fitting the unit to the window ──────────────────────────────────── */
+/* The chassis is drawn at the device's own proportions — 1141 x 800, from a
+   317 x 216 mm front face — and scaled as one object, so the display stays
+   54% of the width and 4:3 whatever the window is. Letterboxed rather than
+   stretched: a defibrillator with the wrong aspect is a defibrillator whose
+   buttons are not where the crew reaches for them. */
+const DEV_W=1141, DEV_H=800;
+let devScale=1;
+function fitDevice(){
+  const el=document.getElementById('device');
+  if(!el) return;
+  if(currentSkin!=='lp'){
+    el.style.transform=''; el.style.width=''; el.style.height='';
+    if(devScale!==1){ devScale=1; invalidateCanvases(); }
+    return;
+  }
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const k=Math.min(vw/DEV_W, vh/DEV_H);
+  el.style.width=DEV_W+'px'; el.style.height=DEV_H+'px';
+  el.style.transform='translate('+Math.round((vw-DEV_W*k)/2)+'px,'+Math.round((vh-DEV_H*k)/2)+'px) scale('+k+')';
+  // Only repaint when the scale actually moved: the canvases are sized in
+  // device pixels against it, so every change means a full re-render.
+  if(Math.abs(k-devScale)>0.002){ devScale=k; invalidateCanvases(); }
 }
 
 /* ── Banner ──────────────────────────────────────────────────────────── */
@@ -2976,10 +3059,10 @@ function loop(){
   // is carried, so a channel slower than one pixel per frame still averages
   // out to its real speed instead of being rounded up to 60 px/s.
   ['cEcg','cArt','cCo2','cSpo2','cP2'].forEach(id=>{
-    const c=document.getElementById(id);
     const n=stepFor(id,dt);
     pxStep[id]=n;
-    if(c&&c.width>0&&n>0) pxPos[id]=(pxPos[id]+n)%c.width;
+    const sz=cSizes[id];
+    if(sz&&n>0) pxPos[id]=(pxPos[id]+n)%sz.W;
   });
 
   const sc=skinColors();
@@ -2997,6 +3080,7 @@ function loop(){
   if(now-lastNums>=125){ lastNums=now; upNums(); }
   requestAnimationFrame(loop);
 }
+fitDevice();
 requestAnimationFrame(loop);
 </script>
 </body>

@@ -67,11 +67,18 @@ the top of its box and draw it as a square.
 
 ## The LIFEPAK 15 skin
 
-The LP skin is the whole unit, not just its screen. Laid out as Figure 3-1:
-carry handle over the top, connector panel down the left edge, Area 4 keys
-beside the display rather than under it, the display itself under its
-`LIFEPAK 15 MONITOR/DEFIBRILLATOR` label, speaker, printer door and therapy
-port along the bottom, and Areas 1 to 3 down the right. Control grouping,
+The LP skin is the whole unit, not just its screen. Laid out from Figure 3-1 and
+the front-face photograph the operation supplied: carry handle over the top,
+connector strip down the left edge, Area 4 keys low on the left face with the
+round speaker grille beneath them, the display under its `LIFEPAK 15
+MONITOR/DEFIBRILLATOR` label, printer door and therapy port along the bottom,
+and Area 1 over Areas 3 and 2 — which sit **side by side**, monitoring keys to
+the left of pacing keys — with the speed dial in the bottom corner.
+
+The two-column arrangement is worth calling out because the manual hides it:
+Areas 2 and 3 are separate figures and separate tables, which reads as two
+stacked groups. The photograph shows them shoulder to shoulder, and the
+highlighted regions on the device thumbnails in Figures 3-3 and 3-4 agree. Control grouping,
 labels, LED behaviour and the numbered 1-2-3 therapy path come from Figures
 3-2 to 3-5 and Tables 3-1 to 3-4 of the LIFEPAK 15 operating instructions. The
 home-screen layout — parameter column left, three waveform channels right,
