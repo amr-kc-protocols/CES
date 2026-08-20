@@ -545,6 +545,185 @@ function loadMonitor(storage = {}) {
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// The LIFEPAK 15 skin: the unit, and what it is allowed to touch.
+//
+// The whole design rests on one boundary. The crew works the defibrillator;
+// the facilitator works the patient. If the monitor ever writes a rhythm, a
+// pressure or a saturation, there are two sources of truth for what the
+// patient is doing and the scenario stops being drivable — so the first check
+// here runs a full resuscitation on the device and asserts that not one field
+// of S moved.
+//
+// The rest are the behaviours a crew is actually being taught: that a shock
+// needs a charge, that changing energy throws the charge away, that an
+// unarmed shock button does nothing, and that a unit with no electrodes on
+// says so rather than advising against a shock it cannot see.
+// ---------------------------------------------------------------------------
+{
+  const { w, S } = loadMonitor()
+  const D = () => w.eval('D')
+  const call = (fn) => w.eval(fn)
+
+  Object.assign(S(), {
+    patientConnected: true, hr: 180, rhythm: 'vtach', sbp: 0, dbp: 0,
+    spo2: 4, etco2: 18, rr: 0, temp: 35.1, lead: 'II', alarmOn: true,
+  })
+  // --- charge and shock ----------------------------------------------------
+  ok('the unit starts unarmed', D().charged === false && D().charging === false)
+
+  call('deliverShock()')
+  ok('an unarmed shock button delivers nothing', D().shocks === 0, `${D().shocks} shocks`)
+
+  call('startCharge()')
+  ok('CHARGE begins charging', D().charging === true)
+  ok('and charging is not the same as charged', D().charged === false)
+
+  // Jump the clock rather than waiting five seconds for it.
+  w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  ok('the charge completes', D().charged === true && D().charging === false)
+
+  call('deliverShock()')
+  ok('an armed shock button delivers', D().shocks === 1, `${D().shocks} shocks`)
+  ok('and leaves the unit disarmed', D().charged === false)
+
+  // Changing the energy after charging throws the charge away, as the unit
+  // does — a crew that dials 360 expecting the 200 in the capacitor to follow
+  // is being taught something false.
+  call('startCharge()')
+  w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  ok('charged again', D().charged === true)
+  call('nudgeEnergy(1)')
+  ok('changing energy disarms the charge', D().charged === false)
+
+  // And it disarms itself if nobody shocks.
+  call('startCharge()')
+  w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  w.eval('D.disarmAt = Date.now() - 1; devTick()')
+  ok('an unused charge disarms itself', D().charged === false)
+
+  // --- rhythm advisory -----------------------------------------------------
+  const advise = () => { w.eval('D.analyzing = true; D.analyzeUntil = 0; finishAnalyze()'); return D().advisory }
+  ok('shockable rhythm advises a shock', advise() === 'SHOCK ADVISED', D().advisory)
+  S().rhythm = 'asystole'
+  ok('asystole advises against one', advise() === 'NO SHOCK ADVISED', D().advisory)
+  S().patientConnected = false
+  ok(
+    'no electrodes is its own answer, not "no shock advised"',
+    advise() === 'CONNECT ELECTRODES',
+    D().advisory,
+  )
+  S().patientConnected = true
+  S().rhythm = 'vtach'
+
+  // --- lead, size, pacing --------------------------------------------------
+  const devLead = w.eval('devLead')
+  ok('the lead starts as the panel set it', devLead() === 'II', devLead())
+  w.eval("takeLead(); D.leadIx = 2")
+  ok('pressing LEAD changes the displayed lead', devLead() === 'III', devLead())
+  S().lead = 'aVF'
+  ok('and the facilitator changing lead takes it back', devLead() === 'aVF', devLead())
+
+  // Size is display gain: it scales around the baseline, so it cannot turn a
+  // flat line into a complex or the other way round.
+  const sEcgDev = w.eval('sEcgDev')
+  w.eval('D.sizeIx = SIZES.indexOf(1.0)')
+  const at1 = sEcgDev(0.14)
+  w.eval('D.sizeIx = SIZES.indexOf(2.0)')
+  const at2 = sEcgDev(0.14)
+  ok(
+    'ECG size doubles the deflection about the baseline',
+    Math.abs((at2 - 0.5) - 2 * (at1 - 0.5)) < 1e-9,
+    `${at1.toFixed(4)} then ${at2.toFixed(4)}`,
+  )
+  w.eval('D.sizeIx = SIZES.indexOf(1.0)')
+
+  // Pacing spikes are the unit's own output and appear as soon as current is
+  // set. Capture is the patient's answer to them and is not the unit's to give.
+  w.eval('D.pacer = true; D.pacerMa = 0; D.pacerRate = 60')
+  const spikeAt = (t) => sEcgDev(t)
+  ok('no spike at zero current', Math.abs(spikeAt(0) - sEcgDev(0)) < 1e-9)
+  w.eval('D.pacerMa = 70')
+  ok('current produces a pacing spike', spikeAt(0) > 0.9, String(spikeAt(0)))
+  ok('and it is a spike, not a level', spikeAt(0.5) < 0.9, String(spikeAt(0.5)))
+  w.eval('D.pacer = false; D.pacerMa = 0')
+
+  w.close()
+}
+
+{
+  // The boundary, on its own page so nothing this script does to S can be
+  // mistaken for something the device did. A whole resuscitation is run
+  // through the unit — charge, shock, analyze, pace, print, alarms, lead —
+  // and afterwards the patient must be byte-for-byte what the facilitator
+  // left. This is the check that fails the day somebody makes the shock
+  // button convert the rhythm "just to make the demo look right".
+  const { w, S } = loadMonitor()
+  Object.assign(S(), {
+    patientConnected: true, hr: 180, rhythm: 'vfib', sbp: 0, dbp: 0,
+    spo2: 4, etco2: 18, rr: 0, temp: 35.1, lead: 'II', alarmOn: true,
+  })
+  const before = JSON.stringify(S())
+  w.eval(`
+    startCharge(); D.chargeStart = Date.now() - CHARGE_MS - 1; devTick(); deliverShock();
+    D.analyzing = true; D.analyzeUntil = 0; finishAnalyze();
+    D.cpr = true; takeLead(); D.leadIx = 4; D.sizeIx = 4;
+    D.pacer = true; nudgeRate(1); nudgeMa(3);
+    startNibp(); D.silenceUntil = Date.now() + 1000; D.alarms = false;
+    D.sunvue = true; devTick();
+  `)
+  const changed = []
+  const a = JSON.parse(before), b = w.eval('S')
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)]))
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) changed.push(k)
+  ok('nothing the crew pressed changed the patient', changed.length === 0, changed.join(','))
+  ok('the crew did press things', w.eval('D.log.length') > 5, `${w.eval('D.log.length')} events`)
+  w.close()
+}
+
+{
+  // Cross-file. Both of these fail silently in the room: a device event with
+  // no icon draws a bullet in the facilitator's timeline, and an auto-tick
+  // whose pattern matches no real step simply never fires, which looks exactly
+  // like a crew that did not do the thing.
+  const panelSrc = readFileSync(PAGE, 'utf8')
+
+  const emitted = [...MONITOR_SRC.matchAll(/logEvent\('([a-zA-Z0-9]+)'/g)].map((m) => m[1])
+  const uniq = [...new Set(emitted)]
+  ok('the monitor emits device events', uniq.length > 10, `${uniq.length} kinds`)
+  const iconBlock = panelSrc.slice(panelSrc.indexOf('const DEV_ICON='))
+  const icons = new Set(
+    [...iconBlock.slice(0, iconBlock.indexOf('};')).matchAll(/([a-zA-Z0-9]+):'/g)].map((m) => m[1]),
+  )
+  const missing = uniq.filter((t) => !icons.has(t))
+  ok('every event the monitor sends has an icon on the panel', missing.length === 0, missing.join(','))
+
+  const patterns = [...panelSrc.matchAll(/match:\/(.+?)\/i/g)].map((m) => m[1])
+  ok('the panel auto-ticks from the device', patterns.length >= 3, `${patterns.length} rules`)
+  const steps = [...panelSrc.matchAll(/^\s+'([^']{12,})',$/gm)].map((m) => m[1])
+  for (const pat of patterns) {
+    const re = new RegExp(pat, 'i')
+    ok(`auto-tick /${pat}/ matches a real checklist step`, steps.some((t) => re.test(t)))
+  }
+
+  // The facilitator stays the assessor of record: a tick that came from the
+  // device is marked as such and comes off on a click.
+  ok('auto-ticks are marked in the UI', /auto-tag/.test(panelSrc) && /from monitor/.test(panelSrc))
+  ok('and clicking one clears the mark', /if\(a\.auto\) delete a\.auto/.test(panelSrc))
+
+  // A channel delivers to every other subscriber in the same page, so the
+  // monitor hears its own device posts. Merging one would put a __device key
+  // into the patient state.
+  ok(
+    'the monitor ignores device events as state',
+    /e\.data\.__monitor\|\|e\.data\.__device\) return/.test(MONITOR_SRC),
+  )
+  ok(
+    'the run record carries the device timeline',
+    /device:run\.device\.slice\(\)/.test(panelSrc),
+  )
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)

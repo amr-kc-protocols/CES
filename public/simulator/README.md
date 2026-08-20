@@ -38,9 +38,10 @@ an integration task, not a review one — see below.
 
 ## The monitor
 
-`patient_monitor_display.html` is the screen the crew sees. It reads state and
-never writes it. Two skins: **ZX** (numerics down the right) and **LP**
-(numerics down the left, LP-style palette); the switch is in the top bar.
+`patient_monitor_display.html` is the screen the crew sees. It reads patient
+state and never writes it. Two skins: **ZX** (numerics down the right) and
+**LP** — a LIFEPAK 15, chassis and all; the switch floats in the bottom-right
+corner.
 
 Waveforms are Catmull-Rom splines through hand-authored keyframes, baked once
 into 2048-entry lookup tables, then sampled per pixel. Each channel keeps its
@@ -63,6 +64,98 @@ deviations in the same normalised units as the lookup tables, where the R wave
 is about 0.48. Do not scale them by the panel height — the y mapping already
 does that, and doing it twice is what used to rail every ST-shifted lead against
 the top of its box and draw it as a square.
+
+## The LIFEPAK 15 skin
+
+The LP skin is the whole unit, not just its screen: the display sits top-left,
+the three control areas run down the right, and the therapy keys and printer
+sit underneath. Control grouping, labels, LED behaviour and the numbered 1-2-3
+therapy path come from Figures 3-2 to 3-4 and Tables 3-1 to 3-3 of the LIFEPAK
+15 operating instructions. The home-screen layout — parameter column left,
+three waveform channels right, channel labels at the right-hand end of each
+trace — follows the reference screen the operation supplied.
+
+The chassis is laid out fluidly rather than drawn at a fixed size and scaled.
+A transform would keep the proportions exact at any window size, but it also
+scales the waveform canvases, and a trace resampled by the compositor is the
+one thing on this screen that has to stay sharp.
+
+### Who owns what
+
+One boundary carries the whole design:
+
+- **The facilitator owns the patient.** The control panel is still the only
+  writer of rhythm, pressure, saturation, EtCO₂ — everything in `S`.
+- **The crew owns the device.** Selected energy, charge state, lead, ECG size,
+  pacing rate and current, alarm silence, display mode and the shock count live
+  in `D` on the monitor and never leave the page except as an event.
+
+So a shock is charged, delivered, announced and logged, and the patient does
+not change until the facilitator changes it — which is how a megacode station
+is run. `check-simulator.mjs` runs a whole resuscitation through the device and
+asserts that not one field of `S` moved; that check is what fails the day
+somebody makes the shock button convert the rhythm to make a demo look right.
+
+Two things are the unit's own output rather than the patient's response, and
+are drawn:
+
+- **Pacing spikes** appear as soon as pacing current is set. **Capture** is the
+  patient answering them, and stays the facilitator's to give.
+- **ECG size** is display gain. It scales the trace about the baseline, so it
+  can never turn a flat line into a complex.
+
+### What the keys do
+
+`ON` (hold to switch off) · `CPR` metronome at 110/min · `ANALYZE` runs an
+eight-second analysis and advises — and says `CONNECT ELECTRODES` rather than
+"no shock advised" when it has no ECG at the pads, because advising against a
+shock it cannot see teaches a crew to trust the one reading that means nothing
+· `LEAD` and `SIZE` cycle · `SYNC` · `ENERGY SELECT` walks the manual-mode
+ladder and throws away any charge when it moves · `CHARGE` takes 5.2s with a
+rising tone and disarms itself after 60s · `SHOCK` only fires armed · `PACER`
+with `RATE`, `CURRENT` and hold-to-`PAUSE` · `NIBP` takes the reading away for
+25s while the cuff cycles · `ALARMS` enables, then silences for two minutes ·
+`OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects ·
+`HOME SCREEN` · the display-mode key toggles **SunVue**, the unit's
+high-contrast outdoor mode, which repaints the canvases on a light ground with
+dark traces rather than recolouring the chrome · `12 LEAD`, `TRANSMIT`,
+`CODE SUMMARY` and `PRINT` run the printer.
+
+### The timeline
+
+Every press posts `{__device: event}` on the same `simState` channel the panel
+pushes state down. It is one-way — the panel ignores it as state, and so does
+the monitor, which hears its own posts because a channel delivers to every
+other subscriber in the page as well as to other tabs.
+
+The panel timestamps each event against the run, shows it live in an **At the
+monitor** column, and saves it with the record. That timeline is what answers
+the questions the checklist asks and nobody can measure while both facilitating
+and grading: time to first shock, the energies used, how long the pause around
+one ran, whether compressions came straight back.
+
+### Auto-ticking, and its limits
+
+Three checklist steps tick themselves from the device, and deliberately no
+more. Most of the AHA megacode checklist is about recognition, verbalisation
+and clinical appropriateness — "Verbalizes potential reversible causes",
+"Administers appropriate drug(s) and doses" — and a button press is no evidence
+of any of it. Ticking those from the device would be fabricating the
+assessment.
+
+What is left is where the press and the step are the same fact:
+
+| Event | Step |
+| --- | --- |
+| `SHOCK ADVISED` after the crew pressed ANALYZE | Recognizes VF / pVT |
+| CPR metronome started within 15s of a shock | Immediately resumes CPR after shocks |
+| Pacing switched on | Prepares for second-line treatment |
+
+Only in the phase the facilitator currently has the patient in — a step belongs
+to its section, and ticking one three phases ahead marks something that has not
+been asked for yet. Every auto-tick is labelled **from monitor** in the console
+and comes off on a click, and the click makes it the facilitator's: they remain
+the assessor of record.
 
 ## Facilitating and grading
 
@@ -301,13 +394,17 @@ improvement.
 
 ## Known gaps
 
-- **The alarm is visual only.** The control panel offers alarm ON / MUTE and the
-  monitor honours them, but only by blinking the banner — there is no tone. A
-  browser will not start audio until the page itself has been interacted with,
-  so a tone added naively would be silent until someone clicked the monitor,
-  which is worse than clearly having none. If it is wanted, it needs an
-  AudioContext resumed on first interaction and a visible indication of whether
-  audio is armed.
+- **Alarms are still visual only.** The device keys have tones — charging,
+  charge-ready, the CPR metronome, the shock, menu clicks — because pressing a
+  key is itself the gesture a browser needs before it will start audio. The
+  *alarm* has no tone for the same reason it never did: nothing guarantees
+  anyone has touched the monitor window before a parameter goes out of range,
+  and an alarm that is silent until someone clicks the screen is worse than one
+  that is clearly visual. Arming it properly needs a visible "audio on"
+  affordance, which is still unbuilt.
+- **The crew cannot reach the keys on a wall display.** The full chassis is
+  drawn on the assumption the crew works the unit on a touchscreen or laptop.
+  Thrown on a TV it is still readable, but the buttons are then decoration.
 - **P3 on the bottom bar is a placeholder** with no state behind it.
 - **The 12-lead does not follow the rhythm** once open (see above), and closing
   it from the monitor's own `12` button leaves the control panel's toggle

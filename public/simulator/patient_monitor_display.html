@@ -139,58 +139,327 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Ar
 .wt{font-size:15px;font-weight:bold;}
 .ws{font-size:10px;}
 .yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
-/* -- Skin switcher -- */
-.skin-btn{display:flex;gap:0;border:1px solid #444;border-radius:4px;overflow:hidden;margin-left:8px;}
+/* -- Skin switcher — floats over the corner in both skins, so it never has to
+   live inside a status line that is meant to look like the real device. -- */
+#skinbar{position:fixed;bottom:2px;right:2px;z-index:60;display:flex;border:1px solid #444;border-radius:4px;
+  overflow:hidden;opacity:.3;transition:opacity .15s;}
+#skinbar:hover,#skinbar:focus-within{opacity:1;}
 .skb{padding:2px 7px;font-size:10px;font-weight:bold;cursor:pointer;background:#222;color:#a8a8a8;border:none;letter-spacing:1px;transition:all .15s;}
 .skb.on{background:#004466;color:#00e5ff;}
 
-/* -- LP Skin overrides -- */
+/* =====================================================================
+   LIFEPAK 15 skin
+   =====================================================================
+   Two separate jobs live under body.lp-skin:
+
+   1. The chassis — the physical unit around the display. Control grouping,
+      labels and the numbered 1-2-3 therapy path come from Figures 3-2 to 3-4
+      and Tables 3-1 to 3-3 of the LIFEPAK 15 operating instructions.
+   2. The home screen — parameter column down the left, three waveform
+      channels to the right, status line across the top.
+
+   The chassis is laid out fluidly rather than drawn at a fixed size and
+   scaled: the control column and the key row under the display keep their
+   dimensions and the display takes whatever is left. A transform would have
+   let the proportions stay exactly right at any window size, but it also
+   scales the waveform canvases, and a trace resampled by the compositor is
+   the one thing on this screen that has to stay sharp.
+   ===================================================================== */
+
+/* ---- chassis ---- */
+#device{position:absolute;inset:0;background:#000;}
+#devMain{position:absolute;inset:0;}
+#screenWrap{position:absolute;inset:0;}
+#screen{position:absolute;inset:0;}
+#chromeRight,#devBottom{display:none;}
+
+body.lp-skin #device{
+  position:absolute;inset:0;display:flex;flex-direction:column;gap:7px;
+  padding:7px;background:linear-gradient(180deg,#c2c4bd,#a9aca4);
+}
+body.lp-skin #devMain{position:static;flex:1;display:flex;gap:7px;min-height:0;}
+body.lp-skin #screenWrap{
+  position:relative;inset:auto;flex:1;min-width:0;
+  background:#000;border:5px solid #26282a;border-radius:5px;
+  box-shadow:inset 0 0 0 1px #000,0 1px 3px rgba(0,0,0,.4);
+}
+body.lp-skin #chromeRight{display:flex;flex-direction:column;gap:6px;width:206px;flex:none;}
+body.lp-skin #devBottom{display:flex;gap:8px;height:118px;flex:none;align-items:stretch;}
+
+/* ---- control areas ---- */
+.area{background:#83878a;border-radius:6px;padding:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.3);}
+.a1{display:flex;flex-direction:column;gap:4px;}
+.a1 .vfdose{background:#d7d9d4;color:#111;font-size:8px;line-height:1.25;text-align:center;padding:2px 3px;border-radius:3px;letter-spacing:.2px;}
+.a1body{display:flex;gap:3px;align-items:stretch;}
+.a1left{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.a1num{width:11px;display:flex;flex-direction:column;justify-content:space-around;align-items:center;
+  font-size:15px;font-weight:800;color:#1b1d1f;padding:16px 0 22px;}
+.a1right{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;
+  background:#6f7376;border-radius:5px;padding:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.35);}
+.a2{display:flex;flex-direction:column;gap:4px;background:#2f6b45;}
+.a3{display:flex;flex-direction:column;gap:4px;}
+.a4{display:flex;align-items:center;gap:6px;background:#83878a;}
+
+/* ---- keys ---- */
+.k{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  min-height:24px;padding:3px 4px 3px 15px;
+  background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;
+  border:1px solid #0b0c0d;border-radius:12px;
+  font:700 9.5px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;text-align:center;
+  cursor:pointer;user-select:none;
+}
+.k:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
+.k:active,.k.held{background:#0d0e0f;transform:translateY(1px);}
+.k:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
+.krow{display:flex;gap:4px;}
+.k.half{flex:1;padding-left:4px;min-width:0;}
+.on-k{background:linear-gradient(180deg,#3fb45f,#217a3b);border-color:#14532a;color:#fff;}
+.on-k:hover{background:linear-gradient(180deg,#4cc46d,#288a44);}
+.charge-k{background:linear-gradient(180deg,#f0ab3f,#cf7f16);border-color:#8a5407;color:#1a1204;padding-left:4px;}
+.charge-k:hover{background:linear-gradient(180deg,#ffbb52,#dd8b1c);}
+.charge-k.armed{animation:chargePulse .45s steps(1,end) infinite;}
+@keyframes chargePulse{0%,49%{filter:brightness(1)}50%,100%{filter:brightness(1.7)}}
+.alarms-k{background:linear-gradient(180deg,#f0c04a,#cf9412);border-color:#8a6207;color:#1a1204;}
+.alarms-k:hover{background:linear-gradient(180deg,#ffd05c,#dda11a);}
+
+/* Up/down rockers — one key with a label between two arrows, as on the unit. */
+.updown{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:2px 3px;}
+.updown .ud{
+  background:none;border:none;color:#f2f2f2;font-size:9px;line-height:1;cursor:pointer;
+  padding:3px 2px;border-radius:3px;flex:none;
+}
+.updown .ud:hover{background:#3f4245;}
+.updown .ud:active{background:#000;}
+.updown .udlbl{font:700 8.5px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.4px;text-align:center;flex:1;}
+
+/* Indicator LEDs. Dark until the function is active — the operating
+   instructions describe most of these as "LED illuminated when ...", and
+   several as flashing, so both states are represented. */
+.led{position:absolute;left:5px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;
+  background:#2a2c2e;box-shadow:inset 0 0 1px #000;flex:none;}
+.led.on{background:#4dff70;box-shadow:0 0 5px #4dff70;}
+.led.amber{background:#ffc043;box-shadow:0 0 5px #ffc043;}
+.led.red{background:#ff4a3d;box-shadow:0 0 5px #ff4a3d;}
+.led.flash{animation:ledFlash .5s steps(1,end) infinite;}
+@keyframes ledFlash{0%,49%{opacity:1}50%,100%{opacity:.15}}
+.ledrow{display:flex;justify-content:space-around;align-items:center;padding:1px 0 2px;}
+.lediz{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;color:#e6e6e6;}
+.lediz .led{position:static;transform:none;}
+.gl{width:11px;height:11px;display:block;}
+
+/* Shock button — the one round control on the unit. */
+.shockrow{display:flex;align-items:center;gap:5px;justify-content:center;padding-top:1px;}
+.shockrow .led{position:static;transform:none;}
+.shock{
+  width:42px;height:42px;border-radius:50%;flex:none;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%,#ff7a52,#d9381e 70%);
+  border:2px solid #7d1c0c;box-shadow:0 2px 3px rgba(0,0,0,.45);
+  display:flex;align-items:center;justify-content:center;
+}
+.shock svg{width:22px;height:22px;}
+.shock:active{transform:translateY(1px);}
+/* Never greyed. The button is red on the unit whether or not it is armed;
+   pressing it unarmed does nothing but sound the reject tone, which is the
+   behaviour a crew has to learn. */
+.shock.ready{animation:shockReady .4s steps(1,end) infinite;}
+@keyframes shockReady{0%,49%{box-shadow:0 0 0 3px rgba(255,120,60,.9)}50%,100%{box-shadow:0 2px 3px rgba(0,0,0,.45)}}
+
+/* Round nav keys and the speed dial. */
+.rk{background:none;border:none;cursor:pointer;color:#1b1d1f;display:flex;flex-direction:column;align-items:center;
+  gap:2px;font:700 7px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.3px;padding:2px;}
+.rk svg{width:22px;height:22px;background:#2b2d2f;color:#e9e9e9;border-radius:50%;padding:4px;}
+.rk:hover svg{background:#3f4245;}
+.rk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;border-radius:4px;}
+.rk.sun svg{border-radius:4px;}
+.dialwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;}
+.diallbl{font:700 7px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:1.6px;color:#1b1d1f;}
+.dial{
+  width:52px;height:52px;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle at 40% 32%,#5a5d60,#1a1b1d 72%);
+  border:2px solid #0d0e0f;box-shadow:0 2px 4px rgba(0,0,0,.45);
+  display:flex;align-items:center;justify-content:center;
+}
+.dial:active{cursor:grabbing;}
+.dial:focus-visible{outline:2px solid #ffd24a;outline-offset:2px;}
+.dialgrip{width:22px;height:22px;border-radius:50%;background:repeating-conic-gradient(#3c3f42 0 8deg,#232527 8deg 16deg);
+  box-shadow:inset 0 0 3px #000;transition:transform .12s;}
+
+/* ---- keys under the display, and the printer ---- */
+.fkeys{display:flex;flex-direction:column;gap:4px;width:96px;flex:none;}
+.fk{flex:1;background:linear-gradient(180deg,#2b2d2f,#141517);color:#f2f2f2;border:1px solid #0b0c0d;
+  border-radius:11px;font:700 9px/1.1 'Arial Narrow',Arial,sans-serif;letter-spacing:.6px;cursor:pointer;}
+.fk:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
+.fk:active{background:#0d0e0f;transform:translateY(1px);}
+.fk:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
+.printer{flex:1;background:#9b9e98;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);padding:7px;}
+.printdoor{height:100%;background:linear-gradient(180deg,#d3d5d0,#b9bcb6);border-radius:4px;border:1px solid #8d908a;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative;overflow:hidden;}
+.printslot{width:70%;height:5px;background:#3a3c39;border-radius:2px;box-shadow:inset 0 1px 2px #000;}
+.printgrip{width:44%;height:11px;background:#c6c8c3;border:1px solid #8d908a;border-radius:3px;}
+.printdoor.printing::after{
+  content:'';position:absolute;left:15%;right:15%;top:0;height:0;background:#f4f4ef;
+  border:1px solid #b9bcb6;animation:paperOut 1.4s ease-out forwards;
+}
+@keyframes paperOut{to{height:78%;}}
+.devbrand{width:96px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font:800 15px/1 'Arial Narrow',Arial,sans-serif;color:#43464a;letter-spacing:.5px;}
+.devbrand span{font-size:22px;color:#1b1d1f;}
+
+/* =====================================================================
+   Home screen
+   ===================================================================== */
 body.lp-skin #nums{display:none;}
 body.lp-skin #strip{display:none;}
-body.lp-skin #wavearea{left:140px;right:0;}
-body.lp-skin #lpNums{display:flex;}
+body.lp-skin #bot{display:none;}
+body.lp-skin #lpNums{display:flex;top:0;bottom:0;}
+/* The status line spans the waveform side only — the parameter column runs
+   the full height of the display, starting with HR at the very top. */
+body.lp-skin #top{left:152px;height:22px;background:#000;border-bottom:1px solid #1c1c1c;padding:0 6px;}
+body.lp-skin #wavearea{top:22px;left:152px;right:0;bottom:0;}
 body.lp-skin #rArt{display:none;}
-body.lp-skin #top{background:#0a0a0a;border-bottom:2px solid #222;}
-body.lp-skin #bot{background:#0a0a0a;border-top:1px solid #222;}
 
-/* -- LP Numerics Panel -- */
-#lpNums{display:none;position:absolute;top:26px;left:0;bottom:56px;width:140px;flex-direction:column;background:#0a0a0a;z-index:10;border-right:2px solid #222;}
-.lpb{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:4px 6px 3px;border-bottom:1px solid #1a1a1a;overflow:hidden;min-height:0;}
+/* ---- parameter column ---- */
+#lpTop{display:none;flex:1;align-items:center;justify-content:space-between;}
+body.lp-skin #lpTop{display:flex;}
+body.lp-skin .zxseg{display:none;}
+#lpNums{display:none;position:absolute;left:0;width:152px;flex-direction:column;background:#000;z-index:10;}
+.lpb{flex:1;display:flex;flex-direction:column;padding:0 0 2px;min-height:0;position:relative;
+  border-bottom:1px solid #171c22;}
 .lpb:last-child{border-bottom:none;}
-.lplbl{font-size:11px;font-weight:bold;letter-spacing:1px;line-height:1;}
-.lpunit{font-size:9px;margin-left:2px;opacity:.7;}
-.lpval{text-align:right;font-weight:bold;line-height:.9;letter-spacing:-1px;align-self:flex-end;}
-.lpHR .lplbl,.lpHR .lpunit{color:#00cc00;}.lpHR .lpval{color:#00ff00;font-size:54px;}
-.lpSP .lplbl,.lpSP .lpunit{color:#cccccc;}.lpSP .lpval{color:#ffffff;font-size:50px;}
-.lpCO2 .lplbl,.lpCO2 .lpunit{color:#ccaa00;}.lpCO2 .lpval{color:#FFD700;font-size:46px;}
-.lpCO2 .lprr{color:#ccaa00;font-size:15px;font-weight:bold;text-align:right;line-height:1;margin-top:2px;}
-.lpTMP{flex:0 0 58px!important;}.lpTMP .lplbl,.lpTMP .lpunit{color:#6ab8d4;}.lpTMP .lpval{color:#89CFF0;font-size:24px;}
-.lpBP .lplbl,.lpBP .lpunit{color:#6ab8d4;}
-.lpBP .lpvs{color:#89CFF0;font-size:36px;font-weight:bold;text-align:right;line-height:1;}
-.lpBP .lpvd{color:#89CFF0;font-size:26px;font-weight:bold;text-align:right;line-height:1;}
-.lpBP .lpvm{color:#4d99aa;font-size:13px;font-weight:bold;text-align:right;}
-.lpP1{display:none;}.lpP1.visible{display:flex;}
-.lpP1 .lplbl,.lpP1 .lpunit{color:#ccaa00;}
-.lpP1 .lpvs{color:#FFD700;font-size:36px;font-weight:bold;text-align:right;line-height:1;}
-.lpP1 .lpvd{color:#FFD700;font-size:26px;font-weight:bold;text-align:right;line-height:1;}
-.lpP1 .lpvm{color:#aa8800;font-size:13px;font-weight:bold;text-align:right;}
+.lphd{display:flex;align-items:center;gap:4px;background:#2e353f;padding:1px 5px;flex:none;
+  font:700 10px/1.35 'Arial Narrow',Arial,sans-serif;letter-spacing:.4px;}
+.lphd .lpunit{font-size:8.5px;opacity:.85;font-weight:700;}
+.lphd .lpsp{flex:1;}
+/* Alarm bell, as on the unit: shown for every monitored parameter, crossed
+   through when alarms are off, and red on the parameter that is breaching. */
+.bell{width:9px;height:9px;flex:none;color:#c8952b;}
+.bell.off{color:#5a5f66;}
+.bell.brc{color:#ff4a3d;}
+.bell.brc.flash{animation:ledFlash .6s steps(1,end) infinite;}
+.lpval{text-align:right;font-weight:700;line-height:.92;letter-spacing:-1px;padding:0 7px 0 2px;
+  flex:1;display:flex;align-items:center;justify-content:flex-end;min-height:0;}
+.lpsub{text-align:right;padding:0 7px 1px 2px;font-weight:700;line-height:1;flex:none;}
+
+.lpHR .lphd{color:#31d63a;} .lpHR .lpval{color:#31d63a;font-size:52px;}
+.lpSP .lphd{color:#4aa8ff;} .lpSP .lpval{color:#4aa8ff;font-size:48px;}
+.lpCO2 .lphd{color:#e08a3c;} .lpCO2 .lpval{color:#e08a3c;font-size:44px;} .lpCO2 .lpsub{color:#e08a3c;font-size:14px;}
+.lpTMP{flex:0 0 56px;} .lpTMP .lphd{color:#e8e8e8;} .lpTMP .lpval{color:#e8e8e8;font-size:26px;}
+.lpBP .lphd{color:#e8e8e8;} .lpBP .lpval{color:#e8e8e8;font-size:38px;} .lpBP .lpsub{color:#c7ccd2;font-size:19px;}
+.lpBP .lpsub .lpmap{color:#8d949c;font-size:14px;margin-right:8px;}
+.lpP1{display:none;} .lpP1.visible{display:flex;}
+.lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:34px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
+/* A cuff cycle in progress, or a parameter the patient is not wearing. */
+.lpb.pending .lpval,.lpb.pending .lpsub{opacity:.45;}
+
+/* ---- status line ---- */
+.lpstat{display:flex;align-items:center;gap:7px;font:700 11px/1 'Arial Narrow',Arial,sans-serif;color:#d8dde3;}
+.lpbay{display:flex;align-items:center;gap:2px;color:#9aa2ab;font-size:10px;}
+.lpbay svg{width:15px;height:9px;}
+.lpJ{display:flex;align-items:center;gap:3px;background:#1b1e22;border:1px solid #333a42;border-radius:2px;
+  padding:0 4px;color:#ffd24a;font-size:12px;}
+.lpJ svg{width:9px;height:9px;}
+.lpmode{color:#ffffff;font-size:12px;letter-spacing:.6px;}
+.lpsync{color:#ffd24a;font-size:11px;letter-spacing:.6px;}
+.lpsil{color:#9aa2ab;font-size:10.5px;letter-spacing:.4px;}
+
+/* Mode banner across the waveform area — charging, analysing, pacing. */
+/* Two bands can sit under the status line: the alarm strip and the mode
+   banner. They stack, and the waveform area starts below whichever are up —
+   a banner drawn over the clock is a banner that hides the one number a
+   resuscitation is timed against. */
+body.lp-skin #alm{
+  display:none;position:absolute;top:22px;left:152px;right:0;height:21px;
+  transform:none;border-radius:0;background:#7a1f14;color:#ffe7c2;
+  font:700 13px/21px 'Arial Narrow',Arial,sans-serif;letter-spacing:1.2px;
+  text-align:center;padding:0;z-index:24;animation:none;
+}
+body.lp-skin #alm.shown{display:block;}
+#lpBanner{
+  display:none;position:absolute;top:22px;left:152px;right:0;height:21px;z-index:22;
+  align-items:center;justify-content:center;gap:14px;
+  font:700 13px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:1.4px;
+  background:#1d2126;color:#ffd24a;border-bottom:1px solid #333a42;
+}
+#lpBanner.warn{background:#7a1f14;color:#ffe7c2;}
+#lpBanner.flash{animation:ledFlash .5s steps(1,end) infinite;}
+body.lp-skin #lpBanner.shown{display:flex;}
+
+/* SunVue — the unit's high-contrast outdoor mode, a real display setting
+   rather than a theme. Inverted to a light ground with black traces. */
+body.lp-skin.sunvue #screenWrap{background:#e9e9e4;}
+body.lp-skin.sunvue #lpNums,body.lp-skin.sunvue #top,body.lp-skin.sunvue #wavearea{background:#e9e9e4;}
+body.lp-skin.sunvue .lphd{background:#c9ccc8;color:#111!important;}
+body.lp-skin.sunvue .lpval,body.lp-skin.sunvue .lpsub{color:#111!important;}
+body.lp-skin.sunvue .lpsub .lpmap{color:#444!important;}
+body.lp-skin.sunvue .lpstat,body.lp-skin.sunvue .lpmode{color:#111;}
+body.lp-skin.sunvue .wt,body.lp-skin.sunvue .wt *,body.lp-skin.sunvue .ws,body.lp-skin.sunvue .yl{color:#111!important;}
+
+/* Channel order on the unit is ECG, SpO2, CO2 — pulse oximetry sits directly
+   under the rhythm it belongs to. The markup order serves the ZX skin, so the
+   LIFEPAK skin reorders rather than duplicating the rows. */
+body.lp-skin #rEcg{order:1;} body.lp-skin #rSpo2{order:2;} body.lp-skin #rCo2{order:3;}
+body.lp-skin .wr{border-bottom:none;}
+/* Channel labels and scales sit at the right-hand end of each trace. */
+body.lp-skin .wh{justify-content:flex-end;gap:8px;padding-right:36px;}
+body.lp-skin #rEcg .wh{justify-content:flex-start;padding-left:6px;}
+body.lp-skin .yl{left:auto;right:5px;width:26px;top:2px;text-align:right;align-items:flex-end;font-size:8px;}
+body.lp-skin .wt{font-size:13px;}
+
+/* ---- on-screen menus, driven by the speed dial ---- */
+#lpMenu{
+  display:none;position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:26;
+  min-width:190px;background:#11151a;border:1px solid #3a434e;border-radius:3px;
+  font:700 12px/1 'Arial Narrow',Arial,sans-serif;color:#d8dde3;
+  box-shadow:0 4px 14px rgba(0,0,0,.6);
+}
+#lpMenu .mh{background:#2e353f;padding:4px 9px;letter-spacing:1.2px;color:#fff;}
+#lpMenu .mi{padding:5px 9px;border-top:1px solid #1b2027;}
+#lpMenu .mi.sel{background:#2f6b45;color:#fff;}
+
+/* ---- power off ---- */
+body.lp-skin.powered-off #screen>*{visibility:hidden;}
+body.lp-skin.powered-off #screenWrap{background:#050505;}
 
 </style>
 </head>
 <body>
 
+<!-- ---------------------------------------------------------------------
+     The chassis.
+     In the LIFEPAK skin this is the whole unit: the display sits top-left,
+     the three control areas of the operating instructions run down the right,
+     and the therapy keys and printer sit under the display. In the ZX skin the
+     chassis collapses to nothing and the screen fills the window, which is
+     what it always did.
+     --------------------------------------------------------------------- -->
+<div id="device">
+ <div id="devMain">
+  <div id="screenWrap"><div id="screen">
+
 <div id="alm">⚠ ALARM</div>
 
 <div id="top">
-  <div class="tseg"><span id="tDate"></span><span id="tTime"></span></div>
-  <div class="tseg" style="font-size:13px;"><span id="tPat">Adult</span><span style="color:#555;margin-left:4px;">✦</span></div>
-  <div class="tseg">
+  <div class="tseg zxseg"><span id="tDate"></span><span id="tTime"></span></div>
+  <div class="tseg zxseg" style="font-size:13px;"><span id="tPat">Adult</span><span style="color:#555;margin-left:4px;">✦</span></div>
+  <div class="tseg zxseg">
     <span class="batt">100%</span>
-    <span id="tElap">00:00:00</span>
-    <div class="skin-btn">
-      <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
-      <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
-      <button class="skb" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
+    <span id="tElapZx">00:00:00</span>
+  </div>
+
+  <!-- LIFEPAK status line: therapy mode on the left, elapsed time in the
+       middle, the two battery bays and the selected energy on the right. -->
+  <div id="lpTop">
+    <div class="lpstat">
+      <span class="lpmode" id="lpMode">Manual</span>
+      <span class="lpsync" id="lpSyncTag" style="display:none;">SYNC</span>
+      <span class="lpsil" id="lpSil"></span>
+    </div>
+    <div class="lpstat"><span id="tElap">00:00:00</span></div>
+    <div class="lpstat">
+      <span class="lpbay"><span>1</span><svg viewBox="0 0 22 12"><rect x="1" y="1" width="18" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="20" y="4" width="2" height="4" fill="currentColor"/><rect class="fill" x="2.6" y="2.6" width="14.8" height="6.8" fill="currentColor"/></svg></span>
+      <span class="lpbay"><span>2</span><svg viewBox="0 0 22 12"><rect x="1" y="1" width="18" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="20" y="4" width="2" height="4" fill="currentColor"/><rect class="fill" x="2.6" y="2.6" width="14.8" height="6.8" fill="currentColor"/></svg></span>
+      <span class="lpJ"><span id="lpEnergy">200J</span><svg viewBox="0 0 24 24"><path d="M14 2 6 13h5l-2 9 9-12h-5z" fill="currentColor"/></svg></span>
     </div>
   </div>
 </div>
@@ -210,42 +479,43 @@ body.lp-skin #bot{background:#0a0a0a;border-top:1px solid #222;}
        style="font-size:20px;color:#00aaff;background:#001020;" title="Open Control Panel">↩</div>
 </div>
 
-<!-- LP Numerics Panel (shown only in LP skin) -->
+<!-- Parameter column. Order, grouping and the per-parameter alarm bell follow
+     the LIFEPAK 15 home screen; the block heights are proportional so the
+     column fills whatever height the display has. -->
 <div id="lpNums">
-  <div class="lpb lpHR">
-    <div><span class="lplbl">HR</span><span class="lpunit">bpm</span></div>
-    <div class="lpval" id="lpHR">78</div>
+  <div class="lpb lpHR" id="lpHRbox">
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>HR</span><span class="lpsp"></span><span class="lpunit">bpm</span></div>
+    <div class="lpval" id="lpHR">---</div>
   </div>
-  <div class="lpb lpSP">
-    <div><span class="lplbl">SpO2</span><span class="lpunit">%</span></div>
-    <div class="lpval" id="lpSP">97</div>
+  <div class="lpb lpSP" id="lpSPbox">
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>SpO2</span><span class="lpsp"></span><span class="lpunit">%</span></div>
+    <div class="lpval" id="lpSP">---</div>
   </div>
-  <div class="lpb lpCO2">
-    <div><span class="lplbl">CO2</span><span class="lpunit">mmHg</span></div>
-    <div class="lpval" id="lpCO2v">36</div>
-    <div class="lprr">RR &nbsp;<span id="lpRR">11</span></div>
+  <div class="lpb lpCO2" id="lpCO2box">
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>CO2</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
+    <div class="lpval" id="lpCO2v">---</div>
+    <div class="lpsub"><span id="lpRR">--</span> RR</div>
   </div>
-  <div class="lpb lpTMP">
-    <div><span class="lplbl">Temp</span><span class="lpunit" id="lpTu">°C</span></div>
-    <div class="lpval" id="lpTMP">36.9</div>
+  <div class="lpb lpTMP" id="lpTMPbox">
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>Temp</span><span class="lpsp"></span><span class="lpunit"><span id="lpTu">°C</span></span></div>
+    <div class="lpval" id="lpTMP">---</div>
   </div>
-  <div class="lpb lpBP">
-    <div><span class="lplbl">NIBP</span><span class="lpunit">mmHg</span></div>
-    <div class="lpvs" id="lpSys">121</div>
-    <div class="lpvd" id="lpDia">79</div>
-    <div class="lpvm" id="lpMap">(93)</div>
+  <div class="lpb lpBP" id="lpBPbox">
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
+    <div class="lpval" id="lpSys">---</div>
+    <div class="lpsub"><span class="lpmap" id="lpMap">(--)</span><span id="lpDia">--</span></div>
   </div>
   <div class="lpb lpP1" id="lpP1box">
-    <div><span class="lplbl">P1</span><span class="lpunit">mmHg</span></div>
-    <div class="lpvs" id="lpP1s">121</div>
-    <div class="lpvd" id="lpP1d">79</div>
-    <div class="lpvm" id="lpP1m">(93)</div>
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>P1</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
+    <div class="lpval" id="lpP1s">---</div>
+    <div class="lpsub"><span class="lpmap" id="lpP1m">(--)</span><span id="lpP1d">--</span></div>
   </div>
 </div>
+<div id="lpBanner"></div>
 <div id="wavearea">
   <div class="wr" id="rEcg">
     <div id="notConnected" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;letter-spacing:3px;color:#666;z-index:6;pointer-events:none;">— PATIENT NOT CONNECTED —</div>
-    <div class="wh"><span class="wt" id="wlEcg" style="color:#00ff00;"><span id="dLead">II</span> <span style="font-size:9px;color:#777;font-weight:normal;">1.0 cm/mV</span></span></div>
+    <div class="wh"><span class="wt" id="wlEcg" style="color:#00ff00;"><span id="dLead">II</span> <span id="dSize" style="font-size:9px;color:#777;font-weight:normal;">1.0 cm/mV</span></span></div>
     <canvas id="cEcg"></canvas>
   </div>
   <div class="wr" id="rArt">
@@ -259,7 +529,7 @@ body.lp-skin #bot{background:#0a0a0a;border-top:1px solid #222;}
     <canvas id="cP2"></canvas>
   </div>
   <div class="wr" id="rCo2">
-    <div class="wh"><span class="wt" id="wlCo2" style="color:#ff44ff;">CO2</span><span class="ws" style="color:#ff88ff;">0 to 60 mmHg</span></div>
+    <div class="wh"><span class="wt" id="wlCo2" style="color:#ff44ff;">CO2</span><span class="ws" id="co2Scale" style="color:#ff88ff;">0 to 60 mmHg</span></div>
     <div class="yl" style="color:#ff88ff;"><span>60</span><span>30</span><span>0</span></div>
     <canvas id="cCo2"></canvas>
   </div>
@@ -319,6 +589,102 @@ body.lp-skin #bot{background:#0a0a0a;border-top:1px solid #222;}
   </div>
 </div>
 
+  </div></div>
+  <div id="chromeRight" class="chrome">
+
+    <!-- Area 1 — defibrillation. Layout and labels from Figure 3-2 / Table 3-1
+         of the LIFEPAK 15 operating instructions: the numbered 1-2-3 therapy
+         path runs down the recessed sub-panel on the right, the ECG and CPR
+         keys down the left. -->
+    <div class="area a1">
+      <div class="vfdose">Recommended<br><b>Adult VF Dose: 200-300-360J</b></div>
+      <div class="a1body">
+        <div class="a1left">
+          <div class="ledrow">
+            <span class="lediz"><i class="led" id="ledAC"></i><svg viewBox="0 0 16 16" class="gl"><path d="M5 1v4M11 1v4M3 5h10v3a5 5 0 0 1-10 0z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 13v2" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="lediz"><i class="led" id="ledBatt"></i><svg viewBox="0 0 16 16" class="gl"><path d="M9 1 4 9h3l-1 6 6-8H9z" fill="currentColor"/></svg></span>
+            <span class="lediz"><i class="led" id="ledSvc"></i><svg viewBox="0 0 16 16" class="gl"><path d="M11 2a3.5 3.5 0 0 0-4 4.6L2.6 11a1.5 1.5 0 1 0 2.1 2.1l4.4-4.4A3.5 3.5 0 0 0 13.6 4l-2 2-1.6-1.6z" fill="currentColor"/></svg></span>
+          </div>
+          <button class="k" id="kCPR"><i class="led" id="ledCPR"></i>CPR</button>
+          <button class="k" id="kANALYZE"><i class="led" id="ledANALYZE"></i>ANALYZE</button>
+          <div class="krow">
+            <button class="k half" id="kLEAD">LEAD</button>
+            <button class="k half" id="kSIZE">SIZE</button>
+          </div>
+          <button class="k" id="kSYNC"><i class="led" id="ledSYNC"></i>SYNC</button>
+        </div>
+        <div class="a1num"><span>1</span><span>2</span><span>3</span></div>
+        <div class="a1right">
+          <button class="k on-k" id="kON"><i class="led" id="ledON"></i>ON</button>
+          <div class="k updown" id="kENERGY">
+            <button class="ud" id="kEnergyDn" aria-label="Energy down">▼</button>
+            <span class="udlbl">ENERGY<br>SELECT</span>
+            <button class="ud" id="kEnergyUp" aria-label="Energy up">▲</button>
+          </div>
+          <button class="k charge-k" id="kCHARGE">CHARGE</button>
+          <div class="shockrow">
+            <i class="led" id="ledSHOCK"></i>
+            <button class="shock" id="kSHOCK" aria-label="Shock">
+              <svg viewBox="0 0 24 24"><path d="M14 2 6 13h5l-2 9 9-12h-5z" fill="#fff"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Area 2 — pacing. Figure 3-3 / Table 3-2. -->
+    <div class="area a2">
+      <button class="k" id="kPACER"><i class="led" id="ledPACER"></i>PACER</button>
+      <div class="k updown" id="kRATE">
+        <button class="ud" id="kRateDn" aria-label="Pacing rate down">▼</button><span class="udlbl">RATE</span><button class="ud" id="kRateUp" aria-label="Pacing rate up">▲</button>
+      </div>
+      <div class="k updown" id="kCURRENT">
+        <button class="ud" id="kCurDn" aria-label="Pacing current down">▼</button><span class="udlbl">CURRENT</span><button class="ud" id="kCurUp" aria-label="Pacing current up">▲</button>
+      </div>
+      <button class="k" id="kPAUSE">PAUSE</button>
+    </div>
+
+    <!-- Area 3 — monitoring and navigation. Figure 3-4 / Table 3-3. -->
+    <div class="area a3">
+      <button class="k" id="kNIBP"><i class="led" id="ledNIBP"></i>NIBP</button>
+      <button class="k alarms-k" id="kALARMS"><i class="led" id="ledALARMS"></i>ALARMS</button>
+      <button class="k" id="kOPTIONS">OPTIONS</button>
+      <button class="k" id="kEVENT">EVENT</button>
+    </div>
+
+    <div class="area a4">
+      <button class="rk" id="kHOME" title="Returns to Home Screen display">
+        <svg viewBox="0 0 24 24"><path d="M12 3 3 11h2v9h5v-6h4v6h5v-9h2z" fill="currentColor"/></svg>
+        <span>HOME<br>SCREEN</span>
+      </button>
+      <div class="dialwrap">
+        <span class="diallbl">SPEED DIAL</span>
+        <div class="dial" id="kDIAL" tabindex="0" role="slider" aria-label="Speed dial"><div class="dialgrip"></div></div>
+      </div>
+      <button class="rk sun" id="kSUN" title="Switches between color display and high contrast SunVue display">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></g></svg>
+      </button>
+    </div>
+  </div>
+ </div>
+ <div id="devBottom">
+   <div class="fkeys">
+     <button class="fk" id="k12LEAD">12 LEAD</button>
+     <button class="fk" id="kTRANSMIT">TRANSMIT</button>
+     <button class="fk" id="kCODESUM">CODE<br>SUMMARY</button>
+     <button class="fk" id="kPRINT">PRINT</button>
+   </div>
+   <div class="printer" id="printer"><div class="printdoor"><div class="printslot"></div><div class="printgrip"></div></div></div>
+   <div class="devbrand">LIFEPAK<span>15</span></div>
+ </div>
+</div>
+
+<div id="skinbar">
+  <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
+  <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
+  <button class="skb" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
+</div>
+
 <script>
 /* ── State ────────────────────────────────── */
 let S={hr:78,rhythm:'nsr',lead:'II',sbp:121,dbp:79,spo2:97,etco2:36,rr:11,co2Shape:'normal',temp:36.9,tempUnit:'C',patientType:'Adult',alarmOn:true,alarmMuted:false,hrAlarmLow:50,hrAlarmHigh:120,spo2AlarmLow:94,artActive:false,artSbp:121,artDbp:79,artScale:180,artLinked:true,artDamping:'normal',artSite:'Radial — Left',sgActive:false,sgSbp:25,sgDbp:10,sgPcwp:8,sgCvp:5,sgMode:'pa',sgScale:40,sgSite:'Right Internal Jugular',pvcOn:false,pacOn:false,ectFreq:6,patientConnected:false,spo2Quality:'excellent',scenario:'',etco2On:false};
@@ -330,15 +696,25 @@ const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
 function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
 ld(); // load saved state on startup
 
-// BroadcastChannel — receives live updates from Control Panel the instant any control changes
+// BroadcastChannel — receives live updates from Control Panel the instant any
+// control changes, and carries this window's heartbeat and device events back.
+let stateBc=null;
 try{
-  const bc=new BroadcastChannel('simState');
-  // The panel broadcasts state; this window broadcasts a heartbeat so the
-  // facilitator can see the crew's screen is actually up. Ignore heartbeats —
-  // a second monitor's ping is not patient state.
-  bc.onmessage=e=>{ if(e.data&&e.data.__monitor) return; S={...S,...e.data}; };
-  setInterval(()=>{ try{ bc.postMessage({__monitor:1}); }catch(e){} },1000);
-  try{ bc.postMessage({__monitor:1}); }catch(e){}
+  stateBc=new BroadcastChannel('simState');
+  // One channel carries three different things and only one of them is patient
+  // state. The panel broadcasts state; this window broadcasts a heartbeat so
+  // the facilitator can see the crew's screen is up, and a device event for
+  // every key the crew presses. A heartbeat is not patient state, and neither
+  // is a button — and both come back to this window, because a channel
+  // delivers to every other subscriber in the page as well as to other tabs.
+  // Merging either one would put a __monitor or __device key into S and, on a
+  // second monitor, would replay one crew's presses as the other's state.
+  stateBc.onmessage=e=>{
+    if(!e.data||e.data.__monitor||e.data.__device) return;
+    S={...S,...e.data};
+  };
+  setInterval(()=>{ try{ stateBc.postMessage({__monitor:1}); }catch(e){} },1000);
+  try{ stateBc.postMessage({__monitor:1}); }catch(e){}
 }catch(e){}
 // Fallback: poll localStorage every 250ms in case BC unavailable or cross-origin
 //
@@ -374,13 +750,17 @@ function clk(){
   document.getElementById('tTime').textContent=n.toTimeString().slice(0,8);
   document.getElementById('tDate').textContent=String(n.getMonth()+1).padStart(2,'0')+'/'+String(n.getDate()).padStart(2,'0')+'/'+n.getFullYear();
   const s=Math.floor((Date.now()-T0)/1000);
-  document.getElementById('tElap').textContent=String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  const el=String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  document.getElementById('tElap').textContent=el;
+  document.getElementById('tElapZx').textContent=el;
 }
 setInterval(clk,1000);clk();
 
 /* ── Skin switcher ── */
 let currentSkin='zx';
-const LP_Y='#FFD700', LP_B='#4488ff', LP_W='#ffffff', LP_G='#00ff00';
+/* Trace colours match the parameter block each one belongs to, so a glance
+   at a waveform and a glance at its number land on the same colour. */
+const LP_Y='#e0913c', LP_B='#4aa8ff', LP_W='#e8e8e8', LP_G='#31d63a';
 
 function setSkin(skin){
   currentSkin=skin;
@@ -392,11 +772,19 @@ function setSkin(skin){
     document.getElementById('wlEcg').style.color=LP_G;
     document.getElementById('wlSpo2').innerHTML='<span style="color:'+LP_B+'">SpO2</span>';
     document.getElementById('wlCo2').style.color=LP_Y;
+    {const e=document.getElementById('co2Scale'); if(e) e.style.color='#a9702f';}
+    {const e=document.querySelector('#rCo2 .yl'); if(e) e.style.color='#a9702f';}
+    {const e=document.querySelector('#rEcg .wt'); if(e) e.style.color=LP_G;}
   } else {
     document.getElementById('wlEcg').style.color='#00ff00';
     document.getElementById('wlSpo2').innerHTML='SpO2 <span style="font-size:9px;color:#777;font-weight:normal;">1X</span>';
     document.getElementById('wlCo2').style.color='#ff44ff';
   }
+  // The two banner bands only exist in the LIFEPAK skin; clear their layout
+  // so the ZX skin gets its own full-height waveform area back.
+  bandState='';
+  {const wa=document.getElementById('wavearea'); if(wa&&skin!=='lp') wa.style.top='';}
+  if(skin==='lp') layoutBands();
   // Full reset — invalidate all cached sizes and positions
   Object.keys(cSizes).forEach(k=>delete cSizes[k]);
   pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
@@ -410,6 +798,10 @@ function setSkin(skin){
 }
 
 function skinColors(){
+  if(document.body.classList.contains('sunvue')){
+    // Dark traces on the light ground, still distinguishable from each other.
+    return{ecg:'#0a6b18',art:'#8c2b12',co2:'#7a4a12',spo2:'#123f8c',co2fill:'rgba(160,120,60,.35)'};
+  }
   if(currentSkin==='lp'){
     return{
       ecg:LP_G,
@@ -419,7 +811,7 @@ function skinColors(){
       // blue. Colouring the trace yellow whenever an A-Line was running left
       // the row labelled SpO2 in blue while drawing a yellow trace.
       spo2:LP_B,
-      co2fill:'rgba(120,90,0,.45)',
+      co2fill:'rgba(120,70,20,.42)',
     };
   }
   return{ecg:'#00ff00',art:'#ff3333',co2:'#ff44ff',spo2:'#cccc00',co2fill:'rgba(150,0,110,.6)'};
@@ -459,13 +851,17 @@ function advanceBreath(dt){
 }
 
 /* ── Numerics ─────────────────────────────── */
+// Set by upNums, read by the device tick to flash the ALARMS key's LED —
+// "flashes when an alarm condition occurs", Table 3-3.
+let almBreaching=false;
 let lastSysTxt=null;
 function m3(s,d){return Math.round((s+2*d)/3);}
 function upNums(){
   const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
   const nc=!S.patientConnected; // not connected
   document.getElementById('tPat').textContent=S.patientType||'Adult';
-  document.getElementById('dLead').textContent=S.lead||'II';
+  document.getElementById('dLead').textContent=devLead();
+  {const e=document.getElementById('dSize'); if(e) e.textContent=ecgSize().toFixed(ecgSize()<1?2:1)+' cm/mV';}
   const sc=S.artScale||180;
   document.getElementById('dArtLbl').textContent='0 to '+sc+' mmHg';
   document.getElementById('dArtTop').textContent=sc;
@@ -556,9 +952,14 @@ function upNums(){
   // it does not make the value stop being out of range, and a monitor that
   // looks entirely normal while the patient is bradycardic teaches the wrong
   // lesson. Muted shows the parameter without the banner.
-  const live=!nc&&S.alarmOn;
+  // Two switches, and both must be on. The facilitator arms alarms for the
+  // scenario from the panel; the crew can silence them at the unit, which is
+  // itself something worth seeing them do. A silenced alarm still breaches —
+  // the parameter goes on flashing, only the announcement stops.
+  const live=!nc&&S.alarmOn&&D.alarms;
   const hrBreach=live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
   const spBreach=live&&(S.spo2<S.spo2AlarmLow);
+  almBreaching=hrBreach||spBreach;
   const flag=(el,on)=>{if(el)el.classList.toggle('alarming',!!on);};
   flag(document.getElementById('nHR'),hrBreach);
   flag(document.getElementById('nSpo2'),spBreach);
@@ -573,45 +974,64 @@ function upNums(){
   if(spBreach) alarms.push('SpO\u2082 LOW');
   const almEl=document.getElementById('alm');
   almEl.textContent='\u26a0 '+alarms.join('   \u26a0 ');
-  almEl.style.display=(alarms.length&&!S.alarmMuted)?'block':'none';
+  const almShow=!!alarms.length&&!S.alarmMuted&&Date.now()>=D.silenceUntil;
+  almEl.classList.toggle('shown',almShow);
+  almEl.style.display=currentSkin==='lp'?'':(almShow?'block':'none');
+  layoutBands();
   document.getElementById('rArt').style.opacity=(S.artActive&&!nc)?'1':'0.2';
 
   // ── LP Skin numerics ──
   if(currentSkin==='lp'){
-    const dead2=dead,nc2=nc;
     const setEl=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-    setEl('lpHR', nc2||dead2
+    setEl('lpHR', nc||dead
       ? (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
           ? Math.round(60/(3.0*(S.ectFreq||6)))
           : '---')
       : S.hr);
-    setEl('lpSP', nc2?'---':S.spo2);
-    setEl('lpCO2v', nc2||!S.etco2On?'---':S.etco2);
-    setEl('lpRR', nc2?'---':S.rr);
+    setEl('lpSP', nc?'---':S.spo2);
+    setEl('lpCO2v', nc||!S.etco2On?'---':S.etco2);
+    setEl('lpRR', nc?'--':S.rr);
     const tv2=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
-    setEl('lpTMP', nc2?'---':tv2);
+    setEl('lpTMP', nc?'---':tv2);
     const el2=document.getElementById('lpTu');if(el2)el2.textContent='°'+(S.tempUnit||'C');
-    setEl('lpSys', noP?'---':S.sbp);
-    setEl('lpDia', noP?'---':S.dbp);
-    setEl('lpMap', mv==='---'?'(---)':'('+mv+')');
-    // P1 box — show when ART active
+
+    // A cuff cycle takes the reading away while it runs, as the unit does —
+    // pressing NIBP and watching the old number sit there teaches nothing.
+    const cuff=nibpBusy();
+    const bpBox=document.getElementById('lpBPbox');
+    if(bpBox) bpBox.classList.toggle('pending',cuff);
+    setEl('lpSys', cuff||noP?'---':S.sbp);
+    setEl('lpDia', cuff||noP?'--':S.dbp);
+    setEl('lpMap', cuff||mv==='---'?'(--)':'('+mv+')');
+
     const p1box=document.getElementById('lpP1box');
-    const showP1=S.artActive&&!nc2&&!dead2;
+    const showP1=S.artActive&&!nc&&!dead;
     if(p1box){
       p1box.classList.toggle('visible', showP1);
       if(showP1){
         const ps=S.artSbp||S.sbp, pd=S.artDbp||S.dbp;
-        setEl('lpP1s', ps);
-        setEl('lpP1d', pd);
-        setEl('lpP1m', '('+m3(ps,pd)+')');
+        setEl('lpP1s', ps); setEl('lpP1d', pd); setEl('lpP1m', '('+m3(ps,pd)+')');
       }
     }
-    // Update ART row label in LP skin
-    const wlArtLP=document.getElementById('wlArtLP');
-    if(wlArtLP) wlArtLP.innerHTML='<span style="color:#FFD700;font-weight:bold;">ART</span> <span style="font-size:9px;color:#888;">mmHg</span>';
-    // SpO2 row label stays as SpO2
+
+    // Bells: one per monitored parameter. Struck through when alarms are off
+    // at either end, red on whichever parameter is out of range.
+    const armed=S.alarmOn&&D.alarms&&Date.now()>=D.silenceUntil;
+    const bell=(boxId,breach)=>{
+      const b=document.querySelector('#'+boxId+' .bell');
+      if(!b) return;
+      b.classList.toggle('off',!armed);
+      b.classList.toggle('brc',!!breach);
+      b.classList.toggle('flash',!!breach);
+      const sl=b.querySelector('.slash');
+      if(sl) sl.style.display=armed?'none':'';
+    };
+    bell('lpHRbox',hrBreach); bell('lpSPbox',spBreach);
+    bell('lpCO2box',false); bell('lpTMPbox',false);
+    bell('lpBPbox',false); bell('lpP1box',false);
+
     const wlSpo2=document.getElementById('wlSpo2');
-    if(wlSpo2) wlSpo2.innerHTML='<span style="color:#4488ff;font-weight:bold;">SpO2</span> <span style="font-size:9px;color:#777;">1X</span>';
+    if(wlSpo2) wlSpo2.innerHTML='<span style="color:#4aa8ff;font-weight:bold;">SpO2</span>';
   }
 }
 
@@ -1286,7 +1706,7 @@ function sEcg(t){
   // Every branch below ends at the same place: pick a LUT and a phase, then run
   // the per-lead transform. It used to be applied only on the last branch, so
   // changing the lead did nothing at all in A-Fib, paced and Mobitz rhythms.
-  const cfg=LEAD_CFG[S.lead||'II']||LEAD_CFG['II'];
+  const cfg=LEAD_CFG[devLead()]||LEAD_CFG['II'];
   if(r==='paced'){
     const ph=((t/bp)%1+1)%1;
     if(ph>.165&&ph<.172) return .98;   // pacing spike is not a lead-dependent deflection
@@ -1781,7 +2201,6 @@ function sizeCanvas(id,row){
   c.style.width=W+'px'; c.style.height=H+'px';
   cSizes[id]={W,H};
   const ctx=c.getContext('2d');
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   drawGrid(ctx,W,H);
   return true;
 }
@@ -1856,12 +2275,23 @@ window.addEventListener('resize',()=>{
   Object.keys(lastY).forEach(k=>lastY[k]=-1);
 });
 
+/* SunVue is the unit's high-contrast outdoor mode, and it is a display
+   setting rather than a colour theme: the ground goes white and the traces go
+   dark. That means the canvases have to repaint on a different ground, so the
+   erase colour and the grid come from here rather than being hard-coded. */
+const PAPER={
+  dark:{gnd:'#000000',fine:'#1c1c1c',bold:'#252525'},
+  sun:{gnd:'#e9e9e4',fine:'#cfcfc9',bold:'#b6b6af'},
+};
+function paper(){ return document.body.classList.contains('sunvue')?PAPER.sun:PAPER.dark; }
+
 function drawGrid(ctx,W,H){
-  const gx=SPX/5;
-  ctx.lineWidth=.5; ctx.strokeStyle='#1c1c1c';
+  const gx=SPX/5, pp=paper();
+  ctx.fillStyle=pp.gnd; ctx.fillRect(0,0,W,H);
+  ctx.lineWidth=.5; ctx.strokeStyle=pp.fine;
   for(let x=0;x<W;x+=gx/5){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   for(let y=0;y<H;y+=H/20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
-  ctx.lineWidth=.8; ctx.strokeStyle='#252525';
+  ctx.lineWidth=.8; ctx.strokeStyle=pp.bold;
   for(let x=0;x<W;x+=gx){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   for(let y=0;y<H;y+=H/4){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 }
@@ -1878,15 +2308,15 @@ function drawGrid(ctx,W,H){
 // — and its 6px-wide erase never wrapped, so it left an unswept sliver at the
 // right edge of each canvas.
 function gridSeg(ctx,x0,w,H){
-  const gx=SPX/5, gmin=gx/5, x1=x0+w;
+  const gx=SPX/5, gmin=gx/5, x1=x0+w, pp=paper();
   // Same lattice and same weights as drawGrid, so a repainted band is
   // indistinguishable from the grid laid down when the canvas was sized.
-  ctx.lineWidth=.5; ctx.strokeStyle='#1c1c1c';
+  ctx.lineWidth=.5; ctx.strokeStyle=pp.fine;
   ctx.beginPath();
   for(let g=Math.ceil(x0/gmin)*gmin; g<x1; g+=gmin){ ctx.moveTo(g,0); ctx.lineTo(g,H); }
   for(let y=0;y<H;y+=H/20){ ctx.moveTo(x0,y); ctx.lineTo(x1,y); }
   ctx.stroke();
-  ctx.lineWidth=.8; ctx.strokeStyle='#252525';
+  ctx.lineWidth=.8; ctx.strokeStyle=pp.bold;
   ctx.beginPath();
   for(let g=Math.ceil(x0/gx)*gx; g<x1; g+=gx){ ctx.moveTo(g,0); ctx.lineTo(g,H); }
   for(let y=0;y<H;y+=H/4){ ctx.moveTo(x0,y); ctx.lineTo(x1,y); }
@@ -1895,21 +2325,39 @@ function gridSeg(ctx,x0,w,H){
 function clearBand(ctx,x0,w,W,H){
   x0=((x0%W)+W)%W;
   const first=Math.min(w,W-x0);
-  ctx.fillStyle='#000';
+  ctx.fillStyle=paper().gnd;
   ctx.fillRect(x0,0,first,H);
   gridSeg(ctx,x0,first,H);
   if(w>first){ ctx.fillRect(0,0,w-first,H); gridSeg(ctx,0,w-first,H); }
 }
 
+/* Sweep speed per channel.
+   ECG and the pressure traces run at the standard 25 mm/s. A capnogram at
+   that speed puts barely one breath on the screen, which is why the real
+   unit runs CO2 slower — the shape of the plateau is the whole point of
+   waveform capnography, and you cannot see a shape you only get one of. */
+const CH_SPX={cCo2:0.25};
+function chSpx(id){ return SPX*(CH_SPX[id]||1); }
+const pxAccum={};
+function stepFor(id,dt){
+  pxAccum[id]=(pxAccum[id]||0)+dt*chSpx(id);
+  const n=Math.floor(pxAccum[id]);
+  pxAccum[id]-=n;
+  return n;
+}
+
 function drawChannel(id, fn, stroke, fill){
   const c=document.getElementById(id);
   if(!c||c.width<2||c.height<2) return;
+  const step=pxStep[id]||0;
+  if(step<1) return;                           // nothing new to draw this frame
+  const spx=chSpx(id);
   const ctx=c.getContext('2d');
   const W=c.width, H=c.height;
   const yp=v=>(1-Math.max(0,Math.min(1,v)))*(H-4)+2;
 
   const newPx=pxPos[id];                       // write head, advanced by the loop
-  const count=pixelsThisFrame+1;
+  const count=step+1;
   const prevPx=((newPx-count)%W+W)%W;          // where the head was last frame
 
   // Wipe the columns about to be written plus the 6px cursor gap ahead of them.
@@ -1919,7 +2367,7 @@ function drawChannel(id, fn, stroke, fill){
   // patient is not connected) and the trace is left blank rather than flat.
   const ys=new Array(count+1);
   for(let i=0;i<=count;i++){
-    const v=fn(TT-(count-i)/SPX);
+    const v=fn(TT-(count-i)/spx);
     ys[i]=(v===null||v===undefined)?null:yp(v);
   }
 
@@ -1937,8 +2385,10 @@ function drawChannel(id, fn, stroke, fill){
   ctx.lineWidth=2.0;
   ctx.lineCap='round';
   ctx.lineJoin='round';
-  ctx.shadowBlur=7;
-  ctx.shadowColor=stroke;
+  // The phosphor glow reads as smudge on the SunVue ground.
+  const glow=!document.body.classList.contains('sunvue');
+  ctx.shadowBlur=glow?7:0;
+  if(glow) ctx.shadowColor=stroke;
   ctx.beginPath();
   let pen=false;
   for(let i=0;i<=count;i++){
@@ -1954,9 +2404,469 @@ function drawChannel(id, fn, stroke, fill){
   ctx.shadowBlur=0;
 }
 
+
+/* =====================================================================
+   LIFEPAK 15 — device
+   =====================================================================
+   Everything below models the unit itself rather than the patient. The
+   division matters and is deliberate:
+
+     * The control panel is still the only writer of patient state. Nothing
+       here changes a rhythm, a pressure or a saturation. A shock is
+       delivered, logged and announced; whether the patient converts is the
+       facilitator's call, exactly as it is at a real megacode station.
+     * What the device knows about itself — selected energy, charge state,
+       lead, ECG size, pacing rate and current, alarm silence, shock count —
+       lives in D and never leaves this page except as an event.
+
+   Every press is timestamped and posted to the panel on the same
+   BroadcastChannel the panel uses to push state, under a __device key the
+   panel's state handler ignores. That log is what turns "the crew shocked at
+   some point" into "200J at 02:19, CPR resumed 4s later".
+   ===================================================================== */
+
+// LIFEPAK 15 manual-mode energy ladder.
+const ENERGIES=[2,3,4,5,6,7,8,9,10,15,20,30,50,70,100,125,150,175,200,225,250,275,300,325,360];
+const SIZES=[0.25,0.5,1.0,2.0,3.0,4.0];
+const LEADS=['I','II','III','aVR','aVL','aVF','PADDLES'];
+const CHARGE_MS=5200;      // 360J charge time on a fresh battery, per the manual
+const DISARM_MS=60000;     // the unit disarms itself if the shock is not delivered
+const ANALYZE_MS=8000;
+const NIBP_MS=25000;
+const SILENCE_MS=120000;
+
+const D={
+  on:true,
+  energyIx:ENERGIES.indexOf(200),
+  charging:false, charged:false, chargeStart:0, disarmAt:0,
+  shocks:0, lastShockAt:0,
+  sync:false, cpr:false, analyzing:false, analyzeUntil:0, advisory:'',
+  pacer:false, pacerRate:70, pacerMa:0, pacePaused:false,
+  alarms:true, silenceUntil:0,
+  sunvue:false,
+  nibpUntil:0,
+  leadIx:1, leadFromPanel:null,
+  sizeIx:2,
+  menu:null, menuIx:0,
+  banner:null, bannerUntil:0, bannerWarn:false,
+  log:[],
+};
+
+const energy=()=>ENERGIES[D.energyIx];
+const ecgSize=()=>SIZES[D.sizeIx];
+/* The crew's lead choice wins until the facilitator changes theirs. Without
+   that hand-off the panel's next broadcast — one a second — would undo the
+   button the moment it was pressed. */
+function devLead(){
+  if(D.leadFromPanel!==null&&S.lead!==D.leadFromPanel){ D.leadFromPanel=null; }
+  if(D.leadFromPanel===null) return S.lead||'II';
+  return LEADS[D.leadIx];
+}
+function takeLead(){ D.leadFromPanel=S.lead||'II'; }
+
+/* ── Event log ───────────────────────────────────────────────────────── */
+/* Shares the state channel rather than opening a second subscriber onto the
+   same name — a second one would receive this window's own posts. */
+function devBc(){ return stateBc; }
+function logEvent(type,label,detail){
+  const ev={t:new Date().toISOString(),ms:Date.now(),type,label,detail:detail||''};
+  D.log.push(ev);
+  if(D.log.length>400) D.log.shift();
+  try{ const c=devBc(); c&&c.postMessage({__device:ev}); }catch(e){}
+}
+
+/* ── Tones ───────────────────────────────────────────────────────────── */
+/* Created on the first press, which is a user gesture, so the context is
+   never blocked. A monitor that charges in silence is missing the cue the
+   crew is actually trained on. */
+let AC=null;
+function ac(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended') AC.resume(); return AC; }
+function beep(freq,ms,vol,type){
+  const c=ac(); if(!c) return;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type||'sine'; o.frequency.value=freq;
+  g.gain.value=0; o.connect(g); g.connect(c.destination);
+  const t=c.currentTime;
+  g.gain.linearRampToValueAtTime(vol==null?.12:vol,t+.01);
+  g.gain.setValueAtTime(vol==null?.12:vol,t+ms/1000-.02);
+  g.gain.linearRampToValueAtTime(0,t+ms/1000);
+  o.start(t); o.stop(t+ms/1000+.02);
+}
+let chargeOsc=null,chargeGain=null;
+function chargeTone(on){
+  const c=ac(); if(!c) return;
+  if(on&&!chargeOsc){
+    chargeOsc=c.createOscillator(); chargeGain=c.createGain();
+    chargeOsc.type='sawtooth'; chargeOsc.frequency.value=300;
+    chargeGain.gain.value=.05;
+    chargeOsc.connect(chargeGain); chargeGain.connect(c.destination);
+    chargeOsc.frequency.linearRampToValueAtTime(1050,c.currentTime+CHARGE_MS/1000);
+    chargeOsc.start();
+  } else if(!on&&chargeOsc){
+    try{ chargeOsc.stop(); }catch(e){}
+    chargeOsc=null; chargeGain=null;
+  }
+}
+let readyTimer=null;
+function readyTone(on){
+  clearInterval(readyTimer); readyTimer=null;
+  if(on) readyTimer=setInterval(()=>beep(1000,110,.14,'square'),450);
+}
+let cprTimer=null;
+function cprMetronome(on){
+  clearInterval(cprTimer); cprTimer=null;
+  if(on) cprTimer=setInterval(()=>beep(880,60,.09,'square'),60000/110);
+}
+
+/* ── Banner ──────────────────────────────────────────────────────────── */
+function banner(text,ms,warn,flash){
+  D.banner=text||null;
+  D.bannerUntil=text?(ms?Date.now()+ms:0):0;
+  D.bannerWarn=!!warn;
+  const el=document.getElementById('lpBanner');
+  if(!el) return;
+  el.textContent=text||'';
+  el.classList.toggle('shown',!!text);
+  el.classList.toggle('warn',!!warn);
+  el.classList.toggle('flash',!!flash);
+  layoutBands();
+}
+/* Position the alarm strip, the mode banner and the top of the waveform area
+   according to which bands are actually showing. Only touches the DOM when a
+   value changes — this runs inside the animation loop. */
+let bandState='';
+function layoutBands(){
+  if(currentSkin!=='lp') return;
+  const alm=document.getElementById('alm');
+  const ban=document.getElementById('lpBanner');
+  const wa=document.getElementById('wavearea');
+  if(!alm||!ban||!wa) return;
+  const aOn=alm.classList.contains('shown');
+  const bOn=ban.classList.contains('shown');
+  const key=(aOn?'a':'')+(bOn?'b':'');
+  if(key===bandState) return;
+  bandState=key;
+  ban.style.top=(aOn?43:22)+'px';
+  wa.style.top=(22+(aOn?21:0)+(bOn?21:0))+'px';
+  invalidateCanvases();
+}
+
+function invalidateCanvases(){
+  Object.keys(cSizes).forEach(k=>delete cSizes[k]);
+  Object.keys(lastY).forEach(k=>lastY[k]=-1);
+  ['cEcg','cArt','cCo2','cSpo2','cP2'].forEach(id=>{
+    const c=document.getElementById(id); if(c){ c.width=0; c.height=0; }
+    pxPos[id]=0; pxAccum[id]=0;
+  });
+}
+
+/* ── Charge / shock ──────────────────────────────────────────────────── */
+function disarm(reason){
+  if(!D.charging&&!D.charged) return;
+  D.charging=false; D.charged=false; D.disarmAt=0;
+  chargeTone(false); readyTone(false);
+  if(reason) logEvent('disarm','Disarmed',reason);
+  banner(null);
+}
+function startCharge(){
+  if(!D.on||D.charging) return;
+  if(D.charged){ return; }
+  D.charging=true; D.chargeStart=Date.now();
+  chargeTone(true);
+  logEvent('charge','CHARGE',energy()+'J'+(D.sync?' · SYNC':''));
+  banner('CHARGING  '+energy()+'J',0,false,false);
+}
+function chargeDone(){
+  D.charging=false; D.charged=true; D.disarmAt=Date.now()+DISARM_MS;
+  chargeTone(false); readyTone(true);
+  banner(energy()+'J  READY  —  STAND CLEAR',0,false,true);
+}
+function deliverShock(){
+  if(!D.charged) return;
+  D.shocks++; D.lastShockAt=Date.now();
+  D.charged=false; D.disarmAt=0;
+  readyTone(false);
+  beep(140,300,.2,'square');
+  logEvent('shock','SHOCK',energy()+'J'+(D.sync?' synchronized':'')+' · shock #'+D.shocks);
+  banner('SHOCK DELIVERED  '+energy()+'J',2500,true,false);
+}
+
+/* ── Analyze ─────────────────────────────────────────────────────────── */
+const SHOCKABLE=['vfib','vtach','pvt','torsades'];
+function startAnalyze(){
+  if(!D.on||D.analyzing) return;
+  D.analyzing=true; D.analyzeUntil=Date.now()+ANALYZE_MS;
+  logEvent('analyze','ANALYZE','started');
+  banner('ANALYZING  —  DO NOT TOUCH THE PATIENT',0,true,true);
+}
+function finishAnalyze(){
+  D.analyzing=false;
+  // No electrodes is its own answer. Announcing "no shock advised" at a
+  // patient the unit cannot see would teach a crew to accept the one reading
+  // that means nothing at all.
+  if(!S.patientConnected){
+    D.advisory='CONNECT ELECTRODES';
+    logEvent('advisory',D.advisory,'no ECG at the pads');
+    banner(D.advisory,6000,true,true);
+    beep(400,700,.15,'square');
+    return;
+  }
+  const shockable=SHOCKABLE.includes(S.rhythm);
+  D.advisory=shockable?'SHOCK ADVISED':'NO SHOCK ADVISED';
+  logEvent('advisory',D.advisory,'rhythm shown: '+(S.rhythm||'—'));
+  banner(D.advisory,6000,shockable,shockable);
+  beep(shockable?1200:520,shockable?400:700,.15,'square');
+}
+
+/* ── NIBP ────────────────────────────────────────────────────────────── */
+function startNibp(){
+  if(!D.on||Date.now()<D.nibpUntil) return;
+  D.nibpUntil=Date.now()+NIBP_MS;
+  logEvent('nibp','NIBP','cycle started');
+}
+const nibpBusy=()=>Date.now()<D.nibpUntil;
+
+/* ── Menus ───────────────────────────────────────────────────────────── */
+const MENUS={
+  options:{title:'OPTIONS',items:['Patient Mode','Alarms','Date / Time','Print Settings','Transmit Sites','Exit']},
+  event:{title:'EVENT',items:['IV Access','Medication','Intubation','ROSC','Handover','Other']},
+};
+function openMenu(name){
+  D.menu=name; D.menuIx=0; renderMenu();
+}
+function closeMenu(){ D.menu=null; renderMenu(); }
+function renderMenu(){
+  let el=document.getElementById('lpMenu');
+  if(!D.menu){ if(el) el.style.display='none'; return; }
+  if(!el){
+    el=document.createElement('div');
+    el.id='lpMenu';
+    document.getElementById('screen').appendChild(el);
+  }
+  const m=MENUS[D.menu];
+  el.style.display='block';
+  el.innerHTML='<div class="mh">'+m.title+'</div>'+m.items.map((t,i)=>
+    '<div class="mi'+(i===D.menuIx?' sel':'')+'">'+t+'</div>').join('');
+}
+function menuMove(dir){
+  if(!D.menu) return;
+  const n=MENUS[D.menu].items.length;
+  D.menuIx=(D.menuIx+dir+n)%n;
+  renderMenu();
+  beep(1500,25,.05,'square');
+}
+function menuSelect(){
+  if(!D.menu) return;
+  const m=MENUS[D.menu], pick=m.items[D.menuIx];
+  if(D.menu==='event'&&pick!=='Exit') logEvent('event','EVENT',pick);
+  closeMenu();
+  beep(1800,60,.08,'square');
+}
+
+/* ── Printing ────────────────────────────────────────────────────────── */
+function runPrinter(ms){
+  const d=document.querySelector('.printdoor');
+  if(!d) return;
+  d.classList.remove('printing');
+  void d.offsetWidth;              // restart the animation
+  d.classList.add('printing');
+  setTimeout(()=>d.classList.remove('printing'),ms||1600);
+}
+
+/* ── Power ───────────────────────────────────────────────────────────── */
+function setPower(on){
+  D.on=on;
+  document.body.classList.toggle('powered-off',!on);
+  if(!on){
+    disarm(); cprMetronome(false); D.cpr=false; D.pacer=false; D.analyzing=false;
+    closeMenu(); banner(null);
+  }
+  logEvent('power',on?'ON':'OFF','');
+}
+
+/* ── Wiring ──────────────────────────────────────────────────────────── */
+function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();ac();fn();}); }
+/* Press-and-hold, for the two controls the manual describes that way: ON
+   turns the unit off when held, PAUSE slows pacing only while held. */
+function bindHold(id,ms,onHold,onRelease,onTap){
+  const el=document.getElementById(id); if(!el) return;
+  let timer=null,fired=false;
+  const down=e=>{ e.preventDefault(); ac(); fired=false; el.classList.add('held');
+    timer=setTimeout(()=>{fired=true;onHold&&onHold();},ms); };
+  const up=()=>{ clearTimeout(timer); el.classList.remove('held');
+    if(fired){ onRelease&&onRelease(); } else { onTap&&onTap(); } };
+  el.addEventListener('pointerdown',down);
+  el.addEventListener('pointerup',up);
+  el.addEventListener('pointerleave',up);
+  el.addEventListener('pointercancel',up);
+}
+
+bindHold('kON',1200,()=>{ if(D.on) setPower(false); },null,()=>{ if(!D.on) setPower(true); });
+
+bind('kCPR',()=>{ if(!D.on) return; D.cpr=!D.cpr; cprMetronome(D.cpr);
+  logEvent('cpr',D.cpr?'CPR metronome ON':'CPR metronome OFF',''); });
+
+bind('kANALYZE',()=>{ if(!D.on) return; startAnalyze(); });
+
+bind('kLEAD',()=>{ if(!D.on) return; takeLead(); D.leadIx=(D.leadIx+1)%LEADS.length;
+  logEvent('lead','LEAD',LEADS[D.leadIx]); });
+
+bind('kSIZE',()=>{ if(!D.on) return; D.sizeIx=(D.sizeIx+1)%SIZES.length;
+  logEvent('size','SIZE',ecgSize().toFixed(2)+' cm/mV'); });
+
+bind('kSYNC',()=>{ if(!D.on) return; D.sync=!D.sync;
+  if(D.sync&&D.charged) disarm('sync changed');
+  logEvent('sync',D.sync?'SYNC ON':'SYNC OFF',''); });
+
+function nudgeEnergy(d){
+  if(!D.on) return;
+  const was=energy();
+  D.energyIx=Math.max(0,Math.min(ENERGIES.length-1,D.energyIx+d));
+  if(energy()!==was){
+    if(D.charged||D.charging) disarm('energy changed');
+    logEvent('energy','ENERGY SELECT',energy()+'J');
+  }
+}
+bind('kEnergyUp',()=>nudgeEnergy(1));
+bind('kEnergyDn',()=>nudgeEnergy(-1));
+bind('kCHARGE',()=>startCharge());
+bind('kSHOCK',()=>{ if(D.charged) deliverShock(); else beep(220,120,.08,'square'); });
+
+bind('kPACER',()=>{ if(!D.on) return; D.pacer=!D.pacer;
+  logEvent('pacer',D.pacer?'PACER ON':'PACER OFF',D.pacer?D.pacerRate+' ppm · '+D.pacerMa+' mA':''); });
+function nudgeRate(d){ if(!D.on||!D.pacer) return;
+  D.pacerRate=Math.max(40,Math.min(170,D.pacerRate+d*10));
+  logEvent('pacerRate','PACING RATE',D.pacerRate+' ppm'); }
+function nudgeMa(d){ if(!D.on||!D.pacer) return;
+  D.pacerMa=Math.max(0,Math.min(200,D.pacerMa+d*10));
+  logEvent('pacerCurrent','PACING CURRENT',D.pacerMa+' mA'); }
+bind('kRateUp',()=>nudgeRate(1));
+bind('kRateDn',()=>nudgeRate(-1));
+bind('kCurUp',()=>nudgeMa(1));
+bind('kCurDn',()=>nudgeMa(-1));
+bindHold('kPAUSE',180,()=>{ if(D.pacer){ D.pacePaused=true; logEvent('pacerPause','PACING PAUSED',''); } },
+  ()=>{ D.pacePaused=false; },null);
+
+bind('kNIBP',()=>startNibp());
+bind('kALARMS',()=>{
+  if(!D.on) return;
+  if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }
+  else if(Date.now()<D.silenceUntil){ D.silenceUntil=0; logEvent('alarms','ALARMS UNSILENCED',''); }
+  else { D.silenceUntil=Date.now()+SILENCE_MS; logEvent('alarms','ALARMS SILENCED','2 min'); }
+});
+bind('kOPTIONS',()=>{ if(D.on) openMenu(D.menu==='options'?null:'options'); });
+bind('kEVENT',()=>{ if(D.on) openMenu(D.menu==='event'?null:'event'); });
+bind('kHOME',()=>{ if(!D.on) return; closeMenu(); if(document.getElementById('lead12')) toggle12Lead(); });
+bind('kSUN',()=>{ if(!D.on) return; D.sunvue=!D.sunvue;
+  document.body.classList.toggle('sunvue',D.sunvue); invalidateCanvases();
+  logEvent('display',D.sunvue?'SunVue display':'Color display',''); });
+
+bind('k12LEAD',()=>{ if(!D.on) return; toggle12Lead(); runPrinter(2200);
+  logEvent('ecg12','12-LEAD','acquired'); });
+bind('kTRANSMIT',()=>{ if(!D.on) return; banner('TRANSMITTING…',2200);
+  setTimeout(()=>banner('TRANSMIT COMPLETE',2200),2300); logEvent('transmit','TRANSMIT','12-lead sent'); });
+bind('kCODESUM',()=>{ if(!D.on) return; runPrinter(2600); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
+bind('kPRINT',()=>{ if(!D.on) return; runPrinter(1800); logEvent('print','PRINT','continuous strip'); });
+
+/* Speed dial: wheel or drag to scroll, click or Enter to select. */
+(function(){
+  const dial=document.getElementById('kDIAL'); if(!dial) return;
+  const grip=dial.querySelector('.dialgrip');
+  let angle=0, dragY=null, accum=0;
+  function turn(d){
+    angle+=d*24; if(grip) grip.style.transform='rotate('+angle+'deg)';
+    menuMove(d);
+  }
+  dial.addEventListener('wheel',e=>{ e.preventDefault(); ac(); turn(e.deltaY>0?1:-1); },{passive:false});
+  dial.addEventListener('pointerdown',e=>{ ac(); dragY=e.clientY; accum=0; dial.setPointerCapture(e.pointerId); });
+  dial.addEventListener('pointermove',e=>{
+    if(dragY===null) return;
+    accum+=e.clientY-dragY; dragY=e.clientY;
+    while(Math.abs(accum)>=14){ turn(accum>0?1:-1); accum-=Math.sign(accum)*14; }
+  });
+  dial.addEventListener('pointerup',e=>{
+    const moved=dragY!==null&&Math.abs(accum)>2;
+    dragY=null; if(!moved) menuSelect();
+  });
+  dial.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){ e.preventDefault(); turn(1); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); turn(-1); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); menuSelect(); }
+  });
+})();
+
+/* ── Per-frame device tick ───────────────────────────────────────────── */
+function devTick(){
+  const now=Date.now();
+  if(D.charging&&now-D.chargeStart>=CHARGE_MS) chargeDone();
+  if(D.charged&&D.disarmAt&&now>=D.disarmAt) disarm('60s without a shock');
+  if(D.analyzing&&now>=D.analyzeUntil) finishAnalyze();
+  if(D.banner&&D.bannerUntil&&now>=D.bannerUntil) banner(null);
+  if(D.alarms&&D.silenceUntil&&now>=D.silenceUntil) D.silenceUntil=0;
+
+  const set=(id,cls,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle(cls,!!on);};
+  set('ledON','on',D.on);
+  set('ledCPR','on',D.cpr);
+  set('ledANALYZE','on',D.analyzing);
+  set('ledANALYZE','flash',D.analyzing);
+  set('ledSYNC','on',D.sync);
+  set('ledPACER','amber',D.pacer);
+  set('ledPACER','flash',D.pacer&&D.pacerMa>0&&!D.pacePaused);
+  set('ledNIBP','on',nibpBusy());
+  set('ledALARMS','amber',D.alarms&&!(now<D.silenceUntil));
+  set('ledALARMS','flash',almBreaching&&D.alarms);
+  set('ledSHOCK','red',D.charged);
+  set('ledSHOCK','flash',D.charged);
+  set('ledBatt','on',true);
+  set('ledAC','on',true);
+  const sh=document.getElementById('kSHOCK');
+  if(sh) sh.classList.toggle('ready',D.charged);
+  const ch=document.getElementById('kCHARGE');
+  if(ch) ch.classList.toggle('armed',D.charging);
+
+  // Status line
+  const md=document.getElementById('lpMode');
+  if(md) md.textContent=D.pacer?'Pacer':(D.analyzing||D.advisory?'AED':'Manual');
+  const st=document.getElementById('lpSyncTag');
+  if(st) st.style.display=D.sync?'':'none';
+  const sil=document.getElementById('lpSil');
+  if(sil){
+    sil.textContent=!D.alarms?'ALARMS OFF'
+      :(now<D.silenceUntil?'SILENCED '+Math.ceil((D.silenceUntil-now)/1000)+'s':'');
+  }
+  const en=document.getElementById('lpEnergy');
+  if(en) en.textContent=energy()+'J';
+
+  // Pacing readout rides on the banner when nothing louder is showing.
+  if(D.pacer&&!D.banner) banner('PACER  '+D.pacerRate+' ppm   '+D.pacerMa+' mA'+(D.pacePaused?'   PAUSED':''),0);
+  else if(!D.pacer&&D.banner&&D.banner.startsWith('PACER')) banner(null);
+  else if(D.pacer&&D.banner&&D.banner.startsWith('PACER')){
+    const want='PACER  '+D.pacerRate+' ppm   '+D.pacerMa+' mA'+(D.pacePaused?'   PAUSED':'');
+    if(want!==D.banner) banner(want,0);
+  }
+}
+
+/* ── ECG with the device's own marks on it ───────────────────────────── */
+/* Size is the display gain — the crew's own control over how tall the
+   complexes are, and it changes nothing about the patient. Pacing spikes are
+   the unit's output, so they are drawn whenever current is set; capture is
+   the patient's response to them and stays the facilitator's to give. */
+function sEcgDev(t){
+  if(D.pacer&&D.pacerMa>0&&S.patientConnected){
+    const rate=D.pacePaused?D.pacerRate*0.25:D.pacerRate;
+    const per=60/Math.max(rate,1);
+    const ph=((t%per)+per)%per;
+    if(ph<0.012) return 0.5+0.46*(1-ph/0.012);
+  }
+  const v=sEcg(t);
+  if(v===null||v===undefined) return v;
+  const g=ecgSize();
+  return 0.5+(v-0.5)*g;
+}
+
 /* ── Main loop ── */
 let TT=0, lastT=performance.now();
-let pixelsThisFrame=0;
+const pxStep={};
 // The numeric panel is ~40 DOM writes and a layout read. Repainting it on every
 // animation frame competed with the waveforms for no gain — nothing on it
 // changes faster than the instructor can move a slider.
@@ -1977,20 +2887,22 @@ function loop(){
     return;
   }
 
-  // How many pixels to advance this frame
-  pixelsThisFrame=Math.max(1,Math.round(dt*SPX));
-
   // Advance noise once per frame
   advanceNoise();
 
-  // Advance pixel positions — each canvas uses its own width
+  // Advance each channel's write head at its own sweep speed. The remainder
+  // is carried, so a channel slower than one pixel per frame still averages
+  // out to its real speed instead of being rounded up to 60 px/s.
   ['cEcg','cArt','cCo2','cSpo2','cP2'].forEach(id=>{
     const c=document.getElementById(id);
-    if(c&&c.width>0) pxPos[id]=(pxPos[id]+pixelsThisFrame)%c.width;
+    const n=stepFor(id,dt);
+    pxStep[id]=n;
+    if(c&&c.width>0&&n>0) pxPos[id]=(pxPos[id]+n)%c.width;
   });
 
   const sc=skinColors();
-  drawChannel('cEcg',  sEcg,  sc.ecg,  null);
+  devTick();
+  drawChannel('cEcg',  sEcgDev,  sc.ecg,  null);
   // ART: ZX skin always, LP skin only when artActive
   const lpArt=currentSkin==='lp'&&S.patientConnected&&S.artActive;
   if(currentSkin!=='lp') drawChannel('cArt', sArt, sc.art, null);

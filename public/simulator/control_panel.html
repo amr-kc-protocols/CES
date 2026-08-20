@@ -135,6 +135,28 @@ select:focus{border-color:#00e5ff;}
 .act .box{flex:0 0 13px;height:13px;margin-top:1px;border:1px solid #3a5570;border-radius:3px;
   display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#04240f;}
 .act.done .box{background:#00cc66;border-color:#00cc66;color:#04240f;}
+/* A tick that came from the monitor rather than from the facilitator's eye.
+   Marked so it can be audited at the debrief — the device saw a button, not a
+   crew, and the person grading is still the one who decides. */
+.act.auto{border-style:dashed;}
+.act .auto-tag{margin-left:auto;flex:none;font-size:.52rem;letter-spacing:.5px;color:#8fb6ff;
+  text-transform:uppercase;align-self:center;white-space:nowrap;}
+
+/* The device timeline. Newest at the top, because during a code the last thing
+   that happened is the thing being asked about. */
+.dev-feed{max-height:210px;overflow-y:auto;border:1px solid #1e3a52;border-radius:6px;background:#070b12;padding:4px;}
+.dev-empty{font-size:.6rem;color:var(--t-faint);padding:6px 4px;}
+.dev-row{display:flex;gap:6px;align-items:baseline;font-size:.6rem;line-height:1.5;color:var(--t);
+  padding:1px 3px;border-radius:3px;}
+.dev-row .dev-t{flex:0 0 30px;color:var(--t-faint);font-variant-numeric:tabular-nums;}
+.dev-row .dev-i{flex:0 0 11px;text-align:center;color:#8fb6ff;}
+.dev-row .dev-l{min-width:0;}
+.dev-row .dev-d{color:var(--t-dim);}
+.dev-row.shock{background:#2a0f0a;color:#ff9c7a;}
+.dev-row.shock .dev-i{color:#ff6a3d;}
+.dev-row.auto{color:#7fe0a5;}
+.dev-row.auto .dev-i{color:#00cc66;}
+
 .act-head{font-size:.58rem;color:#00cc66;letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px;}
 .trig{font-size:.6rem;color:var(--t-dim);line-height:1.45;margin-top:8px;padding-top:8px;
   border-top:1px solid #1e3a52;white-space:pre-line;}
@@ -854,7 +876,11 @@ try{ bc=new BroadcastChannel('simState'); }catch(e){ bc=null; }
 // has spoken for three, the crew is looking at nothing.
 let lastMonitorPing=0;
 if(bc){
-  bc.onmessage=e=>{ if(e.data&&e.data.__monitor) lastMonitorPing=Date.now(); };
+  bc.onmessage=e=>{
+    if(!e.data) return;
+    if(e.data.__monitor){ lastMonitorPing=Date.now(); return; }
+    if(e.data.__device){ onDeviceEvent(e.data.__device); return; }
+  };
   setInterval(()=>{
     const chip=document.getElementById('monChip');
     if(!chip) return;
@@ -2089,6 +2115,8 @@ function startRun(simKey){
     team:cl?ACLS_TEAM_STEPS.map(t=>({text:t,done:false})):null,
     cpr:cl?{rate:false,depth:false,recoil:false,fraction:'',ventRate:''}:null,
     result:null,
+    // Every press at the monitor, with its offset into the run.
+    device:[], lastShockAt:null,
     states:sim.states.map((st,i)=>({
       id:st.id||('state'+i),
       label:st.label,
@@ -2114,6 +2142,8 @@ function toggleAction(i){
   const a=run.states[run.current].actions[i];
   if(!a) return;
   a.done=!a.done;
+  // A tick the facilitator has touched is theirs, however it started.
+  if(a.auto) delete a.auto;
   renderSimPanel(run.scenario);
 }
 
@@ -2146,6 +2176,7 @@ function endRun(){
     startedAt:run.startedAt, endedAt:new Date().toISOString(),
     crew:run.crew.trim(), notes:run.notes.trim(),
     states:run.states.map(st=>({id:st.id,label:st.label,seconds:st.seconds,actions:st.actions})),
+    device:run.device.slice(),
   };
   if(run.checklist){
     rec.checklist=run.checklist;
@@ -2169,6 +2200,101 @@ function endRun(){
 }
 
 function newRun(){ lastRun=null; const k=activeSim; if(k&&SCENARIO_DOCS[k]){ startRun(k); applySimState(k,0); } }
+
+// ── What the crew did at the defibrillator ───────────────────────────────────
+// The monitor posts every press on the same channel this panel pushes state
+// down. It is one-way: nothing arriving here changes the patient. The panel is
+// still the only thing that decides what the rhythm is.
+//
+// Why this is worth a column of the screen. One person is driving the scenario
+// and grading it at the same time, and the checklist asks about things nobody
+// can measure while doing both — how long until the first shock, how long the
+// pause around it ran, whether compressions came straight back. The timeline
+// answers those afterwards, and it is saved with the run.
+
+let deviceFeed=[];       // last few events, shown whether or not a run is open
+
+// Auto-tick.
+//
+// Deliberately a short table. Most of the AHA megacode checklist is about
+// recognition, verbalisation and clinical appropriateness — "Verbalizes
+// potential reversible causes", "Administers appropriate drug(s) and doses" —
+// and a button press is no evidence at all of any of those. Ticking them from
+// the device would be fabricating the assessment.
+//
+// What is left is the handful where the press and the step are the same fact:
+//
+//  * The unit announcing SHOCK ADVISED on a shockable rhythm, with the crew
+//    having pressed ANALYZE to get there, is the recognition step.
+//  * Compressions restarting within fifteen seconds of a shock is exactly what
+//    "immediately resumes CPR after shocks" asks, and it is a timing the
+//    device knows and the facilitator cannot count while running the scenario.
+//  * Transcutaneous pacing is the second-line treatment the bradycardia
+//    section is asking to see prepared.
+//
+// Every one of these is marked in the UI as having come from the device and
+// unticks on a click, so the facilitator stays the assessor of record.
+const AUTO_TICK=[
+  {when:ev=>ev.type==='advisory'&&ev.label==='SHOCK ADVISED', match:/^Recognizes (VF|pVT)/i},
+  {when:(ev,ctx)=>ev.type==='cpr'&&/ON$/.test(ev.label)&&ctx.sinceShock!==null&&ctx.sinceShock<=15,
+   match:/Immediately resumes CPR after shocks/i},
+  {when:ev=>ev.type==='pacer'&&ev.label==='PACER ON', match:/Prepares for second-line treatment/i},
+];
+
+function onDeviceEvent(ev){
+  const now=Date.now();
+  deviceFeed.push(ev);
+  if(deviceFeed.length>60) deviceFeed.shift();
+
+  if(run){
+    const at=Math.max(0,Math.round((now-Date.parse(run.startedAt))/1000));
+    run.device.push({at,type:ev.type,label:ev.label,detail:ev.detail||''});
+    if(ev.type==='shock') run.lastShockAt=now;
+    const ctx={sinceShock:run.lastShockAt?(now-run.lastShockAt)/1000:null};
+    for(const rule of AUTO_TICK){
+      if(!rule.when(ev,ctx)) continue;
+      autoTick(rule.match,ev);
+    }
+  }
+  renderDeviceFeed();
+}
+
+// Only the phase the facilitator currently has the patient in. A step belongs
+// to its section of the checklist, and ticking one three phases ahead because
+// the crew pressed a key early would put a mark against something that has not
+// been asked for yet.
+function autoTick(re,ev){
+  if(!run||run.current<0) return;
+  const st=run.states[run.current];
+  if(!st) return;
+  const a=st.actions.find(x=>re.test(x.text)&&!x.done);
+  if(!a) return;
+  a.done=true; a.auto=true;
+  run.device.push({at:Math.max(0,Math.round((Date.now()-Date.parse(run.startedAt))/1000)),
+    type:'autotick',label:'Auto-ticked',detail:a.text});
+  renderSimPanel(run.scenario);
+}
+
+const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
+  pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
+  ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
+  alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',
+  power:'⏻',display:'☀',disarm:'⚡'};
+
+function renderDeviceFeed(){
+  const el=document.getElementById('devFeed');
+  if(!el) return;
+  const rows=(run?run.device:deviceFeed.map(e=>({at:null,type:e.type,label:e.label,detail:e.detail})));
+  if(!rows.length){
+    el.innerHTML='<div class="dev-empty">Nothing pressed on the monitor yet.</div>';
+    return;
+  }
+  el.innerHTML=rows.slice(-14).reverse().map(r=>
+    `<div class="dev-row${r.type==='shock'?' shock':''}${r.type==='autotick'?' auto':''}">`+
+    `<span class="dev-t">${r.at===null?'':mmss(r.at)}</span>`+
+    `<span class="dev-i">${DEV_ICON[r.type]||'•'}</span>`+
+    `<span class="dev-l">${esc(r.label)}${r.detail?' <span class="dev-d">'+esc(r.detail)+'</span>':''}</span></div>`).join('');
+}
 
 // ── Scenario brief ────────────────────────────────────────────────────────────
 let briefOpen=false;
@@ -2272,8 +2398,9 @@ function renderSimPanel(simKey){
   let actionsHtml='';
   if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
     actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
-      `<div class="act${a.done?' done':''}" role="button" tabindex="0" onclick="toggleAction(${i})">
-        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>
+      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" onclick="toggleAction(${i})"
+            title="${a.auto?'Ticked from the monitor — click to undo':''}">
+        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?'<span class="auto-tag">from monitor</span>':''}
       </div>`).join('');
   }
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
@@ -2298,8 +2425,12 @@ function renderSimPanel(simKey){
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}</div>
         <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
-        <div>${triggerHtml}${noteHtml}</div>
+        <div>${triggerHtml}${noteHtml}
+          <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
+          <div id="devFeed" class="dev-feed"></div>
+        </div>
       </div>`;
+    renderDeviceFeed();
     return;
   }
 
