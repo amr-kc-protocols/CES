@@ -158,7 +158,8 @@ export default function SimulatorView() {
             <span className="subtle">
               Every graded run. Actions are the scenario's own expected actions. ACLS megacodes
               carry the AHA checklist's PASS / NR; the quarterly scenarios do not, because their
-              approved documents define no outcome.
+              approved documents define no outcome. Runs driven from the LIFEPAK monitor also
+              carry the crew's own timeline at the defibrillator.
             </span>
           </div>
         )}
@@ -226,6 +227,7 @@ function RunList({ runs }: { runs: SimRun[] }) {
         const done = r.states.reduce((n, s) => n + s.actions.filter((a) => a.done).length, 0)
         const total = r.states.reduce((n, s) => n + s.actions.length, 0)
         const secs = r.states.reduce((n, s) => n + s.seconds, 0)
+        const shocks = (r.device ?? []).filter((e) => e.type === 'shock').length
         const isOpen = open === r.id
         return (
           <div key={r.id} className="card sim-run">
@@ -243,6 +245,7 @@ function RunList({ runs }: { runs: SimRun[] }) {
                   {r.result === 'pass' ? 'PASS' : r.result === 'nr' ? 'NR' : 'no result'}
                 </span>
               ) : null}
+              {shocks > 0 ? <span className="pill warn">⚡ {shocks} shock{shocks === 1 ? '' : 's'}</span> : null}
               <span className={`pill ${done === total ? 'ok' : 'info'}`}>
                 {done}/{total} actions
               </span>
@@ -285,6 +288,23 @@ function RunList({ runs }: { runs: SimRun[] }) {
                     </div>
                   ) : null,
                 )}
+                {r.device && r.device.length ? (
+                  <div className="sim-run-state">
+                    <div className="sim-run-state-head">
+                      At the monitor <span className="subtle">{r.device.length} actions</span>
+                    </div>
+                    {/* In order, because the questions this answers are about
+                        order: how long to the first shock, and whether
+                        compressions came back straight after one. */}
+                    {r.device.map((e, j) => (
+                      <div key={j} className={`sim-dev${e.type === 'shock' ? ' shock' : ''}`}>
+                        <span className="sim-dev-t">{mmss(e.at)}</span>
+                        <span>{e.label}</span>
+                        {e.detail ? <span className="subtle"> {e.detail}</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {r.notes ? <div className="sim-run-note">{r.notes}</div> : null}
               </div>
             )}

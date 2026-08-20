@@ -545,6 +545,579 @@ function loadMonitor(storage = {}) {
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// The LIFEPAK 15 skin: the unit, and what it is allowed to touch.
+//
+// The whole design rests on one boundary. The crew works the defibrillator;
+// the facilitator works the patient. If the monitor ever writes a rhythm, a
+// pressure or a saturation, there are two sources of truth for what the
+// patient is doing and the scenario stops being drivable — so the first check
+// here runs a full resuscitation on the device and asserts that not one field
+// of S moved.
+//
+// The rest are the behaviours a crew is actually being taught: that a shock
+// needs a charge, that changing energy throws the charge away, that an
+// unarmed shock button does nothing, and that a unit with no electrodes on
+// says so rather than advising against a shock it cannot see.
+// ---------------------------------------------------------------------------
+{
+  const { w, S } = loadMonitor()
+  const D = () => w.eval('D')
+  const call = (fn) => w.eval(fn)
+
+  Object.assign(S(), {
+    patientConnected: true, hr: 180, rhythm: 'vtach', sbp: 0, dbp: 0,
+    spo2: 4, etco2: 18, rr: 0, temp: 35.1, lead: 'II', alarmOn: true,
+  })
+  // --- charge and shock ----------------------------------------------------
+  ok('the unit starts unarmed', D().charged === false && D().charging === false)
+
+  call('deliverShock()')
+  ok('an unarmed shock button delivers nothing', D().shocks === 0, `${D().shocks} shocks`)
+
+  call('startCharge()')
+  ok('CHARGE begins charging', D().charging === true)
+  ok('and charging is not the same as charged', D().charged === false)
+
+  // Jump the clock rather than waiting five seconds for it.
+  w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  ok('the charge completes', D().charged === true && D().charging === false)
+
+  call('deliverShock()')
+  ok('an armed shock button delivers', D().shocks === 1, `${D().shocks} shocks`)
+  ok('and leaves the unit disarmed', D().charged === false)
+
+  // Changing the energy after charging throws the charge away, as the unit
+  // does — a crew that dials 360 expecting the 200 in the capacitor to follow
+  // is being taught something false.
+  call('startCharge()')
+  w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  ok('charged again', D().charged === true)
+  call('nudgeEnergy(1)')
+  ok('changing energy disarms the charge', D().charged === false)
+
+  // And it disarms itself if nobody shocks.
+  call('startCharge()')
+  w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  w.eval('D.disarmAt = Date.now() - 1; devTick()')
+  ok('an unused charge disarms itself', D().charged === false)
+
+  // --- rhythm advisory -----------------------------------------------------
+  const advise = () => { w.eval('D.analyzing = true; D.analyzeUntil = 0; finishAnalyze()'); return D().advisory }
+  ok('shockable rhythm advises a shock', advise() === 'SHOCK ADVISED', D().advisory)
+  S().rhythm = 'asystole'
+  ok('asystole advises against one', advise() === 'NO SHOCK ADVISED', D().advisory)
+  S().patientConnected = false
+  ok(
+    'no electrodes is its own answer, not "no shock advised"',
+    advise() === 'CONNECT ELECTRODES',
+    D().advisory,
+  )
+  S().patientConnected = true
+  S().rhythm = 'vtach'
+
+  // --- lead, size, pacing --------------------------------------------------
+  const devLead = w.eval('devLead')
+  ok('the lead starts as the panel set it', devLead() === 'II', devLead())
+  w.eval("takeLead(); D.leadIx = 2")
+  ok('pressing LEAD changes the displayed lead', devLead() === 'III', devLead())
+  S().lead = 'aVF'
+  ok('and the facilitator changing lead takes it back', devLead() === 'aVF', devLead())
+
+  // Size is display gain: it scales around the baseline, so it cannot turn a
+  // flat line into a complex or the other way round.
+  const sEcgDev = w.eval('sEcgDev')
+  w.eval('D.sizeIx = SIZES.indexOf(1.0)')
+  const at1 = sEcgDev(0.14)
+  w.eval('D.sizeIx = SIZES.indexOf(2.0)')
+  const at2 = sEcgDev(0.14)
+  ok(
+    'ECG size doubles the deflection about the baseline',
+    Math.abs((at2 - 0.5) - 2 * (at1 - 0.5)) < 1e-9,
+    `${at1.toFixed(4)} then ${at2.toFixed(4)}`,
+  )
+  w.eval('D.sizeIx = SIZES.indexOf(1.0)')
+
+  // Pacing spikes are the unit's own output and appear as soon as current is
+  // set. Capture is the patient's answer to them and is not the unit's to give.
+  w.eval('D.pacer = true; D.pacerMa = 0; D.pacerRate = 60')
+  const spikeAt = (t) => sEcgDev(t)
+  ok('no spike at zero current', Math.abs(spikeAt(0) - sEcgDev(0)) < 1e-9)
+  w.eval('D.pacerMa = 70')
+  ok('current produces a pacing spike', spikeAt(0) > 0.9, String(spikeAt(0)))
+  ok('and it is a spike, not a level', spikeAt(0.5) < 0.9, String(spikeAt(0.5)))
+  w.eval('D.pacer = false; D.pacerMa = 0')
+
+  // --- Area 4 -------------------------------------------------------------
+  // Table 3-4 gives PRINT as "starts and stops printer", which makes it a
+  // toggle. It shipped as a one-shot burst like the two record keys beside it,
+  // so a crew could not run a strip and could not stop one either.
+  ok('PRINT starts the printer', (call('printerRun(true)'), D().printing === true))
+  ok('and PRINT stops it again', (call('printerRun(false)'), D().printing === false))
+  ok(
+    'the record keys print without latching the strip on',
+    (w.eval('printerBurst(10)'), D().printing === false),
+  )
+
+  w.close()
+}
+
+{
+  // The boundary, on its own page so nothing this script does to S can be
+  // mistaken for something the device did. A whole resuscitation is run
+  // through the unit — charge, shock, analyze, pace, print, alarms, lead —
+  // and afterwards the patient must be byte-for-byte what the facilitator
+  // left. This is the check that fails the day somebody makes the shock
+  // button convert the rhythm "just to make the demo look right".
+  const { w, S } = loadMonitor()
+  Object.assign(S(), {
+    patientConnected: true, hr: 180, rhythm: 'vfib', sbp: 0, dbp: 0,
+    spo2: 4, etco2: 18, rr: 0, temp: 35.1, lead: 'II', alarmOn: true,
+  })
+  const before = JSON.stringify(S())
+  w.eval(`
+    startCharge(); D.chargeStart = Date.now() - CHARGE_MS - 1; devTick(); deliverShock();
+    D.analyzing = true; D.analyzeUntil = 0; finishAnalyze();
+    D.cpr = true; takeLead(); D.leadIx = 4; D.sizeIx = 4;
+    D.pacer = true; nudgeRate(1); nudgeMa(3);
+    startNibp(); D.silenceUntil = Date.now() + 1000; D.alarms = false;
+    D.sunvue = true; devTick();
+  `)
+  const changed = []
+  const a = JSON.parse(before), b = w.eval('S')
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)]))
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) changed.push(k)
+  ok('nothing the crew pressed changed the patient', changed.length === 0, changed.join(','))
+  ok('the crew did press things', w.eval('D.log.length') > 5, `${w.eval('D.log.length')} events`)
+  w.close()
+}
+
+{
+  // The LED assertions need a live page: these are behaviours, not stylesheet
+  // values, and every one of them failed before this pass.
+  const { w } = loadMonitor()
+  const call = (fn) => w.eval(fn)
+// ---- LED behaviour, as Tables 3-1 to 3-3 describe it --------------------
+// The manual is precise about these and the distinctions matter to a crew:
+// an LED that is "illuminated" is not one that "flashes", and one that
+// "flashes with detection of each QRS" is driven by the patient rather than
+// by a timer. All six of the assertions below failed before this pass.
+const cls = (id) => {
+  const e = w.document.getElementById(id)
+  return e ? [...e.classList].filter((c) => c !== 'led').sort().join('+') || 'off' : 'MISSING'
+}
+const tick = () => call('devTick()')
+
+// "LED illuminated when AED is analyzing the ECG, and flashes when user is
+// prompted to push ANALYZE." Two states, two behaviours.
+w.eval('D.analyzing = true; D.analyzeUntil = Date.now() + 9e5; D.reanalyzeAt = 0')
+tick()
+ok('ANALYZE is illuminated while analyzing', cls('ledANALYZE') === 'on', cls('ledANALYZE'))
+w.eval('D.analyzing = false; D.reanalyzeAt = Date.now() - 1')
+tick()
+ok('and flashes when a rhythm check is due', cls('ledANALYZE') === 'flash', cls('ledANALYZE'))
+w.eval('D.reanalyzeAt = Date.now() + 9e5')
+tick()
+ok('and is dark in between', cls('ledANALYZE') === 'off', cls('ledANALYZE'))
+
+// "LED illuminated when alarms are enabled and flashes when an alarm
+// condition occurs." Silencing is not disabling — the LED going dark told a
+// crew the alarms were off when they had two minutes of quiet.
+w.eval('D.alarms = true; D.silenceUntil = Date.now() + 6e4')
+tick()
+ok('ALARMS stays illuminated while silenced', cls('ledALARMS') === 'amber', cls('ledALARMS'))
+w.eval('D.alarms = false; D.silenceUntil = 0')
+tick()
+ok('and is dark when alarms are off', cls('ledALARMS') === 'off', cls('ledALARMS'))
+w.eval('D.alarms = true; almBreaching = true')
+tick()
+ok('and flashes on an alarm condition', cls('ledALARMS').includes('flash'), cls('ledALARMS'))
+w.eval('almBreaching = false')
+
+// "Flashes with detection of each QRS." A detector, not a timer: it runs on
+// the samples the trace is drawn from, so it finds nothing in a flat line.
+const scanQrs = w.eval('scanQrs')
+const spx = 125
+const beats = (rateBpm, seconds) => {
+  // A synthetic trace: baseline with a narrow spike once per beat.
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  const n = Math.round(seconds * spx)
+  const per = 60 / rateBpm
+  let found = 0
+  for (let i = 0; i < n; i += 64) {
+    const chunk = []
+    for (let j = i; j < Math.min(i + 64, n); j++) {
+      const t = j / spx
+      const phase = ((t % per) + per) % per
+      chunk.push(phase < 0.03 ? 0.95 : 0.5)
+    }
+    found += scanQrs(chunk, i / spx, spx)
+  }
+  return found
+}
+ok('QRS detection tracks 60/min', beats(60, 10) === 10, `${beats(60, 10)} in 10s`)
+ok('and 150/min', beats(150, 10) === 25, `${beats(150, 10)} in 10s`)
+const flat = (() => {
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  return scanQrs(new Array(1200).fill(0.5), 0, spx)
+})()
+ok('and finds nothing in a flat line', flat === 0, `${flat} detections on a flat trace`)
+const noTrace = (() => {
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  return scanQrs(new Array(1200).fill(null), 0, spx)
+})()
+ok('and nothing at all with the patient disconnected', noTrace === 0, `${noTrace} detections`)
+// Refractory blanking: a complex with a rebound must count once, not twice.
+const doubled = (() => {
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  const n = 10 * spx, per = 60 / 150
+  const out = []
+  for (let j = 0; j < n; j++) {
+    const ph = ((j / spx) % per + per) % per
+    out.push(ph < 0.03 || (ph > 0.05 && ph < 0.075) ? 0.95 : 0.5)
+  }
+  return scanQrs(out, 0, spx)
+})()
+ok(
+  'a complex with a rebound is one detection, not two',
+  doubled === 25,
+  `${doubled} detections where 25 beats occurred`,
+)
+
+// "Flashes with each current pulse" — the pacer's own clock, so the LED and
+// the spikes on the trace cannot disagree.
+const pacePulsed = w.eval('pacePulsed')
+const paces = (rate, ma, seconds) => {
+  w.eval(`D.pacer = true; D.pacerMa = ${ma}; D.pacerRate = ${rate}; D.pacePaused = false; lastPacePhase = 1`)
+  let n = 0
+  for (let i = 0; i < seconds * 200; i++) if (pacePulsed(i / 200)) n++
+  return n
+}
+ok('pacing pulses at the set rate', paces(60, 70, 10) === 10, `${paces(60, 70, 10)} in 10s at 60ppm`)
+ok('and follows the rate up', paces(120, 70, 10) === 20, `${paces(120, 70, 10)} in 10s at 120ppm`)
+ok('and stops at zero current', paces(60, 0, 10) === 0, `${paces(60, 0, 10)} pulses with no current`)
+// "Temporarily slows pacing rate", Table 3-2.
+w.eval('D.pacer = true; D.pacerMa = 70; D.pacerRate = 80; D.pacePaused = true; lastPacePhase = 1')
+let paused = 0
+for (let i = 0; i < 2000; i++) if (pacePulsed(i / 200)) paused++
+ok('PAUSE slows the pacing rate', paused === 4, `${paused} in 10s at 80ppm paused — a quarter of 13`)
+w.eval('D.pacer = false; D.pacerMa = 0; D.pacePaused = false')
+
+// ---- the alarm tone ----------------------------------------------------
+// A browser will not start audio until the page has been interacted with, and
+// nothing guarantees anyone has touched the monitor window before a parameter
+// goes out of range. So the tone is gated on being armed, and the notice
+// saying it is not armed is itself the control that arms it — an alarm that is
+// silent until someone happens to click the screen is worse than one that is
+// honestly visual, because a crew learns to trust a sound that may never come.
+call('audioArmed = false; alarmTone(false)')
+call('alarmTone(true)')
+ok('an unarmed page stays silent', w.eval('!almTimer'), 'a tone nobody could hear was started')
+call('audioArmed = true; alarmTone(true)')
+ok('and sounds once armed', w.eval('!!almTimer'))
+call('alarmTone(false)')
+ok('and stops when the breach clears', w.eval('!almTimer'))
+ok('the notice is the control that arms it', /id="armAudio" onclick="armAudio\(\)"/.test(MONITOR_SRC))
+ok('and it stands down once armed', /#armAudio\.armed\{opacity:0/.test(MONITOR_SRC))
+ok(
+  'pressing any key on the unit arms it too',
+  /addEventListener\('click',e=>\{e\.preventDefault\(\);armAudio\(\);/.test(MONITOR_SRC),
+)
+
+// The tone follows the banner exactly: both mute paths silence both.
+const alarmState = (patch) => {
+  Object.assign(w.eval('S'), patch)
+  w.eval('audioArmed = true')
+  call('upNums()')
+  return {
+    tone: !!w.eval('almTimer'),
+    banner: w.eval("document.getElementById('alm').classList.contains('shown')"),
+  }
+}
+const alarmBase = {
+  patientConnected: true, rhythm: 'nsr', hr: 38, spo2: 96,
+  alarmOn: true, alarmMuted: false, hrAlarmLow: 50, hrAlarmHigh: 120, spo2AlarmLow: 94,
+}
+w.eval('D.alarms = true; D.silenceUntil = 0')
+let al = alarmState(alarmBase)
+ok('a breach sounds and shows', al.tone && al.banner, `tone ${al.tone}, banner ${al.banner}`)
+w.eval('D.silenceUntil = Date.now() + 6e4')
+al = alarmState(alarmBase)
+ok('silencing at the unit stops both', !al.tone && !al.banner, `tone ${al.tone}, banner ${al.banner}`)
+w.eval('D.silenceUntil = 0')
+al = alarmState({ ...alarmBase, alarmMuted: true })
+ok('and so does muting from the panel', !al.tone && !al.banner, `tone ${al.tone}, banner ${al.banner}`)
+al = alarmState({ ...alarmBase, hr: 72, alarmMuted: false })
+ok('a resolved breach falls silent', !al.tone && !al.banner, `tone ${al.tone}, banner ${al.banner}`)
+call('alarmTone(false)')
+
+ok('the P3 placeholder is gone', !/class="bc bP3"/.test(MONITOR_SRC), 'a cell with no state behind it')
+
+// ---- the speed dial ----------------------------------------------------
+// "Scrolls through and selects screen or menu items", Table 3-3. Both halves:
+// the menu half worked, the screen half did nothing at all.
+const SCREEN_ITEMS = w.eval('SCREEN_ITEMS')
+call('closeMenu(); clearHomeSel()')
+ok('the home screen starts with nothing selected', w.eval('D.homeSel') === -1)
+call('dialTurn(1)')
+ok('turning the dial selects a screen item', w.eval('D.homeSel') === 0, String(w.eval('D.homeSel')))
+call('dialTurn(1); dialTurn(1)')
+ok('and moves along them', w.eval('D.homeSel') === 2, String(w.eval('D.homeSel')))
+call('dialTurn(-1)')
+ok('and back', w.eval('D.homeSel') === 1, String(w.eval('D.homeSel')))
+for (let i = 0; i < SCREEN_ITEMS.length; i++) call('dialTurn(1)')
+ok('and wraps rather than stopping', w.eval('D.homeSel') === 1, String(w.eval('D.homeSel')))
+ok(
+  'the selected item is the one highlighted',
+  w.eval(
+    'D.homeSel >= 0 && !!document.getElementById(SCREEN_ITEMS[D.homeSel].el) &&' +
+      ' document.getElementById(SCREEN_ITEMS[D.homeSel].el).classList.contains("sel")',
+  ),
+  `homeSel is ${w.eval('D.homeSel')}`,
+)
+
+// Pressing on the ECG channel reaches the lead and size lists, and picking
+// from them drives the real controls rather than a display of them.
+call('closeMenu(); clearHomeSel(); D.homeSel = 0; dialPress()')
+ok('pressing on a screen item opens its menu', w.eval('D.menu && D.menu.title') === 'ECG', String(w.eval('D.menu && D.menu.title')))
+call('D.menuIx = 0; menuSelect()')
+ok('and the ECG menu reaches the lead list', w.eval('D.menu && D.menu.title') === 'LEAD')
+const leadBefore = w.eval('devLead()')
+call('D.menuIx = 3; menuSelect()')
+ok('choosing a lead actually changes the lead', w.eval('devLead()') === 'aVR', `${leadBefore} -> ${w.eval('devLead()')}`)
+ok('and returns to the ECG menu', w.eval('D.menu && D.menu.title') === 'ECG')
+call('D.menuIx = 1; menuSelect()')
+ok('the ECG menu reaches the size list', w.eval('D.menu && D.menu.title') === 'SIZE')
+call('D.menuIx = 3; menuSelect()')
+ok('and choosing a size changes the gain', w.eval('ecgSize()') === 2, String(w.eval('ecgSize()')))
+
+// Parameter menus read the limits actually in force rather than inventing an
+// editor whose result the panel would overwrite a second later.
+w.eval('S.hrAlarmLow = 44; S.hrAlarmHigh = 133')
+call('closeMenu(); D.homeSel = 1; dialPress()')
+const hrLines = w.eval('D.menu.items.map(i => i.label)').join(' | ')
+ok('a parameter menu shows the live alarm limits', /44/.test(hrLines) && /133/.test(hrLines), hrLines)
+call('closeMenu(); D.homeSel = 4; dialPress()')
+ok(
+  'and says so plainly where there are none',
+  /No alarm limits/.test(w.eval('D.menu.items.map(i => i.label)').join(' ')),
+)
+call('closeMenu(); clearHomeSel()')
+
+// A press in the EVENT menu marks exactly one event.
+call('openMenu(eventMenu())')
+const evBefore = w.eval("D.log.filter(e => e.type === 'event').length")
+call('D.menuIx = 3; menuSelect()')
+const evAfter = w.eval("D.log.filter(e => e.type === 'event').length")
+ok('selecting an event marks one event', evAfter === evBefore + 1, `${evBefore} -> ${evAfter}`)
+ok('and closes the menu', w.eval('D.menu') === null)
+
+// The drag-versus-press decision. Taken on the step remainder, a drag that
+// happened to land on an exact multiple of the step size was read as a press
+// — and in the EVENT menu that silently logged an event nobody chose.
+ok(
+  'drag-versus-press is decided on distance travelled, not the step remainder',
+  /const moved=dragY!==null&&travel>6;/.test(MONITOR_SRC),
+  'a drag landing on a step boundary would select whatever it stopped on',
+)
+ok('and travel accumulates the absolute movement', /travel\+=Math\.abs\(dy\);/.test(MONITOR_SRC))
+
+// "Charges the defibrillator in Manual mode" / "Increases or decreases
+// energy level in Manual mode", Table 3-1. Neither is available while the
+// Shock Advisory System is running.
+w.eval('D.analyzing = true; D.charged = false; D.charging = false')
+const eBefore = w.eval('energy()')
+call('nudgeEnergy(1)')
+ok('ENERGY SELECT is inert during an analysis', w.eval('energy()') === eBefore, 'energy moved mid-analysis')
+call('startCharge()')
+ok('and CHARGE is too', w.eval('D.charging') === false, 'the unit charged mid-analysis')
+w.eval('D.analyzing = false')
+call('nudgeEnergy(1)')
+ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
+  w.close()
+}
+
+{
+  // Cross-file. Both of these fail silently in the room: a device event with
+  // no icon draws a bullet in the facilitator's timeline, and an auto-tick
+  // whose pattern matches no real step simply never fires, which looks exactly
+  // like a crew that did not do the thing.
+  const panelSrc = readFileSync(PAGE, 'utf8')
+
+  // Area 4 keys, labelled as Table 3-4 labels them.
+  for (const label of ['12-LEAD', 'TRANSMIT', 'CODE', 'PRINT'])
+    ok(`the unit has a ${label} key`, MONITOR_SRC.includes(`>${label}`), 'missing from Area 4')
+
+  const emitted = [...MONITOR_SRC.matchAll(/logEvent\('([a-zA-Z0-9]+)'/g)].map((m) => m[1])
+  const uniq = [...new Set(emitted)]
+  ok('the monitor emits device events', uniq.length > 10, `${uniq.length} kinds`)
+  const iconBlock = panelSrc.slice(panelSrc.indexOf('const DEV_ICON='))
+  const icons = new Set(
+    [...iconBlock.slice(0, iconBlock.indexOf('};')).matchAll(/([a-zA-Z0-9]+):'/g)].map((m) => m[1]),
+  )
+  const missing = uniq.filter((t) => !icons.has(t))
+  ok('every event the monitor sends has an icon on the panel', missing.length === 0, missing.join(','))
+
+  const patterns = [...panelSrc.matchAll(/match:\/(.+?)\/i/g)].map((m) => m[1])
+  ok('the panel auto-ticks from the device', patterns.length >= 3, `${patterns.length} rules`)
+  const steps = [...panelSrc.matchAll(/^\s+'([^']{12,})',$/gm)].map((m) => m[1])
+  for (const pat of patterns) {
+    const re = new RegExp(pat, 'i')
+    ok(`auto-tick /${pat}/ matches a real checklist step`, steps.some((t) => re.test(t)))
+  }
+
+  // The facilitator stays the assessor of record: a tick that came from the
+  // device is marked as such and comes off on a click.
+  ok('auto-ticks are marked in the UI', /auto-tag/.test(panelSrc) && /from monitor/.test(panelSrc))
+  ok('and clicking one clears the mark', /if\(a\.auto\) delete a\.auto/.test(panelSrc))
+
+  // ---- iPad usability ----------------------------------------------------
+  // The unit is worked with gloved thumbs on a tablet, so the sizes below are
+  // not styling. Measured before this pass, twelve of eighteen controls were
+  // under Apple's 44pt minimum on every iPad and the three rockers — ENERGY
+  // SELECT, RATE and CURRENT, the ones tapped repeatedly under pressure —
+  // were 20 to 23pt. The floors are set in design pixels against the worst
+  // landscape scale the chassis reaches (~0.93 on an iPad mini), so 48 design
+  // px is what clears 44pt there.
+  const cssNum = (re, what) => {
+    const m = MONITOR_SRC.match(re)
+    ok(`${what} is still declared`, !!m, 'rule is gone')
+    return m ? parseFloat(m[1]) : 0
+  }
+  const TOUCH_FLOOR = 48
+  ok(
+    'chassis keys clear the touch floor',
+    cssNum(/\.k\{[^}]*?min-height:(\d+)px/s, 'the key height') >= TOUCH_FLOOR,
+    'below 48 design px',
+  )
+  ok(
+    'the two-column areas clear it too',
+    cssNum(/\.arow \.k\{[^}]*?min-height:(\d+)px/s, 'the two-column key height') >= TOUCH_FLOOR,
+    'below 48 design px',
+  )
+  ok(
+    'rocker arrows clear it',
+    cssNum(/\.updown \.ud\{[^}]*?flex:0 0 (\d+)px/s, 'the rocker arrow width') >= TOUCH_FLOOR,
+    'below 48 design px — these were the smallest controls on the unit',
+  )
+  ok(
+    'the Area 4 keys clear it',
+    cssNum(/\.fk\{flex:0 0 (\d+)px/, 'the Area 4 key height') >= TOUCH_FLOOR,
+    'below 48 design px',
+  )
+  ok(
+    'the skin switch clears the raw 44pt minimum',
+    cssNum(/\.skb\{min-width:(\d+)px/, 'the skin switch size') >= 44,
+    'below 44px — it does not scale with the chassis',
+  )
+
+  // The chassis is 1141px wide. Positioned absolutely it widened the layout
+  // viewport on a touch device, so innerWidth came back as 1141 rather than
+  // the iPad's 834 and the fit concluded it already fitted.
+  ok(
+    'the chassis cannot widen the layout viewport',
+    /body\.lp-skin #device\{[^}]*?position:fixed/s.test(MONITOR_SRC),
+    'position:fixed is gone — portrait will report the wrong viewport width',
+  )
+  ok('pinch and double-tap zoom are off', /user-scalable=no/.test(MONITOR_SRC))
+  ok('the page cannot rubber-band', /overscroll-behavior:none/.test(MONITOR_SRC))
+  ok(
+    'a long press does not raise the iOS callout',
+    /-webkit-touch-callout:none/.test(MONITOR_SRC),
+    'holding ON to power down would select text instead',
+  )
+  ok(
+    'the speed dial takes the gesture rather than the page',
+    /\.dial\{[^}]*?touch-action:none/s.test(MONITOR_SRC),
+    'dragging it would scroll instead of turning it',
+  )
+  // iOS leaves :hover stuck on whatever was tapped last.
+  const hoverBlock = MONITOR_SRC.slice(MONITOR_SRC.indexOf('@media (hover:hover)'))
+  const strayHover = /^\s*\.(k|fk|rk|updown|on-k|charge-k|alarms-k|ic)[^{]*:hover/m.test(
+    MONITOR_SRC.slice(0, MONITOR_SRC.indexOf('@media (hover:hover)')),
+  )
+  ok('control hover styles are behind a pointer query', !strayHover, 'a bare :hover would stick on iOS')
+  ok('and the query actually contains them', /\.k:hover/.test(hoverBlock.slice(0, 700)))
+  ok('portrait is handled rather than shrunk into', /id="rotate"/.test(MONITOR_SRC))
+  ok(
+    'the fit follows the visual viewport',
+    /visualViewport/.test(MONITOR_SRC),
+    "Safari's toolbar would leave the unit hanging off the bottom",
+  )
+
+  // A channel delivers to every other subscriber in the same page, so the
+  // monitor hears its own device posts. Merging one would put a __device key
+  // into the patient state.
+  ok(
+    'the monitor ignores device events as state',
+    /e\.data\.__monitor\|\|e\.data\.__device\) return/.test(MONITOR_SRC),
+  )
+  ok(
+    'the run record carries the device timeline',
+    /device:run\.device\.slice\(\)/.test(panelSrc),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Facilitator usability
+//
+// One person drives the scenario and grades the crew. Measured on a 1280x720
+// laptop, the things they touch every few seconds — the patient states, the
+// expected actions, the device timeline — were being pushed below the fold by
+// things touched once: two scenario pickers, the brief, and the team/CPR/
+// PASS-NR strip that is filled in at the debrief. The rhythm buttons and the
+// drug grid sat 800px further down again.
+// ---------------------------------------------------------------------------
+{
+  const panelSrc = readFileSync(PAGE, 'utf8')
+
+  ok(
+    'the run card follows the facilitator down the page',
+    /\.run-card\{[^}]*position:sticky/s.test(panelSrc),
+    'scrolling to the drug grid would cost sight of the phase and the unticked actions',
+  )
+  ok(
+    'and cannot grow taller than the screen it is stuck to',
+    /\.run-card\{max-height:calc\(100vh/.test(panelSrc),
+  )
+  ok(
+    'setup furniture stands down once a run is under way',
+    /body\.run-active \.scenario-row\{display:none;\}/.test(panelSrc),
+  )
+  ok('and can be brought back without ending the run', /function toggleSetup\(\)/.test(panelSrc))
+  ok(
+    'the debrief checklist starts collapsed',
+    /let clOpen=false;/.test(panelSrc),
+    'it was 190px of the most valuable space on the screen, for controls nobody touches until the end',
+  )
+  ok('and its summary keeps the tally in view', /cl-tally/.test(panelSrc) && /cl-res/.test(panelSrc))
+
+  // Exactly one. A second delegated handler double-fires every activation, and
+  // on a toggle — every expected action is one — two clicks cancel out, so
+  // ticking an action from the keyboard silently does nothing.
+  const keyHandlers = (panelSrc.match(/document\.addEventListener\('keydown'/g) || []).length
+  ok(
+    'there is exactly one keyboard-activation handler',
+    keyHandlers === 1,
+    `${keyHandlers} of them — two would cancel each other out on anything that toggles`,
+  )
+
+  // The 12-lead lives in a window the crew can close. The panel's button used
+  // to be a local boolean, so closing it at the unit left the facilitator's
+  // button reading "Close" and swallowed their next press.
+  ok(
+    'the monitor reports whether the 12-lead is actually up',
+    /__monitor:1,lead12:/.test(MONITOR_SRC),
+  )
+  ok('and the panel follows it rather than guessing', /function sync12Lead\(/.test(panelSrc))
+  ok('the panel acts on that heartbeat field', /sync12Lead\(!!e\.data\.lead12\)/.test(panelSrc))
+
+  // Two strip items on the ZX skin were divs with an onclick and no way in
+  // from the keyboard.
+  const stripButtons = (MONITOR_SRC.match(/class="ic"[^>]*role="button"/g) || []).length
+  ok('the ZX strip controls are reachable from the keyboard', stripButtons === 2, `${stripButtons} of 2`)
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)

@@ -38,9 +38,10 @@ an integration task, not a review one — see below.
 
 ## The monitor
 
-`patient_monitor_display.html` is the screen the crew sees. It reads state and
-never writes it. Two skins: **ZX** (numerics down the right) and **LP**
-(numerics down the left, LP-style palette); the switch is in the top bar.
+`patient_monitor_display.html` is the screen the crew sees. It reads patient
+state and never writes it. Two skins: **ZX** (numerics down the right) and
+**LP** — a LIFEPAK 15, chassis and all; the switch floats in the bottom-right
+corner.
 
 Waveforms are Catmull-Rom splines through hand-authored keyframes, baked once
 into 2048-entry lookup tables, then sampled per pixel. Each channel keeps its
@@ -64,7 +65,243 @@ is about 0.48. Do not scale them by the panel height — the y mapping already
 does that, and doing it twice is what used to rail every ST-shifted lead against
 the top of its box and draw it as a square.
 
+## The LIFEPAK 15 skin
+
+The LP skin is the whole unit, not just its screen. Laid out from Figure 3-1 and
+the front-face photograph the operation supplied: carry handle over the top,
+Area 4 keys low on the left face, the display under its `LIFEPAK 15
+MONITOR/DEFIBRILLATOR` label, the printer door along the bottom, and Area 1
+over Areas 3 and 2 — which sit **side by side**, monitoring keys to the left of
+pacing keys — with the speed dial in the bottom corner.
+
+The outline is the LIFEPAK's, but not to the millimetre. The printer, the
+speaker grille and the cable connectors are all inert here — nothing prints,
+nothing sounds through them, nothing plugs in — and between them they were
+spending a third of the unit's height and a tenth of its width on decoration.
+The speaker and the connectors are gone and the printer is a slim door; the
+display went from 54% of the unit's width and 58% of its height to 59% and
+75%. What is kept exact is where the controls sit relative to each other,
+because that is the part a crew is learning.
+
+The two-column arrangement is worth calling out because the manual hides it:
+Areas 2 and 3 are separate figures and separate tables, which reads as two
+stacked groups. The photograph shows them shoulder to shoulder, and the
+highlighted regions on the device thumbnails in Figures 3-3 and 3-4 agree. Control grouping,
+labels, LED behaviour and the numbered 1-2-3 therapy path come from Figures
+3-2 to 3-5 and Tables 3-1 to 3-4 of the LIFEPAK 15 operating instructions. The
+home-screen layout — parameter column left, three waveform channels right,
+channel labels at the right-hand end of each trace — follows the reference
+screen the operation supplied.
+
+The chassis is laid out fluidly rather than drawn at a fixed size and scaled.
+A transform would keep the proportions exact at any window size, but it also
+scales the waveform canvases, and a trace resampled by the compositor is the
+one thing on this screen that has to stay sharp.
+
+### On an iPad
+
+The unit is worked with gloved thumbs on a tablet, so control sizes are not
+styling. Measured before the usability pass, **twelve of eighteen controls were
+under Apple's 44pt minimum on every iPad**, and the three rockers — ENERGY
+SELECT, RATE and CURRENT, the ones tapped repeatedly under pressure — were 20
+to 23pt, half the floor.
+
+Every control is now at least 48 design pixels in its smallest dimension. 48
+rather than 44 because the chassis scales: the worst landscape scale it reaches
+is about 0.93 on an iPad mini, and 48 x 0.93 is 44.6. Verified at iPad Pro 11,
+iPad 10.9, iPad 10.2 and iPad mini — 0 of 18 under 44pt at all four.
+
+Alongside the sizes:
+
+- **The chassis is `position:fixed`.** At 1141px wide, positioned absolutely it
+  widened the layout viewport on a touch device: `innerWidth` came back as 1141
+  instead of the iPad's 834, and the fit concluded the unit already fitted. In
+  portrait it never scaled at all.
+- **Zoom is off** — `maximum-scale=1, user-scalable=no`. This is a fixed-layout
+  instrument that fits itself to the screen; pinching only hides half of it,
+  and a stray double-tap zoom mid-code is a crew that cannot find the shock
+  button.
+- **Long press does not raise the iOS callout.** Holding ON to power the unit
+  down looks exactly like a text selection to iOS.
+- **Hover styles sit behind `@media (hover:hover)`.** iOS leaves `:hover` stuck
+  on whatever was tapped last, so a key looked held long after it was let go.
+- **The speed dial claims its own gesture** with `touch-action:none`, or
+  dragging it scrolls the page instead of turning it.
+- **The fit follows `visualViewport`** where it exists — Safari's toolbar
+  slides and `innerHeight` lags behind it, leaving the unit hanging off the
+  bottom for the length of the animation.
+- **Short screens drop the carry handle and the hazard strip.** They are the
+  last two parts of the chassis that carry nothing, and 36px of them is the
+  difference between a 43pt key and a 45pt one on an iPad mini.
+
+**Portrait shows a rotate prompt rather than a stacked layout.** A LIFEPAK is a
+landscape object and where its controls sit is half of what a crew is here to
+learn; rearranging them into a column would teach the wrong muscle memory, and
+at the 0.73 scale portrait allows every control would fall under the touch
+floor anyway. The unit stays live behind the prompt.
+
+### Who owns what
+
+One boundary carries the whole design:
+
+- **The facilitator owns the patient.** The control panel is still the only
+  writer of rhythm, pressure, saturation, EtCO₂ — everything in `S`.
+- **The crew owns the device.** Selected energy, charge state, lead, ECG size,
+  pacing rate and current, alarm silence, display mode and the shock count live
+  in `D` on the monitor and never leave the page except as an event.
+
+So a shock is charged, delivered, announced and logged, and the patient does
+not change until the facilitator changes it — which is how a megacode station
+is run. `check-simulator.mjs` runs a whole resuscitation through the device and
+asserts that not one field of `S` moved; that check is what fails the day
+somebody makes the shock button convert the rhythm to make a demo look right.
+
+Two things are the unit's own output rather than the patient's response, and
+are drawn:
+
+- **Pacing spikes** appear as soon as pacing current is set. **Capture** is the
+  patient answering them, and stays the facilitator's to give.
+- **ECG size** is display gain. It scales the trace about the baseline, so it
+  can never turn a flat line into a complex.
+
+### The speed dial
+
+"Scrolls through and selects screen **or menu** items" — Table 3-3, and both
+halves matter. Turning it inside a menu moves the selection; turning it on the
+home screen moves a highlight across the parameter blocks and the ECG channel,
+which is the half that did nothing at all.
+
+Pressing on a highlighted item opens its menu. The ECG channel reaches the
+lead and size lists and picking from them drives the real controls — this is a
+second route to LEAD and SIZE, not a display of them. A parameter opens a
+read-out of the alarm limits actually in force, and says plainly when there are
+none. Those are deliberately read-only: limits are the facilitator's to set
+from the panel, and a monitor-side edit would be overwritten by the panel's
+next broadcast a second later.
+
+One defect worth recording. Drag-versus-press was decided on the step
+remainder — the leftover pixels after the 14px detent — so a drag that happened
+to land on an exact multiple of the step size was read as a press. In the EVENT
+menu that silently logged an event nobody chose, straight into the run
+timeline the facilitator grades from. It is decided on total distance
+travelled now.
+
+### Checked against the manufacturer's tables
+
+Every control was audited against Tables 3-1 to 3-4 by driving it and reading
+what happened, not by reading the code. Six deviations came out of that, all
+now fixed and all under check:
+
+| Table says | It was doing |
+| --- | --- |
+| ANALYZE: "LED illuminated when AED is analyzing" | Flashing while analyzing |
+| ANALYZE: "flashes when user is prompted to push ANALYZE" | Never flashed — there was no prompt state |
+| SYNC: "flashes with detection of each QRS" | Never flashed at all |
+| PACER: "flashes with each current pulse" | Flashed on a fixed half-second animation, unrelated to the pacing rate |
+| ALARMS: "LED illuminated when alarms are enabled" | Went dark when silenced, telling a crew the alarms were off when they had two minutes of quiet |
+| ENERGY SELECT and CHARGE: "in Manual mode" | Both worked during a Shock Advisory analysis |
+
+The two patient-driven LEDs are the ones worth describing. **SYNC** is a real
+detector: it runs over the samples the ECG channel is drawn from — about one
+every 8ms — and fires on the rising edge of each R wave with 200ms of
+refractory blanking. Measured, it flashes at 40, 60, 100 and 150/min against
+those heart rates, not at all in asystole, and erratically in VF, which is the
+point: a crew has to be able to see that the unit cannot lock onto a
+fibrillating rhythm before they try to cardiovert it. It also marks each
+detected complex on the trace, because confirming the markers land on R waves
+is the whole reason to press SYNC. **PACER** runs off the same clock as the
+pacing spikes, so the LED and the trace cannot disagree about when the pacer
+fired, and `PAUSE` drops it to a quarter rate while held.
+
+Sampling per animation frame was the trap here. A 60fps loop gives one reading
+every 17ms and an R wave is narrow enough to fall between two of them, so beats
+went missing and the flash rate stopped tracking the heart rate. Detection has
+to happen on the drawn samples.
+
+Three LEDs are stated rather than simulated: **AC** and **BATTERY** are held
+illuminated (a trainer on mains with full batteries), and **SERVICE** stays
+dark because there is no fault model to light it.
+
+### What the keys do
+
+`ON` (hold to switch off) · `CPR` metronome at 110/min · `ANALYZE` runs an
+eight-second analysis and advises — and says `CONNECT ELECTRODES` rather than
+"no shock advised" when it has no ECG at the pads, because advising against a
+shock it cannot see teaches a crew to trust the one reading that means nothing
+· `LEAD` and `SIZE` cycle · `SYNC` · `ENERGY SELECT` walks the manual-mode
+ladder and throws away any charge when it moves · `CHARGE` takes 5.2s with a
+rising tone and disarms itself after 60s · `SHOCK` only fires armed · `PACER`
+with `RATE`, `CURRENT` and hold-to-`PAUSE` · `NIBP` takes the reading away for
+25s while the cuff cycles · `ALARMS` enables, then silences for two minutes ·
+`OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects ·
+`HOME SCREEN` clears any selection and closes menus · the display-mode key toggles **SunVue**, the unit's
+high-contrast outdoor mode, which repaints the canvases on a light ground with
+dark traces rather than recolouring the chrome.
+
+Area 4 follows Table 3-4 exactly: `12-LEAD` acquires and prints one record,
+`TRANSMIT` sends it, `CODE SUMMARY` prints the critical event record, and
+`PRINT` **starts and stops** the printer — it is a toggle running a continuous
+strip, not a one-shot like the two record keys beside it.
+
+### The timeline
+
+Every press posts `{__device: event}` on the same `simState` channel the panel
+pushes state down. It is one-way — the panel ignores it as state, and so does
+the monitor, which hears its own posts because a channel delivers to every
+other subscriber in the page as well as to other tabs.
+
+The panel timestamps each event against the run, shows it live in an **At the
+monitor** column, and saves it with the record. That timeline is what answers
+the questions the checklist asks and nobody can measure while both facilitating
+and grading: time to first shock, the energies used, how long the pause around
+one ran, whether compressions came straight back.
+
+### Auto-ticking, and its limits
+
+Three checklist steps tick themselves from the device, and deliberately no
+more. Most of the AHA megacode checklist is about recognition, verbalisation
+and clinical appropriateness — "Verbalizes potential reversible causes",
+"Administers appropriate drug(s) and doses" — and a button press is no evidence
+of any of it. Ticking those from the device would be fabricating the
+assessment.
+
+What is left is where the press and the step are the same fact:
+
+| Event | Step |
+| --- | --- |
+| `SHOCK ADVISED` after the crew pressed ANALYZE | Recognizes VF / pVT |
+| CPR metronome started within 15s of a shock | Immediately resumes CPR after shocks |
+| Pacing switched on | Prepares for second-line treatment |
+
+Only in the phase the facilitator currently has the patient in — a step belongs
+to its section, and ticking one three phases ahead marks something that has not
+been asked for yet. Every auto-tick is labelled **from monitor** in the console
+and comes off on a click, and the click makes it the facilitator's: they remain
+the assessor of record.
+
 ## Facilitating and grading
+
+One person drives the scenario and grades the crew, so the layout is measured
+against that. On a 1280x720 laptop the things touched every few seconds — the
+patient states, the expected actions, the device timeline — were being pushed
+below the fold by things touched once: two scenario pickers, the brief, and the
+team/CPR/PASS-NR strip that is filled in at the debrief. The rhythm buttons and
+the drug grid sat 800px further down again, so giving a drug meant losing sight
+of the phase and the unticked actions.
+
+Three changes, all measured:
+
+- **The run card is sticky.** Scroll to the drug grid and the states, the
+  expected actions and the device feed stay pinned at the top. It also carries
+  its own max height, so it can never be taller than the screen it is stuck to.
+- **The scenario pickers stand down during a run** and come back on a button
+  that does not end it.
+- **The debrief checklist is collapsed** behind a summary line carrying the
+  tally and the result, because team behaviour, CPR quality and PASS / NR are
+  graded once at the end.
+
+Together those took the run card from about 500px to 397px and put everything
+needed during a code above the fold at 1280x720.
 
 One person runs these scenarios. They drive the patient and assess the crew at
 the same time, so both live in one band across the top of the console: the
@@ -301,18 +538,24 @@ improvement.
 
 ## Known gaps
 
-- **The alarm is visual only.** The control panel offers alarm ON / MUTE and the
-  monitor honours them, but only by blinking the banner — there is no tone. A
-  browser will not start audio until the page itself has been interacted with,
-  so a tone added naively would be silent until someone clicked the monitor,
-  which is worse than clearly having none. If it is wanted, it needs an
-  AudioContext resumed on first interaction and a visible indication of whether
-  audio is armed.
-- **P3 on the bottom bar is a placeholder** with no state behind it.
-- **The 12-lead does not follow the rhythm** once open (see above), and closing
-  it from the monitor's own `12` button leaves the control panel's toggle
-  believing it is still open, so the next click there is swallowed.
-- **Both pages assume a wide screen.** The monitor is an absolutely positioned
-  fixed layout; the control panel's grid is authored against 960px with
-  breakpoints below that. Neither is usable on a phone, which is worth knowing
-  given CES is installed as a phone PWA.
+- **The crew cannot reach the keys on a wall display.** The chassis is drawn on
+  the assumption the crew works the unit on a touchscreen or a laptop. Thrown
+  on a TV it is still readable, but the buttons are then decoration. That is a
+  consequence of drawing the whole unit rather than a defect in it.
+- **The 12-lead is a snapshot.** It renders the rhythm as it stands when the
+  window opens and does not follow later changes, which is what a printed
+  acquisition is. Re-acquiring re-renders it.
+- **The control panel assumes a wide screen.** Its grid is authored against
+  960px with breakpoints below that, so it works on a laptop or a landscape
+  iPad and not on a phone. The monitor no longer has this problem — it is a
+  fixed layout scaled to the window, with a rotate prompt in portrait — but the
+  panel has not had the same treatment. It is a facilitator's console rather
+  than something carried, so this has not been worth the rework yet.
+- **Three LEDs are stated rather than simulated.** AC and BATTERY are held
+  illuminated — a trainer on mains with full batteries — and SERVICE stays dark
+  because there is no fault model behind it.
+- **Megacodes 6 to 12** exist on the AHA checklist but are not built: only
+  pages 235-239 of the manual were scanned, so three of the six checklists are
+  transcribed.
+- **Adult Abdominal Trauma and Pediatric TBI have no source document.** They
+  keep their vitals and notes but are not graded.

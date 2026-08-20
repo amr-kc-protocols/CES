@@ -2511,6 +2511,12 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .sim-act { font-size: 13px; line-height: 1.5; padding-left: 2px; }
 .sim-act.ok { color: #0a7d43; }
 .sim-act.miss { color: #9a3412; }
+/* One press at the defibrillator, in a saved run. The column of offsets is
+   what gets read down at a debrief, so it is tabular and left of everything. */
+.sim-dev { display: flex; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.5; padding: 1px 0; }
+.sim-dev-t { flex: 0 0 42px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.sim-dev.shock { color: var(--crit); font-weight: 600; }
+
 .sim-run-note {
   margin-top: 10px; padding: 8px 10px; border-radius: 7px;
   background: var(--surface-2, #f2f5f9); font-size: 13px; line-height: 1.5;

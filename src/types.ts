@@ -1234,7 +1234,29 @@ export interface SimRunChecklist {
   result: 'pass' | 'nr' | null
 }
 
+/**
+ * One press at the defibrillator, as the monitor reported it.
+ *
+ * The crew works the LIFEPAK skin themselves; every control posts what it did
+ * to the control panel, which timestamps it against the run. This is the only
+ * part of a run nobody had to remember to write down, and it is what the
+ * timing questions on the checklist — time to first shock, whether
+ * compressions came straight back after one — are answered from.
+ */
+export interface SimRunDeviceEvent {
+  /** Seconds from the start of the run. */
+  at: number
+  /** Machine key: 'shock', 'charge', 'analyze', 'cpr', 'pacer', 'autotick'… */
+  type: string
+  /** What the device called it — 'SHOCK', 'ALARMS SILENCED', 'SHOCK ADVISED'. */
+  label: string
+  /** The specifics: '200J synchronized · shock #2', '80 ppm', 'III'. */
+  detail: string
+}
+
 export interface SimRun extends Partial<SimRunChecklist> {
+  /** Present once a run has been driven from the monitor; absent otherwise. */
+  device?: SimRunDeviceEvent[]
   id: string
   /** Scenario key in the control panel's SIMULATIONS, e.g. 'drowning'. */
   scenario: string
