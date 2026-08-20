@@ -693,6 +693,132 @@ function loadMonitor(storage = {}) {
 }
 
 {
+  // The LED assertions need a live page: these are behaviours, not stylesheet
+  // values, and every one of them failed before this pass.
+  const { w } = loadMonitor()
+  const call = (fn) => w.eval(fn)
+// ---- LED behaviour, as Tables 3-1 to 3-3 describe it --------------------
+// The manual is precise about these and the distinctions matter to a crew:
+// an LED that is "illuminated" is not one that "flashes", and one that
+// "flashes with detection of each QRS" is driven by the patient rather than
+// by a timer. All six of the assertions below failed before this pass.
+const cls = (id) => {
+  const e = w.document.getElementById(id)
+  return e ? [...e.classList].filter((c) => c !== 'led').sort().join('+') || 'off' : 'MISSING'
+}
+const tick = () => call('devTick()')
+
+// "LED illuminated when AED is analyzing the ECG, and flashes when user is
+// prompted to push ANALYZE." Two states, two behaviours.
+w.eval('D.analyzing = true; D.analyzeUntil = Date.now() + 9e5; D.reanalyzeAt = 0')
+tick()
+ok('ANALYZE is illuminated while analyzing', cls('ledANALYZE') === 'on', cls('ledANALYZE'))
+w.eval('D.analyzing = false; D.reanalyzeAt = Date.now() - 1')
+tick()
+ok('and flashes when a rhythm check is due', cls('ledANALYZE') === 'flash', cls('ledANALYZE'))
+w.eval('D.reanalyzeAt = Date.now() + 9e5')
+tick()
+ok('and is dark in between', cls('ledANALYZE') === 'off', cls('ledANALYZE'))
+
+// "LED illuminated when alarms are enabled and flashes when an alarm
+// condition occurs." Silencing is not disabling — the LED going dark told a
+// crew the alarms were off when they had two minutes of quiet.
+w.eval('D.alarms = true; D.silenceUntil = Date.now() + 6e4')
+tick()
+ok('ALARMS stays illuminated while silenced', cls('ledALARMS') === 'amber', cls('ledALARMS'))
+w.eval('D.alarms = false; D.silenceUntil = 0')
+tick()
+ok('and is dark when alarms are off', cls('ledALARMS') === 'off', cls('ledALARMS'))
+w.eval('D.alarms = true; almBreaching = true')
+tick()
+ok('and flashes on an alarm condition', cls('ledALARMS').includes('flash'), cls('ledALARMS'))
+w.eval('almBreaching = false')
+
+// "Flashes with detection of each QRS." A detector, not a timer: it runs on
+// the samples the trace is drawn from, so it finds nothing in a flat line.
+const scanQrs = w.eval('scanQrs')
+const spx = 125
+const beats = (rateBpm, seconds) => {
+  // A synthetic trace: baseline with a narrow spike once per beat.
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  const n = Math.round(seconds * spx)
+  const per = 60 / rateBpm
+  let found = 0
+  for (let i = 0; i < n; i += 64) {
+    const chunk = []
+    for (let j = i; j < Math.min(i + 64, n); j++) {
+      const t = j / spx
+      const phase = ((t % per) + per) % per
+      chunk.push(phase < 0.03 ? 0.95 : 0.5)
+    }
+    found += scanQrs(chunk, i / spx, spx)
+  }
+  return found
+}
+ok('QRS detection tracks 60/min', beats(60, 10) === 10, `${beats(60, 10)} in 10s`)
+ok('and 150/min', beats(150, 10) === 25, `${beats(150, 10)} in 10s`)
+const flat = (() => {
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  return scanQrs(new Array(1200).fill(0.5), 0, spx)
+})()
+ok('and finds nothing in a flat line', flat === 0, `${flat} detections on a flat trace`)
+const noTrace = (() => {
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  return scanQrs(new Array(1200).fill(null), 0, spx)
+})()
+ok('and nothing at all with the patient disconnected', noTrace === 0, `${noTrace} detections`)
+// Refractory blanking: a complex with a rebound must count once, not twice.
+const doubled = (() => {
+  w.eval('qrsArmed = true; qrsLastT = -1')
+  const n = 10 * spx, per = 60 / 150
+  const out = []
+  for (let j = 0; j < n; j++) {
+    const ph = ((j / spx) % per + per) % per
+    out.push(ph < 0.03 || (ph > 0.05 && ph < 0.075) ? 0.95 : 0.5)
+  }
+  return scanQrs(out, 0, spx)
+})()
+ok(
+  'a complex with a rebound is one detection, not two',
+  doubled === 25,
+  `${doubled} detections where 25 beats occurred`,
+)
+
+// "Flashes with each current pulse" — the pacer's own clock, so the LED and
+// the spikes on the trace cannot disagree.
+const pacePulsed = w.eval('pacePulsed')
+const paces = (rate, ma, seconds) => {
+  w.eval(`D.pacer = true; D.pacerMa = ${ma}; D.pacerRate = ${rate}; D.pacePaused = false; lastPacePhase = 1`)
+  let n = 0
+  for (let i = 0; i < seconds * 200; i++) if (pacePulsed(i / 200)) n++
+  return n
+}
+ok('pacing pulses at the set rate', paces(60, 70, 10) === 10, `${paces(60, 70, 10)} in 10s at 60ppm`)
+ok('and follows the rate up', paces(120, 70, 10) === 20, `${paces(120, 70, 10)} in 10s at 120ppm`)
+ok('and stops at zero current', paces(60, 0, 10) === 0, `${paces(60, 0, 10)} pulses with no current`)
+// "Temporarily slows pacing rate", Table 3-2.
+w.eval('D.pacer = true; D.pacerMa = 70; D.pacerRate = 80; D.pacePaused = true; lastPacePhase = 1')
+let paused = 0
+for (let i = 0; i < 2000; i++) if (pacePulsed(i / 200)) paused++
+ok('PAUSE slows the pacing rate', paused === 4, `${paused} in 10s at 80ppm paused — a quarter of 13`)
+w.eval('D.pacer = false; D.pacerMa = 0; D.pacePaused = false')
+
+// "Charges the defibrillator in Manual mode" / "Increases or decreases
+// energy level in Manual mode", Table 3-1. Neither is available while the
+// Shock Advisory System is running.
+w.eval('D.analyzing = true; D.charged = false; D.charging = false')
+const eBefore = w.eval('energy()')
+call('nudgeEnergy(1)')
+ok('ENERGY SELECT is inert during an analysis', w.eval('energy()') === eBefore, 'energy moved mid-analysis')
+call('startCharge()')
+ok('and CHARGE is too', w.eval('D.charging') === false, 'the unit charged mid-analysis')
+w.eval('D.analyzing = false')
+call('nudgeEnergy(1)')
+ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
+  w.close()
+}
+
+{
   // Cross-file. Both of these fail silently in the room: a device event with
   // no icon draws a bullet in the facilitator's timeline, and an auto-tick
   // whose pattern matches no real step simply never fires, which looks exactly

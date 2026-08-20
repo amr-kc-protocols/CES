@@ -164,6 +164,42 @@ are drawn:
 - **ECG size** is display gain. It scales the trace about the baseline, so it
   can never turn a flat line into a complex.
 
+### Checked against the manufacturer's tables
+
+Every control was audited against Tables 3-1 to 3-4 by driving it and reading
+what happened, not by reading the code. Six deviations came out of that, all
+now fixed and all under check:
+
+| Table says | It was doing |
+| --- | --- |
+| ANALYZE: "LED illuminated when AED is analyzing" | Flashing while analyzing |
+| ANALYZE: "flashes when user is prompted to push ANALYZE" | Never flashed — there was no prompt state |
+| SYNC: "flashes with detection of each QRS" | Never flashed at all |
+| PACER: "flashes with each current pulse" | Flashed on a fixed half-second animation, unrelated to the pacing rate |
+| ALARMS: "LED illuminated when alarms are enabled" | Went dark when silenced, telling a crew the alarms were off when they had two minutes of quiet |
+| ENERGY SELECT and CHARGE: "in Manual mode" | Both worked during a Shock Advisory analysis |
+
+The two patient-driven LEDs are the ones worth describing. **SYNC** is a real
+detector: it runs over the samples the ECG channel is drawn from — about one
+every 8ms — and fires on the rising edge of each R wave with 200ms of
+refractory blanking. Measured, it flashes at 40, 60, 100 and 150/min against
+those heart rates, not at all in asystole, and erratically in VF, which is the
+point: a crew has to be able to see that the unit cannot lock onto a
+fibrillating rhythm before they try to cardiovert it. It also marks each
+detected complex on the trace, because confirming the markers land on R waves
+is the whole reason to press SYNC. **PACER** runs off the same clock as the
+pacing spikes, so the LED and the trace cannot disagree about when the pacer
+fired, and `PAUSE` drops it to a quarter rate while held.
+
+Sampling per animation frame was the trap here. A 60fps loop gives one reading
+every 17ms and an R wave is narrow enough to fall between two of them, so beats
+went missing and the flash rate stopped tracking the heart rate. Detection has
+to happen on the drawn samples.
+
+Three LEDs are stated rather than simulated: **AC** and **BATTERY** are held
+illuminated (a trainer on mains with full batteries), and **SERVICE** stays
+dark because there is no fault model to light it.
+
 ### What the keys do
 
 `ON` (hold to switch off) · `CPR` metronome at 110/min · `ANALYZE` runs an

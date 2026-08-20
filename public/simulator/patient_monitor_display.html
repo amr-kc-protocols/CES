@@ -326,6 +326,11 @@ body.lp-skin #devUnder{display:flex;}
 .led.amber{background:#ffc043;box-shadow:0 0 5px #ffc043;}
 .led.red{background:#ff4a3d;box-shadow:0 0 5px #ff4a3d;}
 .led.flash{animation:ledFlash .5s steps(1,end) infinite;}
+/* A single bright pulse, fired per event rather than on a timer. The manual
+   distinguishes an LED that "flashes" on a cycle from one that "flashes with
+   detection of each QRS" or "with each current pulse" — those two are driven
+   by the patient and the pacer, and a fixed animation cannot represent them. */
+.led.pulse{background:#ffffff;box-shadow:0 0 9px 2px #fff;}
 @keyframes ledFlash{0%,49%{opacity:1}50%,100%{opacity:.15}}
 .ledrow{display:flex;justify-content:space-around;align-items:center;padding:1px 0 2px;}
 .lediz{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;color:#e6e6e6;}
@@ -2548,10 +2553,13 @@ function drawChannel(id, fn, stroke, fill){
   // Sample once; a null reading means this channel has nothing to draw (the
   // patient is not connected) and the trace is left blank rather than flat.
   const ys=new Array(count+1);
+  const vs=(id==='cEcg')?new Array(count+1):null;
   for(let i=0;i<=count;i++){
     const v=fn(TT-(count-i)/spx);
+    if(vs) vs[i]=v;
     ys[i]=(v===null||v===undefined)?null:yp(v);
   }
+  if(vs&&D.on) scanQrs(vs,TT-count/spx,spx);
 
   if(fill){
     ctx.fillStyle=fill;
@@ -2614,6 +2622,9 @@ const LEADS=['I','II','III','aVR','aVL','aVF','PADDLES'];
 const CHARGE_MS=5200;      // 360J charge time on a fresh battery, per the manual
 const DISARM_MS=60000;     // the unit disarms itself if the shock is not delivered
 const ANALYZE_MS=8000;
+/* AED rhythm-check interval. The unit prompts for the next analysis after a
+   two-minute CPR cycle, which is when its ANALYZE LED starts flashing. */
+const ANALYZE_CYCLE_MS=120000;
 const NIBP_MS=25000;
 const SILENCE_MS=120000;
 
@@ -2622,7 +2633,7 @@ const D={
   energyIx:ENERGIES.indexOf(200),
   charging:false, charged:false, chargeStart:0, disarmAt:0,
   shocks:0, lastShockAt:0,
-  sync:false, cpr:false, analyzing:false, analyzeUntil:0, advisory:'',
+  sync:false, cpr:false, analyzing:false, analyzeUntil:0, advisory:'', reanalyzeAt:0,
   pacer:false, pacerRate:70, pacerMa:0, pacePaused:false,
   alarms:true, silenceUntil:0,
   sunvue:false,
@@ -2790,7 +2801,10 @@ function disarm(reason){
   banner(null);
 }
 function startCharge(){
-  if(!D.on||D.charging) return;
+  // "Charges the defibrillator in Manual mode", Table 3-1. While the Shock
+  // Advisory System is running the unit is not in Manual mode, and neither
+  // this nor ENERGY SELECT is available.
+  if(!D.on||D.charging||D.analyzing){ if(D.analyzing) beep(220,120,.08,'square'); return; }
   if(D.charged){ return; }
   D.charging=true; D.chargeStart=Date.now();
   chargeTone(true);
@@ -2805,6 +2819,8 @@ function chargeDone(){
 function deliverShock(){
   if(!D.charged) return;
   D.shocks++; D.lastShockAt=Date.now();
+  // Shock, then two minutes of CPR, then the unit asks for another rhythm check.
+  if(D.advisory) D.reanalyzeAt=Date.now()+ANALYZE_CYCLE_MS;
   D.charged=false; D.disarmAt=0;
   readyTone(false);
   beep(140,300,.2,'square');
@@ -2812,11 +2828,21 @@ function deliverShock(){
   banner('SHOCK DELIVERED  '+energy()+'J',2500,true,false);
 }
 
+/* ── LED pulses ──────────────────────────────────────────────────────── */
+const pulseUntil={};
+function pulseLed(id,ms){ pulseUntil[id]=Date.now()+(ms||90); }
+function applyPulses(now){
+  for(const id in pulseUntil){
+    const e=document.getElementById(id);
+    if(e) e.classList.toggle('pulse',now<pulseUntil[id]);
+  }
+}
+
 /* ── Analyze ─────────────────────────────────────────────────────────── */
 const SHOCKABLE=['vfib','vtach','pvt','torsades'];
 function startAnalyze(){
   if(!D.on||D.analyzing) return;
-  D.analyzing=true; D.analyzeUntil=Date.now()+ANALYZE_MS;
+  D.analyzing=true; D.analyzeUntil=Date.now()+ANALYZE_MS; D.reanalyzeAt=0;
   logEvent('analyze','ANALYZE','started');
   banner('ANALYZING  —  DO NOT TOUCH THE PATIENT',0,true,true);
 }
@@ -2825,6 +2851,7 @@ function finishAnalyze(){
   // No electrodes is its own answer. Announcing "no shock advised" at a
   // patient the unit cannot see would teach a crew to accept the one reading
   // that means nothing at all.
+  D.reanalyzeAt=Date.now()+ANALYZE_CYCLE_MS;
   if(!S.patientConnected){
     D.advisory='CONNECT ELECTRODES';
     logEvent('advisory',D.advisory,'no ECG at the pads');
@@ -2951,6 +2978,7 @@ bind('kSYNC',()=>{ if(!D.on) return; D.sync=!D.sync;
 
 function nudgeEnergy(d){
   if(!D.on) return;
+  if(D.analyzing){ beep(220,120,.08,'square'); return; }   // Manual mode only
   const was=energy();
   D.energyIx=Math.max(0,Math.min(ENERGIES.length-1,D.energyIx+d));
   if(energy()!==was){
@@ -3027,9 +3055,64 @@ bind('kPRINT',()=>{ if(!D.on) return; printerRun(!D.printing);
   });
 })();
 
+/* ── QRS detection, for Sync ─────────────────────────────────────────────
+   "LED illuminated when Sync mode is active and flashes with detection of
+   each QRS" — Table 3-1. Detection, not a timer: this watches the same signal
+   the trace is drawn from and fires on the rising edge of each R wave, so it
+   finds nothing in asystole and fires erratically in VF, which is exactly
+   what a crew needs to see before attempting a synchronized cardioversion. */
+/* Runs over the per-pixel samples the ECG channel is already drawing — about
+   one every 8ms at 25mm/s — rather than once per animation frame. Sampling
+   per frame gives one reading every 17ms, and an R wave is narrow enough to
+   fall between two of them: beats went missing and the flash rate stopped
+   tracking the heart rate at all. Detecting on the drawn samples also means
+   the LED and the marker cannot disagree with the complex on screen. */
+const QRS_ON=0.74;
+/* Refractory blanking, as a real detector uses. Without it a tall complex was
+   counted twice — once on the R upstroke and again on the rebound out of the
+   S wave — and the flash rate ran 20% over the heart rate at 150bpm. 200ms
+   also caps the count at 300/min, which is what stops a fibrillating trace
+   from producing a strobe. */
+const QRS_REFRACTORY=0.2;
+let qrsArmed=true, qrsLastT=-1;
+/* x positions of complexes found this frame, for the markers above the trace. */
+let qrsMarks=[];
+function scanQrs(vals,t0,spx){
+  qrsMarks.length=0;
+  for(let i=0;i<vals.length;i++){
+    const v=vals[i];
+    if(v===null||v===undefined){ qrsArmed=true; continue; }
+    const t=t0+i/spx;
+    if(qrsArmed&&v>=QRS_ON&&(qrsLastT<0||t-qrsLastT>=QRS_REFRACTORY)){
+      qrsArmed=false; qrsLastT=t; qrsMarks.push(i);
+    } else if(!qrsArmed&&v<QRS_ON*0.8) qrsArmed=true;
+  }
+  if(qrsMarks.length&&D.sync) pulseLed('ledSYNC');
+  return qrsMarks.length;
+}
+
+/* ── Pacing pulse clock ──────────────────────────────────────────────────
+   "LED illuminated when function is activated and flashes with each current
+   pulse" — Table 3-2. Same clock the pacing spikes are drawn from, so the
+   LED and the trace cannot disagree about when the pacer fired. */
+let lastPacePhase=1;
+function pacePulsed(t){
+  if(!D.pacer||D.pacerMa<=0) { lastPacePhase=1; return false; }
+  const rate=D.pacePaused?D.pacerRate*0.25:D.pacerRate;
+  const per=60/Math.max(rate,1);
+  const ph=((t%per)+per)%per/per;
+  const fired=ph<lastPacePhase;
+  lastPacePhase=ph;
+  return fired;
+}
+
 /* ── Per-frame device tick ───────────────────────────────────────────── */
 function devTick(){
   const now=Date.now();
+  // The pacing clock is the device's own; the QRS detector runs inside the
+  // ECG draw, on the samples the trace is made of.
+  if(D.on&&pacePulsed(TT)) pulseLed('ledPACER');
+  applyPulses(now);
   if(D.charging&&now-D.chargeStart>=CHARGE_MS) chargeDone();
   if(D.charged&&D.disarmAt&&now>=D.disarmAt) disarm('60s without a shock');
   if(D.analyzing&&now>=D.analyzeUntil) finishAnalyze();
@@ -3039,13 +3122,19 @@ function devTick(){
   const set=(id,cls,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle(cls,!!on);};
   set('ledON','on',D.on);
   set('ledCPR','on',D.cpr);
+  // Illuminated while the Shock Advisory System runs; flashing when the unit
+  // is asking for the next rhythm check. Two different states, and the manual
+  // gives them two different behaviours.
+  const prompting=D.on&&!D.analyzing&&D.reanalyzeAt>0&&now>=D.reanalyzeAt;
   set('ledANALYZE','on',D.analyzing);
-  set('ledANALYZE','flash',D.analyzing);
+  set('ledANALYZE','flash',prompting);
   set('ledSYNC','on',D.sync);
   set('ledPACER','amber',D.pacer);
-  set('ledPACER','flash',D.pacer&&D.pacerMa>0&&!D.pacePaused);
   set('ledNIBP','on',nibpBusy());
-  set('ledALARMS','amber',D.alarms&&!(now<D.silenceUntil));
+  // "illuminated when alarms are enabled" — silencing is not disabling, and
+  // the LED going dark said the crew had turned the alarms off when they had
+  // only quietened them for two minutes. The countdown is on the status line.
+  set('ledALARMS','amber',D.alarms);
   set('ledALARMS','flash',almBreaching&&D.alarms);
   set('ledSHOCK','red',D.charged);
   set('ledSHOCK','flash',D.charged);
