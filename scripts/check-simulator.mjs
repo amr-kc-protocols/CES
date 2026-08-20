@@ -144,6 +144,7 @@ function load(file = PAGE) {
   w.sv('etco2', 22)
   ok('EtCO2 is adjustable during a worked arrest', S().etco2 === 22, String(S().etco2))
   ok('and the arrest itself still holds 0/0', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  w.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +187,7 @@ function load(file = PAGE) {
 
   w.muteAlm()
   ok('mute shows as muted', d.getElementById('almMute').className.includes('off') && text('almMute') === 'MUTED')
+  w.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +271,7 @@ function load(file = PAGE) {
   w.applySimState('abdominal_trauma', 0)
   ok('applying a sim state clears drugs on board', w.eval('activeDrugs').length === 0)
   ok('and lands on that state\'s own vitals', S().sbp === 78 && S().hr === 132, `HR ${S().hr} SBP ${S().sbp}`)
+  w.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -1238,6 +1241,94 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     w.document.getElementById('kHOME').dispatchEvent(new w.MouseEvent('click', { bubbles: true }))
     opened = w.eval('window.__opened||0')
     ok('HOME SCREEN never opens one', opened === 0, 'it is a way back, not a toggle')
+    w.close()
+  }
+
+  // ---- What the run card costs the rest of the console ------------------
+  // Reported from a live ACLS megacode: the panel goes "clunky" once the run
+  // card is up. Measured mid-code at 1366x768 it was 411px of a 768px viewport
+  // — 54% of the screen held permanently while the facilitator worked the
+  // vitals, capnography and drug controls in what was left. Two answers by
+  // width: a rail in the dead margin beside the 960px page on wide screens, a
+  // 52px summary line on narrow ones.
+  // Found by its content, not by the number in it, so moving the breakpoint
+  // fails the breakpoint check rather than silently emptying this slice.
+  const railAt = panelSrc.search(/@media \(min-width:\d+px\)\{\n\s*\/\* run-mode alone/)
+  const railBlock = railAt < 0 ? '' : panelSrc.slice(railAt)
+  const rail = railBlock.slice(0, railBlock.indexOf('\n}'))
+  ok('the run card has a wide-screen rail', rail.includes('.run-card{position:fixed'))
+  const railW = parseInt((rail.match(/\.run-card\{[^}]*?width:(\d+)px/s) || [])[1] || 0)
+  const bodyPad = parseInt((rail.match(/body\.run-mode\{padding-right:(\d+)px/) || [])[1] || 0)
+  ok(
+    'the page is padded clear of the rail',
+    railW > 0 && bodyPad >= railW,
+    `rail ${railW}px, padding ${bodyPad}px — content would sit under it`,
+  )
+  const threshold = parseInt((rail.match(/@media \(min-width:(\d+)px\)/) || [])[1] || 0)
+  ok(
+    'the rail only turns on where there is room for it',
+    threshold >= railW + 900,
+    `${threshold}px is not enough for a ${railW}px rail beside the page`,
+  )
+  // The rail is a column, and the three-column band inside it has to be told
+  // so *after* the rule it is beating — a media query adds no specificity.
+  ok('the band goes to one column in the rail', /\.run-cols\{grid-template-columns:1fr/.test(rail))
+  const threeCol = panelSrc.indexOf('.run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr')
+  ok('the full-width band is still three columns', threeCol >= 0, 'the rule this order depends on is gone')
+  ok(
+    'and the rail override comes after the rule it beats',
+    threeCol >= 0 && railAt >= 0 && threeCol < railAt,
+    'source order puts the three-column rule last, so the rail would keep three columns',
+  )
+
+  ok('narrow screens get a condensed bar instead', /\.run-card\.condensed \.run-cols/.test(panelSrc))
+  ok('the bar carries the phase, the tally and the clock', /id="rmClock"/.test(panelSrc) && /rm-phase/.test(panelSrc) && /rm-num/.test(panelSrc))
+  ok('and a way to end the run without opening the card', /class="end-btn rm-end"/.test(panelSrc))
+  ok('the bar is a tap target in its own right', /\.run-mini\{[^}]*?min-height:52px/s.test(panelSrc))
+  const endH = parseInt((panelSrc.match(/\.run-mini \.rm-end\{[^}]*?min-height:(\d+)px/s) || [])[1] || 0)
+  ok('its End button clears 44pt', endH >= 44, `${endH}px`)
+
+  {
+    const { w } = load()
+    w.eval("document.getElementById('simScenarioSel').value='megacode1'; applySimScenario()")
+    // The clock. run.states[i].seconds is only banked when a state is left, so
+    // reading the totals alone stops the clock the moment a run starts.
+    const t0 = w.eval('runElapsed()')
+    w.eval('run.enteredAt -= 5000')
+    const t1 = w.eval('runElapsed()')
+    ok('the run clock counts the state on screen', t1 - t0 >= 5, `${t0} -> ${t1}`)
+    const tally0 = w.eval('JSON.stringify(miniTally())')
+    w.eval('toggleAction(0)')
+    const tally1 = w.eval('JSON.stringify(miniTally())')
+    ok('the tally follows a tick', JSON.parse(tally1).done === JSON.parse(tally0).done + 1, `${tally0} -> ${tally1}`)
+
+    // Condensing, with layout faked — jsdom has none.
+    const past = (yes) =>
+      w.eval(`document.getElementById('runSentinel').getBoundingClientRect=()=>({bottom:${yes ? -10 : 10}})`)
+    const cond = () => w.eval("document.getElementById('runCard').classList.contains('condensed')")
+    const width = (px) => w.eval(`Object.defineProperty(window,'innerWidth',{value:${px},configurable:true})`)
+    width(1180)
+    past(false); w.eval('applyRunCondense()')
+    ok('the card is whole while it is still on screen', !cond())
+    past(true); w.eval('applyRunCondense()')
+    ok('and condenses once the page has scrolled past it', cond())
+    w.eval('expandRunCard()')
+    ok('a tap opens it again', !cond())
+    w.eval('applyRunCondense()')
+    ok('and it stays open while the facilitator works below it', !cond())
+    past(false); w.eval('applyRunCondense()')
+    past(true); w.eval('applyRunCondense()')
+    ok('scrolling back to the top resets that', cond())
+    width(1440)
+    w.eval('RAIL_MQ=null; applyRunCondense()')
+    ok('the rail never condenses — it costs no vertical space to start with', !cond())
+    width(1180)
+    w.eval('RAIL_MQ=null; endRun(); applyRunCondense()')
+    ok(
+      'the finished-run summary never condenses',
+      !cond(),
+      'it has no bar to fall back to and would collapse to an empty strip',
+    )
     w.close()
   }
 

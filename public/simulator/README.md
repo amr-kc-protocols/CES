@@ -366,6 +366,30 @@ Three changes, all measured:
 Together those took the run card from about 500px to 397px and put everything
 needed during a code above the fold at 1280x720.
 
+That was not enough. Reported from a live ACLS megacode: the panel goes
+"clunky" once a run is up, and the vitals, capnography and drug controls end up
+in a strip below it. Measured mid-code, the card is 411px tall and the page is
+capped at 960px wide, so a 1366x768 laptop was giving it 54% of the viewport
+permanently. Two answers, by how much room there is:
+
+- **Wide screens (≥1320px) get a rail.** The page never uses more than 960px,
+  so a laptop has ~460px of dead margin either side — the card moves into it,
+  fixed to the right edge, and costs no vertical space at all. Measured at
+  1920, 1512, 1440 and 1366: the whole controls grid is on screen with the run
+  alongside it, 100% of the viewport height free, no overlap and no horizontal
+  scroll. Inside the rail the band goes to one column, which takes the
+  expected-action rows from 127px wide and wrapping over two or three lines to
+  347px and one line each.
+- **Narrow screens condense.** Once the page scrolls past it the card drops to
+  a 52px line — the phase in its own colour, the scenario, a running clock, the
+  ticked-actions tally and an End button — and a tap puts the whole card back
+  until the facilitator scrolls to the top again. Measured on iPad landscape
+  and portrait: 93–95% of the viewport free where it used to be 46–54%.
+
+The clock on that bar counts the state on screen, not just the banked totals:
+`run.states[i].seconds` is only written when a state is *left*, so summing the
+totals alone would show a run frozen at 0:00 until the first transition.
+
 One person runs these scenarios. They drive the patient and assess the crew at
 the same time, so both live in one band across the top of the console: the
 patient states on the left (click to drive), the state's **Expected Actions** in
