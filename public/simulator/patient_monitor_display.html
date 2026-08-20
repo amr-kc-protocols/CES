@@ -155,6 +155,23 @@ html,body{
 .yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
 /* -- Skin switcher — floats over the corner in both skins, so it never has to
    live inside a status line that is meant to look like the real device. -- */
+#joinBox{
+  position:fixed;top:calc(58px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  z-index:94;display:flex;align-items:center;gap:8px;padding:8px 12px;
+  background:#11151a;border:1px solid #3a434e;border-radius:10px;color:#d8dde3;
+  font:700 13px/1 'Arial Narrow',Arial,sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.5);
+}
+#joinBox[hidden]{display:none;}
+#joinBox.error{border-color:#a8341f;}
+#joinBox input{width:104px;min-height:44px;padding:0 10px;text-transform:uppercase;
+  font:bold 17px/1 monospace;letter-spacing:4px;text-align:center;
+  background:#04222b;border:1px solid #00c8e0;border-radius:6px;color:#00e5ff;}
+#joinBox button{min-height:44px;padding:0 14px;border-radius:6px;cursor:pointer;
+  background:#00506b;border:1px solid #00c8e0;color:#bff4ff;font:700 13px/1 'Arial Narrow',Arial,sans-serif;
+  touch-action:manipulation;}
+#joinBox button.ghost{background:none;border-color:#3a434e;color:#9aa2ab;}
+.join-t{color:#9aa2ab;}
+
 #armAudio{
   position:fixed;top:calc(6px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
   z-index:95;min-height:44px;padding:0 16px;cursor:pointer;
@@ -863,12 +880,19 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
   <span class="a-on">🔊 Alarm sound on</span>
 </button>
 
+<!-- Shown until this window is either being driven locally or has joined a
+     session. Dismissible, because most runs are two windows on one laptop. -->
+<div id="joinBox" class="join off"></div>
+
 <div id="skinbar">
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
   <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
   <button class="skb" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
 </div>
 
+<!-- Cross-device relay. Optional: without it the monitor still works as a
+     second window on the facilitator's own machine. -->
+<script type="module" src="/simulator/relay.js"></script>
 <script>
 /* ── State ────────────────────────────────── */
 let S={hr:78,rhythm:'nsr',lead:'II',sbp:121,dbp:79,spo2:97,etco2:36,rr:11,co2Shape:'normal',temp:36.9,tempUnit:'C',patientType:'Adult',alarmOn:true,alarmMuted:false,hrAlarmLow:50,hrAlarmHigh:120,spo2AlarmLow:94,artActive:false,artSbp:121,artDbp:79,artScale:180,artLinked:true,artDamping:'normal',artSite:'Radial — Left',sgActive:false,sgSbp:25,sgDbp:10,sgPcwp:8,sgCvp:5,sgMode:'pa',sgScale:40,sgSite:'Right Internal Jugular',pvcOn:false,pacOn:false,ectFreq:6,patientConnected:false,spo2Quality:'excellent',scenario:'',etco2On:false};
@@ -879,6 +903,53 @@ let pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
 const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
 function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
 ld(); // load saved state on startup
+
+/* ── Cross-device session ──────────────────────────────────────────────────
+   The channel below only reaches other windows in this browser. On an iPad in
+   the bay, the panel is on the facilitator's laptop and there is no shared
+   browser at all — so the monitor can also join a Supabase Realtime channel
+   named by the session code the panel shows. State comes down it; the
+   heartbeat and every device event go back up it. Same payloads either way,
+   so nothing downstream knows or cares which path a message arrived on. */
+let relay=null, relayState='off';
+function relayReady(){ return relay&&relayState==='live'; }
+function joinSession(code){
+  if(!window.CESRelay){ setJoinUi('error','Relay unavailable — reload the page'); return; }
+  const c=window.CESRelay.normaliseCode(code);
+  if(c.length!==6){ setJoinUi('error','Six characters'); return; }
+  relay=window.CESRelay.joinSession({
+    code:c, role:'monitor',
+    onState:st=>{ if(st&&!st.__monitor&&!st.__device) S={...S,...st}; },
+    onStatus:(s2,detail)=>{ relayState=s2; setJoinUi(s2,detail); },
+  });
+  setJoinUi('joining',c);
+  try{ localStorage.setItem('ces.sim.session',c); }catch(e){}
+}
+function leaveSession(){
+  if(window.CESRelay) window.CESRelay.leaveSession();
+  relay=null; relayState='off';
+  try{ localStorage.removeItem('ces.sim.session'); }catch(e){}
+  setJoinUi('off');
+}
+function setJoinUi(st,detail){
+  const el=document.getElementById('joinBox');
+  if(!el) return;
+  el.className='join '+st;
+  if(st==='live'){
+    // Connected: the panel is driving this screen, and the crew should be
+    // looking at a monitor rather than at a connection notice.
+    el.innerHTML='';
+    el.hidden=true;
+    return;
+  }
+  el.hidden=false;
+  el.innerHTML=st==='joining'
+    ? `<span class="join-t">Joining ${detail||''}…</span>`
+    : `<span class="join-t">${st==='error'?(detail||'Could not join'):'Monitor on a second device?'}</span>
+       <input id="joinCode" maxlength="6" placeholder="CODE" autocapitalize="characters" autocomplete="off">
+       <button onclick="joinSession(document.getElementById('joinCode').value)">Join</button>
+       <button class="ghost" onclick="document.getElementById('joinBox').hidden=true">Not now</button>`;
+}
 
 // BroadcastChannel — receives live updates from Control Panel the instant any
 // control changes, and carries this window's heartbeat and device events back.
@@ -901,7 +972,11 @@ try{
   // whether the 12-lead window is actually up. The panel's toggle used to be a
   // local boolean, so a crew closing the 12-lead at the unit left the
   // facilitator's button reading "Close" and swallowed their next press.
-  const beat=()=>{ try{ stateBc.postMessage({__monitor:1,lead12:!!(w12Lead&&!w12Lead.closed)}); }catch(e){} };
+  const beat=()=>{
+    const hb={__monitor:1,lead12:!!(w12Lead&&!w12Lead.closed)};
+    try{ stateBc.postMessage(hb); }catch(e){}
+    if(relayReady()) relay.sendBack(hb);
+  };
   setInterval(beat,1000);
   beat();
 }catch(e){}
@@ -2696,6 +2771,7 @@ function logEvent(type,label,detail){
   D.log.push(ev);
   if(D.log.length>400) D.log.shift();
   try{ const c=devBc(); c&&c.postMessage({__device:ev}); }catch(e){}
+  if(relayReady()) relay.sendBack({__device:ev});
 }
 
 /* ── Tones ───────────────────────────────────────────────────────────── */
@@ -3386,6 +3462,15 @@ function loop(){
   if(now-lastNums>=125){ lastNums=now; upNums(); }
   requestAnimationFrame(loop);
 }
+/* A monitor that has joined a session before rejoins it, so an iPad woken up
+   mid-class does not need the code typed again. */
+setTimeout(()=>{
+  let saved='';
+  try{ saved=localStorage.getItem('ces.sim.session')||''; }catch(e){}
+  if(saved&&window.CESRelay) joinSession(saved);
+  else setJoinUi('off');
+},400);
+
 fitDevice();
 requestAnimationFrame(loop);
 </script>

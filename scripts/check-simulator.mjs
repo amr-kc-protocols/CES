@@ -1059,6 +1059,95 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
 }
 
 // ---------------------------------------------------------------------------
+// Pacing capture, and the second device
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  const key = Object.keys(w.eval('SCENARIO_DOCS')).find((k) => k.startsWith('megacode'))
+  w.applySimState(key, 0)
+  w.startRun(key)
+  w.enterRunState(0)
+  w.renderSimPanel(key)
+  const prompt = () => d.getElementById('pacerPrompt')
+  const feed = (type, label, detail) =>
+    w.onDeviceEvent({ t: new Date().toISOString(), ms: Date.now(), type, label, detail })
+
+  ok('no pacing prompt before the crew paces', prompt() && prompt().hidden === true)
+  feed('pacer', 'PACER ON', '70 ppm · 0 mA')
+  ok(
+    'and none at zero current',
+    prompt().hidden === true,
+    'the pacer is on but delivering nothing — there is nothing to capture yet',
+  )
+  feed('pacerCurrent', 'PACING CURRENT', '70 mA')
+  feed('pacerRate', 'PACING RATE', '90 ppm')
+  ok('the prompt appears once current is set', prompt().hidden === false)
+  ok(
+    'and carries the settings the crew dialled in',
+    /90 ppm/.test(prompt().textContent) && /70 mA/.test(prompt().textContent),
+    prompt().textContent.replace(/\s+/g, ' ').trim(),
+  )
+
+  // Capture is the patient answering the impulse, so it stays a press the
+  // facilitator makes — but at the crew's rate, in one press, rather than
+  // requiring them to know that "Paced" in the rhythm list is the answer.
+  const before = { rhythm: S().rhythm, hr: S().hr }
+  w.giveCapture()
+  ok('giving capture paces the patient', S().rhythm === 'paced', S().rhythm)
+  ok('at the rate the crew set', S().hr === 90, String(S().hr))
+  ok('and the prompt offers to take it away', /Take capture away/.test(prompt().textContent))
+  w.loseCapture()
+  ok(
+    'losing capture returns the rhythm that was there',
+    S().rhythm === before.rhythm && S().hr === before.hr,
+    `${S().rhythm} ${S().hr}, expected ${before.rhythm} ${before.hr}`,
+  )
+  ok(
+    'both are on the same timeline as the crew’s presses',
+    w.eval("run.device.filter(e => e.type === 'capture').length") === 2,
+  )
+  w.close()
+}
+
+{
+  // The second device. BroadcastChannel and localStorage are same-origin AND
+  // same-browser: they carry the two windows on one laptop and cannot reach an
+  // iPad across the room at all. The relay is the third path, and it is
+  // additive — with no session, everything below still works as it did.
+  const panelSrc = readFileSync(PAGE, 'utf8')
+
+  ok('the panel publishes state to a session', /if\(relayReady\(\)\) relay\.send\(S\);/.test(panelSrc))
+  ok(
+    'and still publishes on the same-machine channel',
+    /if\(bc\) bc\.postMessage\(S\);/.test(panelSrc),
+    'the local path must survive — it is what works with no network',
+  )
+  ok('the monitor sends its heartbeat up the relay', /if\(relayReady\(\)\) relay\.sendBack\(hb\);/.test(MONITOR_SRC))
+  ok(
+    'and every device event with it',
+    /if\(relayReady\(\)\) relay\.sendBack\(\{__device:ev\}\);/.test(MONITOR_SRC),
+  )
+  ok(
+    'the monitor never adopts a heartbeat as patient state',
+    /if\(st&&!st\.__monitor&&!st\.__device\) S=\{\.\.\.S,\.\.\.st\};/.test(MONITOR_SRC),
+    'the relay carries three kinds of message on one channel',
+  )
+  for (const f of [PAGE, MONITOR])
+    ok(
+      `${f.endsWith('control_panel.html') ? 'the panel' : 'the monitor'} loads the relay`,
+      /<script type="module" src="\/simulator\/relay\.js"><\/script>/.test(readFileSync(f, 'utf8')),
+    )
+
+  // Session codes get read off a laptop screen and typed on an iPad by someone
+  // standing up.
+  const relaySrc = readFileSync(join(here, '..', 'src', 'simulator', 'relay.ts'), 'utf8')
+  const alpha = relaySrc.match(/const ALPHABET = '([^']+)'/)?.[1] ?? ''
+  ok('the session alphabet exists', alpha.length > 0)
+  for (const ch of ['O', '0', 'I', '1', 'L', 'S', '5', 'B', '8'])
+    ok(`session codes avoid ${ch}`, !alpha.includes(ch), 'misread on a projector or a small screen')
+}
+
+// ---------------------------------------------------------------------------
 // Facilitator usability
 //
 // One person drives the scenario and grades the crew. Measured on a 1280x720
