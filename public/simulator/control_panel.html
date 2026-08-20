@@ -218,6 +218,42 @@ select:focus{border-color:#00e5ff;}
 /* Sticky only helps if it is not itself taller than the viewport. On a short
    screen the card scrolls internally rather than pushing the controls off. */
 .run-card{max-height:calc(100vh - 12px);overflow-y:auto;}
+
+/* ...but sticky is not free. Measured mid-megacode, the card is 411px tall and
+   the page is capped at 960px wide, so on a 1366x768 laptop it held 54% of the
+   viewport permanently while the facilitator worked the vitals, capnography and
+   drug controls in the 357px left over. Reported from a live ACLS run as the
+   panel being "clunky" and everything else being "quite a bit smaller".
+   Two ways out, by how much room there is:
+
+   Wide screens get a rail. The page never uses more than 960px, so a 1440px
+   laptop has ~460px of dead margin either side — the card moves into it and
+   costs no vertical space at all. 1320px is where 960 + a 380px rail + the
+   body padding still fits without squeezing the three-column grid.           */
+
+/* Narrow screens have no margin to give, so the card condenses instead. Once
+   the page scrolls past it, it drops to a single 52px line — which phase the
+   patient is in, how long, how many actions are ticked, and the way out — and
+   a tap puts the whole thing back. That keeps the reason it was made sticky
+   (never losing sight of the phase or the tally while scrolling to give a
+   drug) at an eighth of the height. */
+.run-mini{display:none;align-items:center;gap:12px;min-height:52px;cursor:pointer;}
+.run-card.condensed{padding:0 12px;}
+.run-card.condensed .run-head,
+.run-card.condensed .run-cols,
+.run-card.condensed .cl-wrap{display:none;}
+.run-card.condensed .run-mini{display:flex;}
+.run-mini .rm-chev{color:var(--t-dim);font-size:.8rem;width:14px;flex:0 0 auto;}
+.run-mini .rm-phase{font-size:.72rem;font-weight:bold;letter-spacing:.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.run-mini .rm-name{font-size:.6rem;color:var(--t-dim);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.run-mini .rm-sp{margin-left:auto;display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+.run-mini .rm-num{font-size:.66rem;color:var(--t);font-variant-numeric:tabular-nums;
+  white-space:nowrap;}
+.run-mini .rm-num.all-done{color:#7fe0a5;}
+.run-mini .rm-end{padding:8px 14px;min-height:44px;}
+@media (max-width:520px){ .run-mini .rm-name{display:none;} }
 .run-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;
   padding-bottom:9px;border-bottom:1px solid #1e3a52;}
 .run-head .rh-name{font-size:.76rem;color:#ff9900;font-weight:bold;line-height:1.3;}
@@ -225,6 +261,31 @@ select:focus{border-color:#00e5ff;}
 .run-head .rh-sp{margin-left:auto;}
 .run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:16px;}
 @media (max-width:820px){.run-cols{grid-template-columns:1fr;}}
+
+/* The rail overrides live here, after the .run-cols rules they have to beat —
+   a media query adds no specificity, so source order is all there is. */
+@media (min-width:1320px){
+  /* run-mode alone, not run-active: the finished-run summary lives in the
+     same card and would otherwise sit on top of the controls. */
+  body.run-mode{padding-right:400px;}
+  .run-card{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:none;
+    max-height:none;margin:0;border-radius:0;border-left:1px solid #1e3a52;
+    border-top:none;border-right:none;border-bottom:none;
+    overflow-y:auto;z-index:40;box-shadow:-8px 0 22px rgba(0,0,0,.5);}
+  /* One column in a rail. Measured against three: the expected-action rows go
+     from 127px wide and two or three lines each to 347px and one line each,
+     and the states and actions — the two things touched constantly — both sit
+     above the fold on a 768px screen. What scrolls off is the trigger prose
+     and the monitor feed, which are read, not tapped. */
+  .run-cols{grid-template-columns:1fr;gap:12px;}
+  .run-head{flex-direction:column;align-items:stretch;}
+  /* The header is one flex row at full width; in a 380px rail it has to wrap
+     or the End run button hangs off the edge of the screen. */
+  .run-head .rh-sp{margin-left:0;flex-wrap:wrap;}
+  .run-head .rh-sp input{flex:1 1 100%;width:100%;}
+  .run-head .rh-sp .end-btn{flex:1 1 auto;}
+  .run-mini{display:none !important;}
+}
 .run-cols .col-h{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
 .run-card .state-btn{margin-bottom:4px;}
 .run-card .sim-note{margin-top:8px;}
@@ -488,6 +549,7 @@ body.run-mode .card.bp{grid-row:1/3;}
   <div class="brief-body" id="briefBody" hidden></div>
 </div>
 
+<div id="runSentinel" aria-hidden="true"></div>
 <div class="card run-card" id="runCard" hidden></div>
 
 <div class="grid">
@@ -976,6 +1038,19 @@ function startSession(code){
   setSessionUi('joining',c);
   localStorage.setItem('ces.sim.session',c);
 }
+// Broadcast keeps no history, so a monitor only ever hears what is said after
+// it subscribes. The panel publishes on change, which means an iPad that joins
+// mid-scenario — the normal order, since the facilitator starts the session
+// and the crew type the code afterwards — sits on the monitor's defaults until
+// the next slider moves. Defaults carry patientConnected:false, which is how
+// that screen draws "no patient": blank traces. The same happens after any
+// reconnect, and an iPad that sleeps for a moment reconnects.
+//
+// So the whole of S goes out again on a slow cadence while a session is live.
+// One small message every two seconds, against an eventsPerSecond budget of
+// 20, and the monitor merges it, so a repeat of what it already has is a no-op.
+setInterval(()=>{ if(relayReady()) relay.send(S); },2000);
+
 function endSession(){
   if(window.CESRelay) window.CESRelay.leaveSession();
   relay=null; relayState='off';
@@ -2315,6 +2390,62 @@ function endRun(){
   renderSimPanel(rec.scenario);
 }
 
+// ── The run card's footprint ─────────────────────────────────────────────────
+// See the CSS above for the measurements. Wide screens put the card in the
+// dead margin beside the 960px page; narrow ones condense it to a line once
+// the facilitator has scrolled past it, and a tap brings it back for as long
+// as they want it.
+// Resolved on first use rather than at load: matchMedia is missing in the
+// jsdom the check script runs this page in, and a throw at the top level takes
+// the whole panel down with it. innerWidth is the same answer either way.
+let RAIL_MQ=null;
+function railMode(){
+  if(!RAIL_MQ&&window.matchMedia) RAIL_MQ=window.matchMedia('(min-width:1320px)');
+  return RAIL_MQ?RAIL_MQ.matches:window.innerWidth>=1320;
+}
+
+// Elapsed run time. run.states[i].seconds only banks a state when it is left,
+// so the state on screen has to be added live or the clock stops on entry.
+function runElapsed(){
+  if(!run) return 0;
+  let n=run.states.reduce((t,st)=>t+st.seconds,0);
+  if(run.current>=0) n+=Math.round((Date.now()-run.enteredAt)/1000);
+  return n;
+}
+function miniTally(){
+  const rs=run&&run.current>=0&&run.states[run.current];
+  return rs?{done:rs.actions.filter(a=>a.done).length,total:rs.actions.length}:{done:0,total:0};
+}
+
+// Expanded by hand stays expanded: ticking four actions in a row should not
+// fight a card that re-collapses under you. Scrolling back to the top of the
+// page clears it, which is the same gesture that would have shown it anyway.
+let runExpanded=false;
+function expandRunCard(){ runExpanded=true; applyRunCondense(); }
+function applyRunCondense(){
+  const card=document.getElementById('runCard');
+  const sent=document.getElementById('runSentinel');
+  if(!card||!sent) return;
+  const past=sent.getBoundingClientRect().bottom<0;
+  if(!past) runExpanded=false;
+  // Only the live run has a bar to condense to. The finished-run summary is
+  // rendered into the same card and would collapse to an empty strip.
+  const hasBar=!!card.querySelector('.run-mini');
+  card.classList.toggle('condensed',hasBar&&!railMode()&&past&&!runExpanded);
+}
+window.addEventListener('scroll',applyRunCondense,{passive:true});
+window.addEventListener('resize',applyRunCondense);
+// The mini bar is keyboard-reachable like every other role="button" here; the
+// delegated Enter/Space handler further down covers it.
+
+// One second is enough for a clock in mm:ss, and writing the one text node
+// rather than re-rendering keeps the crew and debrief-note inputs from losing
+// what is being typed into them.
+setInterval(()=>{
+  const el=document.getElementById('rmClock');
+  if(el&&run) el.textContent=mmss(runElapsed());
+},1000);
+
 function toggleSetup(){ document.body.classList.toggle('setup-open'); }
 
 function newRun(){ lastRun=null; const k=activeSim; if(k&&SCENARIO_DOCS[k]){ startRun(k); applySimState(k,0); } }
@@ -2574,7 +2705,8 @@ function renderSimPanel(simKey){
   // A finished run stays on screen — this is what the debrief is read from.
   if(lastRun&&lastRun.scenario===simKey){
     (graded?card:panel).innerHTML=runSummaryHtml(lastRun);
-    if(graded) panel.innerHTML='';
+    // The summary has no mini bar to fall back to, so it never condenses.
+    if(graded){ panel.innerHTML=''; card.classList.remove('condensed'); }
     return;
   }
 
@@ -2607,8 +2739,21 @@ function renderSimPanel(simKey){
   if(graded){
     // Full width: states, the checklist and the triggers side by side, so a
     // facilitator can see the whole run without scrolling mid-scenario.
-    panel.innerHTML='<div class="no-sim" style="padding:10px 0;">Running above ↑</div>';
+    panel.innerHTML='<div class="no-sim" style="padding:10px 0;">'+
+      (railMode()?'Running in the rail \u2192':'Running above \u2191')+'</div>';
     card.innerHTML=`
+      <div class="run-mini" role="button" tabindex="0" onclick="expandRunCard()"
+           title="Tap to open the full run card">
+        <span class="rm-chev">\u25b8</span>
+        <span class="rm-phase" style="color:${st?st.color:'#e6edf5'}">${esc(st?st.label:'')}</span>
+        <span class="rm-name">${esc(sim.name)}</span>
+        <span class="rm-sp">
+          <span class="rm-num" id="rmClock">${mmss(runElapsed())}</span>
+          <span class="rm-num${miniTally().done&&miniTally().done===miniTally().total?' all-done':''}">\u2713 ${miniTally().done}/${miniTally().total}</span>
+          <button class="end-btn rm-end" style="width:auto;"
+                  onclick="event.stopPropagation();endRun()">\u25a0 End</button>
+        </span>
+      </div>
       <div class="run-head">
         <div class="rh-name">📋 ${esc(sim.name)}<br><span class="rh-sub">${esc(sim.subtitle)}</span></div>
         <div class="rh-sp run-inline">
@@ -2633,6 +2778,7 @@ function renderSimPanel(simKey){
       ${run&&run.checklist?checklistStripHtml():''}`;
     renderDeviceFeed();
     renderPacerPrompt();
+    applyRunCondense();
     return;
   }
 

@@ -69,6 +69,17 @@ is about 0.48. Do not scale them by the panel height — the y mapping already
 does that, and doing it twice is what used to rail every ST-shifted lead against
 the top of its box and draw it as a square.
 
+It opens as a **separate window**, not an element in this document, so the only
+handle on it is `w12Lead`. Everything that closes it goes through
+`close12Lead()`; the old HOME SCREEN binding tested for an in-page element named
+`lead12`, which has never existed, so the guard was always false and the key did
+nothing — the crew at the unit had no way off the 12-lead. There are now four
+ways out: the **✕ Close** button in the window's own bar, **Escape** inside it,
+the **12-LEAD** key (a toggle), and **HOME SCREEN** (a way back, so it closes
+but never opens). A popup this page did not open itself cannot always close
+itself; when `window.close()` is refused the window shows a line telling the
+reader to switch tabs rather than sitting there looking stuck.
+
 ## A monitor on a second device
 
 The intended setup is the monitor on an iPad the crew reads and the panel on
@@ -93,6 +104,44 @@ Three things worth knowing:
 - **Session codes drop the ambiguous characters.** No O/0, I/1/L, S/5 or B/8:
   they are read off a laptop screen and typed on an iPad by someone standing
   up.
+
+### Why the iPad used to go blank
+
+Reported from a live scenario: the iPad joined the session, drew a few seconds
+of the relayed rhythm and went blank. Two independent causes, both of them
+about localStorage being a *local* thing, and both reproduced before being
+fixed.
+
+**The 250ms poll was clobbering the relay.** The monitor reads `simState` from
+localStorage on load and polls it every 250ms as the fallback for browsers
+where BroadcastChannel is unavailable. On one machine that is the panel's own
+state. On a second device it is the leftovers of whatever was last run *on that
+device* — and any iPad the panel has ever been open on carries a `simState`
+with `patientConnected:false`, which is exactly how this screen draws "no
+patient": blank traces, not a flatline. So relayed state landed and was merged
+back over four times a second. The poll now stands down as soon as something
+better is proven to work: a joined relay session (this device is a client of
+another machine, and its own disk has nothing to say about the patient) or a
+BroadcastChannel that has actually delivered (the fallback is not needed). A
+join that *failed* is not a source, so local state comes back rather than
+leaving the screen stuck.
+
+**Nothing was published to a monitor that joined late.** Broadcast keeps no
+history, so a monitor only ever hears what is said after it subscribes, and the
+panel publishes on change. The normal order is the facilitator starting the
+session and the crew typing the code afterwards, which meant the iPad sat on
+the monitor's defaults — `patientConnected:false` again — until the next slider
+moved. The same after every reconnect, and an iPad that sleeps for a moment
+reconnects. The panel now republishes the whole of `S` every two seconds while
+a session is live: one small message against an `eventsPerSecond` budget of 20,
+and the monitor merges it, so a repeat of what it already has is a no-op.
+
+Both are covered end to end by a test that runs the panel and the monitor in
+two isolated browser contexts — separate localStorage, separate
+BroadcastChannel namespace — with a broker standing in for Supabase, and checks
+that a monitor joining mid-scenario picks the patient up, holds it with nobody
+touching anything, and is drawing the relayed rhythm rather than merely
+holding the numbers.
 
 The relay is built as its own Vite entry at a stable filename
 (`/simulator/relay.js`) so the two static pages can load it without a bundler
@@ -354,6 +403,30 @@ Three changes, all measured:
 
 Together those took the run card from about 500px to 397px and put everything
 needed during a code above the fold at 1280x720.
+
+That was not enough. Reported from a live ACLS megacode: the panel goes
+"clunky" once a run is up, and the vitals, capnography and drug controls end up
+in a strip below it. Measured mid-code, the card is 411px tall and the page is
+capped at 960px wide, so a 1366x768 laptop was giving it 54% of the viewport
+permanently. Two answers, by how much room there is:
+
+- **Wide screens (≥1320px) get a rail.** The page never uses more than 960px,
+  so a laptop has ~460px of dead margin either side — the card moves into it,
+  fixed to the right edge, and costs no vertical space at all. Measured at
+  1920, 1512, 1440 and 1366: the whole controls grid is on screen with the run
+  alongside it, 100% of the viewport height free, no overlap and no horizontal
+  scroll. Inside the rail the band goes to one column, which takes the
+  expected-action rows from 127px wide and wrapping over two or three lines to
+  347px and one line each.
+- **Narrow screens condense.** Once the page scrolls past it the card drops to
+  a 52px line — the phase in its own colour, the scenario, a running clock, the
+  ticked-actions tally and an End button — and a tap puts the whole card back
+  until the facilitator scrolls to the top again. Measured on iPad landscape
+  and portrait: 93–95% of the viewport free where it used to be 46–54%.
+
+The clock on that bar counts the state on screen, not just the banked totals:
+`run.states[i].seconds` is only written when a state is *left*, so summing the
+totals alone would show a run frozen at 0:00 until the first transition.
 
 One person runs these scenarios. They drive the patient and assess the crew at
 the same time, so both live in one band across the top of the console: the

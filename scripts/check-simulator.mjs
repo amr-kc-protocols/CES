@@ -144,6 +144,7 @@ function load(file = PAGE) {
   w.sv('etco2', 22)
   ok('EtCO2 is adjustable during a worked arrest', S().etco2 === 22, String(S().etco2))
   ok('and the arrest itself still holds 0/0', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  w.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +187,7 @@ function load(file = PAGE) {
 
   w.muteAlm()
   ok('mute shows as muted', d.getElementById('almMute').className.includes('off') && text('almMute') === 'MUTED')
+  w.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +271,7 @@ function load(file = PAGE) {
   w.applySimState('abdominal_trauma', 0)
   ok('applying a sim state clears drugs on board', w.eval('activeDrugs').length === 0)
   ok('and lands on that state\'s own vitals', S().sbp === 78 && S().hr === 132, `HR ${S().hr} SBP ${S().sbp}`)
+  w.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -1200,6 +1203,207 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   )
   ok('and the panel follows it rather than guessing', /function sync12Lead\(/.test(panelSrc))
   ok('the panel acts on that heartbeat field', /sync12Lead\(!!e\.data\.lead12\)/.test(panelSrc))
+
+  // ...and the crew at the unit need a way out of it. Reported from a live
+  // scenario: once the 12-lead was up there was no way off it. The popup had
+  // no close control of its own, and HOME SCREEN — the key the manual makes
+  // the way back to the home display — tested for an in-page element named
+  // `lead12` that has never existed, because the 12-lead is a separate window
+  // held in `w12Lead`. So the guard was always false and HOME did nothing.
+  const twelve = MONITOR_SRC.slice(
+    MONITOR_SRC.indexOf('function open12Lead'),
+    MONITOR_SRC.indexOf('function close12Lead'),
+  )
+  ok('the 12-lead window carries its own close control', /class="closebtn"/.test(twelve))
+  ok('that control calls close12()', /onclick="close12\(\)"/.test(twelve))
+  ok('and Escape works from inside it', /if\(e\.key==='Escape'\) close12\(\)/.test(twelve))
+  ok(
+    'a window that cannot close itself says so rather than looking stuck',
+    /id="closeHint"/.test(twelve),
+  )
+  ok(
+    'nothing looks for the 12-lead as an element in this document',
+    !/getElementById\('lead12'\)/.test(MONITOR_SRC),
+    'a popup window is not a node here — that guard can never be true',
+  )
+  {
+    // Behavioural: HOME SCREEN closes an open 12-lead, and does not open one.
+    const { w } = loadMonitor()
+    w.eval('setPower(true)')
+    let closed = 0
+    w.eval('w12Lead={closed:false,close(){this.closed=true;window.__closed=(window.__closed||0)+1}}')
+    w.document.getElementById('kHOME').dispatchEvent(new w.MouseEvent('click', { bubbles: true }))
+    closed = w.eval('window.__closed||0')
+    ok('HOME SCREEN closes the 12-lead window', closed === 1, `close() called ${closed} times`)
+    ok('and lets go of the handle', w.eval('w12Lead===null'))
+    let opened = 0
+    w.eval('open12Lead=function(){window.__opened=(window.__opened||0)+1}')
+    w.document.getElementById('kHOME').dispatchEvent(new w.MouseEvent('click', { bubbles: true }))
+    opened = w.eval('window.__opened||0')
+    ok('HOME SCREEN never opens one', opened === 0, 'it is a way back, not a toggle')
+    w.close()
+  }
+
+  // ---- What the run card costs the rest of the console ------------------
+  // Reported from a live ACLS megacode: the panel goes "clunky" once the run
+  // card is up. Measured mid-code at 1366x768 it was 411px of a 768px viewport
+  // — 54% of the screen held permanently while the facilitator worked the
+  // vitals, capnography and drug controls in what was left. Two answers by
+  // width: a rail in the dead margin beside the 960px page on wide screens, a
+  // 52px summary line on narrow ones.
+  // Found by its content, not by the number in it, so moving the breakpoint
+  // fails the breakpoint check rather than silently emptying this slice.
+  const railAt = panelSrc.search(/@media \(min-width:\d+px\)\{\n\s*\/\* run-mode alone/)
+  const railBlock = railAt < 0 ? '' : panelSrc.slice(railAt)
+  const rail = railBlock.slice(0, railBlock.indexOf('\n}'))
+  ok('the run card has a wide-screen rail', rail.includes('.run-card{position:fixed'))
+  const railW = parseInt((rail.match(/\.run-card\{[^}]*?width:(\d+)px/s) || [])[1] || 0)
+  const bodyPad = parseInt((rail.match(/body\.run-mode\{padding-right:(\d+)px/) || [])[1] || 0)
+  ok(
+    'the page is padded clear of the rail',
+    railW > 0 && bodyPad >= railW,
+    `rail ${railW}px, padding ${bodyPad}px — content would sit under it`,
+  )
+  const threshold = parseInt((rail.match(/@media \(min-width:(\d+)px\)/) || [])[1] || 0)
+  ok(
+    'the rail only turns on where there is room for it',
+    threshold >= railW + 900,
+    `${threshold}px is not enough for a ${railW}px rail beside the page`,
+  )
+  // The rail is a column, and the three-column band inside it has to be told
+  // so *after* the rule it is beating — a media query adds no specificity.
+  ok('the band goes to one column in the rail', /\.run-cols\{grid-template-columns:1fr/.test(rail))
+  const threeCol = panelSrc.indexOf('.run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr')
+  ok('the full-width band is still three columns', threeCol >= 0, 'the rule this order depends on is gone')
+  ok(
+    'and the rail override comes after the rule it beats',
+    threeCol >= 0 && railAt >= 0 && threeCol < railAt,
+    'source order puts the three-column rule last, so the rail would keep three columns',
+  )
+
+  ok('narrow screens get a condensed bar instead', /\.run-card\.condensed \.run-cols/.test(panelSrc))
+  ok('the bar carries the phase, the tally and the clock', /id="rmClock"/.test(panelSrc) && /rm-phase/.test(panelSrc) && /rm-num/.test(panelSrc))
+  ok('and a way to end the run without opening the card', /class="end-btn rm-end"/.test(panelSrc))
+  ok('the bar is a tap target in its own right', /\.run-mini\{[^}]*?min-height:52px/s.test(panelSrc))
+  const endH = parseInt((panelSrc.match(/\.run-mini \.rm-end\{[^}]*?min-height:(\d+)px/s) || [])[1] || 0)
+  ok('its End button clears 44pt', endH >= 44, `${endH}px`)
+
+  {
+    const { w } = load()
+    w.eval("document.getElementById('simScenarioSel').value='megacode1'; applySimScenario()")
+    // The clock. run.states[i].seconds is only banked when a state is left, so
+    // reading the totals alone stops the clock the moment a run starts.
+    const t0 = w.eval('runElapsed()')
+    w.eval('run.enteredAt -= 5000')
+    const t1 = w.eval('runElapsed()')
+    ok('the run clock counts the state on screen', t1 - t0 >= 5, `${t0} -> ${t1}`)
+    const tally0 = w.eval('JSON.stringify(miniTally())')
+    w.eval('toggleAction(0)')
+    const tally1 = w.eval('JSON.stringify(miniTally())')
+    ok('the tally follows a tick', JSON.parse(tally1).done === JSON.parse(tally0).done + 1, `${tally0} -> ${tally1}`)
+
+    // Condensing, with layout faked — jsdom has none.
+    const past = (yes) =>
+      w.eval(`document.getElementById('runSentinel').getBoundingClientRect=()=>({bottom:${yes ? -10 : 10}})`)
+    const cond = () => w.eval("document.getElementById('runCard').classList.contains('condensed')")
+    const width = (px) => w.eval(`Object.defineProperty(window,'innerWidth',{value:${px},configurable:true})`)
+    width(1180)
+    past(false); w.eval('applyRunCondense()')
+    ok('the card is whole while it is still on screen', !cond())
+    past(true); w.eval('applyRunCondense()')
+    ok('and condenses once the page has scrolled past it', cond())
+    w.eval('expandRunCard()')
+    ok('a tap opens it again', !cond())
+    w.eval('applyRunCondense()')
+    ok('and it stays open while the facilitator works below it', !cond())
+    past(false); w.eval('applyRunCondense()')
+    past(true); w.eval('applyRunCondense()')
+    ok('scrolling back to the top resets that', cond())
+    width(1440)
+    w.eval('RAIL_MQ=null; applyRunCondense()')
+    ok('the rail never condenses — it costs no vertical space to start with', !cond())
+    width(1180)
+    w.eval('RAIL_MQ=null; endRun(); applyRunCondense()')
+    ok(
+      'the finished-run summary never condenses',
+      !cond(),
+      'it has no bar to fall back to and would collapse to an empty strip',
+    )
+    w.close()
+  }
+
+  // ---- The monitor on a second device -----------------------------------
+  // Reported from a live scenario: the iPad joined the session, drew a few
+  // seconds of the relayed rhythm and went blank. Two independent causes, both
+  // of them about localStorage being a *local* thing.
+  ok(
+    'the localStorage poll asks whether it is allowed to run',
+    /setInterval\(\(\)=>\{\n\s*if\(localStateAllowed\(\)\) ld\(\);/.test(MONITOR_SRC),
+    'the poll merges the local snapshot unconditionally',
+  )
+  ok(
+    'a joined relay session stops it',
+    /if\(relay&&relayState!=='error'\) return false;/.test(MONITOR_SRC),
+  )
+  ok('and a channel that has delivered stops it too', /return !bcDelivered;/.test(MONITOR_SRC))
+  ok('the channel says when it has delivered', /bcDelivered=true;/.test(MONITOR_SRC))
+
+  {
+    // Behavioural, with the stale copy an iPad carries after the panel has
+    // ever been open on it — patientConnected:false, which is how the monitor
+    // draws no patient at all.
+    const stale = JSON.stringify({ hr: 78, rhythm: 'nsr', patientConnected: false, spo2: 97 })
+    const { w } = loadMonitor({ simState: stale })
+    w.eval(`window.CESRelay={normaliseCode:c=>String(c).toUpperCase().slice(0,6),
+      joinSession:o=>{window.__feed=o.onState;o.onStatus('live');return{send(){},sendBack(){}}},
+      leaveSession(){}}`)
+    w.eval("joinSession('ABC234')")
+    const RELAYED = { hr: 176, rhythm: 'vtach', patientConnected: true, spo2: 84 }
+    w.eval(`window.__feed(${JSON.stringify(RELAYED)})`)
+    ok('relayed state lands', w.eval('S.hr') === 176 && w.eval('S.patientConnected') === true)
+    // The poll's own body, run directly: 250ms of real time is not worth
+    // waiting for, and this is exactly what the interval does.
+    w.eval('if(localStateAllowed()) ld()')
+    ok(
+      'and the poll leaves it alone while a session is live',
+      w.eval('S.hr') === 176 && w.eval('S.patientConnected') === true,
+      `HR ${w.eval('S.hr')}, connected ${w.eval('S.patientConnected')}`,
+    )
+    // ...and the stale copy really would have wrecked it, so the check above
+    // is not passing because there was nothing to clobber.
+    w.eval('ld()')
+    ok(
+      'the local snapshot really is the thing that used to blank the screen',
+      w.eval('S.patientConnected') === false,
+      'nothing stale in localStorage — the guard above proves nothing',
+    )
+    w.close()
+  }
+  {
+    // With no session and no channel delivery, the poll is still the fallback
+    // it was built as.
+    const { w } = loadMonitor({ simState: JSON.stringify({ hr: 44, rhythm: 'brady' }) })
+    ok('a monitor on its own still reads local state', w.eval('localStateAllowed()') === true)
+    w.eval('bcDelivered=true')
+    ok('and stands down once the channel has proven itself', w.eval('localStateAllowed()') === false)
+    w.close()
+  }
+
+  // Broadcast keeps no history, so a monitor only hears what is said after it
+  // subscribes. The panel publishes on change, which left an iPad that joined
+  // mid-scenario — the normal order — on its defaults until the next slider
+  // moved, and put it back there after every reconnect.
+  const keepalive = panelSrc.match(/setInterval\(\(\)=>\{ if\(relayReady\(\)\) relay\.send\(S\); \},(\d+)\);/)
+  ok('the panel republishes state while a session is live', !!keepalive, 'a monitor joining late hears nothing')
+  ok(
+    'often enough that joining is not a wait',
+    keepalive && +keepalive[1] <= 5000 && +keepalive[1] >= 500,
+    keepalive ? `${keepalive[1]}ms` : 'no cadence',
+  )
+  ok(
+    'and it does not send into a session that is not live',
+    /function relayReady\(\)\{ return relay&&relayState==='live'; \}/.test(panelSrc),
+  )
 
   // Two strip items on the ZX skin were divs with an onclick and no way in
   // from the keyboard.

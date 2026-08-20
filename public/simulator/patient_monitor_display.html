@@ -904,6 +904,32 @@ const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
 function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
 ld(); // load saved state on startup
 
+/* Where patient state is allowed to come from.
+
+   localStorage is a *local* snapshot. On one machine it is how this window
+   picks up the panel's state when it opens, and the 250ms poll of it further
+   down is the fallback for browsers where BroadcastChannel is unavailable. On
+   a second device it is something else entirely: the leftovers of whatever was
+   last run on *that* device.
+
+   Reported from a live scenario — the iPad joined the session, drew a few
+   seconds of the relayed rhythm and went blank. The poll was merging a stale
+   local simState back over the relayed state four times a second, and that
+   stale copy carried patientConnected:false, which is exactly how this screen
+   draws "no patient": blank traces, not a flatline.
+
+   So the poll stands down as soon as something better is proven to work — a
+   joined relay session, because this device is then a client of another
+   machine and its own disk has nothing to say about the patient; or a
+   BroadcastChannel that has actually delivered, because the fallback is only
+   there for when it cannot. A relay session that failed to join is not a
+   source, so local state comes back rather than leaving the screen stuck. */
+let bcDelivered=false;
+function localStateAllowed(){
+  if(relay&&relayState!=='error') return false;
+  return !bcDelivered;
+}
+
 /* ── Cross-device session ──────────────────────────────────────────────────
    The channel below only reaches other windows in this browser. On an iPad in
    the bay, the panel is on the facilitator's laptop and there is no shared
@@ -967,6 +993,7 @@ try{
   stateBc.onmessage=e=>{
     if(!e.data||e.data.__monitor||e.data.__device) return;
     S={...S,...e.data};
+    bcDelivered=true;
   };
   // The heartbeat carries the one piece of monitor state the panel needs back:
   // whether the 12-lead window is actually up. The panel's toggle used to be a
@@ -991,8 +1018,10 @@ let lastCmdT=(()=>{
   catch(e){ return 0; }
 })();
 setInterval(()=>{
-  ld();
+  if(localStateAllowed()) ld();
   try{
+    // The 12-lead command is not patient state and is always local: it is the
+    // panel in the next window asking this one to open a popup.
     const raw=localStorage.getItem('simCmd12Lead')||'';
     if(raw){
       const [action,ts]=(raw+':0').split(':');
@@ -1000,7 +1029,7 @@ setInterval(()=>{
       if(t>lastCmdT){
         lastCmdT=t;
         if(action==='open') open12Lead();
-        else if(action==='close'&&w12Lead&&!w12Lead.closed){ w12Lead.close(); w12Lead=null; }
+        else if(action==='close') close12Lead();
       }
     }
   }catch(e){}
@@ -2127,8 +2156,23 @@ function open12Lead(){
 <title>12-Lead ECG — ${rhythmKey.toUpperCase()}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#000;color:#fff;font-family:'Arial Narrow',Arial,sans-serif;padding:10px;}
+body{background:#000;color:#fff;font-family:'Arial Narrow',Arial,sans-serif;padding:58px 10px 10px;}
 h2{color:#00ff00;font-size:14px;letter-spacing:2px;text-align:center;margin-bottom:4px;text-transform:uppercase;}
+/* A way out. This document had none: on a desktop you closed the window, and
+   on an iPad Safari opens it as a tab with no route back to the monitor at
+   all. Fixed to the top so it is reachable however far the leads scroll. */
+.closebar{position:fixed;top:0;left:0;right:0;height:48px;z-index:10;
+  display:flex;align-items:center;gap:12px;padding:0 12px;
+  background:#0b0b0b;border-bottom:1px solid #262626;}
+.closebar .ttl{font-size:12px;letter-spacing:2px;color:#8a8a8a;text-transform:uppercase;}
+.closebtn{margin-left:auto;min-height:40px;min-width:112px;padding:0 18px;cursor:pointer;
+  background:#7a1f14;border:1px solid #a8341f;border-radius:20px;color:#ffe7c2;
+  font:700 14px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:1px;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.closebtn:active{background:#5c150d;}
+#closeHint{display:none;position:fixed;top:52px;left:0;right:0;z-index:10;
+  padding:8px 12px;background:#241a06;border-bottom:1px solid #6b5310;
+  color:#ffd88a;font-size:12px;text-align:center;letter-spacing:.5px;}
 .info{text-align:center;font-size:11px;color:#888;margin-bottom:10px;letter-spacing:1px;}
 .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border:1px solid #222;}
 .lead{border-right:1px solid #222;border-bottom:1px solid #222;padding:2px 4px 2px 4px;position:relative;}
@@ -2144,6 +2188,11 @@ canvas{display:block;width:100%;height:100%;}
 </style>
 </head>
 <body>
+<div class="closebar">
+  <span class="ttl">12-Lead ECG</span>
+  <button class="closebtn" onclick="close12()">✕ &nbsp;Close</button>
+</div>
+<div id="closeHint">This tab could not close itself — switch back to the monitor tab to carry on.</div>
 <h2>12-Lead Electrocardiogram</h2>
 <div class="info" id="rhythmLabel">Rhythm: —</div>
 <div class="rate-info">
@@ -2176,6 +2225,15 @@ canvas{display:block;width:100%;height:100%;}
 </div>
 
 <scr\ipt>
+// Closing. window.close() is permitted for a script-opened window, but Safari
+// does not always honour it; if the document is still here a moment later,
+// say so rather than leaving someone pressing a dead button.
+function close12(){
+  try{ window.close(); }catch(e){}
+  setTimeout(()=>{ const h=document.getElementById('closeHint'); if(h) h.style.display='block'; },400);
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') close12(); });
+
 // Receive LUT data from parent
 const PARENT_S = ${JSON.stringify({
   rhythm: S.rhythm, hr: S.hr, sbp: S.sbp, dbp: S.dbp,
@@ -2456,9 +2514,18 @@ window.onload=function(){
   w12Lead.document.close();
 }
 
+// Close the 12-lead window if it is open. Safe to call when it is not.
+// The 12-lead lives in a popup window, not an element in this document, so the
+// only reliable handle on it is w12Lead — anything that looks for an in-page
+// node will silently never find it.
+function close12Lead(){
+  if(w12Lead&&!w12Lead.closed){ try{ w12Lead.close(); }catch(e){} }
+  w12Lead=null;
+}
+
 // Toggle for buttons — close if open, open if not
 function toggle12Lead(){
-  if(w12Lead&&!w12Lead.closed){ w12Lead.close(); w12Lead=null; }
+  if(w12Lead&&!w12Lead.closed) close12Lead();
   else open12Lead();
 }
 
@@ -3224,7 +3291,7 @@ bind('kALARMS',()=>{
 });
 bind('kOPTIONS',()=>{ if(!D.on) return; clearHomeSel(); openMenu(D.menu&&D.menu.title==='OPTIONS'?null:optionsMenu()); });
 bind('kEVENT',()=>{ if(!D.on) return; clearHomeSel(); openMenu(D.menu&&D.menu.title==='EVENT'?null:eventMenu()); });
-bind('kHOME',()=>{ if(!D.on) return; closeMenu(); clearHomeSel(); if(document.getElementById('lead12')) toggle12Lead(); });
+bind('kHOME',()=>{ if(!D.on) return; closeMenu(); clearHomeSel(); close12Lead(); });
 bind('kSUN',()=>{ if(!D.on) return; D.sunvue=!D.sunvue;
   document.body.classList.toggle('sunvue',D.sunvue); invalidateCanvases();
   logEvent('display',D.sunvue?'SunVue display':'Color display',''); });
