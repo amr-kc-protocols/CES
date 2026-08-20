@@ -69,11 +69,19 @@ the top of its box and draw it as a square.
 
 The LP skin is the whole unit, not just its screen. Laid out from Figure 3-1 and
 the front-face photograph the operation supplied: carry handle over the top,
-connector strip down the left edge, Area 4 keys low on the left face with the
-round speaker grille beneath them, the display under its `LIFEPAK 15
-MONITOR/DEFIBRILLATOR` label, printer door and therapy port along the bottom,
-and Area 1 over Areas 3 and 2 — which sit **side by side**, monitoring keys to
-the left of pacing keys — with the speed dial in the bottom corner.
+Area 4 keys low on the left face, the display under its `LIFEPAK 15
+MONITOR/DEFIBRILLATOR` label, the printer door along the bottom, and Area 1
+over Areas 3 and 2 — which sit **side by side**, monitoring keys to the left of
+pacing keys — with the speed dial in the bottom corner.
+
+The outline is the LIFEPAK's, but not to the millimetre. The printer, the
+speaker grille and the cable connectors are all inert here — nothing prints,
+nothing sounds through them, nothing plugs in — and between them they were
+spending a third of the unit's height and a tenth of its width on decoration.
+The speaker and the connectors are gone and the printer is a slim door; the
+display went from 54% of the unit's width and 58% of its height to 59% and
+75%. What is kept exact is where the controls sit relative to each other,
+because that is the part a crew is learning.
 
 The two-column arrangement is worth calling out because the manual hides it:
 Areas 2 and 3 are separate figures and separate tables, which reads as two
@@ -123,7 +131,7 @@ Alongside the sizes:
   slides and `innerHeight` lags behind it, leaving the unit hanging off the
   bottom for the length of the animation.
 - **Short screens drop the carry handle and the hazard strip.** They are the
-  only two parts of the chassis that carry nothing, and 36px of them is the
+  last two parts of the chassis that carry nothing, and 36px of them is the
   difference between a 43pt key and a 45pt one on an iPad mini.
 
 **Portrait shows a rotate prompt rather than a stacked layout.** A LIFEPAK is a

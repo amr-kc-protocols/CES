@@ -177,16 +177,19 @@ html,body{
    2. The home screen — parameter column down the left, three waveform
       channels to the right, status line across the top.
 
-   The chassis is drawn once at the unit's own proportions and scaled to the
-   window as a single object. The front face is 317 x 216 mm and the display
-   170 x 128 mm, so the display is 54% of the width and 59% of the height and
-   sits at 4:3 — and it stays there at any window size.
+   The chassis is drawn once at a fixed size — 1083 x 740 — and scaled to the
+   window as a single object, so its proportions never drift with the viewport.
+   The fluid version this replaced let the display grow from 72% of the unit's
+   width at 1280 to 82% at 1920 while the buttons stayed put, which is the
+   opposite of what a real unit does.
 
-   The fluid version this replaced could not hold that. Its control columns
-   were fixed pixels and the display took whatever was left, so the display
-   grew from 72% of the width at 1280 to 82% at 1920 and its aspect drifted
-   from 1.49 to 1.74. The buttons shrank away as the window grew, which is
-   the opposite of what a real unit does.
+   The outline is the LIFEPAK's, but not to the millimetre. The printer, the
+   speaker grille and the cable connectors are all inert here — nothing prints,
+   nothing sounds through them and nothing plugs in — and between them they
+   were spending a third of the unit's height and a tenth of its width on
+   decoration. That space is the display's now. What is kept exact is where the
+   controls sit relative to each other, because that is the part a crew is
+   learning.
 
    Scaling costs nothing on the traces because the canvases are sized in
    device pixels rather than layout pixels: the backing store is the logical
@@ -211,7 +214,7 @@ body.lp-skin #device{
      already fitted. A fixed element is measured against the viewport and
      cannot push it out. */
   position:fixed;inset:auto;left:0;top:0;transform-origin:0 0;
-  width:1141px;height:800px;
+  width:1083px;height:740px;
   display:flex;flex-direction:column;gap:6px;
   padding:7px;background:linear-gradient(180deg,#c2c4bd,#a9aca4);
   border-radius:4px;box-shadow:0 6px 26px rgba(0,0,0,.55);
@@ -226,14 +229,14 @@ body.lp-skin #screenWrap{
 body.lp-skin #chromeRight{display:flex;flex-direction:column;gap:7px;width:296px;flex:none;}
 body.lp-skin #chromeLeft{display:flex;flex-direction:column;gap:8px;width:118px;flex:none;}
 .lspacer{flex:1 1 34%;min-height:0;}
+.lspacer.low{flex:1 1 46%;min-height:0;}
 .a5{flex:none;display:flex;flex-direction:column;gap:7px;padding:6px;}
-body.lp-skin #ports{display:flex;}
 body.lp-skin #devHandle{display:flex;}
 body.lp-skin #devFoot{display:block;}
 body.lp-skin #devUnder{display:flex;}
 
 /* ---- carry handle, screen label, footer ---- */
-#devHandle,#devFoot,#ports,#devUnder,#chromeLeft{display:none;}
+#devHandle,#devFoot,#devUnder,#chromeLeft{display:none;}
 #devHandle{height:22px;flex:none;align-items:flex-end;justify-content:center;}
 /* The carry handle arches over the top of the unit; only the top of the arch
    and its two posts are above the body line. */
@@ -249,47 +252,26 @@ body.lp-skin #devUnder{display:flex;}
 #devFoot{flex:none;height:14px;text-align:center;color:#4a4d50;font:400 8px/14px 'Arial Narrow',Arial,sans-serif;}
 #devFoot b{color:#1b1d1f;}
 
-/* ---- connector panel ---- */
-/* Strictly this is the left side of the case rather than the front face, and
-   it is drawn darker and narrower so it reads as turning away from the
-   viewer. Kept because it is what tells a crew which cable goes where. */
-#ports{flex-direction:column;justify-content:flex-start;gap:14px;width:52px;flex:none;
-  background:linear-gradient(90deg,#7e817b,#9b9e98);border-radius:4px 2px 2px 4px;padding:9px 3px;
-  box-shadow:inset -2px 0 4px rgba(0,0,0,.22);}
-.port{display:flex;flex-direction:column;align-items:center;gap:2px;}
-.phole{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#4a4d50,#17191b 70%);
-  border:1px solid #6f7276;box-shadow:inset 0 1px 2px #000;}
-.phole.sq{border-radius:3px;width:23px;height:18px;}
-.phole.big{width:32px;height:32px;}
-.plbl{font:700 8px/1 'Arial Narrow',Arial,sans-serif;color:#1b1d1f;letter-spacing:.3px;}
-
-/* ---- under the display ---- */
-#devUnder{height:240px;flex:none;gap:7px;align-items:stretch;}
-.speaker{flex:none;align-self:center;margin-top:auto;width:96px;height:96px;border-radius:50%;
-  background:#8f938d;background-image:radial-gradient(#5f6266 1.5px,transparent 1.8px);
-  background-size:8px 8px;box-shadow:inset 0 2px 5px rgba(0,0,0,.3);}
-.therapy{width:150px;flex:none;border-radius:5px;background:#9b9e98;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);}
-.tport{width:80px;height:80px;border-radius:50%;position:relative;
-  background:radial-gradient(circle at 50% 50%,#0d0e0f 0 46%,#3c3f42 46% 100%);
-  border:3px solid #7d807a;box-shadow:inset 0 3px 7px rgba(0,0,0,.85);}
-.tkey{position:absolute;left:50%;top:9px;width:7px;height:13px;margin-left:-3.5px;border-radius:2px;background:#7d807a;}
-.tlbl{font:700 8px/1 'Arial Narrow',Arial,sans-serif;color:#43464a;letter-spacing:1.4px;}
-
 /* ---- control areas ---- */
 .area{background:#83878a;border-radius:6px;padding:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.3);}
-.a1{display:flex;flex-direction:column;gap:4px;}
+.a1{display:flex;flex-direction:column;gap:5px;}
 .a1 .vfdose{background:#d7d9d4;color:#111;font-size:11px;line-height:1.25;text-align:center;padding:2px 3px;border-radius:3px;letter-spacing:.2px;}
-.a1body{display:flex;gap:3px;align-items:stretch;}
-.a1left{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.a1body{display:flex;gap:4px;align-items:stretch;}
+.a1left{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;}
 .a1num{width:15px;display:flex;flex-direction:column;justify-content:space-around;align-items:center;
   font-size:20px;font-weight:800;color:#1b1d1f;padding:22px 0 30px;}
-.a1right{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;
+.a1right{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;
   background:#6f7376;border-radius:5px;padding:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.35);}
 .arow{display:flex;gap:6px;align-items:stretch;}
 .a2{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;background:#2f6b45;}
 .a3{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
 .a4{display:flex;align-items:center;gap:6px;background:#83878a;margin-top:auto;}
+
+/* ---- under the display ---- */
+/* The printer prints nothing and was taking 240 of the unit's 800 design
+   pixels — a third of its height for a decoration. Trimmed to a door deep
+   enough to read as one, with the height handed to the display. */
+#devUnder{height:92px;flex:none;align-items:stretch;}
 
 /* ---- keys ---- */
 .k{
@@ -568,18 +550,6 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
  <div id="devHandle"><span class="handlebar"></span></div>
  <div id="devMain">
 
-  <!-- The connector panel down the left edge. Not interactive, but it is what
-       tells a crew which cable goes where, and the unit is unrecognisable
-       without it. Order as on the device. -->
-  <div id="ports" aria-hidden="true">
-    <div class="port"><span class="phole"></span><span class="plbl">CO2</span></div>
-    <div class="port"><span class="phole sq"></span><span class="plbl">SpO2</span></div>
-    <div class="port"><span class="phole sq"></span><span class="plbl">NIBP</span></div>
-    <div class="port"><span class="phole big"></span><span class="plbl">ECG</span></div>
-    <div class="port"><span class="phole"></span><span class="plbl">P1</span></div>
-    <div class="port"><span class="phole"></span><span class="plbl">P2</span></div>
-  </div>
-
   <!-- Area 4 — Figure 3-5 / Table 3-4. It runs down the left of the display
        on the unit, not under it. -->
   <!-- Area 4 sits below the midline of the left face, with the speaker in the
@@ -592,7 +562,7 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
     <button class="fk" id="kCODESUM">CODE<br>SUMMARY</button>
     <button class="fk" id="kPRINT">PRINT</button>
    </div>
-   <div class="speaker" aria-hidden="true"></div>
+   <div class="lspacer low"></div>
   </div>
 
   <div id="screenCol">
@@ -756,13 +726,6 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
    <!-- Under the display: speaker, printer door, therapy connector. -->
    <div id="devUnder">
      <div class="printer" id="printer"><div class="printdoor"><div class="printslot"></div><div class="printgrip"></div></div></div>
-     <!-- The therapy cable connector, not a control. Drawn recessed with the
-          connector key visible so it does not read as a second speed dial —
-          which is exactly how it read before. -->
-     <div class="therapy" aria-hidden="true">
-       <span class="tport"><span class="tkey"></span></span>
-       <span class="tlbl">THERAPY</span>
-     </div>
    </div>
   </div>
 
@@ -2734,17 +2697,15 @@ function cprMetronome(on){
 }
 
 /* ── Fitting the unit to the window ──────────────────────────────────── */
-/* The chassis is drawn at the device's own proportions — 1141 x 800, from a
-   317 x 216 mm front face — and scaled as one object, so the display stays
-   54% of the width and 4:3 whatever the window is. Letterboxed rather than
-   stretched: a defibrillator with the wrong aspect is a defibrillator whose
-   buttons are not where the crew reaches for them. */
-const DEV_W=1141, DEV_H=800;
+/* The chassis is drawn at 1083 x 740 and scaled as one object. Letterboxed
+   rather than stretched: a defibrillator with the wrong aspect is a
+   defibrillator whose buttons are not where the crew reaches for them. */
+const DEV_W=1083, DEV_H=740;
 /* On a screen too short to give the unit its full height, the carry handle
    and the hazard strip go rather than the controls: they are the only two
    parts of the chassis that carry nothing, and 36px of them is the
    difference between a 43pt key and a 45pt one on an iPad mini. */
-const DEV_H_COMPACT=764;
+const DEV_H_COMPACT=704;
 let devScale=1;
 function fitDevice(){
   const el=document.getElementById('device');
