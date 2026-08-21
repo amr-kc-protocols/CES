@@ -2284,6 +2284,10 @@ function applySimScenario(){
   activeSim=entry.sim;
   activeStateIdx=entry.idx;
   run=null; lastRun=null;   // Apply always begins a new run, even on the same scenario
+  // Graded scenarios reset via startRun inside applySimState; the ungraded sims
+  // (no approved action list, so no run) reach nothing that would, so they get
+  // the clean slate here.
+  if(!SCENARIO_DOCS[entry.sim]) resetForNewScenario();
   applySimState(entry.sim,entry.idx);
   // Clear the quick scenario dropdown so it doesn't look selected
   document.getElementById('scenarioSel').value='';
@@ -2323,9 +2327,40 @@ let lastRun=null;  // the finished record, kept on screen for the debrief
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
 
+// A new scenario is a clean slate. On the panel that means nothing the last
+// run left circulating, logged or set may bleed into the next: the medications
+// on board and their visible log, the device timeline, and the pacer model.
+// The one thing the panel cannot reach directly is the defibrillator's own
+// state — shock count, therapy mode, energy, lead/size, a running printer —
+// because that lives on the monitor. So it bumps S.deviceReset, a token the
+// monitor watches to return the unit to its power-on baseline.
+//
+// Display and sensor state that a scenario's vitals do not necessarily set —
+// the capnogram shape, whether EtCO2/A-Line/PA are on, ectopy, alarm mute — is
+// returned to defaults here too, before the scenario's own vitals are applied
+// over it, so an asthma shark-fin or an A-Line from the last scenario cannot
+// carry forward.
+function resetForNewScenario(){
+  stopDrugs();
+  drugLog=[]; renderDrugLog();
+  deviceFeed=[]; renderDeviceFeed();
+  pacer={on:false,rate:70,ma:0};
+  captureThreshold=70; preCapture=null;
+  Object.assign(S,{
+    co2Shape:DEF.co2Shape, etco2On:DEF.etco2On,
+    artActive:DEF.artActive, artLinked:DEF.artLinked, sgActive:DEF.sgActive,
+    pvcOn:DEF.pvcOn, pacOn:DEF.pacOn, alarmMuted:DEF.alarmMuted,
+  });
+  S.deviceReset=(S.deviceReset||0)+1;
+  syncToggles();
+  renderPacerPrompt();
+  save();
+}
+
 function startRun(simKey){
   const sim=SIMULATIONS[simKey], doc=SCENARIO_DOCS[simKey];
   if(!sim||!doc) return;
+  resetForNewScenario();
   const cl=sim.checklist?ACLS_CHECKLISTS[sim.checklist]:null;
   run={
     scenario:simKey,
@@ -2535,6 +2570,11 @@ const AUTO_TICK=[
   {when:(ev,ctx)=>ev.type==='cpr'&&/ON$/.test(ev.label)&&ctx.sinceShock!==null&&ctx.sinceShock<=15,
    match:/Immediately resumes CPR after shocks/i},
   {when:ev=>ev.type==='pacer'&&ev.label==='PACER ON', match:/Prepares for second-line treatment/i},
+  // A synchronized shock is the tachycardia section's cardioversion step, and
+  // the device now says 'synchronized' in the event only when SYNC was actually
+  // armed for the delivery — a plain defibrillation does not match it.
+  {when:ev=>ev.type==='shock'&&/synchronized/.test(ev.detail||''),
+   match:/synchronized cardioversion/i},
 ];
 
 function onDeviceEvent(ev){
@@ -2590,7 +2630,7 @@ const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
   pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
   ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
   alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',capture:'⌁',
-  power:'⏻',display:'☀',disarm:'⚡'};
+  power:'⏻',display:'☀',disarm:'⚡',mode:'☰'};
 
 /* Electrical capture: the paced rhythm at the rate the crew dialled in.
 

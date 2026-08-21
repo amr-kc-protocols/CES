@@ -904,6 +904,14 @@ const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
 function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
 ld(); // load saved state on startup
 
+/* Scenario-reset high-water mark. The panel bumps S.deviceReset every time it
+   (re)starts a graded scenario; the monitor watches that number and returns its
+   own device-local state to the power-on baseline when it climbs. Seeded from
+   whatever is already stored so a monitor opened later does not replay the last
+   session's reset the moment it loads — the same one-shot pattern the 12-lead
+   command uses. */
+let lastDeviceReset=(S&&S.deviceReset)||0;
+
 /* Where patient state is allowed to come from.
 
    localStorage is a *local* snapshot. On one machine it is how this window
@@ -2764,6 +2772,21 @@ function drawChannel(id, fn, stroke, fill){
   }
   ctx.stroke();
   ctx.shadowBlur=0;
+
+  // Sync markers: a tick above every QRS the unit senses, but only while SYNC
+  // is armed — "flashes with detection of each QRS" is the LED; this is the
+  // same detection drawn on the trace, so the crew can confirm the unit is
+  // marking real complexes before they cardiovert. scanQrs (run just above for
+  // cEcg) leaves the sensed sample indices in qrsMarks.
+  if(id==='cEcg'&&D.sync&&qrsMarks.length){
+    ctx.fillStyle=currentSkin==='lp'?'#4aa8ff':'#00e5ff';
+    for(const m of qrsMarks){
+      const px=(prevPx+m)%W;
+      ctx.beginPath();
+      ctx.moveTo(px-3,2); ctx.lineTo(px+3,2); ctx.lineTo(px,9);
+      ctx.closePath(); ctx.fill();
+    }
+  }
 }
 
 
@@ -2805,6 +2828,9 @@ const D={
   energyIx:ENERGIES.indexOf(200),
   charging:false, charged:false, chargeStart:0, disarmAt:0,
   shocks:0, lastShockAt:0,
+  // Operating mode is explicit: 'manual' or 'aed'. SYNC is a manual-mode
+  // modifier, never its own mode — an AED SYNC state cannot exist.
+  mode:'manual',
   sync:false, cpr:false, analyzing:false, analyzeUntil:0, advisory:'', reanalyzeAt:0,
   pacer:false, pacerRate:70, pacerMa:0, pacePaused:false,
   alarms:true, silenceUntil:0,
@@ -2828,6 +2854,36 @@ function devLead(){
   return LEADS[D.leadIx];
 }
 function takeLead(){ D.leadFromPanel=S.lead||'II'; }
+
+/* ── Scenario reset ──────────────────────────────────────────────────────
+   A new scenario is a clean unit. Everything the last crew did to the
+   defibrillator — shock count, therapy mode, charged energy, the lead and
+   size they dialled, silenced alarms, a running printer, the event log —
+   would otherwise carry straight into the next scenario, which was the most
+   damaging defect at review: scenario 4's first shock recorded as shock #4,
+   later scenarios opening in AED or pacing mode.
+
+   Returns every device-local field in D to its power-on default and cancels
+   every timer and tone. Deliberately left alone: whether the unit is powered
+   on, which skin it is wearing, and the joined relay session — those belong to
+   the crew and the room, not to the scenario. */
+function resetDevice(){
+  disarm();                                  // clears charge/charged, tones, banner
+  cprMetronome(false); readyTone(false); chargeTone(false);
+  printerRun(false); closeMenu(); clearHomeSel();
+  D.energyIx=ENERGIES.indexOf(200);
+  D.shocks=0; D.lastShockAt=0;
+  D.sync=false; D.cpr=false;
+  D.analyzing=false; D.analyzeUntil=0; D.advisory=''; D.reanalyzeAt=0;
+  aedReset();                                // AED/SYNC state machine to MANUAL_IDLE
+  D.pacer=false; D.pacerRate=70; D.pacerMa=0; D.pacePaused=false;
+  D.alarms=true; D.silenceUntil=0;
+  D.nibpUntil=0;
+  D.leadIx=1; D.leadFromPanel=null; D.sizeIx=2;
+  D.log.length=0;
+  if(D.sunvue){ D.sunvue=false; document.body.classList.remove('sunvue'); invalidateCanvases(); }
+  banner(null);
+}
 
 /* ── Event log ───────────────────────────────────────────────────────── */
 /* Shares the state channel rather than opening a second subscriber onto the
@@ -3022,14 +3078,19 @@ function chargeDone(){
 }
 function deliverShock(){
   if(!D.charged) return;
+  const wasSync=D.sync;
   D.shocks++; D.lastShockAt=Date.now();
   // Shock, then two minutes of CPR, then the unit asks for another rhythm check.
   if(D.advisory) D.reanalyzeAt=Date.now()+ANALYZE_CYCLE_MS;
   D.charged=false; D.disarmAt=0;
   readyTone(false);
   beep(140,300,.2,'square');
-  logEvent('shock','SHOCK',energy()+'J'+(D.sync?' synchronized':'')+' · shock #'+D.shocks);
+  logEvent('shock','SHOCK',energy()+'J'+(wasSync?' synchronized':'')+' · shock #'+D.shocks);
   banner('SHOCK DELIVERED  '+energy()+'J',2500,true,false);
+  // A synchronized shock disarms SYNC — the real unit requires it to be
+  // reactivated before the next cardioversion, so a crew cannot fire a second
+  // synchronized shock on a stale arming.
+  if(wasSync){ D.sync=false; logEvent('sync','SYNC OFF','after synchronized shock'); }
 }
 
 /* ── LED pulses ──────────────────────────────────────────────────────── */
@@ -3042,10 +3103,60 @@ function applyPulses(now){
   }
 }
 
+/* ── AED / SYNC / defibrillation state machine ───────────────────────────
+   The three therapy pathways are explicit states rather than a handful of
+   booleans read in whatever order a handler happened to check them, which is
+   what let the review reach illegal combinations — AED SYNC, a synchronized
+   shock on a plain tap, SYNC still armed after the shock, ENERGY SELECT
+   changing joules without leaving AED.
+
+     MANUAL_IDLE → MANUAL_CHARGING → MANUAL_READY → (shock) → MANUAL_IDLE
+     AED_ANALYZING → AED_SHOCK_ADVISED → AED_CHARGING → AED_READY → (shock)
+     SYNC_ARMED → SYNC_CHARGING → SYNC_READY → (hold shock) → MANUAL_IDLE
+
+   defibState() derives the label from D so the machine has one source of truth
+   and the test can assert it; the transitions below are the only writers. */
+function defibState(){
+  if(D.mode==='aed'){
+    if(D.analyzing) return 'AED_ANALYZING';
+    if(D.charged)   return 'AED_READY';
+    if(D.charging)  return 'AED_CHARGING';
+    if(D.advisory==='SHOCK ADVISED') return 'AED_SHOCK_ADVISED';
+    return 'AED_IDLE';
+  }
+  if(D.sync){
+    if(D.charged)  return 'SYNC_READY';
+    if(D.charging) return 'SYNC_CHARGING';
+    return 'SYNC_ARMED';
+  }
+  if(D.charged)  return 'MANUAL_READY';
+  if(D.charging) return 'MANUAL_CHARGING';
+  return 'MANUAL_IDLE';
+}
+/* Return the unit to plain manual operation, clearing any AED advisory. Used
+   by ENERGY SELECT (Table 3-1 makes it the way out of AED) and by a scenario
+   reset. */
+function exitAedToManual(reason){
+  if(D.mode==='manual'&&!D.advisory) return;
+  D.mode='manual'; D.analyzing=false; D.advisory=''; D.reanalyzeAt=0;
+  logEvent('mode','MANUAL MODE',reason||'exited AED');
+}
+/* Baseline for the reset: manual mode, no advisory, SYNC off. Charge state is
+   cleared by disarm() in resetDevice, so it is not touched here. */
+function aedReset(){
+  D.mode='manual'; D.analyzing=false; D.analyzeUntil=0;
+  D.advisory=''; D.reanalyzeAt=0; D.sync=false;
+}
+
 /* ── Analyze ─────────────────────────────────────────────────────────── */
 const SHOCKABLE=['vfib','vtach','pvt','torsades'];
 function startAnalyze(){
   if(!D.on||D.analyzing) return;
+  // ANALYZE is the entry to AED mode. SYNC is a manual-mode setting and cannot
+  // survive the switch — this is what makes "AED SYNC" unreachable.
+  D.mode='aed';
+  if(D.sync){ D.sync=false; logEvent('sync','SYNC OFF','cleared entering AED'); }
+  if(D.charged||D.charging) disarm('analyze');
   D.analyzing=true; D.analyzeUntil=Date.now()+ANALYZE_MS; D.reanalyzeAt=0;
   logEvent('analyze','ANALYZE','started');
   banner('ANALYZING  —  DO NOT TOUCH THE PATIENT',0,true,true);
@@ -3066,8 +3177,13 @@ function finishAnalyze(){
   const shockable=SHOCKABLE.includes(S.rhythm);
   D.advisory=shockable?'SHOCK ADVISED':'NO SHOCK ADVISED';
   logEvent('advisory',D.advisory,'rhythm shown: '+(S.rhythm||'—'));
-  banner(D.advisory,6000,shockable,shockable);
   beep(shockable?1200:520,shockable?400:700,.15,'square');
+  // In AED mode the unit charges itself the moment a shock is advised, exactly
+  // as a real AED does — the crew clears and shocks, they do not press CHARGE.
+  // Gated on AED mode so a bare finishAnalyze() (manual rhythm check) only
+  // reports the advisory.
+  if(shockable&&D.mode==='aed'){ startCharge(); }
+  else banner(D.advisory,6000,shockable,shockable);
 }
 
 /* ── NIBP ────────────────────────────────────────────────────────────── */
@@ -3248,13 +3364,26 @@ bind('kLEAD',()=>{ if(!D.on) return; takeLead(); D.leadIx=(D.leadIx+1)%LEADS.len
 bind('kSIZE',()=>{ if(!D.on) return; D.sizeIx=(D.sizeIx+1)%SIZES.length;
   logEvent('size','SIZE',ecgSize().toFixed(2)+' cm/mV'); });
 
-bind('kSYNC',()=>{ if(!D.on) return; D.sync=!D.sync;
+bind('kSYNC',()=>{ if(!D.on) return;
+  // SYNC belongs to manual mode. Trying to arm it during an AED analysis or
+  // advisory is refused rather than producing an "AED SYNC" the unit has no
+  // such mode for.
+  if(!D.sync&&(D.mode==='aed'||D.analyzing||D.advisory==='SHOCK ADVISED')){
+    beep(220,120,.08,'square');
+    banner('SYNC NOT AVAILABLE IN AED',2200,true,true);
+    return;
+  }
+  D.sync=!D.sync;
   if(D.sync&&D.charged) disarm('sync changed');
   logEvent('sync',D.sync?'SYNC ON':'SYNC OFF',''); });
 
 function nudgeEnergy(d){
   if(!D.on) return;
-  if(D.analyzing){ beep(220,120,.08,'square'); return; }   // Manual mode only
+  if(D.analyzing){ beep(220,120,.08,'square'); return; }   // not while analysing
+  // ENERGY SELECT is the way out of AED into Manual (Table 3-1). A crew that
+  // reaches for the energy dial mid-advisory is taking manual control, so the
+  // AED advisory is cleared rather than the joules changing under it.
+  if(D.mode==='aed') exitAedToManual('energy select');
   const was=energy();
   D.energyIx=Math.max(0,Math.min(ENERGIES.length-1,D.energyIx+d));
   if(energy()!==was){
@@ -3265,7 +3394,23 @@ function nudgeEnergy(d){
 bind('kEnergyUp',()=>nudgeEnergy(1));
 bind('kEnergyDn',()=>nudgeEnergy(-1));
 bind('kCHARGE',()=>startCharge());
-bind('kSHOCK',()=>{ if(D.charged) deliverShock(); else beep(220,120,.08,'square'); });
+/* SHOCK: a manual defibrillation fires on a press; a synchronized cardioversion
+   requires press-and-hold until the unit delivers on the next sensed R wave, as
+   the manual directs — so a normal tap can never deliver a synchronized shock.
+   bindHold gives us both: the hold path always delivers a charged unit, while
+   the tap path delivers only when SYNC is off. */
+bindHold('kSHOCK',450,
+  ()=>{ armAudio(); if(D.charged) deliverShock(); },      // held: delivers if charged
+  null,
+  ()=>{ armAudio();
+    if(!D.charged){ beep(220,120,.08,'square'); return; }
+    if(D.sync){                                            // tap in SYNC: refuse, prompt hold
+      beep(220,120,.08,'square');
+      banner('PRESS AND HOLD SHOCK TO CARDIOVERT',2200,true,true);
+      return;
+    }
+    deliverShock();
+  });
 
 bind('kPACER',()=>{ if(!D.on) return; D.pacer=!D.pacer;
   logEvent('pacer',D.pacer?'PACER ON':'PACER OFF',D.pacer?D.pacerRate+' ppm · '+D.pacerMa+' mA':''); });
@@ -3402,6 +3547,10 @@ function pacePulsed(t){
 /* ── Per-frame device tick ───────────────────────────────────────────── */
 function devTick(){
   const now=Date.now();
+  // A scenario (re)start on the panel bumps S.deviceReset. Acting on it here —
+  // rather than in each of the three merge paths that can deliver it — catches
+  // it however it arrived: BroadcastChannel, relay or the localStorage poll.
+  if(S.deviceReset&&S.deviceReset>lastDeviceReset){ lastDeviceReset=S.deviceReset; resetDevice(); }
   // The pacing clock is the device's own; the QRS detector runs inside the
   // ECG draw, on the samples the trace is made of.
   if(D.on&&pacePulsed(TT)) pulseLed('ledPACER');

@@ -1542,6 +1542,163 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('the ZX strip controls are reachable from the keyboard', stripButtons === 2, `${stripButtons} of 2`)
 }
 
+// ---------------------------------------------------------------------------
+// Starting a scenario is a clean slate
+//
+// The most damaging defect at review: a scenario inherited the last one's
+// device settings, medication history, therapy mode and shock count. Scenario
+// 4's first shock recorded as shock #4; later scenarios opened in AED or pacing
+// mode. The reset spans both files — the panel clears its own med log and
+// device feed and bumps a token, the monitor watches the token and returns the
+// unit to its power-on baseline.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+
+  // Panel side: a new graded scenario clears what the last run left behind.
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.giveDrug('epi_acls')
+  w.onDeviceEvent({ t: new Date().toISOString(), ms: Date.now(), type: 'shock', label: 'SHOCK', detail: '200J · shock #1' })
+  ok('a drug is on the log during the first scenario', w.eval('drugLog').length > 0)
+  ok('and a press is on the device timeline', w.eval('deviceFeed').length > 0)
+  const token0 = w.eval('S.deviceReset') || 0
+
+  d.getElementById('simScenarioSel').value = 'megacode4'
+  w.applySimScenario()
+  ok('starting a new scenario clears the medication log', w.eval('drugLog').length === 0)
+  ok('and clears the device timeline', w.eval('deviceFeed').length === 0)
+  ok('and bumps the device-reset token for the monitor', (w.eval('S.deviceReset') || 0) > token0, `${token0} -> ${w.eval('S.deviceReset')}`)
+
+  // The concrete leak: a capnogram shape one scenario sets must not carry into
+  // the next, which does not set it.
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  ok('asthma sets the shark-fin capnogram', S().co2Shape === 'shark', S().co2Shape)
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  ok('the next scenario does not inherit the shark-fin capnogram', S().co2Shape === 'normal', S().co2Shape)
+  w.close()
+}
+
+{
+  // Monitor side: two consecutive scenarios produce identical initial device
+  // state regardless of what happened in the first run.
+  const { w, S } = loadMonitor()
+  const RESET_FIELDS = [
+    'mode', 'energyIx', 'charging', 'charged', 'shocks', 'lastShockAt', 'sync', 'cpr',
+    'analyzing', 'advisory', 'reanalyzeAt', 'pacer', 'pacerRate', 'pacerMa', 'pacePaused',
+    'alarms', 'silenceUntil', 'nibpUntil', 'leadIx', 'leadFromPanel', 'sizeIx', 'sunvue',
+  ]
+  const snap = () => {
+    const D = w.eval('D')
+    return RESET_FIELDS.map((k) => `${k}=${JSON.stringify(D[k])}`).join(',') + `,log=${w.eval('D.log.length')}`
+  }
+  const baseline = snap()
+
+  // A full first run: a shock count, AED advisory, a lead and size change, the
+  // pacer up, alarms silenced, energy at 360, an event log.
+  const messyRun = () =>
+    w.eval(`
+      D.shocks = 4; D.mode = 'aed'; D.advisory = 'SHOCK ADVISED'; D.charged = true;
+      D.sync = true; D.energyIx = ENERGIES.indexOf(360); D.leadIx = 2; D.sizeIx = 4;
+      D.pacer = true; D.pacerMa = 80; D.pacerRate = 90; D.pacePaused = true;
+      D.silenceUntil = Date.now() + 9e4; D.alarms = false; D.sunvue = true;
+      D.log.push({ type: 'shock' }, { type: 'shock' }, { type: 'shock' }, { type: 'shock' });
+    `)
+  const resetArrives = () => w.eval('S.deviceReset = (S.deviceReset || 0) + 1; devTick()')
+
+  messyRun()
+  resetArrives()
+  const afterFirst = snap()
+  ok('a scenario reset returns the unit to its power-on baseline', afterFirst === baseline, afterFirst)
+
+  // A different first run entirely, then the same reset.
+  w.eval(`D.mode = 'aed'; D.shocks = 9; D.pacerMa = 130; D.leadIx = 5; D.sizeIx = 1; D.sunvue = true;`)
+  resetArrives()
+  const afterSecond = snap()
+  ok('two consecutive scenarios start identical regardless of the first run', afterSecond === afterFirst, afterSecond)
+  ok('and the shock count is back to zero', w.eval('D.shocks') === 0, String(w.eval('D.shocks')))
+  ok('and the therapy mode is back to Manual', w.eval('D.mode') === 'manual', w.eval('D.mode'))
+  ok('and the event log is cleared', w.eval('D.log.length') === 0, String(w.eval('D.log.length')))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// AED / SYNC / defibrillation as one explicit state machine
+//
+// The review reached illegal combinations by reading a handful of booleans in
+// whatever order each handler happened to: AED SYNC, a synchronized shock on a
+// plain tap, SYNC still armed after the shock, ENERGY SELECT changing joules
+// without leaving AED, and no auto-charge after SHOCK ADVISED. defibState() is
+// the single derivation the transitions below are checked against.
+// ---------------------------------------------------------------------------
+{
+  const { w, S } = loadMonitor()
+  const D = () => w.eval('D')
+  const state = () => w.eval('defibState()')
+  const chargeThrough = () => w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  Object.assign(S(), { patientConnected: true, rhythm: 'vfib', sbp: 0, dbp: 0, spo2: 3, lead: 'II' })
+
+  // Manual defibrillation: idle → charging → ready → shock → idle.
+  ok('the unit starts in MANUAL_IDLE', state() === 'MANUAL_IDLE', state())
+  w.eval('startCharge()')
+  ok('CHARGE moves to MANUAL_CHARGING', state() === 'MANUAL_CHARGING', state())
+  chargeThrough()
+  ok('and completes to MANUAL_READY', state() === 'MANUAL_READY', state())
+  w.eval('deliverShock()')
+  ok('a shock returns to MANUAL_IDLE', state() === 'MANUAL_IDLE', state())
+
+  // AED: analyze enters the mode, a shockable rhythm auto-charges, ready.
+  w.eval('startAnalyze()')
+  ok('ANALYZE enters AED mode', state() === 'AED_ANALYZING' && D().mode === 'aed', `${state()} mode ${D().mode}`)
+  w.eval('D.analyzeUntil = 0; devTick()')
+  ok('a shockable rhythm auto-charges in AED, no CHARGE press', state() === 'AED_CHARGING' || state() === 'AED_READY', state())
+  chargeThrough()
+  ok('and reaches AED_READY', state() === 'AED_READY', state())
+
+  // ENERGY SELECT is the way out of AED into Manual (Table 3-1).
+  w.eval('nudgeEnergy(1)')
+  ok('ENERGY SELECT leaves AED for Manual', D().mode === 'manual', D().mode)
+  ok('and throws the charge away with it', D().charged === false)
+
+  // SYNC is a manual-mode modifier: it cannot be armed in AED, so "AED SYNC"
+  // is unreachable.
+  w.eval('aedReset(); D.mode = "aed"; D.analyzing = true')
+  w.document.getElementById('kSYNC').dispatchEvent(new w.Event('click'))
+  ok('SYNC cannot be armed in AED mode', D().sync === false, 'AED SYNC was reachable')
+
+  // Entering AED clears any SYNC that was set in manual.
+  w.eval('aedReset(); D.mode = "manual"; D.sync = true')
+  w.eval('startAnalyze()')
+  ok('entering AED clears a SYNC left on from manual', D().sync === false && D().mode === 'aed', `sync ${D().sync} mode ${D().mode}`)
+
+  // Synchronized cardioversion: armed → charged → SYNC_READY → shock disarms SYNC.
+  w.eval('exitAedToManual(); aedReset(); D.mode = "manual"; D.sync = true')
+  S().rhythm = 'vtach'
+  ok('SYNC in manual is SYNC_ARMED', state() === 'SYNC_ARMED', state())
+  w.eval('startCharge()'); chargeThrough()
+  ok('a charged SYNC is SYNC_READY', state() === 'SYNC_READY', state())
+  w.eval('deliverShock()')
+  ok('a synchronized shock disarms SYNC afterwards', D().sync === false, 'SYNC stayed armed after the shock')
+  ok('and the shock recorded itself as synchronized', w.eval("D.log.some(e => e.type === 'shock' && /synchronized/.test(e.detail))"))
+
+  // The SHOCK key: a plain tap can never deliver a synchronized shock — it
+  // requires a press-and-hold, so a tap on an armed SYNC unit does nothing.
+  const shk = w.document.getElementById('kSHOCK')
+  w.eval('aedReset(); D.sync = true; D.charged = true; D.shocks = 0')
+  shk.dispatchEvent(new w.Event('pointerdown'))
+  shk.dispatchEvent(new w.Event('pointerup'))
+  ok('a tap does not deliver a synchronized shock', D().shocks === 0, `${D().shocks} shocks from a tap`)
+  // ...while a plain manual defibrillation still fires on a tap.
+  w.eval('aedReset(); D.sync = false; D.charged = true; D.shocks = 0')
+  shk.dispatchEvent(new w.Event('pointerdown'))
+  shk.dispatchEvent(new w.Event('pointerup'))
+  ok('a manual defibrillation delivers on a tap', D().shocks === 1, `${D().shocks} shocks from a tap`)
+  ok('SHOCK is wired press-and-hold for cardioversion', /bindHold\('kSHOCK'/.test(MONITOR_SRC))
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)
