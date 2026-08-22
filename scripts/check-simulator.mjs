@@ -2056,6 +2056,29 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+{
+  // Program coaching notes are added to the megacodes without overwriting the
+  // AHA-transcribed manual text.
+  const { w, d } = load()
+  const sims = w.eval('SIMULATIONS')
+
+  const coach = (key, idx) => sims[key].states[idx].coach || ''
+  ok('bradycardia coaching names pacing and an infusion', /pacing/i.test(coach('megacode1', 0)) && /(dopamine|epinephrine) infusion/i.test(coach('megacode1', 0)), coach('megacode1', 0))
+  ok('the transplant case says atropine is ineffective, pace early', /denervated|ineffective/i.test(coach('megacode3', 0)) && /pacing/i.test(coach('megacode3', 0)))
+  ok('the hyperkalaemia PEA defers to local protocol and is cautious on calcium/bicarb', /local protocol/i.test(coach('megacode4', 2)) && /not universally proven|cautious/i.test(coach('megacode4', 2)))
+  ok('the CCB overdose names insulin/vasopressors/calcium as primary', /high-dose insulin/i.test(coach('megacode5', 0)) && /uncertain/i.test(coach('megacode5', 0)))
+
+  // The AHA-transcribed note is still there beside the coaching — not replaced.
+  ok('the manual note survives alongside the coaching', /heart transplant/i.test(sims.megacode3.states[0].note))
+
+  // And it renders as a distinct, labelled block.
+  d.getElementById('simScenarioSel').value = 'megacode5'
+  w.applySimScenario()
+  const panelHtml = d.getElementById('runCard').innerHTML + d.getElementById('simStatePanel').innerHTML
+  ok('coaching renders as a labelled program note', /Program coaching/.test(panelHtml), 'coaching note not shown')
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)

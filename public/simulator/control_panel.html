@@ -134,6 +134,8 @@ select:focus{border-color:#00e5ff;}
 .state-btn .svitals{font-size:.62rem;color:var(--t-dim);display:block;}
 .state-btn.active .svitals{color:#cc7700;}
 .sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
+.sim-note.coach{color:#bfe3c8;border-top-color:#2c5e44;}
+.sim-note.coach b{color:#7fe0a5;}
 .no-sim{font-size:.72rem;color:var(--t-dim);text-align:center;padding:20px 0;line-height:1.6;}
 
 /* Expected Actions — the scenario's own gradeable list. Ticking one is the
@@ -1810,7 +1812,8 @@ const SIMULATIONS={
       {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
        vitals:{hr:38,rhythm:'brady',sbp:78,dbp:42,spo2:92,etco2:34,rr:18,temp:36.8,pvcOn:true},
        display:'HR 38 | BP 78/42 | SpO₂ 92% | EtCO₂ 34 | RR 18',
-       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.'},
+       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.',
+       coach:'Adult Bradycardia Algorithm (2025 AHA): atropine first; if it fails or is inadequate, move to transcutaneous pacing and/or a dopamine or epinephrine infusion. Record the pacing and the infusion — not just the atropine.'},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:180,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:18,rr:0,temp:36.8,pvcOn:false},
        display:'HR 180 | Pulseless VT | BP 0/0 | EtCO₂ 18',
@@ -1833,7 +1836,8 @@ const SIMULATIONS={
       {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
        vitals:{hr:44,rhythm:'brady',sbp:84,dbp:50,spo2:88,etco2:30,rr:3,temp:36.6},
        display:'HR 44 | BP 84/50 | SpO₂ 88% | EtCO₂ 30 | RR 3',
-       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.'},
+       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.',
+       coach:'Adult Bradycardia Algorithm (2025 AHA): atropine first, then transcutaneous pacing and/or a dopamine or epinephrine infusion if it is inadequate. This patient is also barely breathing (RR 3) — support ventilation early.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:22,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 22',
@@ -1857,7 +1861,8 @@ const SIMULATIONS={
        vitals:{hr:32,rhythm:'hb3',sbp:86,dbp:48,spo2:96,etco2:36,rr:18,temp:36.7},
        display:'HR 32 | SBP 86 (Doppler) | SpO₂ 96% | RR 18',
        note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.',
-       ecg:{qrs:140,interp:'*** ACUTE INFERIOR INJURY — ST elevation II, III, aVF (III > II); V4R flat, no right-ventricular ST elevation ***'}},
+       ecg:{qrs:140,interp:'*** ACUTE INFERIOR INJURY — ST elevation II, III, aVF (III > II); V4R flat, no right-ventricular ST elevation ***'},
+       coach:'Transplanted (denervated) heart: atropine is typically ineffective — do not wait on it. Go early to transcutaneous pacing and chronotropic support (dopamine or epinephrine infusion). ACC/AHA/HRS bradycardia guidance.'},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:170,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:22,rr:0,temp:36.7},
        display:'HR 170 | Pulseless VT | BP 0/0 | EtCO₂ 22',
@@ -1888,7 +1893,8 @@ const SIMULATIONS={
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:70,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:25,rr:0,temp:36.8},
        display:'HR 70 | PEA | BP 0/0 | EtCO₂ 22–27',
-       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.'},
+       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.',
+       coach:'Wide-complex PEA in a missed-dialysis patient: treat the reversible cause — recognise and manage suspected hyperkalaemia per your local protocol. The 2025 AHA evidence statement is cautious: calcium and bicarbonate are not universally proven, so score reversible-cause recognition and your protocol, not a fixed drug list.'},
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:100,rhythm:'nsr',sbp:94,dbp:56,spo2:100,etco2:60,rr:14,temp:36.9},
        display:'HR 100 | ROSC | BP 94/56 | SpO₂ 100% | EtCO₂ 60',
@@ -1905,7 +1911,8 @@ const SIMULATIONS={
        vitals:{hr:30,rhythm:'hb3',sbp:80,dbp:48,spo2:98,etco2:34,rr:16,temp:36.5},
        display:'HR 30 | BP 80/48 | SpO₂ 98% on 3 L | RR 16',
        note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.',
-       ecg:{qrs:150,qt:720,interp:'*** Wide-complex ventricular escape with a prolonged QT — see QTc (Bazett) below ***'}},
+       ecg:{qrs:150,qt:720,interp:'*** Wide-complex ventricular escape with a prolonged QT — see QTc (Bazett) below ***'},
+       coach:'Calcium-channel-blocker (diltiazem) overdose: the primary therapies are high-dose insulin (euglycemic), vasopressors, and calcium — treat with these first. Lipid emulsion is of uncertain usefulness (2025 AHA Special Circumstances) and ECPR is a discussion point, not first-line; do not let them displace the primary treatment.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:20,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 20',
@@ -2969,6 +2976,10 @@ function renderSimPanel(simKey){
   }
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
   const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
+  // Program coaching, distinct from the AHA-transcribed note above it: the
+  // clinical emphasis the review asked for, added rather than overwriting the
+  // manual text so it is clear which is which.
+  const coachHtml=st&&st.coach?`<div class="sim-note coach">🎓 <b>Program coaching:</b> ${esc(st.coach)}</div>`:'';
 
   if(graded){
     // Full width: states, the checklist and the triggers side by side, so a
@@ -3003,7 +3014,7 @@ function renderSimPanel(simKey){
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}</div>
         <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
-        <div>${triggerHtml}${noteHtml}
+        <div>${triggerHtml}${noteHtml}${coachHtml}
           <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
           <div class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
@@ -3021,6 +3032,7 @@ function renderSimPanel(simKey){
   let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t-dim);font-weight:normal;">${sim.subtitle}</span></div>`;
   html+=`<div class="sim-states">${states}</div>`;
   html+=noteHtml;
+  html+=coachHtml;
   panel.innerHTML=html;
 }
 
