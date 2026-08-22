@@ -2007,6 +2007,22 @@ function applyLeadCfg(raw, ph, cfg){
   return dv + 0.5;
 }
 
+/* Ventricular fibrillation is chaotic, not a repeating template. The old branch
+   sampled one keyframe at a fixed 5 Hz, so every cycle was identical and the
+   trace read as ventricular flutter / very rapid monomorphic VT — the review
+   caught this on scenario 2. Summing a few incommensurate sinusoids under a
+   slow waxing/waning envelope gives a trace that is deterministic in t (so the
+   sweep stays continuous frame to frame) yet never repeats cycle to cycle, with
+   the coarse-to-fine undulation real VF shows. */
+function vfibValue(t){
+  const v = Math.sin(2*Math.PI*4.7*t)
+          + 0.75*Math.sin(2*Math.PI*7.3*t+1.3)
+          + 0.55*Math.sin(2*Math.PI*10.1*t+2.1)
+          + 0.60*Math.sin(2*Math.PI*3.1*t+0.7);
+  const env = 0.72 + 0.28*Math.sin(2*Math.PI*0.55*t+0.4);
+  return Math.max(0,Math.min(1,0.5+0.16*env*v));
+}
+
 // Sample functions — pure math, no noise (noise added at render time)
 function sEcg(t){
   // null means "draw nothing". A disconnected monitor used to show a flat green
@@ -2014,7 +2030,7 @@ function sEcg(t){
   // trained to read as asystole. Real equipment shows no trace and says so.
   if(!S.patientConnected) return null;
   const r=S.rhythm,hr=Math.max(S.hr,.5);
-  if(r==='vfib') return sL(L.vfib,(t*5%1+1)%1);
+  if(r==='vfib') return vfibValue(t);
   // Use a slow agonal rate (20 bpm) as the PVC schedule base during asystole
   const bp=r==='asystole'?3.0:60/hr;
 
@@ -2264,6 +2280,8 @@ canvas{display:block;width:100%;height:100%;}
   <div class="lead rhythm-row" style="height:70px"><div class="lead-name">II (Rhythm Strip)</div><canvas id="L_rhythm"></canvas></div>
 </div>
 <div class="footer">Patient Simulation Monitor — Auto-generated 12-Lead ECG</div>
+<div class="rate-info" style="margin-top:2px;"><div><label>QTc: </label><span id="qtcDisp">—</span> <label>ms (Bazett)</label> <span id="qtcTag" style="color:#888;"></span></div></div>
+<div class="footer" id="interpRow" style="display:none;margin-top:4px;font-size:12px;color:#ffd88a;letter-spacing:1px;"></div>
 <div class="footer" id="qtcRow" style="display:none;margin-top:4px;font-size:12px;color:#ff4444;letter-spacing:1px;">
   ⚠ QTc: <span id="qtcVal">587</span> ms &nbsp;|&nbsp; PROLONGED QT — Risk of Torsades de Pointes
 </div>
@@ -2285,7 +2303,12 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') close12(); });
 const PARENT_S = ${JSON.stringify({
   rhythm: S.rhythm, hr: S.hr, sbp: S.sbp, dbp: S.dbp,
   spo2: S.spo2, etco2: S.etco2, rr: S.rr, patientType: S.patientType,
-  scenario: S.scenario
+  scenario: S.scenario,
+  // Per-stage ECG contract, when the scenario carries one: overrides the
+  // rhythm-derived QRS/QT and adds a device-style interpretation line, so the
+  // printout matches what the scenario text describes (inferior injury, a
+  // hyperkalaemic pattern, a genuinely long QT) instead of a generic strip.
+  ecg: S.ecg || null
 })};
 
 // Catmull-Rom spline
@@ -2537,12 +2560,38 @@ function drawLead(canvasId, cfg){
 
 // Draw all 12 leads + rhythm strip — deferred to window.onload so canvases are sized
 window.onload=function(){
-  // Set interval labels
+  // Set interval labels. A per-stage contract, where present, overrides the
+  // rhythm-derived QRS/QT so the printout matches the described findings.
+  const C=PARENT_S.ecg||{};
+  const qrsVal=C.qrs!=null?C.qrs:QRS_MS[rhy];
+  const qtVal =C.qt !=null?C.qt :QT_MS[rhy];
   document.getElementById('rhythmLabel').textContent='Rhythm: '+(RHYTHM_NAMES[rhy]||rhy.toUpperCase());
   document.getElementById('hrDisp').textContent=PARENT_S.hr||'---';
   document.getElementById('prDisp').textContent=PR_MS[rhy]||'---';
-  document.getElementById('qrsDisp').textContent=QRS_MS[rhy]||'---';
-  document.getElementById('qtDisp').textContent=QT_MS[rhy]||'---';
+  document.getElementById('qrsDisp').textContent=qrsVal||'---';
+  document.getElementById('qtDisp').textContent=qtVal||'---';
+
+  // QTc, always, by Bazett (QT / sqrt(RR)). The review found a raw QT of 480 at
+  // HR 30 presented as "long QT" — but corrected for that rate it is normal, so
+  // showing QT alone establishes nothing. The corrected value is what a monitor
+  // prints and what the abnormality is read from.
+  const hrForQtc=PARENT_S.hr||0;
+  if(qtVal&&hrForQtc>0){
+    const rr=60/hrForQtc;                       // seconds
+    const qtc=Math.round(qtVal/Math.sqrt(rr));
+    const tag=qtc>=500?'PROLONGED — Torsades risk':qtc>=460?'borderline prolonged':qtc<350?'short':'normal';
+    const col=qtc>=500?'#ff4444':qtc>=460?'#ffd88a':'#7fe0a5';
+    const qd=document.getElementById('qtcDisp'), qt2=document.getElementById('qtcTag');
+    if(qd){ qd.textContent=qtc; qd.style.color=col; }
+    if(qt2){ qt2.textContent='('+tag+')'; qt2.style.color=col; }
+  }
+
+  // Device-style interpretation line from the contract.
+  if(C.interp){
+    const ir=document.getElementById('interpRow');
+    if(ir){ ir.textContent=C.interp; ir.style.display='block'; }
+  }
+
   if(isDrowning){
     document.getElementById('qtcRow').style.display='block';
     document.getElementById('osbornNote').style.display='block';

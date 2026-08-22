@@ -1127,6 +1127,7 @@ const DEF={
   patientConnected:false,
   scenario:'',
   etco2On:false,
+  ecg:null,
 };
 let S={...DEF};
 
@@ -1810,8 +1811,9 @@ const SIMULATIONS={
     states:[
       {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'#ff9900',
        vitals:{hr:32,rhythm:'hb3',sbp:86,dbp:48,spo2:96,etco2:36,rr:18,temp:36.7},
-       display:'HR 32 | BP 86/48 Doppler | SpO₂ 96% | RR 18',
-       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.'},
+       display:'HR 32 | SBP 86 (Doppler) | SpO₂ 96% | RR 18',
+       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.',
+       ecg:{qrs:140,interp:'*** ACUTE INFERIOR INJURY — ST elevation II, III, aVF (III > II); V4R flat, no right-ventricular ST elevation ***'}},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:170,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:22,rr:0,temp:36.7},
        display:'HR 170 | Pulseless VT | BP 0/0 | EtCO₂ 22',
@@ -1822,7 +1824,7 @@ const SIMULATIONS={
        note:'Sinus bradycardia with marginally wide QRS after 2 minutes; no pulse. Advanced airway placed, capnography 22 then rising to 48. A carotid pulse becomes present but no radial.'},
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:40,rhythm:'brady',sbp:68,dbp:40,spo2:92,etco2:40,rr:8,temp:36.6},
-       display:'HR 40 | ROSC | BP 68/40 Doppler | RR 8',
+       display:'HR 40 | ROSC | SBP 68 (Doppler) | RR 8',
        note:'The patient bats his eyes to loud voices and breathes at 8/min. Consider dopamine and/or epinephrine infusion for perfusion. ED 3 min, STEMI centre 12 min.'},
     ]},
   megacode4:{
@@ -1846,7 +1848,8 @@ const SIMULATIONS={
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:100,rhythm:'nsr',sbp:94,dbp:56,spo2:100,etco2:60,rr:14,temp:36.9},
        display:'HR 100 | ROSC | BP 94/56 | SpO₂ 100% | EtCO₂ 60',
-       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.'},
+       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.',
+       ecg:{qrs:110,qt:360,interp:'*** Marginally wide QRS with tall, peaked T waves — consider HYPERKALAEMIA (dialysis patient, missed session) ***'}},
     ]},
   megacode5:{
     name:'ACLS Megacode 5 — ED Unstable Bradycardia',
@@ -1857,7 +1860,8 @@ const SIMULATIONS={
       {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'#ff9900',
        vitals:{hr:30,rhythm:'hb3',sbp:80,dbp:48,spo2:98,etco2:34,rr:16,temp:36.5},
        display:'HR 30 | BP 80/48 | SpO₂ 98% on 3 L | RR 16',
-       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.'},
+       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.',
+       ecg:{qrs:150,qt:720,interp:'*** Wide-complex ventricular escape with a prolonged QT — see QTc (Bazett) below ***'}},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:20,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 20',
@@ -2135,7 +2139,7 @@ const SCENARIO_DOCS={
     brief:{
       patient:'Elderly man · chest pain · heart transplant 2 years ago',
       dispatch:'Your ALS ambulance is dispatched to help an elderly man having chest pain. A BLS engine is also responding. You arrive to find the firefighters placing a nonrebreathing oxygen mask on the patient.',
-      hpi:'Vital signs from the manual: BP 86/48 mmHg by Doppler, RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
+      hpi:'Vital signs from the manual: BP 86/48 mmHg "by Doppler" (a Doppler yields a systolic only, so read the 86 as the systolic; the 48 is not a Doppler value), RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
       handoff:'',
       withhold:'',
       sample:[['Signs / symptoms','Chest heaviness, may need to vomit; started abruptly while waiting in line at the bank'],['Allergies','Sulfa'],['Medications','Multiple, all at home'],['Past history','Cardiac problems; heart transplant 2 years ago'],['Last oral intake','Not specified'],['Events','Abrupt chest heaviness while standing in line']],
@@ -2148,7 +2152,7 @@ const SCENARIO_DOCS={
       {trigger:'If students try to give atropine it will have no effect because of heart denervation.\n\n→ The transcutaneous pacemaker is applied, but before it acquires capture the patient becomes unresponsive, the rhythm changes to VT and he becomes apneic. There is no pulse.'},
       {trigger:'Defibrillate, then high-quality CPR for 2 minutes with peripheral IVs in each arm. After 2 minutes the rhythm is still VT — defibrillate again, CPR, epinephrine. Bag-mask ventilation is easy, so an advanced airway is not required unless the Team Leader feels it is indicated.\n\n→ After 2 minutes the rhythm is sinus bradycardia with marginally wide QRS complexes and no pulse.'},
       {trigger:'CPR continues, advanced airway placed, capnography 22 mmHg. After 2 minutes the rhythm is nearly the same and the QRS complexes are less wide but the rate is unchanged. EtCO₂ is now 48 mmHg.\n\n→ A carotid pulse is present but a radial pulse cannot be felt.'},
-      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. BP by Doppler is 68/40 mmHg. Consider dopamine and/or epinephrine infusion to support perfusion.'},
+      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. Systolic by Doppler is 68 mmHg (the manual prints 68/40). Consider dopamine and/or epinephrine infusion to support perfusion.'},
     ],
   },
   megacode4:{
@@ -2220,6 +2224,9 @@ function applyVitals(vitals, patType){
   // shark-fin capnogram set during an earlier phase lingers into ROSC, which
   // the review caught. States that do set a shape (the asthma shark-fin) keep it.
   if(!('co2Shape' in vitals)) S.co2Shape=DEF.co2Shape;
+  // The 12-lead contract is per-stage; clear it here and let applySimState set
+  // the incoming stage's, so a previous stage's interpretation cannot linger.
+  S.ecg=null;
   Object.assign(S, vitals);
   if(patType) S.patientType=patType;
   // Only mirror into the A-Line while it is linked. Overwriting an unlinked
@@ -2314,6 +2321,9 @@ function applySimState(simKey, stateIdx){
     enterRunState(stateIdx);
   }
   applyVitals(st.vitals, sim.patientType);
+  // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
+  // printout matches the described findings (applyVitals cleared any prior one).
+  if(st.ecg){ S.ecg=st.ecg; save(); }
   // Repaint so the active state's own note and checklist are the ones showing.
   renderSimPanel(simKey);
 }

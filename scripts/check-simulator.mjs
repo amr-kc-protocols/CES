@@ -1816,6 +1816,73 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// The generated ECG agrees with the scenario text
+//
+// The review found VF rendering as a repeating template (ventricular flutter,
+// not chaos), a Doppler pressure printed with a diastolic it cannot have, and
+// 12-leads that did not show the stated inferior injury, hyperkalaemia or long
+// QT. Each scenario stage now carries a testable ECG contract the printout is
+// built from, checked here against the vitals and the text beside it.
+// ---------------------------------------------------------------------------
+{
+  // VF is chaotic, not periodic.
+  const { w, S } = loadMonitor()
+  Object.assign(S(), { patientConnected: true, rhythm: 'vfib' })
+  const sEcg = w.eval('sEcg')
+  let diffs = 0, n = 0, lo = 1, hi = 0
+  for (let t = 0; t < 3; t += 0.02) {
+    n++
+    if (Math.abs(sEcg(t) - sEcg(t + 0.2)) > 0.05) diffs++
+    lo = Math.min(lo, sEcg(t)); hi = Math.max(hi, sEcg(t))
+  }
+  ok('VF does not repeat as a fixed template', diffs > n * 0.5, `${diffs}/${n} points differ a cycle apart`)
+  ok('VF has coarse fibrillatory amplitude', hi - lo > 0.4, `range ${(hi - lo).toFixed(2)}`)
+  ok('and stays within the trace bounds', lo >= 0 && hi <= 1, `${lo.toFixed(2)}..${hi.toFixed(2)}`)
+  ok('the 12-lead computes QTc by Bazett', /qtVal\s*\/\s*Math\.sqrt\(rr\)/.test(MONITOR_SRC))
+  ok('and flows the per-stage ECG contract into the 12-lead', /ecg:\s*S\.ecg\s*\|\|\s*null/.test(MONITOR_SRC))
+  w.close()
+}
+
+{
+  const { w, d, S } = load()
+  const sims = w.eval('SIMULATIONS')
+  const docs = w.eval('SCENARIO_DOCS')
+
+  // Doppler yields a systolic only — no diastolic may be printed beside it.
+  for (const st of sims.megacode3.states) {
+    ok(`Megacode 3 "${st.id}" prints no Doppler diastolic`, !/\d+\/\d+\s*\(?Doppler/i.test(st.display), st.display)
+  }
+  ok('Megacode 3 still shows a Doppler systolic', /Doppler/.test(sims.megacode3.states[0].display))
+  ok('and the brief explains why', /systolic only|systolic\b/i.test(docs.megacode3.brief.hpi) && /Doppler/.test(docs.megacode3.brief.hpi))
+
+  // The three stages the review named each carry a contract that matches the
+  // text beside them.
+  const inj = sims.megacode3.states[0].ecg
+  ok('Megacode 3 carries an inferior-injury contract', !!inj && /inferior/i.test(inj.interp) && /V4R/.test(inj.interp))
+  ok('matching the note that describes the same injury', /II, III, aVF/.test(sims.megacode3.states[0].note) && /V4R/.test(sims.megacode3.states[0].note))
+
+  const hyperk = sims.megacode4.states[3].ecg
+  ok('Megacode 4 ROSC carries a hyperkalaemia contract', !!hyperk && /hyperkal/i.test(hyperk.interp))
+  ok('with a marginally wide QRS, not the generic 90 ms', hyperk.qrs > 90, `${hyperk.qrs} ms`)
+  ok('and its text describes the peaked T waves', /peaked T/i.test(sims.megacode4.states[3].note))
+
+  const lqt = sims.megacode5.states[0].ecg
+  ok('Megacode 5 carries a long-QT contract', !!lqt && /(prolonged|long) QT/i.test(lqt.interp))
+  // The stated long QT must actually compute to a prolonged QTc at this rate —
+  // the review's point was that a raw QT alone establishes nothing.
+  const qtc = Math.round(lqt.qt / Math.sqrt(60 / sims.megacode5.states[0].vitals.hr))
+  ok('and its QT computes to a genuinely prolonged QTc', qtc >= 500, `QTc ${qtc} ms at HR ${sims.megacode5.states[0].vitals.hr}`)
+
+  // The contract flows to the monitor, and a stage without one clears it.
+  d.getElementById('simScenarioSel').value = 'megacode3'
+  w.applySimScenario()
+  ok('applying a stage with a contract sets S.ecg', !!S().ecg && /inferior/i.test(S().ecg.interp))
+  w.applySimState('megacode3', 1) // pVT — no contract
+  ok('and moving to a stage without one clears it', S().ecg === null, JSON.stringify(S().ecg))
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)
