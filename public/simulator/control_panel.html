@@ -134,6 +134,8 @@ select:focus{border-color:#00e5ff;}
 .state-btn .svitals{font-size:.62rem;color:var(--t-dim);display:block;}
 .state-btn.active .svitals{color:#cc7700;}
 .sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
+.sim-note.coach{color:#bfe3c8;border-top-color:#2c5e44;}
+.sim-note.coach b{color:#7fe0a5;}
 .no-sim{font-size:.72rem;color:var(--t-dim);text-align:center;padding:20px 0;line-height:1.6;}
 
 /* Expected Actions — the scenario's own gradeable list. Ticking one is the
@@ -507,6 +509,11 @@ body.run-mode .card.bp{grid-row:1/3;}
   .connect-bar{flex-direction:column;}
   .phys-btn{flex:none;}
 }
+/* A visible focus ring on every interactive control, so the panel is usable
+   from the keyboard at the back of the room without hunting for where focus is. */
+[role="button"]:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{
+  outline:2px solid #00c8e0;outline-offset:2px;
+}
 </style>
 </head>
 <body>
@@ -755,6 +762,45 @@ body.run-mode .card.bp{grid-row:1/3;}
       <div class="dname">Push Dose Epi</div>
       <div class="ddose">10–20 mcg IV</div>
       <div class="deffect">↑↑HR · ↑↑BP · ↑SVR</div>
+    </div>
+
+    <!-- ACLS bradycardia and toxicology agents the megacodes call for: the
+         review found no way to record atropine, chronotropic infusions, or the
+         calcium-channel-blocker / hyperkalaemia therapies. -->
+    <div class="drug-btn" data-drug="atropine" onclick="giveDrug('atropine')">
+      <div class="dname">Atropine</div>
+      <div class="ddose">1 mg IV (max 3 mg)</div>
+      <div class="deffect">↑HR · ineffective if denervated/CCB</div>
+    </div>
+
+    <div class="drug-btn" data-drug="dopamine" onclick="giveDrug('dopamine')">
+      <div class="dname">Dopamine</div>
+      <div class="ddose">5–20 mcg/kg/min</div>
+      <div class="deffect">↑HR · ↑BP — chronotrope</div>
+    </div>
+
+    <div class="drug-btn" data-drug="calcium" onclick="giveDrug('calcium')">
+      <div class="dname">Calcium (Cl / gluconate)</div>
+      <div class="ddose">CaCl₂ 1 g IV</div>
+      <div class="deffect">membrane stability · CCB / ↑K⁺</div>
+    </div>
+
+    <div class="drug-btn" data-drug="bicarb" onclick="giveDrug('bicarb')">
+      <div class="dname">Sodium Bicarbonate</div>
+      <div class="ddose">1 mEq/kg IV</div>
+      <div class="deffect">↑K⁺ shift · acidosis — per protocol</div>
+    </div>
+
+    <div class="drug-btn" data-drug="insulin_dextrose" onclick="giveDrug('insulin_dextrose')">
+      <div class="dname">High-Dose Insulin</div>
+      <div class="ddose">1 U/kg bolus + infusion (w/ dextrose)</div>
+      <div class="deffect">inotropy — CCB/BB OD (slow)</div>
+    </div>
+
+    <div class="drug-btn" data-drug="glucagon" onclick="giveDrug('glucagon')">
+      <div class="dname">Glucagon</div>
+      <div class="ddose">3–10 mg IV</div>
+      <div class="deffect">↑HR · ↑BP — BB / CCB OD</div>
     </div>
 
   </div>
@@ -1127,6 +1173,7 @@ const DEF={
   patientConnected:false,
   scenario:'',
   etco2On:false,
+  ecg:null,
 };
 let S={...DEF};
 
@@ -1765,7 +1812,8 @@ const SIMULATIONS={
       {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
        vitals:{hr:38,rhythm:'brady',sbp:78,dbp:42,spo2:92,etco2:34,rr:18,temp:36.8,pvcOn:true},
        display:'HR 38 | BP 78/42 | SpO₂ 92% | EtCO₂ 34 | RR 18',
-       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.'},
+       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.',
+       coach:'Adult Bradycardia Algorithm (2025 AHA): atropine first; if it fails or is inadequate, move to transcutaneous pacing and/or a dopamine or epinephrine infusion. Record the pacing and the infusion — not just the atropine.'},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:180,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:18,rr:0,temp:36.8,pvcOn:false},
        display:'HR 180 | Pulseless VT | BP 0/0 | EtCO₂ 18',
@@ -1788,7 +1836,8 @@ const SIMULATIONS={
       {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
        vitals:{hr:44,rhythm:'brady',sbp:84,dbp:50,spo2:88,etco2:30,rr:3,temp:36.6},
        display:'HR 44 | BP 84/50 | SpO₂ 88% | EtCO₂ 30 | RR 3',
-       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.'},
+       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.',
+       coach:'Adult Bradycardia Algorithm (2025 AHA): atropine first, then transcutaneous pacing and/or a dopamine or epinephrine infusion if it is inadequate. This patient is also barely breathing (RR 3) — support ventilation early.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:22,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 22',
@@ -1810,8 +1859,10 @@ const SIMULATIONS={
     states:[
       {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'#ff9900',
        vitals:{hr:32,rhythm:'hb3',sbp:86,dbp:48,spo2:96,etco2:36,rr:18,temp:36.7},
-       display:'HR 32 | BP 86/48 Doppler | SpO₂ 96% | RR 18',
-       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.'},
+       display:'HR 32 | SBP 86 (Doppler) | SpO₂ 96% | RR 18',
+       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.',
+       ecg:{qrs:140,interp:'*** ACUTE INFERIOR INJURY — ST elevation II, III, aVF (III > II); V4R flat, no right-ventricular ST elevation ***'},
+       coach:'Transplanted (denervated) heart: atropine is typically ineffective — do not wait on it. Go early to transcutaneous pacing and chronotropic support (dopamine or epinephrine infusion). ACC/AHA/HRS bradycardia guidance.'},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:170,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:22,rr:0,temp:36.7},
        display:'HR 170 | Pulseless VT | BP 0/0 | EtCO₂ 22',
@@ -1822,7 +1873,7 @@ const SIMULATIONS={
        note:'Sinus bradycardia with marginally wide QRS after 2 minutes; no pulse. Advanced airway placed, capnography 22 then rising to 48. A carotid pulse becomes present but no radial.'},
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:40,rhythm:'brady',sbp:68,dbp:40,spo2:92,etco2:40,rr:8,temp:36.6},
-       display:'HR 40 | ROSC | BP 68/40 Doppler | RR 8',
+       display:'HR 40 | ROSC | SBP 68 (Doppler) | RR 8',
        note:'The patient bats his eyes to loud voices and breathes at 8/min. Consider dopamine and/or epinephrine infusion for perfusion. ED 3 min, STEMI centre 12 min.'},
     ]},
   megacode4:{
@@ -1842,11 +1893,13 @@ const SIMULATIONS={
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:70,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:25,rr:0,temp:36.8},
        display:'HR 70 | PEA | BP 0/0 | EtCO₂ 22–27',
-       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.'},
+       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.',
+       coach:'Wide-complex PEA in a missed-dialysis patient: treat the reversible cause — recognise and manage suspected hyperkalaemia per your local protocol. The 2025 AHA evidence statement is cautious: calcium and bicarbonate are not universally proven, so score reversible-cause recognition and your protocol, not a fixed drug list.'},
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:100,rhythm:'nsr',sbp:94,dbp:56,spo2:100,etco2:60,rr:14,temp:36.9},
        display:'HR 100 | ROSC | BP 94/56 | SpO₂ 100% | EtCO₂ 60',
-       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.'},
+       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.',
+       ecg:{qrs:110,qt:360,interp:'*** Marginally wide QRS with tall, peaked T waves — consider HYPERKALAEMIA (dialysis patient, missed session) ***'}},
     ]},
   megacode5:{
     name:'ACLS Megacode 5 — ED Unstable Bradycardia',
@@ -1857,7 +1910,9 @@ const SIMULATIONS={
       {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'#ff9900',
        vitals:{hr:30,rhythm:'hb3',sbp:80,dbp:48,spo2:98,etco2:34,rr:16,temp:36.5},
        display:'HR 30 | BP 80/48 | SpO₂ 98% on 3 L | RR 16',
-       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.'},
+       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.',
+       ecg:{qrs:150,qt:720,interp:'*** Wide-complex ventricular escape with a prolonged QT — see QTc (Bazett) below ***'},
+       coach:'Calcium-channel-blocker (diltiazem) overdose: the primary therapies are high-dose insulin (euglycemic), vasopressors, and calcium — treat with these first. Lipid emulsion is of uncertain usefulness (2025 AHA Special Circumstances) and ECPR is a discussion point, not first-line; do not let them displace the primary treatment.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:20,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 20',
@@ -2006,8 +2061,8 @@ const ACLS_CPR_FIELDS=[
   {id:'rate',   label:'Compression rate 100-120/min', type:'check'},
   {id:'depth',  label:'Compression depth ≥2 inches',  type:'check'},
   {id:'recoil', label:'Chest recoil',                 type:'check'},
-  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%'},
-  {id:'ventRate',label:'Ventilation rate',            type:'value', suffix:'/min'},
+  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%', min:0, max:100},
+  {id:'ventRate',label:'Ventilation rate (breaths/min)', type:'value', suffix:'/min', min:0, max:60},
 ];
 
 const SCENARIO_DOCS={
@@ -2135,7 +2190,7 @@ const SCENARIO_DOCS={
     brief:{
       patient:'Elderly man · chest pain · heart transplant 2 years ago',
       dispatch:'Your ALS ambulance is dispatched to help an elderly man having chest pain. A BLS engine is also responding. You arrive to find the firefighters placing a nonrebreathing oxygen mask on the patient.',
-      hpi:'Vital signs from the manual: BP 86/48 mmHg by Doppler, RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
+      hpi:'Vital signs from the manual: BP 86/48 mmHg "by Doppler" (a Doppler yields a systolic only, so read the 86 as the systolic; the 48 is not a Doppler value), RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
       handoff:'',
       withhold:'',
       sample:[['Signs / symptoms','Chest heaviness, may need to vomit; started abruptly while waiting in line at the bank'],['Allergies','Sulfa'],['Medications','Multiple, all at home'],['Past history','Cardiac problems; heart transplant 2 years ago'],['Last oral intake','Not specified'],['Events','Abrupt chest heaviness while standing in line']],
@@ -2148,7 +2203,7 @@ const SCENARIO_DOCS={
       {trigger:'If students try to give atropine it will have no effect because of heart denervation.\n\n→ The transcutaneous pacemaker is applied, but before it acquires capture the patient becomes unresponsive, the rhythm changes to VT and he becomes apneic. There is no pulse.'},
       {trigger:'Defibrillate, then high-quality CPR for 2 minutes with peripheral IVs in each arm. After 2 minutes the rhythm is still VT — defibrillate again, CPR, epinephrine. Bag-mask ventilation is easy, so an advanced airway is not required unless the Team Leader feels it is indicated.\n\n→ After 2 minutes the rhythm is sinus bradycardia with marginally wide QRS complexes and no pulse.'},
       {trigger:'CPR continues, advanced airway placed, capnography 22 mmHg. After 2 minutes the rhythm is nearly the same and the QRS complexes are less wide but the rate is unchanged. EtCO₂ is now 48 mmHg.\n\n→ A carotid pulse is present but a radial pulse cannot be felt.'},
-      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. BP by Doppler is 68/40 mmHg. Consider dopamine and/or epinephrine infusion to support perfusion.'},
+      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. Systolic by Doppler is 68 mmHg (the manual prints 68/40). Consider dopamine and/or epinephrine infusion to support perfusion.'},
     ],
   },
   megacode4:{
@@ -2215,6 +2270,14 @@ function applyVitals(vitals, patType){
   // A new patient state clears anything still circulating, so a drug given
   // against the last state cannot wear off into this one.
   stopDrugs();
+  // The capnogram follows the patient. A state that does not name a shape gets
+  // a normal one rather than inheriting the last state's — otherwise a CPR or
+  // shark-fin capnogram set during an earlier phase lingers into ROSC, which
+  // the review caught. States that do set a shape (the asthma shark-fin) keep it.
+  if(!('co2Shape' in vitals)) S.co2Shape=DEF.co2Shape;
+  // The 12-lead contract is per-stage; clear it here and let applySimState set
+  // the incoming stage's, so a previous stage's interpretation cannot linger.
+  S.ecg=null;
   Object.assign(S, vitals);
   if(patType) S.patientType=patType;
   // Only mirror into the A-Line while it is linked. Overwriting an unlinked
@@ -2284,6 +2347,10 @@ function applySimScenario(){
   activeSim=entry.sim;
   activeStateIdx=entry.idx;
   run=null; lastRun=null;   // Apply always begins a new run, even on the same scenario
+  // Graded scenarios reset via startRun inside applySimState; the ungraded sims
+  // (no approved action list, so no run) reach nothing that would, so they get
+  // the clean slate here.
+  if(!SCENARIO_DOCS[entry.sim]) resetForNewScenario();
   applySimState(entry.sim,entry.idx);
   // Clear the quick scenario dropdown so it doesn't look selected
   document.getElementById('scenarioSel').value='';
@@ -2305,6 +2372,9 @@ function applySimState(simKey, stateIdx){
     enterRunState(stateIdx);
   }
   applyVitals(st.vitals, sim.patientType);
+  // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
+  // printout matches the described findings (applyVitals cleared any prior one).
+  if(st.ecg){ S.ecg=st.ecg; save(); }
   // Repaint so the active state's own note and checklist are the ones showing.
   renderSimPanel(simKey);
 }
@@ -2323,9 +2393,40 @@ let lastRun=null;  // the finished record, kept on screen for the debrief
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
 
+// A new scenario is a clean slate. On the panel that means nothing the last
+// run left circulating, logged or set may bleed into the next: the medications
+// on board and their visible log, the device timeline, and the pacer model.
+// The one thing the panel cannot reach directly is the defibrillator's own
+// state — shock count, therapy mode, energy, lead/size, a running printer —
+// because that lives on the monitor. So it bumps S.deviceReset, a token the
+// monitor watches to return the unit to its power-on baseline.
+//
+// Display and sensor state that a scenario's vitals do not necessarily set —
+// the capnogram shape, whether EtCO2/A-Line/PA are on, ectopy, alarm mute — is
+// returned to defaults here too, before the scenario's own vitals are applied
+// over it, so an asthma shark-fin or an A-Line from the last scenario cannot
+// carry forward.
+function resetForNewScenario(){
+  stopDrugs();
+  drugLog=[]; renderDrugLog();
+  deviceFeed=[]; renderDeviceFeed();
+  pacer={on:false,rate:70,ma:0};
+  captureThreshold=70; preCapture=null;
+  Object.assign(S,{
+    co2Shape:DEF.co2Shape, etco2On:DEF.etco2On,
+    artActive:DEF.artActive, artLinked:DEF.artLinked, sgActive:DEF.sgActive,
+    pvcOn:DEF.pvcOn, pacOn:DEF.pacOn, alarmMuted:DEF.alarmMuted,
+  });
+  S.deviceReset=(S.deviceReset||0)+1;
+  syncToggles();
+  renderPacerPrompt();
+  save();
+}
+
 function startRun(simKey){
   const sim=SIMULATIONS[simKey], doc=SCENARIO_DOCS[simKey];
   if(!sim||!doc) return;
+  resetForNewScenario();
   const cl=sim.checklist?ACLS_CHECKLISTS[sim.checklist]:null;
   run={
     scenario:simKey,
@@ -2385,7 +2486,21 @@ function toggleCpr(id){
   run.cpr[id]=!run.cpr[id];
   renderSimPanel(run.scenario);
 }
-function setCpr(id,v){ if(run&&run.cpr) run.cpr[id]=v; }
+function setCpr(id,v,min,max){
+  if(!run||!run.cpr) return;
+  // A percentage cannot be 140 and a ventilation rate cannot be negative.
+  // Clamp value fields to their range so the saved record is always valid.
+  if(min!=null||max!=null){
+    if(v===''){ run.cpr[id]=''; return; }
+    let n=parseInt(v,10);
+    if(!isFinite(n)){ run.cpr[id]=''; return; }
+    if(min!=null) n=Math.max(min,n);
+    if(max!=null) n=Math.min(max,n);
+    run.cpr[id]=String(n);
+    return;
+  }
+  run.cpr[id]=v;
+}
 // PASS / NR, as the checklist has it. Clicking the set result again clears it,
 // so a mis-tap before the debrief is one click to undo.
 function setResult(r){
@@ -2394,8 +2509,31 @@ function setResult(r){
   renderSimPanel(run.scenario);
 }
 
+// What is missing or inconsistent about the run as it stands. A run is a
+// competency record, and the review was able to save a PASS with 1 of 18
+// actions observed and no crew name — so ending one now surfaces these first.
+function runWarnings(){
+  const out=[];
+  if(!run) return out;
+  if(!run.crew||!run.crew.trim()) out.push('no crew name recorded');
+  if(!run.notes||!run.notes.trim()) out.push('no debrief note');
+  if(run.checklist&&!run.result) out.push('no PASS / NR result circled');
+  const total=run.states.reduce((n,s)=>n+s.actions.length,0);
+  const done=run.states.reduce((n,s)=>n+s.actions.filter(a=>a.done).length,0);
+  // A PASS with most of the critical actions unobserved is the one the review
+  // called out by name.
+  if(run.result==='pass'&&total>0&&done<Math.ceil(total*0.7))
+    out.push('PASS selected with only '+done+' of '+total+' expected actions observed');
+  return out;
+}
+
 function endRun(){
   if(!run) return;
+  // Warn, and let the facilitator confirm, before a run with gaps is saved.
+  const warns=runWarnings();
+  if(warns.length&&typeof window.confirm==='function'){
+    if(!window.confirm('Save this run anyway?\n\n• '+warns.join('\n• '))) return;
+  }
   enterRunState(-1);
   const rec={
     scenario:run.scenario, scenarioName:run.scenarioName,
@@ -2535,6 +2673,11 @@ const AUTO_TICK=[
   {when:(ev,ctx)=>ev.type==='cpr'&&/ON$/.test(ev.label)&&ctx.sinceShock!==null&&ctx.sinceShock<=15,
    match:/Immediately resumes CPR after shocks/i},
   {when:ev=>ev.type==='pacer'&&ev.label==='PACER ON', match:/Prepares for second-line treatment/i},
+  // A synchronized shock is the tachycardia section's cardioversion step, and
+  // the device now says 'synchronized' in the event only when SYNC was actually
+  // armed for the delivery — a plain defibrillation does not match it.
+  {when:ev=>ev.type==='shock'&&/synchronized/.test(ev.detail||''),
+   match:/synchronized cardioversion/i},
 ];
 
 function onDeviceEvent(ev){
@@ -2590,7 +2733,7 @@ const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
   pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
   ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
   alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',capture:'⌁',
-  power:'⏻',display:'☀',disarm:'⚡'};
+  power:'⏻',display:'☀',disarm:'⚡',mode:'☰'};
 
 /* Electrical capture: the paced rhythm at the rate the crew dialled in.
 
@@ -2761,24 +2904,25 @@ function checklistStripHtml(){
 }
 function checklistBodyHtml(){
   const team=run.team.map((t,i)=>
-    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" onclick="toggleTeam(${i})">
+    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" aria-pressed="${!!t.done}" onclick="toggleTeam(${i})">
        <span class="box">${t.done?'✓':''}</span><span>${esc(t.text)}</span></div>`).join('');
   const cpr=ACLS_CPR_FIELDS.map(f=>{
     if(f.type==='check'){
       const on=run.cpr[f.id];
-      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" onclick="toggleCpr('${f.id}')">
+      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" aria-pressed="${!!on}" onclick="toggleCpr('${f.id}')">
         <span class="box">${on?'✓':''}</span><span>${esc(f.label)}</span></div>`;
     }
     return `<label class="cl-num">${esc(f.label)}
-      <input inputmode="numeric" value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value)">${f.suffix}</label>`;
+      <input inputmode="numeric" type="number" min="${f.min}" max="${f.max}" aria-label="${esc(f.label)}"
+        value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value,${f.min},${f.max})">${f.suffix}</label>`;
   }).join('');
   return `<div class="cl-strip">
     <div class="cl-grp"><div class="col-h">Team leader / team members</div><div class="cl-row">${team}</div></div>
     <div class="cl-grp"><div class="col-h">High-quality CPR at all times</div><div class="cl-row">${cpr}</div></div>
     <div class="res-grp">
       <span class="col-h" style="margin:0 4px 0 0;">Result</span>
-      <button class="res-btn pass${run.result==='pass'?' on':''}" onclick="setResult('pass')">PASS</button>
-      <button class="res-btn nr${run.result==='nr'?' on':''}" onclick="setResult('nr')">NR</button>
+      <button class="res-btn pass${run.result==='pass'?' on':''}" aria-pressed="${run.result==='pass'}" onclick="setResult('pass')">PASS</button>
+      <button class="res-btn nr${run.result==='nr'?' on':''}" aria-pressed="${run.result==='nr'}" onclick="setResult('nr')">NR</button>
     </div>
   </div>`;
 }
@@ -2812,7 +2956,7 @@ function renderSimPanel(simKey){
     const hit=rs?rs.actions.filter(a=>a.done).length:0;
     const tot=rs?rs.actions.length:0;
     const tally=tot?`<span style="float:right;font-size:.6rem;color:${hit===tot?'#7fe0a5':'var(--t-dim)'}">${hit}/${tot}</span>`:'';
-    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
+    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" aria-pressed="${i===activeStateIdx}" onclick="applySimState('${simKey}',${i})">
       <span class="sname" style="color:${st.color}">${st.label}${tally}</span>
       <span class="svitals">${st.display}</span>
     </div>`;
@@ -2825,13 +2969,17 @@ function renderSimPanel(simKey){
   let actionsHtml='';
   if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
     actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
-      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" onclick="toggleAction(${i})"
+      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" aria-pressed="${a.done}" onclick="toggleAction(${i})"
             title="${a.auto?'Ticked from the monitor — click to undo':''}">
         <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?'<span class="auto-tag">from monitor</span>':''}
       </div>`).join('');
   }
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
   const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
+  // Program coaching, distinct from the AHA-transcribed note above it: the
+  // clinical emphasis the review asked for, added rather than overwriting the
+  // manual text so it is clear which is which.
+  const coachHtml=st&&st.coach?`<div class="sim-note coach">🎓 <b>Program coaching:</b> ${esc(st.coach)}</div>`:'';
 
   if(graded){
     // Full width: states, the checklist and the triggers side by side, so a
@@ -2866,7 +3014,7 @@ function renderSimPanel(simKey){
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}</div>
         <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
-        <div>${triggerHtml}${noteHtml}
+        <div>${triggerHtml}${noteHtml}${coachHtml}
           <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
           <div class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
@@ -2884,6 +3032,7 @@ function renderSimPanel(simKey){
   let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t-dim);font-weight:normal;">${sim.subtitle}</span></div>`;
   html+=`<div class="sim-states">${states}</div>`;
   html+=noteHtml;
+  html+=coachHtml;
   panel.innerHTML=html;
 }
 
@@ -2926,7 +3075,10 @@ function runSummaryHtml(rec){
 // ── Open Monitor ─────────────────────────────────────────────
 function openMonitor(){
   flushSave(); // the monitor reads localStorage as it loads
-  window.open('patient_monitor_display.html','Monitor','width=1280,height=720,resizable=yes');
+  // This is the LIFEPAK 15 program, so the monitor opens in the LP skin rather
+  // than the ZOLL-style default. The crew can still switch it unless a session
+  // is opened locked (?skin=lp&lock=1).
+  window.open('patient_monitor_display.html?skin=lp','Monitor','width=1280,height=720,resizable=yes');
 }
 
 // ── Drug Interactions Engine ──────────────────────────────────
@@ -2967,6 +3119,23 @@ const DRUGS={
     effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*40),dbp:Math.round(b.dbp+pk*20),hr:Math.round(b.hr+pk*30)};}},
   whole_blood:{name:'O+ LTWB',duration:120,
     effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*22),dbp:Math.round(b.dbp+pk*12),hr:Math.round(b.hr-pk*10),spo2:Math.min(99,Math.round(b.spo2+pk*5))};}},
+  // ACLS bradycardia + toxicology agents. On a pulseless patient these produce
+  // no perfusion (see drugTick) — they act on a perfusing patient, which is
+  // where a chronotrope or a CCB-overdose therapy is judged. Atropine is given a
+  // real effect here; the transplant and CCB scenarios are where the facilitator
+  // withholds the response, as the coaching notes say.
+  atropine:{name:'Atropine',duration:40,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*30),sbp:Math.round(b.sbp+pk*12),dbp:Math.round(b.dbp+pk*6)};}},
+  dopamine:{name:'Dopamine',duration:150,
+    effect:(b,p)=>{const pk=ramp(p,.25);return{hr:Math.round(b.hr+pk*22),sbp:Math.round(b.sbp+pk*30),dbp:Math.round(b.dbp+pk*16)};}},
+  calcium:{name:'Calcium (CaCl₂ / gluconate)',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*8),hr:Math.round(b.hr+pk*8)};}},
+  bicarb:{name:'Sodium Bicarbonate',duration:120,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*6),dbp:Math.round(b.dbp+pk*3)};}},
+  insulin_dextrose:{name:'High-Dose Insulin (euglycemic)',duration:180,
+    effect:(b,p)=>{const pk=ramp(p,.45);return{sbp:Math.round(b.sbp+pk*26),dbp:Math.round(b.dbp+pk*14),hr:Math.round(b.hr+pk*10)};}},
+  glucagon:{name:'Glucagon',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*18),sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*7)};}},
 };
 
 // Floors are zero because arrest is a state this simulator ships: with the
@@ -3052,9 +3221,18 @@ function drugTick(){
     const b=document.querySelector('.drug-btn[data-drug="'+k+'"]');
     if(b) b.classList.remove('running');
   });
-  // Drug effects deliberately ignore the physiology lock: giving epinephrine
-  // in an arrest is exactly the case where the instructor wants the numbers to
-  // move off what the rhythm would otherwise pin them to.
+  // A pulseless patient does not perfuse, and a drug cannot change that. A
+  // pressor given in VF, asystole, pulseless VT or PEA is on board and logged,
+  // but it manufactures no blood pressure, no saturation and no perfusing rate
+  // — those appear only when the facilitator establishes a perfusing rhythm
+  // (ROSC), at which point stopDrugs has cleared it and a fresh dose works. The
+  // undrugged baseline is the test: a systolic of zero there is an arrest.
+  // (This is the review's "epinephrine during pVT changed NIBP 0/0 -> 17/8 and
+  // increased the electrical rate" — it should have done neither.)
+  const pulseless=drugBase.sbp<=0;
+  if(pulseless){ totals.hr=0; totals.sbp=0; totals.dbp=0; totals.spo2=0; totals.rr=0; }
+  // Otherwise drug effects override the physiology lock: raising a perfusing
+  // patient's pressure with a pressor is exactly what the lock must not pin.
   for(const k in totals){
     const lim=VITAL_LIMITS[k];
     S[k]=Math.max(lim[0],Math.min(lim[1],Math.round(drugBase[k]+totals[k])));

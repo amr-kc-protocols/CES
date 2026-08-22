@@ -69,6 +69,11 @@ function load(file = PAGE) {
     url: 'https://ces.local/simulator/control_panel.html',
   })
   const w = dom.window
+  // Ending a run now warns-and-confirms when the record has gaps. jsdom's
+  // confirm returns false (and warns "not implemented"), which would abort every
+  // save; default it to "yes" here so tests that are not about the warning save
+  // as before. The warning tests override it explicitly.
+  try { w.confirm = () => true } catch { /* non-writable in some builds */ }
   return {
     w,
     d: w.document,
@@ -242,14 +247,30 @@ function load(file = PAGE) {
   advance(10000)
   ok('and ends exactly at baseline', S().sbp === base.sbp, `SBP ${S().sbp}`)
 
-  // Arrest — no clamp floor may survive the drug.
+  // Arrest — a pressor is on board but cannot manufacture perfusion. It stays
+  // 0/0 throughout, not a clamp floor and not a drug-driven pressure: a
+  // saturation, a blood pressure and a perfusing rate appear only when the
+  // facilitator establishes a perfusing rhythm (ROSC).
   T = 0
   w.setR('asystole')
   w.giveDrug('epi_acls')
   advance(45000)
-  ok('epinephrine produces a pressure in arrest', S().sbp > 0, `SBP ${S().sbp}`)
+  ok('a pressor produces no pressure on a pulseless patient', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  ok('and does not lift the electrical rate either', S().hr === 0, `HR ${S().hr}`)
   advance(50000)
-  ok('which returns to 0/0, not a clamp floor', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  ok('and it is still 0/0 as it wears off', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+
+  // But the same pressor on a perfusing patient (a driven ROSC) does work.
+  T = 0
+  w.setR('nsr')
+  d.getElementById('scenarioSel').value = 'normal'
+  w.applyScenario()
+  const roscBase = S().sbp
+  w.giveDrug('epi_acls')
+  advance(45000)
+  ok('a pressor works once the patient is perfusing', S().sbp > roscBase, `SBP ${S().sbp} from ${roscBase}`)
+  advance(50000)
+  ok('and wears off to the perfusing baseline', S().sbp === roscBase, `SBP ${S().sbp}`)
 
   // STOP holds the current numbers and cancels what is still running.
   T = 0
@@ -1540,6 +1561,522 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   // from the keyboard.
   const stripButtons = (MONITOR_SRC.match(/class="ic"[^>]*role="button"/g) || []).length
   ok('the ZX strip controls are reachable from the keyboard', stripButtons === 2, `${stripButtons} of 2`)
+}
+
+// ---------------------------------------------------------------------------
+// Starting a scenario is a clean slate
+//
+// The most damaging defect at review: a scenario inherited the last one's
+// device settings, medication history, therapy mode and shock count. Scenario
+// 4's first shock recorded as shock #4; later scenarios opened in AED or pacing
+// mode. The reset spans both files — the panel clears its own med log and
+// device feed and bumps a token, the monitor watches the token and returns the
+// unit to its power-on baseline.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+
+  // Panel side: a new graded scenario clears what the last run left behind.
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.giveDrug('epi_acls')
+  w.onDeviceEvent({ t: new Date().toISOString(), ms: Date.now(), type: 'shock', label: 'SHOCK', detail: '200J · shock #1' })
+  ok('a drug is on the log during the first scenario', w.eval('drugLog').length > 0)
+  ok('and a press is on the device timeline', w.eval('deviceFeed').length > 0)
+  const token0 = w.eval('S.deviceReset') || 0
+
+  d.getElementById('simScenarioSel').value = 'megacode4'
+  w.applySimScenario()
+  ok('starting a new scenario clears the medication log', w.eval('drugLog').length === 0)
+  ok('and clears the device timeline', w.eval('deviceFeed').length === 0)
+  ok('and bumps the device-reset token for the monitor', (w.eval('S.deviceReset') || 0) > token0, `${token0} -> ${w.eval('S.deviceReset')}`)
+
+  // The concrete leak: a capnogram shape one scenario sets must not carry into
+  // the next, which does not set it.
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  ok('asthma sets the shark-fin capnogram', S().co2Shape === 'shark', S().co2Shape)
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  ok('the next scenario does not inherit the shark-fin capnogram', S().co2Shape === 'normal', S().co2Shape)
+  w.close()
+}
+
+{
+  // Monitor side: two consecutive scenarios produce identical initial device
+  // state regardless of what happened in the first run.
+  const { w, S } = loadMonitor()
+  const RESET_FIELDS = [
+    'mode', 'energyIx', 'charging', 'charged', 'shocks', 'lastShockAt', 'sync', 'cpr',
+    'analyzing', 'advisory', 'reanalyzeAt', 'pacer', 'pacerRate', 'pacerMa', 'pacePaused',
+    'alarms', 'silenceUntil', 'nibpUntil', 'leadIx', 'leadFromPanel', 'sizeIx', 'sunvue',
+  ]
+  const snap = () => {
+    const D = w.eval('D')
+    return RESET_FIELDS.map((k) => `${k}=${JSON.stringify(D[k])}`).join(',') + `,log=${w.eval('D.log.length')}`
+  }
+  const baseline = snap()
+
+  // A full first run: a shock count, AED advisory, a lead and size change, the
+  // pacer up, alarms silenced, energy at 360, an event log.
+  const messyRun = () =>
+    w.eval(`
+      D.shocks = 4; D.mode = 'aed'; D.advisory = 'SHOCK ADVISED'; D.charged = true;
+      D.sync = true; D.energyIx = ENERGIES.indexOf(360); D.leadIx = 2; D.sizeIx = 4;
+      D.pacer = true; D.pacerMa = 80; D.pacerRate = 90; D.pacePaused = true;
+      D.silenceUntil = Date.now() + 9e4; D.alarms = false; D.sunvue = true;
+      D.log.push({ type: 'shock' }, { type: 'shock' }, { type: 'shock' }, { type: 'shock' });
+    `)
+  const resetArrives = () => w.eval('S.deviceReset = (S.deviceReset || 0) + 1; devTick()')
+
+  messyRun()
+  resetArrives()
+  const afterFirst = snap()
+  ok('a scenario reset returns the unit to its power-on baseline', afterFirst === baseline, afterFirst)
+
+  // A different first run entirely, then the same reset.
+  w.eval(`D.mode = 'aed'; D.shocks = 9; D.pacerMa = 130; D.leadIx = 5; D.sizeIx = 1; D.sunvue = true;`)
+  resetArrives()
+  const afterSecond = snap()
+  ok('two consecutive scenarios start identical regardless of the first run', afterSecond === afterFirst, afterSecond)
+  ok('and the shock count is back to zero', w.eval('D.shocks') === 0, String(w.eval('D.shocks')))
+  ok('and the therapy mode is back to Manual', w.eval('D.mode') === 'manual', w.eval('D.mode'))
+  ok('and the event log is cleared', w.eval('D.log.length') === 0, String(w.eval('D.log.length')))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// AED / SYNC / defibrillation as one explicit state machine
+//
+// The review reached illegal combinations by reading a handful of booleans in
+// whatever order each handler happened to: AED SYNC, a synchronized shock on a
+// plain tap, SYNC still armed after the shock, ENERGY SELECT changing joules
+// without leaving AED, and no auto-charge after SHOCK ADVISED. defibState() is
+// the single derivation the transitions below are checked against.
+// ---------------------------------------------------------------------------
+{
+  const { w, S } = loadMonitor()
+  const D = () => w.eval('D')
+  const state = () => w.eval('defibState()')
+  const chargeThrough = () => w.eval('D.chargeStart = Date.now() - CHARGE_MS - 1; devTick()')
+  Object.assign(S(), { patientConnected: true, rhythm: 'vfib', sbp: 0, dbp: 0, spo2: 3, lead: 'II' })
+
+  // Manual defibrillation: idle → charging → ready → shock → idle.
+  ok('the unit starts in MANUAL_IDLE', state() === 'MANUAL_IDLE', state())
+  w.eval('startCharge()')
+  ok('CHARGE moves to MANUAL_CHARGING', state() === 'MANUAL_CHARGING', state())
+  chargeThrough()
+  ok('and completes to MANUAL_READY', state() === 'MANUAL_READY', state())
+  w.eval('deliverShock()')
+  ok('a shock returns to MANUAL_IDLE', state() === 'MANUAL_IDLE', state())
+
+  // AED: analyze enters the mode, a shockable rhythm auto-charges, ready.
+  w.eval('startAnalyze()')
+  ok('ANALYZE enters AED mode', state() === 'AED_ANALYZING' && D().mode === 'aed', `${state()} mode ${D().mode}`)
+  w.eval('D.analyzeUntil = 0; devTick()')
+  ok('a shockable rhythm auto-charges in AED, no CHARGE press', state() === 'AED_CHARGING' || state() === 'AED_READY', state())
+  chargeThrough()
+  ok('and reaches AED_READY', state() === 'AED_READY', state())
+
+  // ENERGY SELECT is the way out of AED into Manual (Table 3-1).
+  w.eval('nudgeEnergy(1)')
+  ok('ENERGY SELECT leaves AED for Manual', D().mode === 'manual', D().mode)
+  ok('and throws the charge away with it', D().charged === false)
+
+  // SYNC is a manual-mode modifier: it cannot be armed in AED, so "AED SYNC"
+  // is unreachable.
+  w.eval('aedReset(); D.mode = "aed"; D.analyzing = true')
+  w.document.getElementById('kSYNC').dispatchEvent(new w.Event('click'))
+  ok('SYNC cannot be armed in AED mode', D().sync === false, 'AED SYNC was reachable')
+
+  // Entering AED clears any SYNC that was set in manual.
+  w.eval('aedReset(); D.mode = "manual"; D.sync = true')
+  w.eval('startAnalyze()')
+  ok('entering AED clears a SYNC left on from manual', D().sync === false && D().mode === 'aed', `sync ${D().sync} mode ${D().mode}`)
+
+  // Synchronized cardioversion: armed → charged → SYNC_READY → shock disarms SYNC.
+  w.eval('exitAedToManual(); aedReset(); D.mode = "manual"; D.sync = true')
+  S().rhythm = 'vtach'
+  ok('SYNC in manual is SYNC_ARMED', state() === 'SYNC_ARMED', state())
+  w.eval('startCharge()'); chargeThrough()
+  ok('a charged SYNC is SYNC_READY', state() === 'SYNC_READY', state())
+  w.eval('deliverShock()')
+  ok('a synchronized shock disarms SYNC afterwards', D().sync === false, 'SYNC stayed armed after the shock')
+  ok('and the shock recorded itself as synchronized', w.eval("D.log.some(e => e.type === 'shock' && /synchronized/.test(e.detail))"))
+
+  // The SHOCK key: a plain tap can never deliver a synchronized shock — it
+  // requires a press-and-hold, so a tap on an armed SYNC unit does nothing.
+  const shk = w.document.getElementById('kSHOCK')
+  w.eval('aedReset(); D.sync = true; D.charged = true; D.shocks = 0')
+  shk.dispatchEvent(new w.Event('pointerdown'))
+  shk.dispatchEvent(new w.Event('pointerup'))
+  ok('a tap does not deliver a synchronized shock', D().shocks === 0, `${D().shocks} shocks from a tap`)
+  // ...while a plain manual defibrillation still fires on a tap.
+  w.eval('aedReset(); D.sync = false; D.charged = true; D.shocks = 0')
+  shk.dispatchEvent(new w.Event('pointerdown'))
+  shk.dispatchEvent(new w.Event('pointerup'))
+  ok('a manual defibrillation delivers on a tap', D().shocks === 1, `${D().shocks} shocks from a tap`)
+  ok('SHOCK is wired press-and-hold for cardioversion', /bindHold\('kSHOCK'/.test(MONITOR_SRC))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// Physiologic invariants: a pulseless patient does not perfuse
+//
+// The review found pulseless VT and VF drawing an "Excellent" SpO2 pleth
+// against a saturation of 3, and a pressor lifting an arrest's NIBP from 0/0 to
+// 17/8 and raising the electrical rate. A patient with no pulse has no
+// pulsatile flow for the probe and no pressure for a drug to raise.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = loadMonitor()
+  const sSpo2 = w.eval('sSpo2')
+  const pleth = () => [0, 0.15, 0.3, 0.45, 0.6, 0.75].map((t) => sSpo2(t))
+  const flat = (a) => a.every((v) => Math.abs(v - a[0]) < 1e-9)
+
+  // Pulseless VT: sbp 0 with an electrical rate. No pleth, no SpO2 number.
+  Object.assign(S(), { patientConnected: true, rhythm: 'vtach', hr: 180, sbp: 0, dbp: 0, spo2: 3, spo2Quality: 'excellent' })
+  w.eval('upNums()')
+  ok('pulseless VT shows no SpO2 number', d.getElementById('nSpo2').textContent === '---', d.getElementById('nSpo2').textContent)
+  ok('and draws no plethysmograph', flat(pleth()), 'a pleth on a pulseless patient')
+
+  // PEA: an organized rhythm at a rate, still no pulse.
+  Object.assign(S(), { rhythm: 'brady', hr: 40, sbp: 0, dbp: 0, spo2: 0 })
+  w.eval('upNums()')
+  ok('PEA shows no SpO2 number', d.getElementById('nSpo2').textContent === '---', d.getElementById('nSpo2').textContent)
+  ok('and no pleth', flat(pleth()))
+
+  // A perfusing VT (Megacode 4's 84/54 with a pulse) reads normally.
+  Object.assign(S(), { rhythm: 'vtach', hr: 150, sbp: 84, dbp: 54, spo2: 94, spo2Quality: 'excellent' })
+  w.eval('upNums()')
+  ok('a perfusing VT shows its SpO2', d.getElementById('nSpo2').textContent === '94', d.getElementById('nSpo2').textContent)
+  ok('and draws a real pleth', !flat(pleth()), 'a perfusing patient with a flat pleth')
+
+  // No SpO2 low alarm fires on a --- : a value that is not shown cannot breach.
+  Object.assign(S(), {
+    rhythm: 'vfib', hr: 0, sbp: 0, dbp: 0, spo2: 3,
+    alarmOn: true, alarmMuted: false, spo2AlarmLow: 94, hrAlarmLow: 50, hrAlarmHigh: 120,
+  })
+  w.eval('D.alarms = true; D.silenceUntil = 0; upNums()')
+  ok(
+    'a pulseless SpO2 raises no low-SpO2 alarm',
+    !d.getElementById('nSpo2').classList.contains('alarming'),
+    'a --- was flashing as a low saturation',
+  )
+  w.close()
+}
+
+{
+  // The capnogram follows the patient rather than lingering. A shark-fin or a
+  // CPR pattern set in an earlier phase must not carry into ROSC.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  ok('asthma runs a shark-fin capnogram', S().co2Shape === 'shark', S().co2Shape)
+  // A megacode phase that names no shape gets a normal capnogram.
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  ok('a phase that names no capnogram gets a normal one', S().co2Shape === 'normal', S().co2Shape)
+  // Manually setting one, then moving to a phase that names none, clears it.
+  w.sv('co2Shape', 'shark')
+  ok('a manual capnogram takes', S().co2Shape === 'shark')
+  w.applySimState('megacode1', 3) // ROSC — names no shape
+  ok('and does not linger into a phase that names none (ROSC)', S().co2Shape === 'normal', S().co2Shape)
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The monitor always has a way to join a session
+//
+// Reported from a live scenario: after "Not now" once, a session started later
+// on the console had no route in at the monitor — #joinBox was hidden and
+// empty, and nothing brought it back. Dismissing the prompt must never remove
+// the join path.
+// ---------------------------------------------------------------------------
+{
+  const { w, d } = loadMonitor()
+  ok('there is a permanent join control', !!d.getElementById('joinTab'))
+
+  w.eval('setJoinUi("off")')
+  ok('the join prompt offers a "Not now"', /Not now/.test(d.getElementById('joinBox').innerHTML))
+
+  w.eval('dismissJoin()')
+  ok('dismissing hides the prompt', d.getElementById('joinBox').hidden === true)
+  ok('but leaves the persistent tab in place', d.getElementById('joinTab').hidden === false)
+
+  w.eval('openJoinPrompt()')
+  ok(
+    'and the tab reopens a working join form',
+    d.getElementById('joinBox').hidden === false && /id="joinCode"/.test(d.getElementById('joinBox').innerHTML),
+    'the join path was gone after a dismissal',
+  )
+
+  // Even while connected, the tab offers a way to change session — the box is
+  // otherwise hidden so the crew see a monitor, not a notice.
+  w.eval('relay={code:()=>"ABC234",status:()=>"live"}; relayState="live"; forceJoinOpen=false; setJoinUi("live")')
+  ok('a live session hides the prompt', d.getElementById('joinBox').hidden === true)
+  ok('but the tab shows the session and stays reachable', d.getElementById('joinTab').classList.contains('live'))
+  w.eval('openJoinPrompt()')
+  ok('and it opens a change-session form while live', d.getElementById('joinBox').hidden === false && /id="joinCode"/.test(d.getElementById('joinBox').innerHTML))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The generated ECG agrees with the scenario text
+//
+// The review found VF rendering as a repeating template (ventricular flutter,
+// not chaos), a Doppler pressure printed with a diastolic it cannot have, and
+// 12-leads that did not show the stated inferior injury, hyperkalaemia or long
+// QT. Each scenario stage now carries a testable ECG contract the printout is
+// built from, checked here against the vitals and the text beside it.
+// ---------------------------------------------------------------------------
+{
+  // VF is chaotic, not periodic.
+  const { w, S } = loadMonitor()
+  Object.assign(S(), { patientConnected: true, rhythm: 'vfib' })
+  const sEcg = w.eval('sEcg')
+  let diffs = 0, n = 0, lo = 1, hi = 0
+  for (let t = 0; t < 3; t += 0.02) {
+    n++
+    if (Math.abs(sEcg(t) - sEcg(t + 0.2)) > 0.05) diffs++
+    lo = Math.min(lo, sEcg(t)); hi = Math.max(hi, sEcg(t))
+  }
+  ok('VF does not repeat as a fixed template', diffs > n * 0.5, `${diffs}/${n} points differ a cycle apart`)
+  ok('VF has coarse fibrillatory amplitude', hi - lo > 0.4, `range ${(hi - lo).toFixed(2)}`)
+  ok('and stays within the trace bounds', lo >= 0 && hi <= 1, `${lo.toFixed(2)}..${hi.toFixed(2)}`)
+  ok('the 12-lead computes QTc by Bazett', /qtVal\s*\/\s*Math\.sqrt\(rr\)/.test(MONITOR_SRC))
+  ok('and flows the per-stage ECG contract into the 12-lead', /ecg:\s*S\.ecg\s*\|\|\s*null/.test(MONITOR_SRC))
+  w.close()
+}
+
+{
+  const { w, d, S } = load()
+  const sims = w.eval('SIMULATIONS')
+  const docs = w.eval('SCENARIO_DOCS')
+
+  // Doppler yields a systolic only — no diastolic may be printed beside it.
+  for (const st of sims.megacode3.states) {
+    ok(`Megacode 3 "${st.id}" prints no Doppler diastolic`, !/\d+\/\d+\s*\(?Doppler/i.test(st.display), st.display)
+  }
+  ok('Megacode 3 still shows a Doppler systolic', /Doppler/.test(sims.megacode3.states[0].display))
+  ok('and the brief explains why', /systolic only|systolic\b/i.test(docs.megacode3.brief.hpi) && /Doppler/.test(docs.megacode3.brief.hpi))
+
+  // The three stages the review named each carry a contract that matches the
+  // text beside them.
+  const inj = sims.megacode3.states[0].ecg
+  ok('Megacode 3 carries an inferior-injury contract', !!inj && /inferior/i.test(inj.interp) && /V4R/.test(inj.interp))
+  ok('matching the note that describes the same injury', /II, III, aVF/.test(sims.megacode3.states[0].note) && /V4R/.test(sims.megacode3.states[0].note))
+
+  const hyperk = sims.megacode4.states[3].ecg
+  ok('Megacode 4 ROSC carries a hyperkalaemia contract', !!hyperk && /hyperkal/i.test(hyperk.interp))
+  ok('with a marginally wide QRS, not the generic 90 ms', hyperk.qrs > 90, `${hyperk.qrs} ms`)
+  ok('and its text describes the peaked T waves', /peaked T/i.test(sims.megacode4.states[3].note))
+
+  const lqt = sims.megacode5.states[0].ecg
+  ok('Megacode 5 carries a long-QT contract', !!lqt && /(prolonged|long) QT/i.test(lqt.interp))
+  // The stated long QT must actually compute to a prolonged QTc at this rate —
+  // the review's point was that a raw QT alone establishes nothing.
+  const qtc = Math.round(lqt.qt / Math.sqrt(60 / sims.megacode5.states[0].vitals.hr))
+  ok('and its QT computes to a genuinely prolonged QTc', qtc >= 500, `QTc ${qtc} ms at HR ${sims.megacode5.states[0].vitals.hr}`)
+
+  // The contract flows to the monitor, and a stage without one clears it.
+  d.getElementById('simScenarioSel').value = 'megacode3'
+  w.applySimScenario()
+  ok('applying a stage with a contract sets S.ecg', !!S().ecg && /inferior/i.test(S().ecg.interp))
+  w.applySimState('megacode3', 1) // pVT — no contract
+  ok('and moving to a stage without one clears it', S().ecg === null, JSON.stringify(S().ecg))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// LIFEPAK 15 fidelity tickets
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = loadMonitor()
+  const D = () => w.eval('D')
+
+  // HR blanks to --- while the unit is actively pacing (the pacing pulses swamp
+  // the rate meter) — it must not read the paced number.
+  Object.assign(S(), { patientConnected: true, rhythm: 'nsr', hr: 70, sbp: 110, dbp: 70 })
+  w.eval('D.pacer = true; D.pacerMa = 70; upNums()')
+  ok('HR shows --- during active pacing', d.getElementById('nHR').textContent === '---', d.getElementById('nHR').textContent)
+  w.eval('D.pacerMa = 0; upNums()')
+  ok('and shows the rate again when pacing current is off', d.getElementById('nHR').textContent === '70', d.getElementById('nHR').textContent)
+  w.eval('D.pacer = false')
+
+  // LEAD and SIZE open their menus rather than cycling a value per press.
+  d.getElementById('kLEAD').dispatchEvent(new w.Event('click'))
+  ok('LEAD opens the lead menu', (D().menu || {}).title === 'LEAD', String((D().menu || {}).title))
+  w.eval('closeMenu()')
+  d.getElementById('kSIZE').dispatchEvent(new w.Event('click'))
+  ok('SIZE opens the size menu', (D().menu || {}).title === 'SIZE', String((D().menu || {}).title))
+  w.eval('closeMenu()')
+
+  // The chosen skin persists.
+  w.eval("setSkin('lp')")
+  ok('the skin is remembered', w.localStorage.getItem('ces.sim.skin') === 'lp')
+
+  // CODE SUMMARY is a trainee-visible report built from the event log.
+  w.eval("D.log.length=0; D.log.push({ms:Date.now(),type:'shock',label:'SHOCK',detail:'200J synchronized · shock #1'},{ms:Date.now(),type:'cpr',label:'CPR metronome ON',detail:''})")
+  const rep = w.eval('buildCodeSummary()')
+  ok('CODE SUMMARY counts the shocks', /Shocks delivered:\s*1/.test(rep), rep.slice(0, 120))
+  ok('and lists the events', /SHOCK/.test(rep) && /CPR metronome ON/.test(rep))
+  ok('CODE SUMMARY opens a report, not just a log line', /openCodeSummary\(\)/.test(MONITOR_SRC))
+
+  // The audio check sounds a confirmation the first time it arms.
+  ok('the audio check beeps on arming', /if\(audioArmed&&!was\)\s*beep/.test(MONITOR_SRC))
+  ok('and the control reads as a test', /Audio check/.test(MONITOR_SRC))
+  w.close()
+}
+
+{
+  // The monitor opens in the LIFEPAK skin when told to, and can be locked.
+  const { w, d } = loadMonitor({ 'ces.sim.skin': 'lp' })
+  ok('a remembered LP skin opens in the LIFEPAK skin', d.body.classList.contains('lp-skin'))
+  ok('the skin can be forced by URL param', /q\.get\('skin'\)/.test(MONITOR_SRC))
+  ok('and locked so a competency session cannot switch it', /q\.get\('lock'\)/.test(MONITOR_SRC))
+  ok('a locked skin hides the switch', /body\.skin-locked #skinLP\{display:none/.test(MONITOR_SRC))
+  w.close()
+
+  // The panel opens the monitor in the LP skin (this is the LIFEPAK program).
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  ok('Open Monitor opens the LIFEPAK skin', /patient_monitor_display\.html\?skin=lp/.test(panelSrc))
+
+  // The 12-lead carries calibration and acquisition metadata.
+  ok('the 12-lead prints its paper speed', /25 mm\/s/.test(MONITOR_SRC))
+  ok('and its gain', /10 mm\/mV/.test(MONITOR_SRC))
+  ok('and a filter band', /0\.05[–-]150 Hz/.test(MONITOR_SRC))
+  ok('and an acquisition date', /id="acqDate"/.test(MONITOR_SRC))
+
+  // PRINT emerges as ECG paper, not blank stock.
+  ok(
+    'the printer paper is an ECG strip, not blank',
+    /\.printdoor\.printing::after\{[^}]*repeating-linear-gradient/s.test(MONITOR_SRC),
+    'the paper background is plain stock',
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Facilitator workflow: a run is a competency record
+//
+// The review saved a PASS with 1 of 18 actions observed and no crew name.
+// Ending a run now surfaces what is missing and asks before saving anyway, and
+// the CPR numeric fields are constrained to sane ranges.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+
+  // A PASS with almost nothing observed, no crew, no note, is flagged.
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.setResult('pass')
+  const warns = w.eval('runWarnings()')
+  ok('an empty PASS run warns about the crew name', warns.some((x) => /crew/.test(x)), warns.join(' | '))
+  ok('and about the missing result being unobserved actions', warns.some((x) => /1 of 18|of \d+ expected/.test(x)) || warns.some((x) => /PASS/.test(x)), warns.join(' | '))
+  ok('and about the missing debrief note', warns.some((x) => /debrief/.test(x)))
+
+  // Declining the confirmation does not save.
+  w.confirm = () => false
+  w.endRun()
+  ok('declining the warning leaves the run open, unsaved', w.eval('run') !== null && w.eval('lastRun') === null)
+
+  // A complete run does not warn.
+  w.confirm = () => true
+  const key = 'megacode1'
+  const sims = w.eval('SIMULATIONS')
+  // Observe every action across every phase.
+  for (let i = 0; i < sims[key].states.length; i++) {
+    w.applySimState(key, i)
+    const acts = w.eval(`run.states[${i}].actions.length`)
+    for (let j = 0; j < acts; j++) if (!w.eval(`run.states[${i}].actions[${j}].done`)) w.toggleAction(j)
+  }
+  w.setRunField('crew', 'Med 3 — Alvarez / Boyd')
+  w.setRunField('notes', 'Strong code; timely defibrillation.')
+  if (w.eval('run.result') !== 'pass') w.setResult('pass') // setResult toggles; ensure PASS
+  ok('a complete, labelled PASS run has nothing to warn about', w.eval('runWarnings()').length === 0, w.eval('runWarnings()').join(' | '))
+
+  // CPR numeric fields are clamped to their range.
+  w.setCpr('fraction', '140', 0, 100)
+  ok('compression fraction clamps to 100', w.eval("run.cpr.fraction") === '100', w.eval('run.cpr.fraction'))
+  w.setCpr('fraction', '-5', 0, 100)
+  ok('and cannot go below 0', w.eval("run.cpr.fraction") === '0', w.eval('run.cpr.fraction'))
+  w.setCpr('ventRate', '99', 0, 60)
+  ok('ventilation rate clamps to its ceiling', w.eval("run.cpr.ventRate") === '60', w.eval('run.cpr.ventRate'))
+  w.close()
+}
+
+{
+  // a11y: the grading controls report their pressed state and the panel has a
+  // visible focus ring.
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  ok('state buttons report aria-pressed', /class="state-btn[^"]*"[^>]*aria-pressed=/.test(panelSrc))
+  ok('expected-action toggles report aria-pressed', /class="act[^"]*"[^>]*aria-pressed=/.test(panelSrc))
+  ok('the PASS/NR buttons report aria-pressed', /class="res-btn pass[^"]*"[^>]*aria-pressed=/.test(panelSrc))
+  ok('the CPR numeric inputs are labelled and bounded', /aria-label="[^"]+"[^>]*value=/.test(panelSrc) && /min="0" max="100"/.test(panelSrc))
+  ok('there is a visible focus ring', /:focus-visible\{[^}]*outline/s.test(panelSrc))
+}
+
+// ---------------------------------------------------------------------------
+// Clinical content: the ACLS bradycardia and toxicology agents
+//
+// The review found no way to record atropine, a chronotropic infusion, or the
+// calcium-channel-blocker / hyperkalaemia therapies the megacodes call for.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  const DRUGS = w.eval('DRUGS')
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  for (const k of ['atropine', 'dopamine', 'calcium', 'bicarb', 'insulin_dextrose', 'glucagon']) {
+    ok(`the palette carries ${k}`, !!DRUGS[k], 'missing from the drug engine')
+    ok(`and ${k} has a button`, panelSrc.includes(`data-drug="${k}"`), 'missing from the palette')
+  }
+
+  // Time is drivable through performance.now, as the other drug tests do.
+  let T = 0
+  Object.defineProperty(w.performance, 'now', { value: () => T, configurable: true })
+  const advance = (ms) => { T += ms; w.drugTick() }
+
+  // Atropine raises the rate on a perfusing bradycardia.
+  d.getElementById('scenarioSel').value = 'brady'
+  w.applyScenario()
+  const hr0 = S().hr
+  w.giveDrug('atropine')
+  advance(20000)
+  ok('atropine raises the rate on a perfusing bradycardia', S().hr > hr0, `HR ${S().hr} from ${hr0}`)
+  advance(30000)
+  ok('and wears off', S().hr === hr0, `HR ${S().hr}`)
+
+  // But on a pulseless patient no agent manufactures perfusion (P0-3 holds for
+  // the new drugs too).
+  T = 0
+  w.setR('asystole')
+  w.giveDrug('calcium')
+  advance(45000)
+  ok('calcium produces no pressure on a pulseless patient', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  w.close()
+}
+
+{
+  // Program coaching notes are added to the megacodes without overwriting the
+  // AHA-transcribed manual text.
+  const { w, d } = load()
+  const sims = w.eval('SIMULATIONS')
+
+  const coach = (key, idx) => sims[key].states[idx].coach || ''
+  ok('bradycardia coaching names pacing and an infusion', /pacing/i.test(coach('megacode1', 0)) && /(dopamine|epinephrine) infusion/i.test(coach('megacode1', 0)), coach('megacode1', 0))
+  ok('the transplant case says atropine is ineffective, pace early', /denervated|ineffective/i.test(coach('megacode3', 0)) && /pacing/i.test(coach('megacode3', 0)))
+  ok('the hyperkalaemia PEA defers to local protocol and is cautious on calcium/bicarb', /local protocol/i.test(coach('megacode4', 2)) && /not universally proven|cautious/i.test(coach('megacode4', 2)))
+  ok('the CCB overdose names insulin/vasopressors/calcium as primary', /high-dose insulin/i.test(coach('megacode5', 0)) && /uncertain/i.test(coach('megacode5', 0)))
+
+  // The AHA-transcribed note is still there beside the coaching — not replaced.
+  ok('the manual note survives alongside the coaching', /heart transplant/i.test(sims.megacode3.states[0].note))
+
+  // And it renders as a distinct, labelled block.
+  d.getElementById('simScenarioSel').value = 'megacode5'
+  w.applySimScenario()
+  const panelHtml = d.getElementById('runCard').innerHTML + d.getElementById('simStatePanel').innerHTML
+  ok('coaching renders as a labelled program note', /Program coaching/.test(panelHtml), 'coaching note not shown')
+  w.close()
 }
 
 if (failures.length) {
