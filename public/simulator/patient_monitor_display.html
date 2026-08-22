@@ -171,6 +171,17 @@ html,body{
   touch-action:manipulation;}
 #joinBox button.ghost{background:none;border-color:#3a434e;color:#9aa2ab;}
 .join-t{color:#9aa2ab;}
+/* A permanent way to the join prompt. Dismissing the prompt hides the prompt,
+   never this — so a crew that tapped "Not now" once can still join a session
+   the facilitator starts later. Sits opposite the skin switch, out of the way. */
+#joinTab{position:fixed;bottom:calc(4px + env(safe-area-inset-bottom));right:calc(4px + env(safe-area-inset-right));
+  z-index:90;min-height:44px;padding:0 12px;cursor:pointer;
+  background:#11151a;color:#9aa2ab;border:1px solid #3a434e;border-radius:8px;
+  font:700 12px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;
+  opacity:.35;transition:opacity .15s;touch-action:manipulation;}
+#joinTab[hidden]{display:none;}
+#joinTab:hover,#joinTab:focus{opacity:1;}
+#joinTab.live{color:#7fe0a5;border-color:#2c5e44;}
 
 #armAudio{
   position:fixed;top:calc(6px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
@@ -883,6 +894,7 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 <!-- Shown until this window is either being driven locally or has joined a
      session. Dismissible, because most runs are two windows on one laptop. -->
 <div id="joinBox" class="join off"></div>
+<button id="joinTab" onclick="openJoinPrompt()" title="Join or change the facilitator session">⇄ Join session</button>
 
 <div id="skinbar">
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
@@ -948,6 +960,7 @@ function localStateAllowed(){
 let relay=null, relayState='off';
 function relayReady(){ return relay&&relayState==='live'; }
 function joinSession(code){
+  forceJoinOpen=false;   // a fresh join attempt: let a successful one hide the box
   if(!window.CESRelay){ setJoinUi('error','Relay unavailable — reload the page'); return; }
   const c=window.CESRelay.normaliseCode(code);
   if(c.length!==6){ setJoinUi('error','Six characters'); return; }
@@ -965,24 +978,42 @@ function leaveSession(){
   try{ localStorage.removeItem('ces.sim.session'); }catch(e){}
   setJoinUi('off');
 }
+/* The join prompt can be dismissed; the route back to it cannot. forceJoinOpen
+   lets the persistent tab reopen the full form even while a session is live, so
+   a crew can change to a different session, and "Not now" only hides the prompt
+   for now — never for good. */
+let forceJoinOpen=false;
+function openJoinPrompt(){ forceJoinOpen=true; setJoinUi(relayState); }
+function dismissJoin(){ forceJoinOpen=false; const el=document.getElementById('joinBox'); if(el) el.hidden=true; }
+function joinFromInput(){ const v=document.getElementById('joinCode'); if(v) joinSession(v.value); }
 function setJoinUi(st,detail){
+  // The persistent tab is always present and always a way back to the prompt.
+  const tab=document.getElementById('joinTab');
+  if(tab){
+    tab.hidden=false;
+    tab.classList.toggle('live',st==='live');
+    tab.textContent=st==='live'?('⇄ '+(relay?relay.code():'Session')):'⇄ Join session';
+  }
   const el=document.getElementById('joinBox');
   if(!el) return;
   el.className='join '+st;
-  if(st==='live'){
+  if(st==='live'&&!forceJoinOpen){
     // Connected: the panel is driving this screen, and the crew should be
-    // looking at a monitor rather than at a connection notice.
+    // looking at a monitor rather than at a connection notice. The tab above
+    // stays, so changing session later is still one tap away.
     el.innerHTML='';
     el.hidden=true;
     return;
   }
   el.hidden=false;
-  el.innerHTML=st==='joining'
-    ? `<span class="join-t">Joining ${detail||''}…</span>`
-    : `<span class="join-t">${st==='error'?(detail||'Could not join'):'Monitor on a second device?'}</span>
+  if(st==='joining'){ el.innerHTML=`<span class="join-t">Joining ${detail||''}…</span>`; return; }
+  const title=st==='error'?(detail||'Could not join')
+    :st==='live'?'Connected — change session?'
+    :'Monitor on a second device?';
+  el.innerHTML=`<span class="join-t">${title}</span>
        <input id="joinCode" maxlength="6" placeholder="CODE" autocapitalize="characters" autocomplete="off">
-       <button onclick="joinSession(document.getElementById('joinCode').value)">Join</button>
-       <button class="ghost" onclick="document.getElementById('joinBox').hidden=true">Not now</button>`;
+       <button onclick="joinFromInput()">Join</button>
+       <button class="ghost" onclick="dismissJoin()">${st==='live'?'Keep current':'Not now'}</button>`;
 }
 
 // BroadcastChannel — receives live updates from Control Panel the instant any

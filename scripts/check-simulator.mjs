@@ -1780,6 +1780,42 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// The monitor always has a way to join a session
+//
+// Reported from a live scenario: after "Not now" once, a session started later
+// on the console had no route in at the monitor — #joinBox was hidden and
+// empty, and nothing brought it back. Dismissing the prompt must never remove
+// the join path.
+// ---------------------------------------------------------------------------
+{
+  const { w, d } = loadMonitor()
+  ok('there is a permanent join control', !!d.getElementById('joinTab'))
+
+  w.eval('setJoinUi("off")')
+  ok('the join prompt offers a "Not now"', /Not now/.test(d.getElementById('joinBox').innerHTML))
+
+  w.eval('dismissJoin()')
+  ok('dismissing hides the prompt', d.getElementById('joinBox').hidden === true)
+  ok('but leaves the persistent tab in place', d.getElementById('joinTab').hidden === false)
+
+  w.eval('openJoinPrompt()')
+  ok(
+    'and the tab reopens a working join form',
+    d.getElementById('joinBox').hidden === false && /id="joinCode"/.test(d.getElementById('joinBox').innerHTML),
+    'the join path was gone after a dismissal',
+  )
+
+  // Even while connected, the tab offers a way to change session — the box is
+  // otherwise hidden so the crew see a monitor, not a notice.
+  w.eval('relay={code:()=>"ABC234",status:()=>"live"}; relayState="live"; forceJoinOpen=false; setJoinUi("live")')
+  ok('a live session hides the prompt', d.getElementById('joinBox').hidden === true)
+  ok('but the tab shows the session and stays reachable', d.getElementById('joinTab').classList.contains('live'))
+  w.eval('openJoinPrompt()')
+  ok('and it opens a change-session form while live', d.getElementById('joinBox').hidden === false && /id="joinCode"/.test(d.getElementById('joinBox').innerHTML))
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)
