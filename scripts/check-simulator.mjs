@@ -69,6 +69,11 @@ function load(file = PAGE) {
     url: 'https://ces.local/simulator/control_panel.html',
   })
   const w = dom.window
+  // Ending a run now warns-and-confirms when the record has gaps. jsdom's
+  // confirm returns false (and warns "not implemented"), which would abort every
+  // save; default it to "yes" here so tests that are not about the warning save
+  // as before. The warning tests override it explicitly.
+  try { w.confirm = () => true } catch { /* non-writable in some builds */ }
   return {
     w,
     d: w.document,
@@ -1949,6 +1954,66 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     /\.printdoor\.printing::after\{[^}]*repeating-linear-gradient/s.test(MONITOR_SRC),
     'the paper background is plain stock',
   )
+}
+
+// ---------------------------------------------------------------------------
+// Facilitator workflow: a run is a competency record
+//
+// The review saved a PASS with 1 of 18 actions observed and no crew name.
+// Ending a run now surfaces what is missing and asks before saving anyway, and
+// the CPR numeric fields are constrained to sane ranges.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+
+  // A PASS with almost nothing observed, no crew, no note, is flagged.
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.setResult('pass')
+  const warns = w.eval('runWarnings()')
+  ok('an empty PASS run warns about the crew name', warns.some((x) => /crew/.test(x)), warns.join(' | '))
+  ok('and about the missing result being unobserved actions', warns.some((x) => /1 of 18|of \d+ expected/.test(x)) || warns.some((x) => /PASS/.test(x)), warns.join(' | '))
+  ok('and about the missing debrief note', warns.some((x) => /debrief/.test(x)))
+
+  // Declining the confirmation does not save.
+  w.confirm = () => false
+  w.endRun()
+  ok('declining the warning leaves the run open, unsaved', w.eval('run') !== null && w.eval('lastRun') === null)
+
+  // A complete run does not warn.
+  w.confirm = () => true
+  const key = 'megacode1'
+  const sims = w.eval('SIMULATIONS')
+  // Observe every action across every phase.
+  for (let i = 0; i < sims[key].states.length; i++) {
+    w.applySimState(key, i)
+    const acts = w.eval(`run.states[${i}].actions.length`)
+    for (let j = 0; j < acts; j++) if (!w.eval(`run.states[${i}].actions[${j}].done`)) w.toggleAction(j)
+  }
+  w.setRunField('crew', 'Med 3 — Alvarez / Boyd')
+  w.setRunField('notes', 'Strong code; timely defibrillation.')
+  if (w.eval('run.result') !== 'pass') w.setResult('pass') // setResult toggles; ensure PASS
+  ok('a complete, labelled PASS run has nothing to warn about', w.eval('runWarnings()').length === 0, w.eval('runWarnings()').join(' | '))
+
+  // CPR numeric fields are clamped to their range.
+  w.setCpr('fraction', '140', 0, 100)
+  ok('compression fraction clamps to 100', w.eval("run.cpr.fraction") === '100', w.eval('run.cpr.fraction'))
+  w.setCpr('fraction', '-5', 0, 100)
+  ok('and cannot go below 0', w.eval("run.cpr.fraction") === '0', w.eval('run.cpr.fraction'))
+  w.setCpr('ventRate', '99', 0, 60)
+  ok('ventilation rate clamps to its ceiling', w.eval("run.cpr.ventRate") === '60', w.eval('run.cpr.ventRate'))
+  w.close()
+}
+
+{
+  // a11y: the grading controls report their pressed state and the panel has a
+  // visible focus ring.
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  ok('state buttons report aria-pressed', /class="state-btn[^"]*"[^>]*aria-pressed=/.test(panelSrc))
+  ok('expected-action toggles report aria-pressed', /class="act[^"]*"[^>]*aria-pressed=/.test(panelSrc))
+  ok('the PASS/NR buttons report aria-pressed', /class="res-btn pass[^"]*"[^>]*aria-pressed=/.test(panelSrc))
+  ok('the CPR numeric inputs are labelled and bounded', /aria-label="[^"]+"[^>]*value=/.test(panelSrc) && /min="0" max="100"/.test(panelSrc))
+  ok('there is a visible focus ring', /:focus-visible\{[^}]*outline/s.test(panelSrc))
 }
 
 if (failures.length) {

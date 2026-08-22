@@ -507,6 +507,11 @@ body.run-mode .card.bp{grid-row:1/3;}
   .connect-bar{flex-direction:column;}
   .phys-btn{flex:none;}
 }
+/* A visible focus ring on every interactive control, so the panel is usable
+   from the keyboard at the back of the room without hunting for where focus is. */
+[role="button"]:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{
+  outline:2px solid #00c8e0;outline-offset:2px;
+}
 </style>
 </head>
 <body>
@@ -2010,8 +2015,8 @@ const ACLS_CPR_FIELDS=[
   {id:'rate',   label:'Compression rate 100-120/min', type:'check'},
   {id:'depth',  label:'Compression depth ≥2 inches',  type:'check'},
   {id:'recoil', label:'Chest recoil',                 type:'check'},
-  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%'},
-  {id:'ventRate',label:'Ventilation rate',            type:'value', suffix:'/min'},
+  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%', min:0, max:100},
+  {id:'ventRate',label:'Ventilation rate (breaths/min)', type:'value', suffix:'/min', min:0, max:60},
 ];
 
 const SCENARIO_DOCS={
@@ -2435,7 +2440,21 @@ function toggleCpr(id){
   run.cpr[id]=!run.cpr[id];
   renderSimPanel(run.scenario);
 }
-function setCpr(id,v){ if(run&&run.cpr) run.cpr[id]=v; }
+function setCpr(id,v,min,max){
+  if(!run||!run.cpr) return;
+  // A percentage cannot be 140 and a ventilation rate cannot be negative.
+  // Clamp value fields to their range so the saved record is always valid.
+  if(min!=null||max!=null){
+    if(v===''){ run.cpr[id]=''; return; }
+    let n=parseInt(v,10);
+    if(!isFinite(n)){ run.cpr[id]=''; return; }
+    if(min!=null) n=Math.max(min,n);
+    if(max!=null) n=Math.min(max,n);
+    run.cpr[id]=String(n);
+    return;
+  }
+  run.cpr[id]=v;
+}
 // PASS / NR, as the checklist has it. Clicking the set result again clears it,
 // so a mis-tap before the debrief is one click to undo.
 function setResult(r){
@@ -2444,8 +2463,31 @@ function setResult(r){
   renderSimPanel(run.scenario);
 }
 
+// What is missing or inconsistent about the run as it stands. A run is a
+// competency record, and the review was able to save a PASS with 1 of 18
+// actions observed and no crew name — so ending one now surfaces these first.
+function runWarnings(){
+  const out=[];
+  if(!run) return out;
+  if(!run.crew||!run.crew.trim()) out.push('no crew name recorded');
+  if(!run.notes||!run.notes.trim()) out.push('no debrief note');
+  if(run.checklist&&!run.result) out.push('no PASS / NR result circled');
+  const total=run.states.reduce((n,s)=>n+s.actions.length,0);
+  const done=run.states.reduce((n,s)=>n+s.actions.filter(a=>a.done).length,0);
+  // A PASS with most of the critical actions unobserved is the one the review
+  // called out by name.
+  if(run.result==='pass'&&total>0&&done<Math.ceil(total*0.7))
+    out.push('PASS selected with only '+done+' of '+total+' expected actions observed');
+  return out;
+}
+
 function endRun(){
   if(!run) return;
+  // Warn, and let the facilitator confirm, before a run with gaps is saved.
+  const warns=runWarnings();
+  if(warns.length&&typeof window.confirm==='function'){
+    if(!window.confirm('Save this run anyway?\n\n• '+warns.join('\n• '))) return;
+  }
   enterRunState(-1);
   const rec={
     scenario:run.scenario, scenarioName:run.scenarioName,
@@ -2816,24 +2858,25 @@ function checklistStripHtml(){
 }
 function checklistBodyHtml(){
   const team=run.team.map((t,i)=>
-    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" onclick="toggleTeam(${i})">
+    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" aria-pressed="${!!t.done}" onclick="toggleTeam(${i})">
        <span class="box">${t.done?'✓':''}</span><span>${esc(t.text)}</span></div>`).join('');
   const cpr=ACLS_CPR_FIELDS.map(f=>{
     if(f.type==='check'){
       const on=run.cpr[f.id];
-      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" onclick="toggleCpr('${f.id}')">
+      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" aria-pressed="${!!on}" onclick="toggleCpr('${f.id}')">
         <span class="box">${on?'✓':''}</span><span>${esc(f.label)}</span></div>`;
     }
     return `<label class="cl-num">${esc(f.label)}
-      <input inputmode="numeric" value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value)">${f.suffix}</label>`;
+      <input inputmode="numeric" type="number" min="${f.min}" max="${f.max}" aria-label="${esc(f.label)}"
+        value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value,${f.min},${f.max})">${f.suffix}</label>`;
   }).join('');
   return `<div class="cl-strip">
     <div class="cl-grp"><div class="col-h">Team leader / team members</div><div class="cl-row">${team}</div></div>
     <div class="cl-grp"><div class="col-h">High-quality CPR at all times</div><div class="cl-row">${cpr}</div></div>
     <div class="res-grp">
       <span class="col-h" style="margin:0 4px 0 0;">Result</span>
-      <button class="res-btn pass${run.result==='pass'?' on':''}" onclick="setResult('pass')">PASS</button>
-      <button class="res-btn nr${run.result==='nr'?' on':''}" onclick="setResult('nr')">NR</button>
+      <button class="res-btn pass${run.result==='pass'?' on':''}" aria-pressed="${run.result==='pass'}" onclick="setResult('pass')">PASS</button>
+      <button class="res-btn nr${run.result==='nr'?' on':''}" aria-pressed="${run.result==='nr'}" onclick="setResult('nr')">NR</button>
     </div>
   </div>`;
 }
@@ -2867,7 +2910,7 @@ function renderSimPanel(simKey){
     const hit=rs?rs.actions.filter(a=>a.done).length:0;
     const tot=rs?rs.actions.length:0;
     const tally=tot?`<span style="float:right;font-size:.6rem;color:${hit===tot?'#7fe0a5':'var(--t-dim)'}">${hit}/${tot}</span>`:'';
-    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
+    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" aria-pressed="${i===activeStateIdx}" onclick="applySimState('${simKey}',${i})">
       <span class="sname" style="color:${st.color}">${st.label}${tally}</span>
       <span class="svitals">${st.display}</span>
     </div>`;
@@ -2880,7 +2923,7 @@ function renderSimPanel(simKey){
   let actionsHtml='';
   if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
     actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
-      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" onclick="toggleAction(${i})"
+      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" aria-pressed="${a.done}" onclick="toggleAction(${i})"
             title="${a.auto?'Ticked from the monitor — click to undo':''}">
         <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?'<span class="auto-tag">from monitor</span>':''}
       </div>`).join('');
