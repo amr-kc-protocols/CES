@@ -2981,7 +2981,10 @@ function runSummaryHtml(rec){
 // ── Open Monitor ─────────────────────────────────────────────
 function openMonitor(){
   flushSave(); // the monitor reads localStorage as it loads
-  window.open('patient_monitor_display.html','Monitor','width=1280,height=720,resizable=yes');
+  // This is the LIFEPAK 15 program, so the monitor opens in the LP skin rather
+  // than the ZOLL-style default. The crew can still switch it unless a session
+  // is opened locked (?skin=lp&lock=1).
+  window.open('patient_monitor_display.html?skin=lp','Monitor','width=1280,height=720,resizable=yes');
 }
 
 // ── Drug Interactions Engine ──────────────────────────────────

@@ -1883,6 +1883,74 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// LIFEPAK 15 fidelity tickets
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = loadMonitor()
+  const D = () => w.eval('D')
+
+  // HR blanks to --- while the unit is actively pacing (the pacing pulses swamp
+  // the rate meter) — it must not read the paced number.
+  Object.assign(S(), { patientConnected: true, rhythm: 'nsr', hr: 70, sbp: 110, dbp: 70 })
+  w.eval('D.pacer = true; D.pacerMa = 70; upNums()')
+  ok('HR shows --- during active pacing', d.getElementById('nHR').textContent === '---', d.getElementById('nHR').textContent)
+  w.eval('D.pacerMa = 0; upNums()')
+  ok('and shows the rate again when pacing current is off', d.getElementById('nHR').textContent === '70', d.getElementById('nHR').textContent)
+  w.eval('D.pacer = false')
+
+  // LEAD and SIZE open their menus rather than cycling a value per press.
+  d.getElementById('kLEAD').dispatchEvent(new w.Event('click'))
+  ok('LEAD opens the lead menu', (D().menu || {}).title === 'LEAD', String((D().menu || {}).title))
+  w.eval('closeMenu()')
+  d.getElementById('kSIZE').dispatchEvent(new w.Event('click'))
+  ok('SIZE opens the size menu', (D().menu || {}).title === 'SIZE', String((D().menu || {}).title))
+  w.eval('closeMenu()')
+
+  // The chosen skin persists.
+  w.eval("setSkin('lp')")
+  ok('the skin is remembered', w.localStorage.getItem('ces.sim.skin') === 'lp')
+
+  // CODE SUMMARY is a trainee-visible report built from the event log.
+  w.eval("D.log.length=0; D.log.push({ms:Date.now(),type:'shock',label:'SHOCK',detail:'200J synchronized · shock #1'},{ms:Date.now(),type:'cpr',label:'CPR metronome ON',detail:''})")
+  const rep = w.eval('buildCodeSummary()')
+  ok('CODE SUMMARY counts the shocks', /Shocks delivered:\s*1/.test(rep), rep.slice(0, 120))
+  ok('and lists the events', /SHOCK/.test(rep) && /CPR metronome ON/.test(rep))
+  ok('CODE SUMMARY opens a report, not just a log line', /openCodeSummary\(\)/.test(MONITOR_SRC))
+
+  // The audio check sounds a confirmation the first time it arms.
+  ok('the audio check beeps on arming', /if\(audioArmed&&!was\)\s*beep/.test(MONITOR_SRC))
+  ok('and the control reads as a test', /Audio check/.test(MONITOR_SRC))
+  w.close()
+}
+
+{
+  // The monitor opens in the LIFEPAK skin when told to, and can be locked.
+  const { w, d } = loadMonitor({ 'ces.sim.skin': 'lp' })
+  ok('a remembered LP skin opens in the LIFEPAK skin', d.body.classList.contains('lp-skin'))
+  ok('the skin can be forced by URL param', /q\.get\('skin'\)/.test(MONITOR_SRC))
+  ok('and locked so a competency session cannot switch it', /q\.get\('lock'\)/.test(MONITOR_SRC))
+  ok('a locked skin hides the switch', /body\.skin-locked #skinLP\{display:none/.test(MONITOR_SRC))
+  w.close()
+
+  // The panel opens the monitor in the LP skin (this is the LIFEPAK program).
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  ok('Open Monitor opens the LIFEPAK skin', /patient_monitor_display\.html\?skin=lp/.test(panelSrc))
+
+  // The 12-lead carries calibration and acquisition metadata.
+  ok('the 12-lead prints its paper speed', /25 mm\/s/.test(MONITOR_SRC))
+  ok('and its gain', /10 mm\/mV/.test(MONITOR_SRC))
+  ok('and a filter band', /0\.05[–-]150 Hz/.test(MONITOR_SRC))
+  ok('and an acquisition date', /id="acqDate"/.test(MONITOR_SRC))
+
+  // PRINT emerges as ECG paper, not blank stock.
+  ok(
+    'the printer paper is an ECG strip, not blank',
+    /\.printdoor\.printing::after\{[^}]*repeating-linear-gradient/s.test(MONITOR_SRC),
+    'the paper background is plain stock',
+  )
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)

@@ -203,6 +203,9 @@ html,body{
 .skb{min-width:44px;min-height:44px;padding:0 10px;font-size:13px;font-weight:bold;cursor:pointer;
   background:#222;color:#a8a8a8;border:none;letter-spacing:1px;transition:all .15s;touch-action:manipulation;}
 .skb.on{background:#004466;color:#00e5ff;}
+/* Locked for a competency session: the skin cannot be switched, so the ZX/LP
+   toggles are removed. Fullscreen stays — it changes nothing about the device. */
+body.skin-locked #skinZX,body.skin-locked #skinLP{display:none;}
 
 /* =====================================================================
    LIFEPAK 15 skin
@@ -428,7 +431,14 @@ body.lp-skin #devUnder{display:flex;}
 .printslot{width:70%;height:7px;background:#3a3c39;border-radius:2px;box-shadow:inset 0 1px 2px #000;}
 .printgrip{width:44%;height:18px;background:#aaada7;border:1px solid #82857f;border-radius:3px;}
 .printdoor.printing::after{
-  content:'';position:absolute;left:15%;right:15%;top:0;height:0;background:#f4f4ef;
+  content:'';position:absolute;left:15%;right:15%;top:0;height:0;
+  /* ECG paper, not blank stock: pink grid with a printed trace band down the
+     middle, so a strip coming out never reads as empty paper. */
+  background:
+    linear-gradient(0deg, transparent 45%, rgba(25,25,25,.6) 47%, rgba(25,25,25,.6) 53%, transparent 55%),
+    repeating-linear-gradient(90deg, rgba(198,120,120,.35) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(0deg, rgba(198,120,120,.22) 0 1px, transparent 1px 7px),
+    #f5efe9;
   border:1px solid #b9bcb6;animation:paperOut 1.4s ease-out forwards;
 }
 /* Continuous strip: the paper keeps coming until PRINT is pressed again. */
@@ -886,9 +896,9 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 
 <!-- Shown only while the alarm tone cannot sound. Pressing it is the gesture
      the browser needs, so the notice and the fix are the same control. -->
-<button id="armAudio" onclick="armAudio()" title="Enable the alarm tone">
-  <span class="a-off">🔇 Alarm sound off — tap to enable</span>
-  <span class="a-on">🔊 Alarm sound on</span>
+<button id="armAudio" onclick="armAudio()" title="Audio check — tap to test and enable the alarm tone">
+  <span class="a-off">🔇 Audio check — tap to test alarm sound</span>
+  <span class="a-on">🔊 Alarm sound tested &amp; on</span>
 </button>
 
 <!-- Shown until this window is either being driven locally or has joined a
@@ -1096,6 +1106,9 @@ const LP_Y='#e0913c', LP_B='#4aa8ff', LP_W='#e8e8e8', LP_G='#31d63a';
 
 function setSkin(skin){
   currentSkin=skin;
+  // Remember it, so a monitor reopened for the same class comes back in the same
+  // skin instead of defaulting to the ZOLL-style one.
+  try{ localStorage.setItem('ces.sim.skin',skin); }catch(e){}
   document.body.classList.toggle('lp-skin', skin==='lp');
   document.getElementById('skinZX').classList.toggle('on', skin==='zx');
   document.getElementById('skinLP').classList.toggle('on', skin==='lp');
@@ -1197,6 +1210,10 @@ function m3(s,d){return Math.round((s+2*d)/3);}
 function upNums(){
   const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
   const nc=!S.patientConnected; // not connected
+  // The LIFEPAK blanks the ECG-derived heart rate while it is delivering pacing
+  // pulses — the pacing spikes swamp the rate meter, so it shows --- rather than
+  // the paced number. The review caught it reading the paced 80.
+  const pacingActive=D.pacer&&D.pacerMa>0;
   document.getElementById('tPat').textContent=S.patientType||'Adult';
   document.getElementById('dLead').textContent=devLead();
   {const e=document.getElementById('dSize'); if(e) e.textContent=ecgSize().toFixed(ecgSize()<1?2:1)+' cm/mV';}
@@ -1207,7 +1224,7 @@ function upNums(){
     (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
       ? Math.round(60/(3.0*(S.ectFreq||6)))  // PVC rate: 60s / (agonal_bp * freq_interval)
       : '---')
-    : S.hr;
+    : (pacingActive?'---':S.hr);
   const noP=nc||dead||!S.sbp;
   document.getElementById('nSys').textContent=noP?'---':S.sbp;
   document.getElementById('nDia').textContent=noP?'---':S.dbp;
@@ -1332,7 +1349,7 @@ function upNums(){
       ? (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
           ? Math.round(60/(3.0*(S.ectFreq||6)))
           : '---')
-      : S.hr);
+      : (pacingActive?'---':S.hr));
     setEl('lpSP', noP?'---':S.spo2);
     setEl('lpCO2v', nc||!S.etco2On?'---':S.etco2);
     setEl('lpRR', nc?'--':S.rr);
@@ -2280,6 +2297,9 @@ canvas{display:block;width:100%;height:100%;}
   <div class="lead rhythm-row" style="height:70px"><div class="lead-name">II (Rhythm Strip)</div><canvas id="L_rhythm"></canvas></div>
 </div>
 <div class="footer">Patient Simulation Monitor — Auto-generated 12-Lead ECG</div>
+<div class="footer" id="metaRow" style="margin-top:3px;color:#7a7a7a;">
+  25 mm/s &nbsp;·&nbsp; 10 mm/mV &nbsp;·&nbsp; 0.05–150 Hz &nbsp;·&nbsp; <span id="acqPatient">Adult</span> &nbsp;·&nbsp; <span id="acqDate">—</span>
+</div>
 <div class="rate-info" style="margin-top:2px;"><div><label>QTc: </label><span id="qtcDisp">—</span> <label>ms (Bazett)</label> <span id="qtcTag" style="color:#888;"></span></div></div>
 <div class="footer" id="interpRow" style="display:none;margin-top:4px;font-size:12px;color:#ffd88a;letter-spacing:1px;"></div>
 <div class="footer" id="qtcRow" style="display:none;margin-top:4px;font-size:12px;color:#ff4444;letter-spacing:1px;">
@@ -2591,6 +2611,10 @@ window.onload=function(){
     const ir=document.getElementById('interpRow');
     if(ir){ ir.textContent=C.interp; ir.style.display='block'; }
   }
+
+  // Acquisition metadata, as a real printout carries it.
+  {const p=document.getElementById('acqPatient'); if(p) p.textContent=PARENT_S.patientType||'Adult';}
+  {const dt=document.getElementById('acqDate'); if(dt) dt.textContent=new Date().toLocaleString();}
 
   if(isDrowning){
     document.getElementById('qtcRow').style.display='block';
@@ -3030,9 +3054,14 @@ function chargeTone(on){
 let audioArmed=false;
 function armAudio(){
   const c=ac();
+  const was=audioArmed;
   audioArmed=!!(c&&c.state==='running');
   const chip=document.getElementById('armAudio');
   if(chip) chip.classList.toggle('armed',audioArmed);
+  // The audio check: the first time it arms, sound a confirmation beep so the
+  // crew hears that the alarm tone works rather than trusting one that may never
+  // come. Only on the transition, so it does not chirp on every later keypress.
+  if(audioArmed&&!was) beep(880,140,.12,'square');
   return audioArmed;
 }
 /* Two-tone, repeating, and deliberately not pretty — this is the sound a
@@ -3411,6 +3440,43 @@ function printerRun(on){
   if(k) k.classList.toggle('held',on);
 }
 
+/* ── Code summary ─────────────────────────────────────────────────────────
+   CODE SUMMARY used to log a facilitator-side event and print a blank burst —
+   nothing the trainee could read. The real key prints the code record: the
+   shocks delivered and a timestamped event list. buildCodeSummary is the pure
+   report so it can be checked; openCodeSummary puts it in a window to read or
+   print at the debrief. */
+function buildCodeSummary(){
+  const evs=D.log.slice();
+  const shocks=evs.filter(e=>e.type==='shock').length;
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const t0=evs.length?evs[0].ms:Date.now();
+  const rows=evs.map(e=>{
+    const s=Math.max(0,Math.round((e.ms-t0)/1000));
+    const mm=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    return `<tr><td>${mm}</td><td>${esc(e.label)}</td><td>${esc(e.detail)}</td></tr>`;
+  }).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Code Summary</title>
+<style>body{background:#fff;color:#111;font-family:'Courier New',monospace;padding:16px;}
+h2{font-size:15px;letter-spacing:1px;margin:0 0 6px;}
+.sum{margin:6px 0 10px;font-weight:bold;}
+table{border-collapse:collapse;width:100%;font-size:12px;}
+td{border-bottom:1px solid #ccc;padding:3px 6px;vertical-align:top;}
+td:first-child{width:56px;color:#555;}
+.foot{margin-top:12px;font-size:11px;color:#666;}</style></head>
+<body><h2>LIFEPAK 15 — CODE SUMMARY</h2>
+<div class="sum">Shocks delivered: ${shocks} &nbsp;·&nbsp; Events: ${evs.length} &nbsp;·&nbsp; ${new Date().toLocaleString()}</div>
+<table><tr><td>Time</td><td>Event</td><td>Detail</td></tr>${rows||'<tr><td colspan="3">No events recorded.</td></tr>'}</table>
+<div class="foot">Generated by the patient simulation monitor for debrief.</div>
+</body></html>`;
+}
+function openCodeSummary(){
+  const w=window.open('','CodeSummary','width=560,height=720,resizable=yes');
+  if(!w) return false;
+  w.document.write(buildCodeSummary()); w.document.close();
+  return true;
+}
+
 /* ── Power ───────────────────────────────────────────────────────────── */
 function setPower(on){
   D.on=on;
@@ -3446,11 +3512,12 @@ bind('kCPR',()=>{ if(!D.on) return; D.cpr=!D.cpr; cprMetronome(D.cpr);
 
 bind('kANALYZE',()=>{ if(!D.on) return; startAnalyze(); });
 
-bind('kLEAD',()=>{ if(!D.on) return; takeLead(); D.leadIx=(D.leadIx+1)%LEADS.length;
-  logEvent('lead','LEAD',LEADS[D.leadIx]); });
-
-bind('kSIZE',()=>{ if(!D.on) return; D.sizeIx=(D.sizeIx+1)%SIZES.length;
-  logEvent('size','SIZE',ecgSize().toFixed(2)+' cm/mV'); });
+// LEAD and SIZE open their menus rather than cycling on each press. The real
+// unit has no hard key that steps through leads — the value is chosen from a
+// menu with the Speed Dial — and a key that silently advanced one lead per tap
+// taught a workflow the device does not have.
+bind('kLEAD',()=>{ if(!D.on) return; clearHomeSel(); openMenu(leadMenu()); });
+bind('kSIZE',()=>{ if(!D.on) return; clearHomeSel(); openMenu(sizeMenu()); });
 
 bind('kSYNC',()=>{ if(!D.on) return;
   // SYNC belongs to manual mode. Trying to arm it during an AED analysis or
@@ -3533,7 +3600,7 @@ bind('k12LEAD',()=>{ if(!D.on) return; toggle12Lead(); printerBurst(2200);
   logEvent('ecg12','12-LEAD','acquired'); });
 bind('kTRANSMIT',()=>{ if(!D.on) return; banner('TRANSMITTING…',2200);
   setTimeout(()=>banner('TRANSMIT COMPLETE',2200),2300); logEvent('transmit','TRANSMIT','12-lead sent'); });
-bind('kCODESUM',()=>{ if(!D.on) return; printerBurst(2600); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
+bind('kCODESUM',()=>{ if(!D.on) return; printerBurst(2600); openCodeSummary(); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
 bind('kPRINT',()=>{ if(!D.on) return; printerRun(!D.printing);
   logEvent('print',D.printing?'PRINT started':'PRINT stopped','continuous strip'); });
 
@@ -3774,6 +3841,26 @@ setTimeout(()=>{
   if(saved&&window.CESRelay) joinSession(saved);
   else setJoinUi('off');
 },400);
+
+/* Which skin the monitor opens in, and whether the crew may change it.
+   Precedence: an explicit ?skin= on the URL (how the facilitator forces a
+   LIFEPAK session — the panel's Open Monitor uses ?skin=lp), then the last
+   skin this device used, then the ZX default. ?lock=1 (or lock=lp) hides the
+   skin switch so a competency session cannot be flipped out of the LIFEPAK. */
+function applySkinPrefs(){
+  let want='', lock=false;
+  try{
+    const q=new URLSearchParams(location.search);
+    want=(q.get('skin')||'').toLowerCase();
+    lock=q.get('lock')==='1'||q.get('lock')==='lp'||q.get('lockskin')==='1';
+  }catch(e){}
+  if(want!=='lp'&&want!=='zx'){
+    try{ want=localStorage.getItem('ces.sim.skin')||''; }catch(e){}
+  }
+  if(want==='lp'||want==='zx') setSkin(want);
+  if(lock) document.body.classList.add('skin-locked');
+}
+applySkinPrefs();
 
 fitDevice();
 requestAnimationFrame(loop);
