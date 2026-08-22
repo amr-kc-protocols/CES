@@ -762,6 +762,45 @@ body.run-mode .card.bp{grid-row:1/3;}
       <div class="deffect">↑↑HR · ↑↑BP · ↑SVR</div>
     </div>
 
+    <!-- ACLS bradycardia and toxicology agents the megacodes call for: the
+         review found no way to record atropine, chronotropic infusions, or the
+         calcium-channel-blocker / hyperkalaemia therapies. -->
+    <div class="drug-btn" data-drug="atropine" onclick="giveDrug('atropine')">
+      <div class="dname">Atropine</div>
+      <div class="ddose">1 mg IV (max 3 mg)</div>
+      <div class="deffect">↑HR · ineffective if denervated/CCB</div>
+    </div>
+
+    <div class="drug-btn" data-drug="dopamine" onclick="giveDrug('dopamine')">
+      <div class="dname">Dopamine</div>
+      <div class="ddose">5–20 mcg/kg/min</div>
+      <div class="deffect">↑HR · ↑BP — chronotrope</div>
+    </div>
+
+    <div class="drug-btn" data-drug="calcium" onclick="giveDrug('calcium')">
+      <div class="dname">Calcium (Cl / gluconate)</div>
+      <div class="ddose">CaCl₂ 1 g IV</div>
+      <div class="deffect">membrane stability · CCB / ↑K⁺</div>
+    </div>
+
+    <div class="drug-btn" data-drug="bicarb" onclick="giveDrug('bicarb')">
+      <div class="dname">Sodium Bicarbonate</div>
+      <div class="ddose">1 mEq/kg IV</div>
+      <div class="deffect">↑K⁺ shift · acidosis — per protocol</div>
+    </div>
+
+    <div class="drug-btn" data-drug="insulin_dextrose" onclick="giveDrug('insulin_dextrose')">
+      <div class="dname">High-Dose Insulin</div>
+      <div class="ddose">1 U/kg bolus + infusion (w/ dextrose)</div>
+      <div class="deffect">inotropy — CCB/BB OD (slow)</div>
+    </div>
+
+    <div class="drug-btn" data-drug="glucagon" onclick="giveDrug('glucagon')">
+      <div class="dname">Glucagon</div>
+      <div class="ddose">3–10 mg IV</div>
+      <div class="deffect">↑HR · ↑BP — BB / CCB OD</div>
+    </div>
+
   </div>
 
   <div class="drug-log" id="drugLog">
@@ -3068,6 +3107,23 @@ const DRUGS={
     effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*40),dbp:Math.round(b.dbp+pk*20),hr:Math.round(b.hr+pk*30)};}},
   whole_blood:{name:'O+ LTWB',duration:120,
     effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*22),dbp:Math.round(b.dbp+pk*12),hr:Math.round(b.hr-pk*10),spo2:Math.min(99,Math.round(b.spo2+pk*5))};}},
+  // ACLS bradycardia + toxicology agents. On a pulseless patient these produce
+  // no perfusion (see drugTick) — they act on a perfusing patient, which is
+  // where a chronotrope or a CCB-overdose therapy is judged. Atropine is given a
+  // real effect here; the transplant and CCB scenarios are where the facilitator
+  // withholds the response, as the coaching notes say.
+  atropine:{name:'Atropine',duration:40,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*30),sbp:Math.round(b.sbp+pk*12),dbp:Math.round(b.dbp+pk*6)};}},
+  dopamine:{name:'Dopamine',duration:150,
+    effect:(b,p)=>{const pk=ramp(p,.25);return{hr:Math.round(b.hr+pk*22),sbp:Math.round(b.sbp+pk*30),dbp:Math.round(b.dbp+pk*16)};}},
+  calcium:{name:'Calcium (CaCl₂ / gluconate)',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*8),hr:Math.round(b.hr+pk*8)};}},
+  bicarb:{name:'Sodium Bicarbonate',duration:120,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*6),dbp:Math.round(b.dbp+pk*3)};}},
+  insulin_dextrose:{name:'High-Dose Insulin (euglycemic)',duration:180,
+    effect:(b,p)=>{const pk=ramp(p,.45);return{sbp:Math.round(b.sbp+pk*26),dbp:Math.round(b.dbp+pk*14),hr:Math.round(b.hr+pk*10)};}},
+  glucagon:{name:'Glucagon',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*18),sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*7)};}},
 };
 
 // Floors are zero because arrest is a state this simulator ships: with the

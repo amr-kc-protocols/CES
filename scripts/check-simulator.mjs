@@ -2016,6 +2016,46 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('there is a visible focus ring', /:focus-visible\{[^}]*outline/s.test(panelSrc))
 }
 
+// ---------------------------------------------------------------------------
+// Clinical content: the ACLS bradycardia and toxicology agents
+//
+// The review found no way to record atropine, a chronotropic infusion, or the
+// calcium-channel-blocker / hyperkalaemia therapies the megacodes call for.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  const DRUGS = w.eval('DRUGS')
+  const panelSrc = readFileSync(PAGE, 'utf8')
+  for (const k of ['atropine', 'dopamine', 'calcium', 'bicarb', 'insulin_dextrose', 'glucagon']) {
+    ok(`the palette carries ${k}`, !!DRUGS[k], 'missing from the drug engine')
+    ok(`and ${k} has a button`, panelSrc.includes(`data-drug="${k}"`), 'missing from the palette')
+  }
+
+  // Time is drivable through performance.now, as the other drug tests do.
+  let T = 0
+  Object.defineProperty(w.performance, 'now', { value: () => T, configurable: true })
+  const advance = (ms) => { T += ms; w.drugTick() }
+
+  // Atropine raises the rate on a perfusing bradycardia.
+  d.getElementById('scenarioSel').value = 'brady'
+  w.applyScenario()
+  const hr0 = S().hr
+  w.giveDrug('atropine')
+  advance(20000)
+  ok('atropine raises the rate on a perfusing bradycardia', S().hr > hr0, `HR ${S().hr} from ${hr0}`)
+  advance(30000)
+  ok('and wears off', S().hr === hr0, `HR ${S().hr}`)
+
+  // But on a pulseless patient no agent manufactures perfusion (P0-3 holds for
+  // the new drugs too).
+  T = 0
+  w.setR('asystole')
+  w.giveDrug('calcium')
+  advance(45000)
+  ok('calcium produces no pressure on a pulseless patient', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)
