@@ -11,129 +11,168 @@
    a lit classroom. These three all clear WCAG AA on both surfaces (6.3:1, 9.6:1
    and 14.7:1) and still give three steps of hierarchy.
    --t-faint is 4.0:1 — large or non-essential text only. */
+/* Public Sans — the app's typeface (USWDS / ems.gov). Self-hosted under
+   public/fonts, same origin as this page, so the console reads as part of the
+   app rather than a separate tool. */
+@font-face{
+  font-family:'Public Sans';font-style:normal;font-weight:100 900;font-display:swap;
+  src:url('/fonts/public-sans-var.woff2') format('woff2');
+}
 :root{
-  --t-strong:#e6edf5;
-  --t:#b6c2d1;
-  --t-dim:#8f9db0;
-  --t-faint:#6d7b8d;
+  /* Text tones (kept — all clear WCAG AA on the dark surfaces below). */
+  --t-strong:#eef2f8;
+  --t:#c2ccdb;
+  --t-dim:#93a1b5;
+  --t-faint:#6f7d90;
+  /* Surfaces — a darker, more polished key of the app's navy field. The page
+     sits deep; cards lift off it; inputs sink into it. Depth from tone, not
+     from the neon borders the console used to lean on. */
+  --bg:#0b1420;
+  --surface:#14202f;
+  --surface-2:#1b2838;
+  --inset:#0e1826;
+  --inset-deep:#0a121d;
+  --border:#243449;
+  --border-strong:#35475f;
+  /* Brand accent — the app's blue, brightened just enough to read on the dark
+     field. Replaces the console cyan. */
+  --accent:#5aa2f0;
+  --accent-dim:#2f6fb0;
+  --accent-tint:rgba(90,162,240,.12);
+  /* Semantic hues, refined off their fluorescent originals but still the
+     conventional parameter colours. */
+  --ok:#3fb984;
+  --ecg:#46c98a;
+  --spo2:#e6c34a;
+  --co2:#c877d6;
+  --danger:#f2686b;
+  --amber:#e0a13c;
+  --drug:#e07a4a;
+  --radius:12px;
+  --radius-sm:8px;
+  --shadow:0 1px 2px rgba(0,0,0,.30);
+  --shadow-card:0 2px 10px rgba(0,0,0,.30);
+  --shadow-float:0 10px 30px rgba(0,0,0,.45);
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#0d1b2a;color:#e0e0e0;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;}
+body{background:var(--bg);color:var(--t);
+  font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;}
 /* Compact by design. Every pixel above the cards is a pixel of the scenario
    the facilitator cannot see while running it — the panel is 3.4 screens tall
    and the controls that matter mid-scenario are in the first two. */
-h1{color:#00e5ff;font-size:1rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;text-shadow:0 0 10px #00e5ff88;}
+h1{color:var(--t-strong);font-size:1.05rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
 .subtitle{color:var(--t-dim);font-size:.66rem;margin-bottom:10px;letter-spacing:1px;}
 /* Whether the crew's screen is actually up. The facilitator is usually not
    looking at it, and a monitor that was never opened or got closed is
    otherwise silent — the scenario just stops reaching anybody. */
 .mon-chip{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:20px;
   font-size:.6rem;font-weight:bold;letter-spacing:1px;cursor:pointer;border:1px solid;vertical-align:1px;}
-.mon-chip.on{color:#00ff88;border-color:#00ff8855;background:#00ff8814;}
-.mon-chip.off{color:#ff8844;border-color:#ff884455;background:#ff884414;}
+.mon-chip.on{color:var(--ok);border-color:rgba(63,185,132,.4);background:rgba(63,185,132,.10);}
+.mon-chip.off{color:var(--amber);border-color:rgba(224,161,60,.4);background:rgba(224,161,60,.10);}
 
 /* Second-device session. Off by default: most runs are two windows on one
    laptop and need no network at all. */
 .sess{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;max-width:960px;
-  margin:0 auto 10px;padding:7px 12px;border:1px solid #1e3a52;border-radius:8px;background:#0d1b2a;}
+  margin:0 auto 10px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
 .sess-lbl{font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);}
 .sess-note{font-size:.58rem;color:var(--t-faint);}
-.sess-code{font:bold 1.05rem/1 monospace;letter-spacing:4px;color:#00e5ff;
-  padding:4px 10px;border:1px solid #00c8e0;border-radius:5px;background:#04222b;}
-.sess.live{border-color:#00cc66;} .sess.live .sess-lbl{color:#7fe0a5;}
+.sess-code{font:bold 1.05rem/1 monospace;letter-spacing:4px;color:var(--accent);
+  padding:4px 10px;border:1px solid var(--accent);border-radius:5px;background:var(--inset-deep);}
+.sess.live{border-color:var(--ok);} .sess.live .sess-lbl{color:#7fe0a5;}
 .sess.error{border-color:#8a3a3a;} .sess.error .sess-lbl{color:#ff8844;}
 body.run-active .sess.off{display:none;}
 
 .scenario-row{width:100%;max-width:960px;display:flex;gap:12px;margin-bottom:12px;}
 .scenario-row .scenario-bar{flex:1;min-width:0;margin-bottom:0;}
-.scenario-bar{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.scenario-bar{width:100%;max-width:960px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 @media (max-width:820px){.scenario-row{flex-direction:column;}}
-.scenario-bar label{color:#00e5ff;font-size:.72rem;letter-spacing:1px;white-space:nowrap;}
+.scenario-bar label{color:var(--accent);font-size:.72rem;letter-spacing:1px;white-space:nowrap;}
 .scenario-bar select{flex:1;margin-bottom:0;}
 .apply-btn{
   padding:10px 22px;
-  background:linear-gradient(135deg,#003355,#005588);
-  border:2px solid #00e5ff;
-  border-radius:7px;
-  color:#00e5ff;
+  background:var(--accent-dim);
+  border:1px solid var(--accent);
+  border-radius:var(--radius-sm);
+  color:#fff;
   font-size:.82rem;
-  font-weight:bold;
-  letter-spacing:2px;
+  font-weight:700;
+  letter-spacing:1.5px;
   text-transform:uppercase;
   cursor:pointer;
   white-space:nowrap;
-  transition:all .2s;
-  box-shadow:0 0 10px #00e5ff22;
+  transition:all .15s;
+  box-shadow:var(--shadow);
   flex-shrink:0;
 }
 .apply-btn:hover{
-  background:linear-gradient(135deg,#004477,#0077bb);
-  box-shadow:0 0 18px #00e5ff55;
+  background:var(--accent);
   transform:translateY(-1px);
 }
 
 .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;width:100%;max-width:960px;}
-.card{background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:16px;}
-.card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;}
-.card.ecg h2{color:#00ff00;}.card.bp h2{color:#ff4444;}.card.spo2 h2{color:#ffff00;}.card.etco2 h2{color:#ff00ff;}.card.temp h2{color:#00e5ff;}.card.alarms h2{color:#ff00ff;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-card);}
+.card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.card.ecg h2{color:var(--ecg);}.card.bp h2{color:var(--danger);}.card.spo2 h2{color:var(--spo2);}.card.etco2 h2{color:var(--co2);}.card.temp h2{color:var(--accent);}.card.alarms h2{color:var(--co2);}
 
 label{display:block;font-size:.7rem;color:var(--t);margin-bottom:4px;margin-top:8px;}
 label:first-of-type{margin-top:0;}
-input[type=range]{flex:1;accent-color:#00e5ff;cursor:pointer;}
-select{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:#fff;padding:5px 8px;font-size:.8rem;margin-bottom:4px;outline:none;}
-select:focus{border-color:#00e5ff;}
+input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer;}
+select{width:100%;background:var(--inset);border:1px solid var(--border);border-radius:5px;color:#fff;padding:5px 8px;font-size:.8rem;margin-bottom:4px;outline:none;}
+select:focus{border-color:var(--accent);}
 .row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.badge{background:#0a0f1a;border:1px solid #1e3a52;border-radius:4px;padding:2px 6px;font-size:.8rem;font-weight:bold;min-width:42px;text-align:center;}
+.badge{background:var(--inset);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:.8rem;font-weight:bold;min-width:42px;text-align:center;}
 
 /* Keyboard focus. Every control below is reachable by Tab — the clickable
    divs are given button semantics in script, and a focus ring is the only
    thing that tells a keyboard user where they are. */
-:focus-visible{outline:2px solid #00e5ff;outline-offset:2px;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
 /* Rhythm grid */
 .rcat{font-size:.58rem;color:var(--t-dim);letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px;}
 .rgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:4px;}
-.rbtn{background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:var(--t-strong);font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
-.rbtn:hover{border-color:#00ff00;color:#00ff00;}
-.rbtn.on{background:#003300;border-color:#00ff00;color:#00ff00;}
+.rbtn{background:var(--inset);border:1px solid var(--border);border-radius:5px;color:var(--t-strong);font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
+.rbtn:hover{border-color:var(--ecg);color:var(--ecg);}
+.rbtn.on{background:#003300;border-color:var(--ecg);color:var(--ecg);}
 
 /* ART card */
 .card.art{grid-column:span 3;}
 .art-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:10px;}
-.art-toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #1e3a52;}
-.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:2px solid #333;background:#0a0f1a;color:var(--t-dim);font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
-.art-btn.on{border-color:#ff4444;background:#2a0000;color:#ff4444;box-shadow:0 0 10px #ff444433;}
-.art-btn .dot{width:9px;height:9px;border-radius:50%;background:#333;transition:all .2s;}
-.art-btn.on .dot{background:#ff4444;box-shadow:0 0 6px #ff4444;}
+.art-toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--inset);color:var(--t-dim);font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
+.art-btn.on{border-color:var(--danger);background:#2a0000;color:var(--danger);box-shadow:var(--shadow);}
+.art-btn .dot{width:9px;height:9px;border-radius:50%;background:var(--border-strong);transition:all .2s;}
+.art-btn.on .dot{background:var(--danger);box-shadow:var(--shadow);}
 .art-readings{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.arbox{background:#0a0f1a;border:1px solid #1e3a52;border-radius:6px;padding:7px 10px;}
+.arbox{background:var(--inset);border:1px solid var(--border);border-radius:6px;padding:7px 10px;}
 .arbox.wide{grid-column:span 2;}
-.arbox.pulse{border-color:#ff4444;background:#1a0000;}
+.arbox.pulse{border-color:var(--danger);background:#1a0000;}
 .arbox .arl{font-size:.6rem;color:var(--t);text-transform:uppercase;letter-spacing:.5px;}
 .arbox .arv{font-size:1.1rem;font-weight:bold;color:#ff6666;line-height:1.2;}
 .arbox .aru{font-size:.58rem;color:var(--t-dim);}
 
 /* Alarm toggles */
 .alarm-row{display:flex;gap:6px;margin-bottom:8px;}
-.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid #1e3a52;background:#0a0f1a;color:var(--t);cursor:pointer;text-align:center;transition:all .15s;}
-.atog.on{background:#1a3300;border-color:#00ff00;color:#00ff00;}
-.atog.off{background:#330000;border-color:#ff4444;color:#ff4444;}
+.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid var(--border);background:var(--inset);color:var(--t);cursor:pointer;text-align:center;transition:all .15s;}
+.atog.on{background:#1a3300;border-color:var(--ecg);color:var(--ecg);}
+.atog.off{background:#330000;border-color:var(--danger);color:var(--danger);}
 
 /* Alarms card span 3 */
 .card.alarms{grid-column:span 3;}
 .alarms-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 
 /* Simulation State card */
-.card.simstate h2{color:#ff9900;}
-.sim-scenario-name{font-size:.75rem;color:#ff9900;font-weight:bold;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1e3a52;line-height:1.3;}
+.card.simstate h2{color:var(--amber);}
+.sim-scenario-name{font-size:.75rem;color:var(--amber);font-weight:bold;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);line-height:1.3;}
 .sim-states{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
-.state-btn{padding:6px 9px;border-radius:6px;border:1px solid #1e3a52;background:#0a0f1a;color:var(--t);font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;}
-.state-btn:hover{border-color:#ff9900;color:#ff9900;}
-.state-btn.active{background:#1a0e00;border-color:#ff9900;color:#ff9900;}
+.state-btn{padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--inset);color:var(--t);font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;}
+.state-btn:hover{border-color:var(--amber);color:var(--amber);}
+.state-btn.active{background:#1a0e00;border-color:var(--amber);color:var(--amber);}
 .state-btn .sname{font-weight:bold;font-size:.72rem;display:block;margin-bottom:2px;}
 .state-btn .svitals{font-size:.62rem;color:var(--t-dim);display:block;}
 .state-btn.active .svitals{color:#cc7700;}
-.sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
+.sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
 .sim-note.coach{color:#bfe3c8;border-top-color:#2c5e44;}
 .sim-note.coach b{color:#7fe0a5;}
 .no-sim{font-size:.72rem;color:var(--t-dim);text-align:center;padding:20px 0;line-height:1.6;}
@@ -142,13 +181,13 @@ select:focus{border-color:#00e5ff;}
    whole of grading, so it has to be a big target the facilitator can hit
    without looking away from the crew. */
 .act{display:flex;gap:8px;align-items:flex-start;padding:6px 7px;border-radius:6px;
-  border:1px solid #1e3a52;background:#0a0f1a;cursor:pointer;margin-bottom:4px;
+  border:1px solid var(--border);background:var(--inset);cursor:pointer;margin-bottom:4px;
   font-size:.66rem;line-height:1.35;color:var(--t);transition:all .12s;}
-.act:hover{border-color:#00cc66;}
-.act.done{background:#04240f;border-color:#00cc66;color:#7fe0a5;}
-.act .box{flex:0 0 13px;height:13px;margin-top:1px;border:1px solid #3a5570;border-radius:3px;
+.act:hover{border-color:var(--ok);}
+.act.done{background:#04240f;border-color:var(--ok);color:#7fe0a5;}
+.act .box{flex:0 0 13px;height:13px;margin-top:1px;border:1px solid var(--border-strong);border-radius:3px;
   display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#04240f;}
-.act.done .box{background:#00cc66;border-color:#00cc66;color:#04240f;}
+.act.done .box{background:var(--ok);border-color:var(--ok);color:#04240f;}
 /* A tick that came from the monitor rather than from the facilitator's eye.
    Marked so it can be audited at the debrief — the device saw a button, not a
    crew, and the person grading is still the one who decides. */
@@ -186,11 +225,11 @@ select:focus{border-color:#00e5ff;}
 .pp-cap.no{color:#ffb37a;border:1px solid #ffb37a55;background:#ffb37a14;}
 .pp-thr{display:flex;align-items:center;gap:5px;font-size:.6rem;color:var(--t-dim);}
 .pp-thr input{width:56px;min-height:32px;padding:4px 6px;border-radius:5px;border:1px solid #6a4ea8;
-  background:#0d1b2a;color:var(--t-strong);font-family:inherit;font-size:.66rem;text-align:center;}
+  background:var(--surface);color:var(--t-strong);font-family:inherit;font-size:.66rem;text-align:center;}
 
 /* The device timeline. Newest at the top, because during a code the last thing
    that happened is the thing being asked about. */
-.dev-feed{max-height:210px;overflow-y:auto;border:1px solid #1e3a52;border-radius:6px;background:#070b12;padding:4px;}
+.dev-feed{max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--inset-deep);padding:4px;}
 .dev-empty{font-size:.6rem;color:var(--t-faint);padding:6px 4px;}
 .dev-row{display:flex;gap:6px;align-items:baseline;font-size:.6rem;line-height:1.5;color:var(--t);
   padding:1px 3px;border-radius:3px;}
@@ -201,19 +240,19 @@ select:focus{border-color:#00e5ff;}
 .dev-row.shock{background:#2a0f0a;color:#ff9c7a;}
 .dev-row.shock .dev-i{color:#ff6a3d;}
 .dev-row.auto{color:#7fe0a5;}
-.dev-row.auto .dev-i{color:#00cc66;}
+.dev-row.auto .dev-i{color:var(--ok);}
 
-.act-head{font-size:.58rem;color:#00cc66;letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px;}
+.act-head{font-size:.58rem;color:var(--ok);letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px;}
 .trig{font-size:.6rem;color:var(--t-dim);line-height:1.45;margin-top:8px;padding-top:8px;
-  border-top:1px solid #1e3a52;white-space:pre-line;}
-.trig b{color:#ff9900;font-weight:bold;letter-spacing:1px;font-size:.56rem;text-transform:uppercase;
+  border-top:1px solid var(--border);white-space:pre-line;}
+.trig b{color:var(--amber);font-weight:bold;letter-spacing:1px;font-size:.56rem;text-transform:uppercase;
   display:block;margin-bottom:3px;}
-.run-foot{margin-top:10px;padding-top:9px;border-top:1px solid #1e3a52;}
-.run-foot input{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;
+.run-foot{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);}
+.run-foot input{width:100%;background:var(--inset);border:1px solid var(--border);border-radius:5px;
   color:var(--t-strong);padding:5px 8px;font-size:.68rem;outline:none;margin-bottom:6px;}
-.run-foot input:focus{border-color:#00e5ff;}
-.end-btn{width:100%;padding:8px;border-radius:6px;border:1px solid #00cc66;background:#04240f;
-  color:#00cc66;font-size:.68rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.run-foot input:focus{border-color:var(--accent);}
+.end-btn{width:100%;padding:8px;border-radius:6px;border:1px solid var(--ok);background:#04240f;
+  color:var(--ok);font-size:.68rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
 .end-btn:hover{background:#06381a;}
 .run-sum{font-size:.63rem;color:var(--t);line-height:1.5;}
 .run-sum .rs-state{margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid #16283a;}
@@ -233,7 +272,7 @@ select:focus{border-color:#00e5ff;}
    patient is in and which actions are still unticked. */
 .run-card{width:100%;max-width:960px;padding:12px 16px 14px;
   position:sticky;top:0;z-index:30;
-  background:var(--card,#0b1220);
+  background:var(--surface);
   box-shadow:0 6px 18px rgba(0,0,0,.55);}
 /* Sticky only helps if it is not itself taller than the viewport. On a short
    screen the card scrolls internally rather than pushing the controls off. */
@@ -289,8 +328,8 @@ select:focus{border-color:#00e5ff;}
 .run-mini .rm-end{padding:8px 14px;min-height:44px;}
 @media (max-width:520px){ .run-mini .rm-name{display:none;} }
 .run-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;
-  padding-bottom:9px;border-bottom:1px solid #1e3a52;}
-.run-head .rh-name{font-size:.76rem;color:#ff9900;font-weight:bold;line-height:1.3;}
+  padding-bottom:9px;border-bottom:1px solid var(--border);}
+.run-head .rh-name{font-size:.76rem;color:var(--amber);font-weight:bold;line-height:1.3;}
 .run-head .rh-sub{color:var(--t-dim);font-weight:normal;}
 .run-head .rh-sp{margin-left:auto;}
 .run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:16px;}
@@ -303,7 +342,7 @@ select:focus{border-color:#00e5ff;}
      same card and would otherwise sit on top of the controls. */
   body.run-mode{padding-right:400px;}
   .run-card{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:none;
-    max-height:none;margin:0;border-radius:0;border-left:1px solid #1e3a52;
+    max-height:none;margin:0;border-radius:0;border-left:1px solid var(--border);
     border-top:none;border-right:none;border-bottom:none;
     overflow-y:auto;z-index:40;box-shadow:-8px 0 22px rgba(0,0,0,.5);}
   /* One column in a rail. Measured against three: the expected-action rows go
@@ -330,35 +369,35 @@ select:focus{border-color:#00e5ff;}
 /* The AHA checklist assesses team behaviour and CPR quality once for the whole
    code rather than in any one rhythm, and ends in a PASS / NR. One strip under
    the header, so it is never mistaken for a step in the state on screen. */
-.cl-wrap{margin-top:10px;border-top:1px solid #1e3a52;padding-top:8px;}
+.cl-wrap{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;}
 .cl-head{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.66rem;color:var(--t);
   padding:4px 2px;border-radius:5px;}
-.cl-head:hover{background:#0d1b2a;}
-.cl-head:focus-visible{outline:2px solid #00c8e0;outline-offset:1px;}
+.cl-head:hover{background:var(--surface);}
+.cl-head:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
 .cl-chev{color:var(--t-dim);width:10px;}
 .cl-tally{color:var(--t-dim);font-size:.6rem;}
 .cl-res{margin-left:auto;font-size:.6rem;letter-spacing:1px;color:var(--t-faint);}
 .cl-res.pass{color:#7fe0a5;} .cl-res.nr{color:#ff8844;}
 .cl-strip{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;
-  margin:0 0 10px;padding:8px 10px;border-radius:7px;background:#0a0f1a;border:1px solid #1e3a52;}
+  margin:0 0 10px;padding:8px 10px;border-radius:7px;background:var(--inset);border:1px solid var(--border);}
 .cl-grp{display:flex;flex-direction:column;gap:4px;}
 .cl-grp>.col-h{margin-bottom:1px;}
 .cl-row{display:flex;gap:10px;flex-wrap:wrap;}
 .cl-chk{display:flex;gap:5px;align-items:center;cursor:pointer;font-size:.63rem;color:var(--t);
-  padding:3px 7px;border-radius:5px;border:1px solid #1e3a52;transition:all .12s;}
-.cl-chk:hover{border-color:#00cc66;}
-.cl-chk.done{background:#04240f;border-color:#00cc66;color:#7fe0a5;}
-.cl-chk .box{width:12px;height:12px;border:1px solid #3a5570;border-radius:3px;flex-shrink:0;
+  padding:3px 7px;border-radius:5px;border:1px solid var(--border);transition:all .12s;}
+.cl-chk:hover{border-color:var(--ok);}
+.cl-chk.done{background:#04240f;border-color:var(--ok);color:#7fe0a5;}
+.cl-chk .box{width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#04240f;}
-.cl-chk.done .box{background:#00cc66;border-color:#00cc66;}
+.cl-chk.done .box{background:var(--ok);border-color:var(--ok);}
 .cl-num{display:flex;gap:5px;align-items:center;font-size:.63rem;color:var(--t-dim);}
-.cl-num input{width:52px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:5px;
+.cl-num input{width:52px;background:var(--surface);border:1px solid var(--border);border-radius:5px;
   color:var(--t-strong);padding:3px 6px;font-size:.66rem;outline:none;text-align:right;}
-.cl-num input:focus{border-color:#00e5ff;}
+.cl-num input:focus{border-color:var(--accent);}
 .res-grp{margin-left:auto;display:flex;gap:6px;align-items:center;}
-.res-btn{padding:5px 16px;border-radius:6px;border:1px solid #3a5570;background:#0d1b2a;
+.res-btn{padding:5px 16px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
   color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
-.res-btn.pass.on{background:#04240f;border-color:#00cc66;color:#00cc66;}
+.res-btn.pass.on{background:#04240f;border-color:var(--ok);color:var(--ok);}
 .res-btn.nr.on{background:#2a0e00;border-color:#ff8844;color:#ff8844;}
 .res-btn:hover{border-color:var(--t-dim);}
 .run-inline input{flex:1;min-width:120px;}
@@ -379,12 +418,12 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 /* Scenario brief — everything the facilitator would otherwise have the Word
    document open for. Collapsed by default; it is reference, not controls. */
-.brief-card{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;
+.brief-card{width:100%;max-width:960px;background:var(--surface);border:1px solid var(--border);
   border-radius:10px;margin-bottom:12px;overflow:hidden;}
 .brief-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;
-  background:none;border:none;cursor:pointer;color:#ff9900;font-size:.7rem;font-weight:bold;
+  background:none;border:none;cursor:pointer;color:var(--amber);font-size:.7rem;font-weight:bold;
   letter-spacing:1.5px;text-transform:uppercase;text-align:left;}
-.brief-toggle:hover{background:#132638;}
+.brief-toggle:hover{background:var(--surface-2);}
 .brief-toggle .bchev{margin-left:auto;color:var(--t-dim);font-size:.8rem;}
 .brief-body{padding:2px 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;}
 /* `display:grid` from the rule above outranks the user-agent's [hidden] rule,
@@ -392,17 +431,17 @@ body.run-mode .card.bp{grid-row:1/3;}
    text pushing the run card off the bottom of every laptop screen. */
 .brief-body[hidden]{display:none;}
 @media (max-width:820px){.brief-body{grid-template-columns:1fr;}}
-.bsec h4{font-size:.58rem;color:#00e5ff;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;}
+.bsec h4{font-size:.58rem;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;}
 .bsec p{font-size:.68rem;color:var(--t);line-height:1.5;white-space:pre-line;margin-bottom:8px;}
 .bsec.wide{grid-column:1/-1;}
 .bsam{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:.66rem;}
 .bsam dt{color:var(--t-dim);white-space:nowrap;}
 .bsam dd{color:var(--t);}
-.bwithhold{font-size:.66rem;color:#ff9900;background:#2a1a00;border:1px solid #ff990044;
+.bwithhold{font-size:.66rem;color:var(--amber);background:#2a1a00;border:1px solid rgba(224,161,60,.35);
   border-radius:6px;padding:6px 10px;line-height:1.4;}
 
 /* Drug card — positioned via inline grid-column/row */
-.card.drugs h2{color:#ff6600;}
+.card.drugs h2{color:var(--drug);}
 .drug-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px;}
 
 /* ECG card spans rows 1-2 in col 1 */
@@ -419,23 +458,23 @@ body.run-mode .card.bp{grid-row:1/3;}
 .card.etco2{grid-column:2;grid-row:3;}
 .card.temp{grid-column:3;grid-row:3;}
 .drug-btn{
-  background:#0a0f1a;border:1px solid #1e3a52;border-radius:7px;
+  background:var(--inset);border:1px solid var(--border);border-radius:7px;
   padding:8px 6px;cursor:pointer;text-align:center;transition:all .2s;
   display:flex;flex-direction:column;align-items:center;gap:2px;
 }
-.drug-btn:hover{border-color:#ff6600;background:#1a0800;}
-.drug-btn.fired{border-color:#ff6600;background:#1a0800;animation:drugPulse .4s ease-out;}
-.drug-btn.running{border-color:#ff660088;background:#150700;}
-@keyframes drugPulse{0%{box-shadow:0 0 0 0 #ff660088}100%{box-shadow:0 0 0 12px #ff660000}}
+.drug-btn:hover{border-color:var(--drug);background:#1a0800;}
+.drug-btn.fired{border-color:var(--drug);background:#1a0800;animation:drugPulse .4s ease-out;}
+.drug-btn.running{border-color:var(--drug);background:#150700;}
+@keyframes drugPulse{0%{background:var(--surface-2);}100%{background:var(--inset);}}
 .drug-btn .dname{font-size:.68rem;font-weight:bold;color:#ff8844;line-height:1.2;}
 .drug-btn .ddose{font-size:.58rem;color:var(--t-dim);line-height:1.2;}
 .drug-btn .deffect{font-size:.55rem;color:var(--t-dim);line-height:1.2;margin-top:1px;}
-.drug-log{margin-top:10px;padding-top:8px;border-top:1px solid #1e3a52;max-height:90px;overflow-y:auto;}
+.drug-log{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);max-height:90px;overflow-y:auto;}
 .drug-log-entry{font-size:.6rem;color:var(--t);line-height:1.5;display:flex;justify-content:space-between;}
 .drug-log-entry .dlt{color:#ff8844;}
 .drug-log-entry .dltime{color:var(--t-dim);}
 .drug-clear{font-size:.6rem;color:var(--t-dim);cursor:pointer;text-align:right;margin-top:3px;}
-.drug-clear:hover{color:#ff6600;}
+.drug-clear:hover{color:var(--drug);}
 
 /* Make BP and SpO2 cards more compact */
 .card.bp label:first-of-type,.card.spo2 label:first-of-type{margin-top:0;}
@@ -460,25 +499,25 @@ body.run-mode .card.bp{grid-row:1/3;}
   display:flex;align-items:center;justify-content:center;gap:10px;
 }
 .connect-btn.disconnected{
-  background:#1a0000;border:2px solid #cc0000;color:#ff3333;
-  box-shadow:0 0 20px #cc000033;
-  animation:disconnectPulse 2s infinite;
+  background:rgba(242,104,107,.10);border:1px solid var(--danger);color:var(--danger);
+  box-shadow:var(--shadow);
+  animation:none;
 }
 @keyframes disconnectPulse{
-  0%,100%{box-shadow:0 0 12px #cc000033;}
-  50%{box-shadow:0 0 28px #cc000066;}
+  0%,100%{box-shadow:var(--shadow);}
+  50%{box-shadow:var(--shadow);}
 }
 .connect-btn.connected{
-  background:#001a00;border:2px solid #00cc00;color:#00ff00;
-  box-shadow:0 0 20px #00cc0033;
+  background:#001a00;border:2px solid #00cc00;color:var(--ecg);
+  box-shadow:var(--shadow);
   animation:none;
 }
 .connect-dot{
   width:10px;height:10px;border-radius:50%;
   display:inline-block;flex-shrink:0;
 }
-.connect-btn.disconnected .connect-dot{background:#ff3333;box-shadow:0 0 8px #ff3333;}
-.connect-btn.connected .connect-dot{background:#00ff00;box-shadow:0 0 8px #00ff00;}
+.connect-btn.disconnected .connect-dot{background:#ff3333;box-shadow:var(--shadow);}
+.connect-btn.connected .connect-dot{background:var(--ecg);box-shadow:var(--shadow);}
 .phys-btn{
   flex:0 0 180px;padding:14px 12px;font-size:.72rem;font-weight:bold;
   letter-spacing:2px;text-transform:uppercase;
@@ -486,11 +525,11 @@ body.run-mode .card.bp{grid-row:1/3;}
   display:flex;align-items:center;justify-content:center;gap:8px;
   border:2px solid;
 }
-.phys-btn.on{background:#001a33;border-color:#0088cc;color:#00aaff;box-shadow:0 0 16px #0088cc33;}
-.phys-btn.off{background:#1a1a1a;border-color:var(--t-dim);color:var(--t-dim);}
+.phys-btn.on{background:var(--accent-tint);border-color:var(--accent);color:var(--accent);}
+.phys-btn.off{background:var(--inset);border-color:var(--border);color:var(--t-dim);}
 .phys-btn:hover{opacity:.85;}
-.launch-btn{display:block;width:100%;max-width:960px;margin:20px auto 0;padding:16px;font-size:1rem;font-weight:bold;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,#003366,#005599);border:2px solid #00e5ff;border-radius:10px;color:#00e5ff;cursor:pointer;transition:all .2s;box-shadow:0 0 20px #00e5ff22;}
-.launch-btn:hover{background:linear-gradient(135deg,#004488,#0077bb);box-shadow:0 0 30px #00e5ff55;}
+.launch-btn{display:block;width:100%;max-width:960px;margin:20px auto 0;padding:16px;font-size:1rem;font-weight:bold;letter-spacing:3px;text-transform:uppercase;background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius);color:#fff;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.launch-btn:hover{background:var(--accent);box-shadow:var(--shadow);}
 
 /* Narrow screens. The three-column grid is authored against a 960px canvas;
    below that the explicit grid-column/grid-row placements have to be released
@@ -512,7 +551,7 @@ body.run-mode .card.bp{grid-row:1/3;}
 /* A visible focus ring on every interactive control, so the panel is usable
    from the keyboard at the back of the room without hunting for where focus is. */
 [role="button"]:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{
-  outline:2px solid #00c8e0;outline-offset:2px;
+  outline:2px solid var(--accent);outline-offset:2px;
 }
 </style>
 </head>
@@ -598,7 +637,7 @@ body.run-mode .card.bp{grid-row:1/3;}
 <!-- ECG -->
 <div class="card ecg">
   <h2>ECG / Heart Rate</h2>
-  <button id="btn12Lead" onclick="open12LeadCP()" style="width:100%;padding:10px;margin-bottom:10px;background:#001a2e;border:1px solid #00c8e0;border-radius:7px;color:#00c8e0;font-family:'Courier New',monospace;font-size:.75rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='#002a40'" onmouseout="this.style.background='#001a2e'">⊞ Open 12-Lead ECG</button>
+  <button id="btn12Lead" onclick="open12LeadCP()" style="width:100%;padding:10px;margin-bottom:10px;background:var(--inset);border:1px solid var(--accent);border-radius:7px;color:var(--accent);font-family:'Courier New',monospace;font-size:.75rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--inset)'">⊞ Open 12-Lead ECG</button>
   <label for="hr">Heart Rate (bpm)</label>
   <div class="row">
     <input type="range" id="hr" min="0" max="250" value="78" oninput="sv('hr',+this.value)">
@@ -636,8 +675,8 @@ body.run-mode .card.bp{grid-row:1/3;}
 
   <div class="rcat" style="margin-top:10px;">Ectopic Beats</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;">
-    <div class="rbtn" id="pvcBtn" onclick="toggleEctopic('pvc')" style="border-color:#ff8800;color:#ff8800;">PVC</div>
-    <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:#00aaff;color:#00aaff;">PAC</div>
+    <div class="rbtn" id="pvcBtn" onclick="toggleEctopic('pvc')" style="border-color:var(--amber);color:var(--amber);">PVC</div>
+    <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:var(--accent);color:var(--accent);">PAC</div>
   </div>
   <label for="ectFreq">Ectopic Frequency <span id="ectFreqLbl" style="color:var(--t);">— every 6 beats</span></label>
   <div class="row">
@@ -679,11 +718,11 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <!-- Drug Interactions — col 2, spans rows 1+2 -->
 <div class="card drugs" style="grid-column:2;grid-row:1/3;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">
     <h2 style="margin-bottom:0;padding-bottom:0;border-bottom:none;">Medications</h2>
     <button id="drugHoldBtn" onclick="toggleDrugHold()"
       style="padding:4px 10px;font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;
-             border-radius:5px;border:1px solid #555;background:#0a0f1a;color:var(--t);cursor:pointer;
+             border-radius:5px;border:1px solid var(--border);background:var(--inset);color:var(--t);cursor:pointer;
              transition:all .2s;white-space:nowrap;"
       title="Cancels every medication still running and keeps the vitals where they are now">
       ⏹ STOP MEDS
@@ -941,7 +980,7 @@ body.run-mode .card.bp{grid-row:1/3;}
     </div>
     <div></div>
     <div>
-      <div style="font-size:.62rem;color:#ff6666;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
+      <div style="font-size:.62rem;color:var(--danger);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
       <div class="art-readings">
         <div class="arbox pulse wide"><div class="arl">Arterial BP</div><div class="arv" id="arBP">121 / 79</div><div class="aru">mmHg</div></div>
         <div class="arbox"><div class="arl">MAP</div><div class="arv" id="arMAP">93</div><div class="aru">mmHg</div></div>
@@ -949,7 +988,7 @@ body.run-mode .card.bp{grid-row:1/3;}
         <div class="arbox"><div class="arl">Est. SVR</div><div class="arv" id="arSVR">—</div><div class="aru">dynes·s/cm⁵</div></div>
         <div class="arbox"><div class="arl">Est. SVI</div><div class="arv" id="arSVI">—</div><div class="aru">mL/beat/m²</div></div>
         <div class="arbox wide"><div class="arl">Waveform Quality</div><div class="arv" style="font-size:.85rem;" id="arDamp">Normal — Adequate fidelity</div></div>
-        <div class="arbox wide"><div class="arl">Access Site</div><div class="arv" style="font-size:.85rem;color:#ff8888;" id="arSite">Radial — Left</div></div>
+        <div class="arbox wide"><div class="arl">Access Site</div><div class="arv" style="font-size:.85rem;color:var(--danger);" id="arSite">Radial — Left</div></div>
       </div>
     </div>
   </div>
@@ -957,10 +996,10 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <!-- Swan-Ganz Catheter (PA Catheter) -->
 <div class="card art" style="grid-column:span 3;margin-top:0;">
-  <h2 style="color:#00aaff;">Swan-Ganz / PA Catheter (P2)</h2>
+  <h2 style="color:var(--accent);">Swan-Ganz / PA Catheter (P2)</h2>
   <div class="art-toggle">
     <div class="art-btn" id="sgBtn" onclick="toggleSG()" style="border-color:var(--t-dim);color:var(--t-dim);">
-      <span class="dot" style="background:#333;"></span><span id="sgLbl">PA CATHETER OFF</span>
+      <span class="dot" style="background:var(--border-strong);"></span><span id="sgLbl">PA CATHETER OFF</span>
     </div>
     <span style="font-size:.65rem;color:var(--t-dim);">Displays PA waveform in P2 channel on monitor</span>
   </div>
@@ -1010,14 +1049,14 @@ body.run-mode .card.bp{grid-row:1/3;}
       </select>
     </div>
     <div>
-      <div style="font-size:.62rem;color:#00aaff;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
+      <div style="font-size:.62rem;color:var(--accent);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
       <div class="art-readings">
-        <div class="arbox wide" style="border-color:#00aaff;background:#001428;"><div class="arl" style="color:#4488ff;">PA Pressure</div><div class="arv" id="sgPA" style="color:#4499ff;">--- / ---</div><div class="aru">mmHg</div></div>
-        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Mean PA</div><div class="arv" id="sgMPA" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
-        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">PCWP</div><div class="arv" id="sgPCWP" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
-        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">CVP</div><div class="arv" id="sgCVP" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
-        <div class="arbox wide" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Waveform Mode</div><div class="arv" id="sgModeDisp" style="font-size:.85rem;color:#4499ff;">Pulmonary Artery (PA)</div></div>
-        <div class="arbox wide" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Insertion Site</div><div class="arv" id="sgSiteDisp" style="font-size:.85rem;color:#4499ff;">Right Internal Jugular</div></div>
+        <div class="arbox wide" style="border-color:var(--accent);background:var(--accent-tint);"><div class="arl" style="color:var(--accent);">PA Pressure</div><div class="arv" id="sgPA" style="color:var(--accent);">--- / ---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">Mean PA</div><div class="arv" id="sgMPA" style="color:var(--accent);">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">PCWP</div><div class="arv" id="sgPCWP" style="color:var(--accent);">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">CVP</div><div class="arv" id="sgCVP" style="color:var(--accent);">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox wide" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">Waveform Mode</div><div class="arv" id="sgModeDisp" style="font-size:.85rem;color:var(--accent);">Pulmonary Artery (PA)</div></div>
+        <div class="arbox wide" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">Insertion Site</div><div class="arv" id="sgSiteDisp" style="font-size:.85rem;color:var(--accent);">Right Internal Jugular</div></div>
       </div>
     </div>
   </div>
@@ -1199,8 +1238,8 @@ function paint12Lead(){
   const btn=document.getElementById('btn12Lead');
   if(!btn) return;
   btn.textContent=cp12Open?'✕ Close 12-Lead ECG':'⊞ Open 12-Lead ECG';
-  btn.style.borderColor=cp12Open?'#ff4444':'#00c8e0';
-  btn.style.color=cp12Open?'#ff4444':'#00c8e0';
+  btn.style.borderColor=cp12Open?'#ff4444':'var(--accent)';
+  btn.style.color=cp12Open?'#ff4444':'var(--accent)';
 }
 function sync12Lead(open){
   if(open===cp12Open) return;
@@ -1265,8 +1304,8 @@ function toggleConnect(){
 function syncToggles(){
   const set=(id,fn)=>{const e=document.getElementById(id);if(e)fn(e);};
 
-  set('pvcBtn',b=>{b.style.background=S.pvcOn?'#2a1400':'';b.style.opacity=S.pvcOn?'1':'0.6';b.style.boxShadow=S.pvcOn?'0 0 8px #ff880066':'none';});
-  set('pacBtn',b=>{b.style.background=S.pacOn?'#001428':'';b.style.opacity=S.pacOn?'1':'0.6';b.style.boxShadow=S.pacOn?'0 0 8px #00aaff66':'none';});
+  set('pvcBtn',b=>{b.style.background=S.pvcOn?'rgba(224,161,60,.14)':'';b.style.opacity=S.pvcOn?'1':'0.6';b.style.boxShadow='none';});
+  set('pacBtn',b=>{b.style.background=S.pacOn?'var(--accent-tint)':'';b.style.opacity=S.pacOn?'1':'0.6';b.style.boxShadow='none';});
 
   set('etco2OnBtn',b=>{b.className='atog '+(S.etco2On?'on':'off');b.textContent=S.etco2On?'⬤ EtCO₂ ON':'⬤ EtCO₂ OFF';});
 
@@ -1313,10 +1352,10 @@ function toggleSG(){
   const lbl=document.getElementById('sgLbl');
   const inner=document.getElementById('sgInner');
   if(S.sgActive){
-    btn.style.borderColor='#00aaff';btn.style.background='#001428';btn.style.color='#00aaff';
-    btn.style.boxShadow='0 0 10px #00aaff44';
-    btn.querySelector('.dot').style.background='#00aaff';
-    btn.querySelector('.dot').style.boxShadow='0 0 6px #00aaff';
+    btn.style.borderColor='var(--accent)';btn.style.background='var(--accent-tint)';btn.style.color='var(--accent)';
+    btn.style.boxShadow='none';
+    btn.querySelector('.dot').style.background='var(--accent)';
+    btn.querySelector('.dot').style.boxShadow='none';
     lbl.textContent='PA CATHETER ACTIVE';
     inner.style.opacity='1';
   } else {
@@ -1564,24 +1603,24 @@ const SIMULATIONS={
   qs_normal:{name:'Normal Adult',subtitle:'Baseline Adult Patient',patientType:'Adult',states:[
     {label:'Initial State',color:'#00cc44',vitals:{hr:78,rhythm:'nsr',sbp:121,dbp:79,spo2:97,etco2:36,rr:12,temp:36.9},display:'HR 78 | BP 121/79 | SpO₂ 97% | EtCO₂ 36 | RR 12',note:'Patient stable. Normal sinus rhythm. All vitals within normal limits.'},
     {label:'Slightly Worsening',color:'#ffcc00',vitals:{hr:95,rhythm:'nsr',sbp:108,dbp:70,spo2:95,etco2:38,rr:16,temp:37.2},display:'HR 95 | BP 108/70 | SpO₂ 95% | EtCO₂ 38 | RR 16',note:'Mild deterioration. Slight tachycardia, BP trending down. Monitor closely and identify cause.'},
-    {label:'Worsening',color:'#ff6600',vitals:{hr:118,rhythm:'tachy',sbp:90,dbp:58,spo2:92,etco2:42,rr:22,temp:37.6},display:'HR 118 | BP 90/58 | SpO₂ 92% | EtCO₂ 42 | RR 22',note:'Significant deterioration. Tachycardia, hypotension, dropping SpO₂. Intervention required immediately.'},
+    {label:'Worsening',color:'var(--drug)',vitals:{hr:118,rhythm:'tachy',sbp:90,dbp:58,spo2:92,etco2:42,rr:22,temp:37.6},display:'HR 118 | BP 90/58 | SpO₂ 92% | EtCO₂ 42 | RR 22',note:'Significant deterioration. Tachycardia, hypotension, dropping SpO₂. Intervention required immediately.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:82,rhythm:'nsr',sbp:118,dbp:76,spo2:97,etco2:36,rr:14,temp:37.0},display:'HR 82 | BP 118/76 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Patient responding to treatment. Vitals improving toward normal limits.'},
   ]},
   qs_tachy:{name:'Sinus Tachycardia',subtitle:'Compensatory — Unknown Etiology',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:130,rhythm:'tachy',sbp:105,dbp:68,spo2:96,etco2:38,rr:18,temp:37.4},display:'HR 130 | BP 105/68 | SpO₂ 96% | EtCO₂ 38 | RR 18',note:'Sinus tachycardia. Identify and treat underlying cause — pain, hypovolemia, fever, anxiety.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:142,rhythm:'tachy',sbp:96,dbp:62,spo2:94,etco2:40,rr:22,temp:37.8},display:'HR 142 | BP 96/62 | SpO₂ 94% | EtCO₂ 40 | RR 22',note:'HR increasing, BP dropping. Underlying cause not adequately treated. Increase fluids, assess for hemorrhage.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:130,rhythm:'tachy',sbp:105,dbp:68,spo2:96,etco2:38,rr:18,temp:37.4},display:'HR 130 | BP 105/68 | SpO₂ 96% | EtCO₂ 38 | RR 18',note:'Sinus tachycardia. Identify and treat underlying cause — pain, hypovolemia, fever, anxiety.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:142,rhythm:'tachy',sbp:96,dbp:62,spo2:94,etco2:40,rr:22,temp:37.8},display:'HR 142 | BP 96/62 | SpO₂ 94% | EtCO₂ 40 | RR 22',note:'HR increasing, BP dropping. Underlying cause not adequately treated. Increase fluids, assess for hemorrhage.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:158,rhythm:'tachy',sbp:82,dbp:50,spo2:90,etco2:28,rr:28,temp:38.2},display:'HR 158 | BP 82/50 | SpO₂ 90% | EtCO₂ 28 | RR 28',note:'Decompensating. Severe tachycardia with hypotension and hypoxia. Aggressive resuscitation required.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:114,dbp:72,spo2:97,etco2:36,rr:16,temp:37.2},display:'HR 102 | BP 114/72 | SpO₂ 97% | EtCO₂ 36 | RR 16',note:'Responding to treatment. HR trending down, BP improving. Continue monitoring and treat underlying cause.'},
   ]},
   qs_brady:{name:'Sinus Bradycardia',subtitle:'Symptomatic Bradycardia',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:40,rhythm:'brady',sbp:88,dbp:55,spo2:95,etco2:34,rr:22,temp:36.2},display:'HR 40 | BP 88/55 | SpO₂ 95% | EtCO₂ 34 | RR 22',note:'Symptomatic bradycardia. Assess hemodynamic instability. Consider Atropine 0.5mg IV or transcutaneous pacing.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:34,rhythm:'brady',sbp:80,dbp:48,spo2:93,etco2:30,rr:18,temp:36.1},display:'HR 34 | BP 80/48 | SpO₂ 93% | EtCO₂ 30 | RR 18',note:'HR dropping. Hypotension worsening. Initiate transcutaneous pacing. Dopamine/Epinephrine infusion if needed.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:40,rhythm:'brady',sbp:88,dbp:55,spo2:95,etco2:34,rr:22,temp:36.2},display:'HR 40 | BP 88/55 | SpO₂ 95% | EtCO₂ 34 | RR 22',note:'Symptomatic bradycardia. Assess hemodynamic instability. Consider Atropine 0.5mg IV or transcutaneous pacing.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:34,rhythm:'brady',sbp:80,dbp:48,spo2:93,etco2:30,rr:18,temp:36.1},display:'HR 34 | BP 80/48 | SpO₂ 93% | EtCO₂ 30 | RR 18',note:'HR dropping. Hypotension worsening. Initiate transcutaneous pacing. Dopamine/Epinephrine infusion if needed.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:28,rhythm:'brady',sbp:68,dbp:40,spo2:88,etco2:22,rr:10,temp:36.0},display:'HR 28 | BP 68/40 | SpO₂ 88% | EtCO₂ 22 | RR 10',note:'Severe bradycardia with cardiogenic shock. Immediate TCP or transvenous pacing. Push-dose Epi. Airway management.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:62,rhythm:'nsr',sbp:110,dbp:70,spo2:97,etco2:36,rr:14,temp:36.5},display:'HR 62 | BP 110/70 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Effective pacing or Atropine response. Hemodynamics improving. Prepare for transport.'},
   ]},
   qs_afib:{name:'Atrial Fibrillation',subtitle:'New Onset A-Fib with RVR',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:110,rhythm:'afib',sbp:118,dbp:76,spo2:96,etco2:35,rr:14,temp:37.1},display:'HR 110 | BP 118/76 | SpO₂ 96% | EtCO₂ 35 | RR 14',note:'A-Fib with controlled rate. Mildly symptomatic. Assess for hemodynamic instability and stroke risk.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:138,rhythm:'afib_rvr',sbp:104,dbp:66,spo2:94,etco2:36,rr:18,temp:37.2},display:'HR 138 | BP 104/66 | SpO₂ 94% | EtCO₂ 36 | RR 18',note:'Rate increasing — now RVR. BP dropping. Consider rate control: Diltiazem or Metoprolol if stable.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:110,rhythm:'afib',sbp:118,dbp:76,spo2:96,etco2:35,rr:14,temp:37.1},display:'HR 110 | BP 118/76 | SpO₂ 96% | EtCO₂ 35 | RR 14',note:'A-Fib with controlled rate. Mildly symptomatic. Assess for hemodynamic instability and stroke risk.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:138,rhythm:'afib_rvr',sbp:104,dbp:66,spo2:94,etco2:36,rr:18,temp:37.2},display:'HR 138 | BP 104/66 | SpO₂ 94% | EtCO₂ 36 | RR 18',note:'Rate increasing — now RVR. BP dropping. Consider rate control: Diltiazem or Metoprolol if stable.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:162,rhythm:'afib_rvr',sbp:86,dbp:54,spo2:91,etco2:34,rr:22,temp:37.3},display:'HR 162 | BP 86/54 | SpO₂ 91% | EtCO₂ 34 | RR 22',note:'Unstable A-Fib with RVR. Hemodynamically compromised. Synchronized cardioversion indicated. Sedate if conscious.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:88,rhythm:'afib',sbp:116,dbp:74,spo2:97,etco2:36,rr:14,temp:37.1},display:'HR 88 | BP 116/74 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Rate controlled. Hemodynamics improved. Anticoagulation per protocol. Transport to ED.'},
   ]},
@@ -1593,14 +1632,14 @@ const SIMULATIONS={
   ]},
   qs_vtach:{name:'Ventricular Tachycardia',subtitle:'Unstable V-Tach',patientType:'Adult',states:[
     {label:'Initial State',color:'#ff3333',vitals:{hr:180,rhythm:'vtach',sbp:62,dbp:30,spo2:88,etco2:56,rr:28,temp:37.0},display:'HR 180 | BP 62/30 | SpO₂ 88% | EtCO₂ 56 | RR 28',note:'Unstable V-Tach. Severe hemodynamic compromise. Synchronized cardioversion 100J. Sedate if conscious. Amiodarone 150mg.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:188,rhythm:'vtach',sbp:58,dbp:34,spo2:84,etco2:15,rr:24,temp:37.1},display:'HR 188 | BP 58/34 | SpO₂ 84% | EtCO₂ 15 | RR 24',note:'Hemodynamics worsening. Cardioversion not effective. Repeat shock at higher energy. Amiodarone infusion.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:188,rhythm:'vtach',sbp:58,dbp:34,spo2:84,etco2:15,rr:24,temp:37.1},display:'HR 188 | BP 58/34 | SpO₂ 84% | EtCO₂ 15 | RR 24',note:'Hemodynamics worsening. Cardioversion not effective. Repeat shock at higher energy. Amiodarone infusion.'},
     {label:'Worsening (Pulseless)',color:'#cc0000',vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:37.0},display:'HR 0 | V-Fib | BP 0/0 | Pulseless Arrest',note:'Deteriorated to pulseless V-Fib. Unsynchronized defibrillation 200J. CPR. Epi 1mg. Amiodarone 300mg.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:88,rhythm:'nsr',sbp:104,dbp:66,spo2:95,etco2:36,rr:16,temp:37.0},display:'HR 88 | BP 104/66 | SpO₂ 95% | EtCO₂ 36 | RR 16',note:'Converted to NSR. Continue Amiodarone infusion. 12-lead ECG. Transport to cath lab if STEMI.'},
   ]},
   qs_asystole:{name:'Asystole',subtitle:'Non-Shockable Cardiac Arrest',patientType:'Adult',states:[
     {label:'Initial State',color:'#ff3333',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:36.5},display:'HR 0 | Asystole | BP 0/0 | SpO₂ 0%',note:'Asystole confirmed in 2 leads. CPR immediately. Epi 1mg IV/IO every 3–5 min. Search for reversible causes.'},
     {label:'Worsening',color:'#880000',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:2,rr:0,temp:36.3},display:'HR 0 | Asystole | EtCO₂ 2 | Prolonged',note:'Prolonged asystole. Consider termination of efforts per medical direction if no reversible cause found.'},
-    {label:'Slightly Improved',color:'#ff6600',vitals:{hr:18,rhythm:'junctional',sbp:20,dbp:6,spo2:0,etco2:0,rr:0,temp:36.3},display:'HR 18 | Junctional Escape | BP 20/6 | SpO₂ 0% | EtCO₂ 0',note:'Junctional escape rhythm at 18 bpm. Narrow QRS, no visible P wave. Electrical activity present but no effective perfusion — confirm no pulse. Continue CPR. Epi 1mg IV/IO. Do not confuse with ROSC.'},
+    {label:'Slightly Improved',color:'var(--drug)',vitals:{hr:18,rhythm:'junctional',sbp:20,dbp:6,spo2:0,etco2:0,rr:0,temp:36.3},display:'HR 18 | Junctional Escape | BP 20/6 | SpO₂ 0% | EtCO₂ 0',note:'Junctional escape rhythm at 18 bpm. Narrow QRS, no visible P wave. Electrical activity present but no effective perfusion — confirm no pulse. Continue CPR. Epi 1mg IV/IO. Do not confuse with ROSC.'},
     {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:48,rhythm:'brady',sbp:63,dbp:31,spo2:73,etco2:26,rr:8,temp:36.5},display:'HR 48 | ROSC | BP 63/31 | SpO₂ 73% | EtCO₂ 26 | RR 8',note:'ROSC — bradycardic, hypotensive. Vasopressors for hypotension. Targeted temp management. 12-lead ECG. Rapid transport.'},
   ]},
   qs_pea:{name:'PEA (Pulseless Electrical Activity)',subtitle:'Organized Rhythm — No Pulse',patientType:'Adult',states:[
@@ -1610,26 +1649,26 @@ const SIMULATIONS={
     {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:53,rhythm:'brady',sbp:76,dbp:33,spo2:82,etco2:27,rr:14,temp:36.6},display:'HR 53 | ROSC | BP 76/33 | SpO₂ 82% | EtCO₂ 27',note:'ROSC after reversible cause treated. Bradycardic, hypotensive — vasopressors and airway support. 12-lead ECG. Transport immediately.'},
   ]},
   qs_shock:{name:'Septic Shock',subtitle:'Undifferentiated Septic Shock',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:125,rhythm:'tachy',sbp:78,dbp:45,spo2:93,etco2:28,rr:27,temp:38.8},display:'HR 125 | BP 78/45 | SpO₂ 93% | EtCO₂ 28 | RR 27',note:'Septic shock. Fluid resuscitation 30mL/kg. Blood cultures, broad-spectrum antibiotics. Vasopressors if no fluid response.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:138,rhythm:'tachy',sbp:68,dbp:38,spo2:90,etco2:24,rr:30,temp:39.2},display:'HR 138 | BP 68/38 | SpO₂ 90% | EtCO₂ 24 | RR 30',note:'Worsening despite fluids. Initiate Norepinephrine. Supplemental O₂/CPAP. Consider intubation if respiratory failure.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:125,rhythm:'tachy',sbp:78,dbp:45,spo2:93,etco2:28,rr:27,temp:38.8},display:'HR 125 | BP 78/45 | SpO₂ 93% | EtCO₂ 28 | RR 27',note:'Septic shock. Fluid resuscitation 30mL/kg. Blood cultures, broad-spectrum antibiotics. Vasopressors if no fluid response.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:138,rhythm:'tachy',sbp:68,dbp:38,spo2:90,etco2:24,rr:30,temp:39.2},display:'HR 138 | BP 68/38 | SpO₂ 90% | EtCO₂ 24 | RR 30',note:'Worsening despite fluids. Initiate Norepinephrine. Supplemental O₂/CPAP. Consider intubation if respiratory failure.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:148,rhythm:'tachy',sbp:56,dbp:30,spo2:86,etco2:18,rr:34,temp:39.6},display:'HR 148 | BP 56/30 | SpO₂ 86% | EtCO₂ 18 | RR 34',note:'Refractory septic shock. RSI indicated. Vasopressin add-on. Hydrocortisone. Emergent transport to ICU.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:108,rhythm:'tachy',sbp:94,dbp:60,spo2:96,etco2:32,rr:20,temp:38.4},display:'HR 108 | BP 94/60 | SpO₂ 96% | EtCO₂ 32 | RR 20',note:'MAP improving >65 with vasopressors. SpO₂ recovering. Continue resuscitation en route. Reassess every 5 min.'},
   ]},
   qs_hypertensive:{name:'Hypertensive Crisis',subtitle:'Hypertensive Emergency',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:103,rhythm:'nsr',sbp:210,dbp:130,spo2:95,etco2:37,rr:16,temp:37.0},display:'HR 103 | BP 210/130 | SpO₂ 95% | EtCO₂ 37 | RR 16',note:'Hypertensive emergency. Assess for end-organ damage. Nitroglycerin or Labetalol per protocol. Avoid rapid BP drops.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:110,rhythm:'nsr',sbp:228,dbp:140,spo2:94,etco2:38,rr:18,temp:37.1},display:'HR 110 | BP 228/140 | SpO₂ 94% | EtCO₂ 38 | RR 18',note:'BP rising further. New neuro symptoms or chest pain? Initiate antihypertensive. 10–20% reduction goal first hour.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:103,rhythm:'nsr',sbp:210,dbp:130,spo2:95,etco2:37,rr:16,temp:37.0},display:'HR 103 | BP 210/130 | SpO₂ 95% | EtCO₂ 37 | RR 16',note:'Hypertensive emergency. Assess for end-organ damage. Nitroglycerin or Labetalol per protocol. Avoid rapid BP drops.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:110,rhythm:'nsr',sbp:228,dbp:140,spo2:94,etco2:38,rr:18,temp:37.1},display:'HR 110 | BP 228/140 | SpO₂ 94% | EtCO₂ 38 | RR 18',note:'BP rising further. New neuro symptoms or chest pain? Initiate antihypertensive. 10–20% reduction goal first hour.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:118,rhythm:'nsr',sbp:244,dbp:152,spo2:91,etco2:40,rr:22,temp:37.2},display:'HR 118 | BP 244/152 | SpO₂ 91% | EtCO₂ 40 | RR 22',note:'Hypertensive crisis with pulmonary edema or stroke. Aggressive airway management. Nitroglycerin drip. Emergent transport.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:92,rhythm:'nsr',sbp:178,dbp:108,spo2:96,etco2:37,rr:14,temp:37.0},display:'HR 92 | BP 178/108 | SpO₂ 96% | EtCO₂ 37 | RR 14',note:'BP trending down with treatment. Neurological status stable. Goal SBP <180 initially. Continue en route.'},
   ]},
   qs_hypotensive:{name:'Hypotensive Crisis',subtitle:'Undifferentiated Hypotension',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:118,rhythm:'tachy',sbp:72,dbp:42,spo2:94,etco2:30,rr:22,temp:36.8},display:'HR 118 | BP 72/42 | SpO₂ 94% | EtCO₂ 30 | RR 22',note:'Hypotension — identify cause. IV access ×2, fluid bolus, supine positioning, O₂. Reassess after 500mL.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:132,rhythm:'tachy',sbp:62,dbp:36,spo2:92,etco2:26,rr:26,temp:36.7},display:'HR 132 | BP 62/36 | SpO₂ 92% | EtCO₂ 26 | RR 26',note:'Worsening despite fluids. Push Dose Epi. Reassess for tension pneumo, tamponade, hemorrhage. Norepinephrine if distributive.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:118,rhythm:'tachy',sbp:72,dbp:42,spo2:94,etco2:30,rr:22,temp:36.8},display:'HR 118 | BP 72/42 | SpO₂ 94% | EtCO₂ 30 | RR 22',note:'Hypotension — identify cause. IV access ×2, fluid bolus, supine positioning, O₂. Reassess after 500mL.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:132,rhythm:'tachy',sbp:62,dbp:36,spo2:92,etco2:26,rr:26,temp:36.7},display:'HR 132 | BP 62/36 | SpO₂ 92% | EtCO₂ 26 | RR 26',note:'Worsening despite fluids. Push Dose Epi. Reassess for tension pneumo, tamponade, hemorrhage. Norepinephrine if distributive.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:148,rhythm:'tachy',sbp:50,dbp:28,spo2:88,etco2:20,rr:30,temp:36.5},display:'HR 148 | BP 50/28 | SpO₂ 88% | EtCO₂ 20 | RR 30',note:'Decompensated shock. Impending arrest. RSI if airway compromised. Vasopressors. Blood products if hemorrhagic.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:90,dbp:58,spo2:95,etco2:32,rr:18,temp:36.8},display:'HR 102 | BP 90/58 | SpO₂ 95% | EtCO₂ 32 | RR 18',note:'MAP improving. Continue resuscitation. Vasopressors titrated. Goal MAP >65. Rapid transport to definitive care.'},
   ]},
   qs_hypoxia:{name:'Hypoxia',subtitle:'Acute Hypoxic Respiratory Failure',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:128,rhythm:'tachy',sbp:94,dbp:60,spo2:76,etco2:58,rr:32,temp:37.4},display:'HR 128 | BP 94/60 | SpO₂ 76% | EtCO₂ 58 | RR 32',note:'Worsening hypoxia. CPAP/BiPAP initiated? Consider RSI if patient tiring. Albuterol if bronchospasm.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:128,rhythm:'tachy',sbp:94,dbp:60,spo2:76,etco2:58,rr:32,temp:37.4},display:'HR 128 | BP 94/60 | SpO₂ 76% | EtCO₂ 58 | RR 32',note:'Worsening hypoxia. CPAP/BiPAP initiated? Consider RSI if patient tiring. Albuterol if bronchospasm.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:140,rhythm:'tachy',sbp:82,dbp:50,spo2:68,etco2:66,rr:38,temp:37.6},display:'HR 140 | BP 82/50 | SpO₂ 68% | EtCO₂ 66 | RR 38',note:'Respiratory failure — RSI indicated. Pre-oxygenate aggressively. Post-intubation vent management critical.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:104,rhythm:'tachy',sbp:108,dbp:68,spo2:94,etco2:42,rr:18,temp:37.2},display:'HR 104 | BP 108/68 | SpO₂ 94% | EtCO₂ 42 | RR 18',note:'SpO₂ improving with intervention. Titrate FiO₂. Address underlying cause. Reassess frequently en route.'},
   ]},
@@ -1642,7 +1681,7 @@ const SIMULATIONS={
       {
         id:'initial',
         label:'Initial State',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:128,rhythm:'tachy',sbp:92,dbp:58,spo2:82,etco2:65,rr:7,temp:34.5},
         display:'HR 128 | BP 92/58 | SpO₂ 82% | EtCO₂ 65 | RR 7 | Temp 34.5°C',
         note:'Patient found in recovery position. Gurgling frothy secretions. Shallow/irregular breathing. GCS 9.',
@@ -1681,7 +1720,7 @@ const SIMULATIONS={
       {
         id:'initial',
         label:'Initial State',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:122,rhythm:'tachy',sbp:116,dbp:70,spo2:90,etco2:50,rr:32,temp:37.0,co2Shape:'shark'},
         display:'HR 122 | BP 116/70 | SpO₂ 90% | EtCO₂ 50 | RR 32 | Shark-fin',
         note:'Tripoding, anxious. Speaks 2–3 words. Diffuse expiratory wheeze, prolonged expiration. GCS 15. Initiate nebulizer/MDI — patient will worsen after 5 min regardless.',
@@ -1689,7 +1728,7 @@ const SIMULATIONS={
       {
         id:'slightly_worsening',
         label:'Slightly Worsening State',
-        color:'#ff6600',
+        color:'var(--drug)',
         vitals:{hr:134,rhythm:'tachy',sbp:116,dbp:70,spo2:89,etco2:55,rr:30,temp:37.0,co2Shape:'shark'},
         display:'HR 134 | BP 116/70 | SpO₂ 89% | EtCO₂ 55 | RR 30 | Shark-fin',
         note:'Speaks 1-word sentences. Initiate BiPAP (IPAP ~10, EPAP ~6). Give epinephrine, magnesium 2g, steroids. Failure to do so → Worsening State. Avoid intubation.',
@@ -1720,7 +1759,7 @@ const SIMULATIONS={
       {
         id:'phase1',
         label:'Phase 1 — Initial State',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:132,rhythm:'tachy',sbp:78,dbp:50,spo2:92,etco2:30,rr:28,temp:35.5},
         display:'HR 132 | BP 78/50 | SpO₂ 92% | EtCO₂ 30 | RR 28 | Temp 35.5°C',
         note:'Pt on backboard, moaning, pale/cool/diaphoretic, abdomen distended, GCS 9. Expected: Scene safety, pelvic binder, permissive hypotension (SBP 80–90), TXA, blood/fluids, RSI prep. → Improvement if actions within 5 min. → Deterioration if delayed.',
@@ -1759,7 +1798,7 @@ const SIMULATIONS={
       {
         id:'primary_assessment',
         label:'Primary Assessment by Crew',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:87,rhythm:'nsr',sbp:135,dbp:75,spo2:96,etco2:44,rr:14,temp:37.1},
         display:'HR 87 | BP 135/75 | SpO₂ 96% | EtCO₂ 44 | RR 14 | Temp 37.1°C',
         note:'Lethargic, opens eyes to pain, inappropriate words, withdraws from pain. GCS 10. Pupils 3mm sluggish. Hematoma L forehead, C-collar present, dry emesis in airway, coughing/dry heaving. Expected: Intubate (RSI per Broselow) — aspiration risk + declining GCS. If no intubation → Decompensation state.',
@@ -1767,7 +1806,7 @@ const SIMULATIONS={
       {
         id:'intubated_icp',
         label:'Intubated — Increased ICP',
-        color:'#ff6600',
+        color:'var(--drug)',
         vitals:{hr:67,rhythm:'brady',sbp:147,dbp:79,spo2:98,etco2:38,rr:16,temp:37.1},
         display:'HR 67 | BP 147/79 | SpO₂ 98% | EtCO₂ 38 | RR 16 (vent)',
         note:'Post-intubation, paralytic wearing off — irregular spontaneous breaths. Pupils 6mm non-reactive. Signs of ↑ICP. → SEIZURE: HR 54, BP 127/71, SpO₂ 84%, rigidity all extremities. Expected: Recognize ↑ICP, treat seizure per PCG, administer 3% HTS or Mannitol, HOB elevated, neutral neck. If seizure treated + HTS/Mannitol → Stabilization. If seizure treated only → Post-Ictal Herniation.',
@@ -1809,7 +1848,7 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_pvt_pea',
     states:[
-      {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia',color:'var(--amber)',
        vitals:{hr:38,rhythm:'brady',sbp:78,dbp:42,spo2:92,etco2:34,rr:18,temp:36.8,pvcOn:true},
        display:'HR 38 | BP 78/42 | SpO₂ 92% | EtCO₂ 34 | RR 18',
        note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.',
@@ -1833,7 +1872,7 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_vf_asys',
     states:[
-      {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia',color:'var(--amber)',
        vitals:{hr:44,rhythm:'brady',sbp:84,dbp:50,spo2:88,etco2:30,rr:3,temp:36.6},
        display:'HR 44 | BP 84/50 | SpO₂ 88% | EtCO₂ 30 | RR 3',
        note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.',
@@ -1857,7 +1896,7 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_pvt_pea',
     states:[
-      {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'var(--amber)',
        vitals:{hr:32,rhythm:'hb3',sbp:86,dbp:48,spo2:96,etco2:36,rr:18,temp:36.7},
        display:'HR 32 | SBP 86 (Doppler) | SpO₂ 96% | RR 18',
        note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.',
@@ -1882,7 +1921,7 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'tachy_vf_pea',
     states:[
-      {id:'tachy',label:'Unstable Tachycardia',color:'#ff9900',
+      {id:'tachy',label:'Unstable Tachycardia',color:'var(--amber)',
        vitals:{hr:150,rhythm:'vtach',sbp:84,dbp:54,spo2:94,etco2:32,rr:20,temp:36.9},
        display:'HR 150 | BP 84/54 | SpO₂ 94% on 15 L | RR 20',
        note:'Monomorphic wide-complex tachycardia with a pulse. Awake, talking in 2–3 word sentences, fine crackles both bases, palpable carotid and radial pulses. Cardioversion produces no change; while preparing to escalate energy she stops breathing and the monitor shows VF.'},
@@ -1907,7 +1946,7 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_vf_asys',
     states:[
-      {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'var(--amber)',
        vitals:{hr:30,rhythm:'hb3',sbp:80,dbp:48,spo2:98,etco2:34,rr:16,temp:36.5},
        display:'HR 30 | BP 80/48 | SpO₂ 98% on 3 L | RR 16',
        note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.',
@@ -3013,9 +3052,9 @@ function renderSimPanel(simKey){
       </div>
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}</div>
-        <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
+        <div><div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
         <div>${triggerHtml}${noteHtml}${coachHtml}
-          <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
+          <div class="col-h" style="color:var(--accent);margin-top:10px;">At the monitor</div>
           <div class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
         </div>
@@ -3051,7 +3090,7 @@ function runSummaryHtml(rec){
       'fraction '+(c.fraction||'—')+'%','vent '+(c.ventRate||'—')+'/min'].join(' · ');
     h+=`<div style="margin-bottom:8px;">`+
        (rec.result?`<span class="res-btn ${rec.result} on" style="cursor:default;">${rec.result==='pass'?'PASS':'NR'}</span> `:
-         `<span style="color:#ff8844;">No result recorded — the checklist asks for PASS or NR.</span> `)+
+         `<span style="color:var(--amber);">No result recorded — the checklist asks for PASS or NR.</span> `)+
        `<span style="color:var(--t-dim);">${esc(rec.checklistName||'')}</span></div>`;
     h+=`<div style="margin-bottom:8px;color:var(--t-dim);">Team ${teamHit}/${(rec.team||[]).length} · CPR ${esc(cprBits)}</div>`;
   }
@@ -3173,7 +3212,7 @@ function toggleDrugHold(){
   btn.style.color='#ff3333';
   btn.style.boxShadow='0 0 8px #ff333355';
   setTimeout(()=>{
-    btn.style.background='#0a0f1a';
+    btn.style.background='var(--inset)';
     btn.style.borderColor='#555';
     btn.style.color='#888';
     btn.style.boxShadow='none';
