@@ -1195,7 +1195,9 @@ function upNums(){
   }
   document.getElementById('nEtco2').textContent=nc||!S.etco2On?'---':S.etco2;
   document.getElementById('nRR').textContent=nc?'---':S.rr;
-  document.getElementById('nSpo2').textContent=nc?'---':S.spo2;
+  // SpO2 needs a pulse to read. No perfusing pressure -> ---, the same as the
+  // pleth going flat, rather than a saturation number over a dead trace.
+  document.getElementById('nSpo2').textContent=noP?'---':S.spo2;
   const tv=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
   document.getElementById('nTemp').textContent=nc?'---':tv;
   const nTuHdr=document.getElementById('nTuHdr');
@@ -1265,7 +1267,9 @@ function upNums(){
   // the parameter goes on flashing, only the announcement stops.
   const live=!nc&&S.alarmOn&&D.alarms;
   const hrBreach=live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
-  const spBreach=live&&(S.spo2<S.spo2AlarmLow);
+  // No perfusing pressure means the SpO2 reads ---, so there is no value to
+  // breach: a --- must not drive a "SpO2 LOW" alarm.
+  const spBreach=live&&!noP&&(S.spo2<S.spo2AlarmLow);
   almBreaching=hrBreach||spBreach;
   const flag=(el,on)=>{if(el)el.classList.toggle('alarming',!!on);};
   flag(document.getElementById('nHR'),hrBreach);
@@ -1298,7 +1302,7 @@ function upNums(){
           ? Math.round(60/(3.0*(S.ectFreq||6)))
           : '---')
       : S.hr);
-    setEl('lpSP', nc?'---':S.spo2);
+    setEl('lpSP', noP?'---':S.spo2);
     setEl('lpCO2v', nc||!S.etco2On?'---':S.etco2);
     setEl('lpRR', nc?'--':S.rr);
     const tv2=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
@@ -2130,9 +2134,13 @@ function sCo2(t){
 
 function sSpo2(t){
   if(!S.patientConnected) return null;
-  const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
+  // No perfusing pressure means no pulsatile flow for the probe to read — a
+  // flat line, not a plethysmograph. This is any pulseless rhythm, not only
+  // VF/asystole: pulseless VT and PEA carry a systolic of zero too, and the
+  // review found both drawing an "Excellent" pleth against an SpO2 of 3.
+  const noPerf=!S.sbp||S.rhythm==='asystole'||S.rhythm==='vfib';
   const quality=S.spo2Quality||'excellent';
-  if(dead||quality==='none') return .04;
+  if(noPerf||quality==='none') return .04;
   if(quality==='motion'){nS=lp(nS,.12);return Math.max(.04,Math.min(.95,.5+nS));}
   const hr=Math.max(S.hr,.5), bp=60/hr, ph=((t/bp)%1+1)%1;
   const baseAmp=.78*(S.spo2/100)+.06;

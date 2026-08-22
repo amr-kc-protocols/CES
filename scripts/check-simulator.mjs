@@ -242,14 +242,30 @@ function load(file = PAGE) {
   advance(10000)
   ok('and ends exactly at baseline', S().sbp === base.sbp, `SBP ${S().sbp}`)
 
-  // Arrest — no clamp floor may survive the drug.
+  // Arrest — a pressor is on board but cannot manufacture perfusion. It stays
+  // 0/0 throughout, not a clamp floor and not a drug-driven pressure: a
+  // saturation, a blood pressure and a perfusing rate appear only when the
+  // facilitator establishes a perfusing rhythm (ROSC).
   T = 0
   w.setR('asystole')
   w.giveDrug('epi_acls')
   advance(45000)
-  ok('epinephrine produces a pressure in arrest', S().sbp > 0, `SBP ${S().sbp}`)
+  ok('a pressor produces no pressure on a pulseless patient', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  ok('and does not lift the electrical rate either', S().hr === 0, `HR ${S().hr}`)
   advance(50000)
-  ok('which returns to 0/0, not a clamp floor', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+  ok('and it is still 0/0 as it wears off', S().sbp === 0 && S().dbp === 0, `${S().sbp}/${S().dbp}`)
+
+  // But the same pressor on a perfusing patient (a driven ROSC) does work.
+  T = 0
+  w.setR('nsr')
+  d.getElementById('scenarioSel').value = 'normal'
+  w.applyScenario()
+  const roscBase = S().sbp
+  w.giveDrug('epi_acls')
+  advance(45000)
+  ok('a pressor works once the patient is perfusing', S().sbp > roscBase, `SBP ${S().sbp} from ${roscBase}`)
+  advance(50000)
+  ok('and wears off to the perfusing baseline', S().sbp === roscBase, `SBP ${S().sbp}`)
 
   // STOP holds the current numbers and cancels what is still running.
   T = 0
@@ -1696,6 +1712,71 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   shk.dispatchEvent(new w.Event('pointerup'))
   ok('a manual defibrillation delivers on a tap', D().shocks === 1, `${D().shocks} shocks from a tap`)
   ok('SHOCK is wired press-and-hold for cardioversion', /bindHold\('kSHOCK'/.test(MONITOR_SRC))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// Physiologic invariants: a pulseless patient does not perfuse
+//
+// The review found pulseless VT and VF drawing an "Excellent" SpO2 pleth
+// against a saturation of 3, and a pressor lifting an arrest's NIBP from 0/0 to
+// 17/8 and raising the electrical rate. A patient with no pulse has no
+// pulsatile flow for the probe and no pressure for a drug to raise.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = loadMonitor()
+  const sSpo2 = w.eval('sSpo2')
+  const pleth = () => [0, 0.15, 0.3, 0.45, 0.6, 0.75].map((t) => sSpo2(t))
+  const flat = (a) => a.every((v) => Math.abs(v - a[0]) < 1e-9)
+
+  // Pulseless VT: sbp 0 with an electrical rate. No pleth, no SpO2 number.
+  Object.assign(S(), { patientConnected: true, rhythm: 'vtach', hr: 180, sbp: 0, dbp: 0, spo2: 3, spo2Quality: 'excellent' })
+  w.eval('upNums()')
+  ok('pulseless VT shows no SpO2 number', d.getElementById('nSpo2').textContent === '---', d.getElementById('nSpo2').textContent)
+  ok('and draws no plethysmograph', flat(pleth()), 'a pleth on a pulseless patient')
+
+  // PEA: an organized rhythm at a rate, still no pulse.
+  Object.assign(S(), { rhythm: 'brady', hr: 40, sbp: 0, dbp: 0, spo2: 0 })
+  w.eval('upNums()')
+  ok('PEA shows no SpO2 number', d.getElementById('nSpo2').textContent === '---', d.getElementById('nSpo2').textContent)
+  ok('and no pleth', flat(pleth()))
+
+  // A perfusing VT (Megacode 4's 84/54 with a pulse) reads normally.
+  Object.assign(S(), { rhythm: 'vtach', hr: 150, sbp: 84, dbp: 54, spo2: 94, spo2Quality: 'excellent' })
+  w.eval('upNums()')
+  ok('a perfusing VT shows its SpO2', d.getElementById('nSpo2').textContent === '94', d.getElementById('nSpo2').textContent)
+  ok('and draws a real pleth', !flat(pleth()), 'a perfusing patient with a flat pleth')
+
+  // No SpO2 low alarm fires on a --- : a value that is not shown cannot breach.
+  Object.assign(S(), {
+    rhythm: 'vfib', hr: 0, sbp: 0, dbp: 0, spo2: 3,
+    alarmOn: true, alarmMuted: false, spo2AlarmLow: 94, hrAlarmLow: 50, hrAlarmHigh: 120,
+  })
+  w.eval('D.alarms = true; D.silenceUntil = 0; upNums()')
+  ok(
+    'a pulseless SpO2 raises no low-SpO2 alarm',
+    !d.getElementById('nSpo2').classList.contains('alarming'),
+    'a --- was flashing as a low saturation',
+  )
+  w.close()
+}
+
+{
+  // The capnogram follows the patient rather than lingering. A shark-fin or a
+  // CPR pattern set in an earlier phase must not carry into ROSC.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  ok('asthma runs a shark-fin capnogram', S().co2Shape === 'shark', S().co2Shape)
+  // A megacode phase that names no shape gets a normal capnogram.
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  ok('a phase that names no capnogram gets a normal one', S().co2Shape === 'normal', S().co2Shape)
+  // Manually setting one, then moving to a phase that names none, clears it.
+  w.sv('co2Shape', 'shark')
+  ok('a manual capnogram takes', S().co2Shape === 'shark')
+  w.applySimState('megacode1', 3) // ROSC — names no shape
+  ok('and does not linger into a phase that names none (ROSC)', S().co2Shape === 'normal', S().co2Shape)
   w.close()
 }
 

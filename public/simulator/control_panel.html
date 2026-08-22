@@ -2215,6 +2215,11 @@ function applyVitals(vitals, patType){
   // A new patient state clears anything still circulating, so a drug given
   // against the last state cannot wear off into this one.
   stopDrugs();
+  // The capnogram follows the patient. A state that does not name a shape gets
+  // a normal one rather than inheriting the last state's — otherwise a CPR or
+  // shark-fin capnogram set during an earlier phase lingers into ROSC, which
+  // the review caught. States that do set a shape (the asthma shark-fin) keep it.
+  if(!('co2Shape' in vitals)) S.co2Shape=DEF.co2Shape;
   Object.assign(S, vitals);
   if(patType) S.patientType=patType;
   // Only mirror into the A-Line while it is linked. Overwriting an unlinked
@@ -3092,9 +3097,18 @@ function drugTick(){
     const b=document.querySelector('.drug-btn[data-drug="'+k+'"]');
     if(b) b.classList.remove('running');
   });
-  // Drug effects deliberately ignore the physiology lock: giving epinephrine
-  // in an arrest is exactly the case where the instructor wants the numbers to
-  // move off what the rhythm would otherwise pin them to.
+  // A pulseless patient does not perfuse, and a drug cannot change that. A
+  // pressor given in VF, asystole, pulseless VT or PEA is on board and logged,
+  // but it manufactures no blood pressure, no saturation and no perfusing rate
+  // — those appear only when the facilitator establishes a perfusing rhythm
+  // (ROSC), at which point stopDrugs has cleared it and a fresh dose works. The
+  // undrugged baseline is the test: a systolic of zero there is an arrest.
+  // (This is the review's "epinephrine during pVT changed NIBP 0/0 -> 17/8 and
+  // increased the electrical rate" — it should have done neither.)
+  const pulseless=drugBase.sbp<=0;
+  if(pulseless){ totals.hr=0; totals.sbp=0; totals.dbp=0; totals.spo2=0; totals.rr=0; }
+  // Otherwise drug effects override the physiology lock: raising a perfusing
+  // patient's pressure with a pressor is exactly what the lock must not pin.
   for(const k in totals){
     const lim=VITAL_LIMITS[k];
     S[k]=Math.max(lim[0],Math.min(lim[1],Math.round(drugBase[k]+totals[k])));
