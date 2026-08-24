@@ -27,6 +27,14 @@ import {
   PROHIBITED_TOPICS,
 } from '../../data/aemtSelection'
 import { useCan } from '../../lib/role'
+import { printDoc, downloadDoc, safeFilename } from '../academy/docGen'
+import {
+  candidateRecordBody,
+  candidateRecordTitle,
+  cohortRecordBody,
+  cohortRecordTitle,
+  recordFingerprint,
+} from './selectionRecord'
 import {
   parseTranscript,
   listSpeakers,
@@ -500,6 +508,104 @@ function InterviewModal({
 }
 
 /**
+ * The filed selection record for one candidate — scores, interview in full, and
+ * the justification of the whole procedure — printed to PDF or saved as an
+ * editable .doc, fingerprinted so a filed copy is tamper-evident.
+ */
+function RecordModal({
+  candidate,
+  course,
+  actor,
+  onClose,
+}: {
+  candidate: AemtCandidate
+  course: AemtCourse
+  actor: string
+  onClose: () => void
+}) {
+  const score = scoreCandidate(candidate)
+  const [fingerprint, setFingerprint] = useState<string | null>(null)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    recordFingerprint(candidate, score).then((h) => {
+      if (live) {
+        setFingerprint(h)
+        setReady(true)
+      }
+    })
+    return () => {
+      live = false
+    }
+    // score is derived from candidate; candidate identity is the real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate])
+
+  const meta = () => ({ actor, generatedAt: new Date().toLocaleString(), fingerprint })
+  const ivCount = candidate.interviews?.length ?? 0
+
+  return (
+    <Modal title={`Selection record — ${candidate.name}`} onClose={onClose}>
+      <div className="banner info" style={{ marginTop: 0 }}>
+        A filed record of how this candidate was scored — the composite, the interview in full, and
+        the justification of the procedure. Retained under HR, not the K.A.R. program-records clock.
+      </div>
+
+      <div className="meta" style={{ margin: '8px 0' }}>
+        Composite <strong>{score.composite.toFixed(1)}</strong> / {THRESHOLDS.composite} ·{' '}
+        {ivCount === 0
+          ? 'no interview recorded'
+          : `${ivCount} interviewer${ivCount === 1 ? '' : 's'}`}
+        {ivCount === 1 && ' (procedure expects two)'} ·{' '}
+        {score.complete && score.blockers.length === 0 ? 'clears every threshold' : 'does not clear'}
+      </div>
+      {ivCount === 0 && (
+        <div className="banner warn">
+          No interview has been scored for this candidate yet. The record will still generate — the
+          interview section will say so — but it is not a complete selection record.
+        </div>
+      )}
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!ready}
+          onClick={() =>
+            printDoc(candidateRecordTitle(candidate), candidateRecordBody(candidate, score, course, meta()))
+          }
+        >
+          Print / Save as PDF
+        </button>
+        <button
+          className="btn"
+          disabled={!ready}
+          onClick={() =>
+            downloadDoc(
+              safeFilename(`AEMT-selection-${candidate.name}`),
+              candidateRecordTitle(candidate),
+              candidateRecordBody(candidate, score, course, meta()),
+            )
+          }
+        >
+          Download .doc
+        </button>
+        <button className="btn" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <div className="help-text" style={{ marginTop: 6 }}>
+        {ready
+          ? fingerprint
+            ? 'Fingerprinted (SHA-256) for the file.'
+            : 'Fingerprint unavailable on this device — the record notes it.'
+          : 'Preparing the record…'}
+      </div>
+    </Modal>
+  )
+}
+
+/**
  * Add candidates from the people who have actually sat the selection exam.
  *
  * The tab previously only worked the other way round — type a candidate, then
@@ -633,6 +739,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
   const [pullNote, setPullNote] = useState<string | null>(null)
   const [scoring, setScoring] = useState<AemtCandidate | null>(null)
   const [interviewing, setInterviewing] = useState<AemtCandidate | null>(null)
+  const [recording, setRecording] = useState<AemtCandidate | null>(null)
 
   // Clearing candidates first, then by score. A blocked candidate with a high
   // raw composite heading the list reads as the strongest applicant, which is
@@ -691,6 +798,24 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
             }
           >
             {pulling ? 'Pulling…' : '⬇ Pull exam results'}
+          </button>
+        )}
+        {canEdit && candidates.length > 0 && (
+          <button
+            className="btn"
+            title="One-page summary of the whole field with the scoring methodology — for the file"
+            onClick={() =>
+              printDoc(
+                cohortRecordTitle(course),
+                cohortRecordBody(
+                  course,
+                  scored,
+                  { actor: safety.actor, generatedAt: new Date().toLocaleString() },
+                ),
+              )
+            }
+          >
+            🗎 Cohort record
           </button>
         )}
         {canEdit && (
@@ -797,6 +922,13 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                       Interview
                     </button>
                     <button
+                      className="btn sm"
+                      title="Generate the filed selection record — scores, interview, and the justification of the process"
+                      onClick={() => setRecording(c)}
+                    >
+                      Record
+                    </button>
+                    <button
                       className="btn sm danger"
                       aria-label={`Remove ${c.name}`}
                       onClick={async () => {
@@ -878,6 +1010,14 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
           candidate={interviewing}
           actor={safety.actor}
           onClose={() => setInterviewing(null)}
+        />
+      )}
+      {recording && (
+        <RecordModal
+          candidate={recording}
+          course={course}
+          actor={safety.actor}
+          onClose={() => setRecording(null)}
         />
       )}
     </div>
