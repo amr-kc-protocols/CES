@@ -22,7 +22,7 @@ await build({
   stdin: {
     contents: `
       export { parseTranscript, listSpeakers, guessCandidate, segmentAnswers,
-               suggestScore, docxXmlToText } from ${JSON.stringify(join(SRC, 'lib/interviewTranscript'))}
+               suggestScore, docxXmlToText, docxToText } from ${JSON.stringify(join(SRC, 'lib/interviewTranscript'))}
       export { INTERVIEW_QUESTIONS } from ${JSON.stringify(join(SRC, 'data/aemtSelection'))}
     `,
     resolveDir: SRC,
@@ -30,14 +30,15 @@ await build({
   },
   bundle: true,
   format: 'esm',
-  platform: 'neutral',
+  platform: 'node',
   outfile: OUT,
-  external: ['jszip'], // only reached by docxToText, not exercised here
+  // jszip is bundled (not external) so docxToText can be exercised end to end
+  // against a real .docx below.
 })
 const m = await import(pathToFileURL(OUT).href)
 rmSync(OUT, { force: true })
 
-const { parseTranscript, guessCandidate, segmentAnswers, suggestScore, docxXmlToText, INTERVIEW_QUESTIONS } = m
+const { parseTranscript, guessCandidate, segmentAnswers, suggestScore, docxXmlToText, docxToText, INTERVIEW_QUESTIONS } = m
 
 let checks = 0
 const fails = []
@@ -136,6 +137,80 @@ ok(/Tell me about something & nothing\./.test(text), 'docx: runs join and entiti
 ok(!/<w:/.test(text), 'docx: no XML tags survive')
 const roundtrip = parseTranscript(text)
 ok(roundtrip[0].speaker === 'Jordan Jones', 'docx text parses back into turns')
+
+// A real .docx, end to end through jszip — the exact path a file upload hits.
+// Build one with the same `docx` library the app already depends on, one
+// paragraph per transcript line, then extract and run the whole pipeline.
+{
+  const { Document, Packer, Paragraph, TextRun } = await import('docx')
+  const lines = TRANSCRIPT.split('\n')
+  const doc = new Document({
+    sections: [
+      {
+        children: lines.map(
+          (l) => new Paragraph({ children: [new TextRun(l)] }),
+        ),
+      },
+    ],
+  })
+  const buf = await Packer.toBuffer(doc)
+  ok(buf && buf.length > 0, 'built a real .docx to test the upload path')
+  const extracted = await docxToText(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
+  ok(/Jordan Jones\s+0:03/.test(extracted), 'docxToText pulls the text out of a real Word file (jszip path)')
+  const dturns = parseTranscript(extracted)
+  ok(guessCandidate(dturns) === 'Alex Rivera', 'the extracted .docx identifies the candidate')
+  const dans = segmentAnswers(dturns, 'Alex Rivera', INTERVIEW_QUESTIONS)
+  ok(INTERVIEW_QUESTIONS.every((q) => dans[q.id]), 'the extracted .docx segments into all six answers')
+  ok(suggestScore('q1', dans.q1).score >= 4, 'and scores the strong answer high end to end')
+
+  // A file that is not a Word document fails cleanly rather than throwing raw.
+  let msg = ''
+  try {
+    await docxToText(new TextEncoder().encode('this is not a zip').buffer)
+  } catch (e) {
+    msg = String(e.message || e)
+  }
+  ok(msg !== '', 'a non-.docx upload throws a handled error, not a crash')
+}
+
+// ----- parser robustness across the shapes a transcript arrives in ----------
+{
+  // Inline "Name: text", one line per turn.
+  const inline = parseTranscript(
+    'Jordan Jones: Why AEMT, and why now?\nAlex Rivera: I want to widen my scope of practice for my patients.',
+  )
+  ok(inline.length === 2 && inline[1].speaker === 'Alex Rivera', 'parses inline "Name: text" turns')
+  ok(/scope of practice/.test(inline[1].text), 'inline: keeps the spoken text')
+
+  // Hour-length timestamps (00:01:12) and multi-line answers.
+  const hours = parseTranscript(
+    'Interviewer   00:00:05\nTell me about a time you failed at something that mattered to you. What happened next?\nCandidate   00:01:12\nI failed a check-off.\nIt was my fault and I changed how I prepared.',
+  )
+  ok(hours.length === 2, 'parses HH:MM:SS headers')
+  ok(/I failed a check-off\.\s+It was my fault/.test(hours[1].text), 'joins multi-line speech into one turn')
+
+  // A clock-like sentence ending is not mistaken for a header.
+  const notHeader = parseTranscript('Alex Rivera   0:20\nI got in at 8:30.')
+  ok(notHeader.length === 1 && /8:30/.test(notHeader[0].text), 'a time inside a sentence is not read as a new speaker')
+
+  // Segmentation degrades gracefully: a question never asked stays empty, and
+  // the surrounding ones are unaffected.
+  const partial = parseTranscript(
+    'Jordan Jones   0:03\nWhy AEMT, and why now?\nAlex Rivera   0:10\nBecause I want to do more for patients on the road long term.',
+  )
+  const pans = segmentAnswers(partial, 'Alex Rivera', INTERVIEW_QUESTIONS)
+  ok(/patients on the road/.test(pans.q6), 'the one question asked is captured')
+  ok(pans.q1 === '' && pans.q2 === '', 'questions never asked are left empty for the interviewer')
+
+  // No candidate speech at all -> all empty, no throw.
+  const noCand = segmentAnswers(parseTranscript('Jordan Jones   0:03\nWhy AEMT, and why now?'), 'Nobody', INTERVIEW_QUESTIONS)
+  ok(INTERVIEW_QUESTIONS.every((q) => noCand[q.id] === ''), 'no candidate speech yields empty answers, not a crash')
+
+  // Determinism across the whole set, byte for byte.
+  const once = INTERVIEW_QUESTIONS.map((q) => suggestScore(q.id, ans[q.id]).score).join(',')
+  const twice = INTERVIEW_QUESTIONS.map((q) => suggestScore(q.id, ans[q.id]).score).join(',')
+  ok(once === twice, 'the whole suggestion set is deterministic')
+}
 
 if (fails.length) {
   console.error(`check-interview: ${fails.length} of ${checks} checks failed\n`)
