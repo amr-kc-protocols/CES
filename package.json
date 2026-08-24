@@ -11,7 +11,7 @@
     "icons": "node scripts/gen-icons.mjs",
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr && npm run check:neop && npm run check:sim && npm run check:nav",
+    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr && npm run check:neop && npm run check:sim && npm run check:nav && npm run check:interview",
     "check:plan": "node scripts/check-course-plan.mjs",
     "doc:application": "node scripts/build-application.mjs",
     "check:review": "node scripts/check-chart-review.mjs",
@@ -19,10 +19,12 @@
     "check:neop": "node scripts/check-neop-exam.mjs",
     "check:sim": "node scripts/check-simulator.mjs",
     "check:nav": "node scripts/check-nav.mjs",
+    "check:interview": "node scripts/check-interview.mjs",
     "gen:neop": "node scripts/gen-neop-exam.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
+    "jszip": "^3.10.1",
     "pdfjs-dist": "^6.2.108",
     "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",

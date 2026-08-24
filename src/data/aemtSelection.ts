@@ -128,6 +128,13 @@ export interface InterviewQuestion {
   anchors: { 1: string; 3: string; 5: string }
   /** Shown as a warning on the scoring form where one applies. */
   guardRail?: string
+  /**
+   * Distinctive lowercase fragments of the asked question, used only to locate
+   * where in an uploaded transcript this question begins so the candidate's
+   * answer can be lifted out. Matching is a convenience for pre-filling the
+   * scoring form; the interviewer confirms and edits every answer and score.
+   */
+  matchPhrases: string[]
 }
 
 export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
@@ -143,6 +150,7 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
       3: 'A genuine example with some structure, but time was found ad hoc.',
       5: 'A specific example, a deliberate plan, protected time they can describe, and a way they knew it was working.',
     },
+    matchPhrases: ['learned or gotten better', 'nobody required', 'gotten better at'],
   },
   {
     id: 'q2',
@@ -156,6 +164,7 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
       3: 'Coped reactively — managed it by working harder rather than by deciding anything.',
       5: 'Triage, explicit trade-offs, and telling the affected people early rather than after the fact.',
     },
+    matchPhrases: ['work, home', 'landed at once', 'all landed'],
   },
   {
     id: 'q3',
@@ -169,6 +178,7 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
       3: 'Owns it and recovered, but what actually changed is vague.',
       5: 'Owns it specifically, names the change, and can say how they knew it worked.',
     },
+    matchPhrases: ['time you failed', 'failed at something', 'what happened next'],
   },
   {
     id: 'q4',
@@ -183,6 +193,7 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
       3: 'Identifies real pressure points, but the plan is general.',
       5: 'Specific pressure points and specific arrangements already thought through or made.',
     },
+    matchPhrases: ['pressure points', 'next six months', 'plan for them'],
     guardRail:
       'Ask about the PLAN, never the reason. If a candidate volunteers a personal circumstance, acknowledge it and return to the plan — do not record it, do not follow it up, and do not let it affect the score. You are scoring the quality of the planning, not the shape of anyone’s life.',
   },
@@ -198,6 +209,7 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
       3: 'Accepted it; whether anything changed afterwards is unclear.',
       5: 'Sought clarification, changed their practice, and can name the change.',
     },
+    matchPhrases: ['corrected you', 'someone corrected', 'on a report'],
   },
   {
     id: 'q6',
@@ -210,6 +222,7 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
       3: 'A clear personal reason.',
       5: 'A clear reason tied to how they want to practise, and to staying in the role.',
     },
+    matchPhrases: ['why aemt', 'why now'],
   },
 ]
 

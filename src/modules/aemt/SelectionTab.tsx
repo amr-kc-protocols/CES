@@ -27,6 +27,15 @@ import {
   PROHIBITED_TOPICS,
 } from '../../data/aemtSelection'
 import { useCan } from '../../lib/role'
+import {
+  parseTranscript,
+  listSpeakers,
+  guessCandidate,
+  segmentAnswers,
+  suggestScore,
+  docxToText,
+  type Suggestion,
+} from '../../lib/interviewTranscript'
 import type { AemtCandidate, AemtCourse } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -220,6 +229,50 @@ function InterviewModal({
   const [scores, setScores] = useState<Record<string, number>>(mine?.scores ?? {})
   const [notes, setNotes] = useState<Record<string, string>>(mine?.notes ?? {})
   const total = Object.values(scores).reduce((n, v) => n + v, 0)
+
+  // ----- transcript assist (optional) -------------------------------------
+  // A Teams transcript can pre-fill the answers and suggest a 1-5 per question.
+  // It is a convenience: the interviewer confirms every answer and score. See
+  // lib/interviewTranscript.ts.
+  const [showTx, setShowTx] = useState(false)
+  const [tx, setTx] = useState('')
+  const [candidateSpeaker, setCandidateSpeaker] = useState('')
+  const [txError, setTxError] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<Record<string, Suggestion>>({})
+  const turns = tx.trim() ? parseTranscript(tx) : []
+  const speakerList = listSpeakers(turns)
+  const chosenSpeaker = candidateSpeaker || guessCandidate(turns)
+
+  async function onPickFile(file: File | undefined) {
+    if (!file) return
+    setTxError(null)
+    try {
+      const text = await docxToText(await file.arrayBuffer())
+      setTx(text)
+    } catch (e) {
+      setTxError((e as Error).message || 'Could not read that file. Try pasting the transcript instead.')
+    }
+  }
+
+  function applyTranscript() {
+    if (!turns.length) return
+    const answers = segmentAnswers(turns, chosenSpeaker, INTERVIEW_QUESTIONS)
+    const nextNotes = { ...notes }
+    const nextScores = { ...scores }
+    const nextSug: Record<string, Suggestion> = {}
+    for (const q of INTERVIEW_QUESTIONS) {
+      const a = answers[q.id]
+      if (a) nextNotes[q.id] = a
+      const s = suggestScore(q.id, a || '')
+      nextSug[q.id] = s
+      // Only pre-select where there is an answer to suggest from; an empty
+      // answer must not silently drop a 1 onto the form.
+      if (a) nextScores[q.id] = s.score
+    }
+    setNotes(nextNotes)
+    setScores(nextScores)
+    setSuggestions(nextSug)
+  }
   const complete =
     INTERVIEW_QUESTIONS.every((q) => typeof scores[q.id] === 'number') && identity !== ''
   const alreadyScored = (candidate.interviews ?? []).map((i) => i.scorer)
@@ -254,6 +307,85 @@ function InterviewModal({
           afterwards — this saves your scores only.
         </div>
       )}
+
+      <div className="card" style={{ padding: 12, marginTop: 12, borderLeft: '3px solid var(--info)' }}>
+        <button
+          className="link-btn"
+          onClick={() => setShowTx((v) => !v)}
+          aria-expanded={showTx}
+          style={{ fontWeight: 700 }}
+        >
+          {showTx ? '▾' : '▸'} Score from a Teams transcript (optional)
+        </button>
+        {showTx && (
+          <>
+            <div className="banner warn" style={{ marginTop: 8 }}>
+              <strong>An assistant, not the decision.</strong> Suggestions come from keyword signals
+              in the words on the page — a starting point so you are not scoring six answers from
+              memory, not an assessment. You confirm every answer and every score, and you are the
+              scorer of record.
+            </div>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="tx-paste">Paste the transcript, or upload the Teams .docx</label>
+              <textarea
+                id="tx-paste"
+                rows={6}
+                value={tx}
+                onChange={(e) => setTx(e.target.value)}
+                placeholder="Paste the Teams meeting transcript here…"
+              />
+            </div>
+            <div className="btn-row">
+              <label className="btn" style={{ cursor: 'pointer' }}>
+                Upload .docx
+                <input
+                  type="file"
+                  accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  hidden
+                  onChange={(e) => onPickFile(e.target.files?.[0])}
+                />
+              </label>
+              {tx.trim() && (
+                <button className="btn" onClick={() => { setTx(''); setSuggestions({}); setTxError(null) }}>
+                  Clear
+                </button>
+              )}
+            </div>
+            {txError && (
+              <div className="banner crit" style={{ marginTop: 8 }}>
+                {txError}
+              </div>
+            )}
+            {turns.length > 0 && (
+              <>
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label htmlFor="tx-speaker">Which speaker is the candidate?</label>
+                  <select
+                    id="tx-speaker"
+                    value={chosenSpeaker}
+                    onChange={(e) => setCandidateSpeaker(e.target.value)}
+                  >
+                    {speakerList.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name} · {s.words} words
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="btn-row">
+                  <button className="btn primary" onClick={applyTranscript} disabled={!chosenSpeaker}>
+                    Fill answers &amp; suggest scores
+                  </button>
+                </div>
+                <div className="help-text">
+                  {turns.length} turns · {speakerList.length} speakers detected. Applying fills “What
+                  they said” and pre-selects a suggested score under each question — both editable.
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
 
       {INTERVIEW_QUESTIONS.map((q) => (
         <div key={q.id} className="card" style={{ padding: 12, marginTop: 10 }}>
@@ -292,6 +424,31 @@ function InterviewModal({
             <br />
             <strong>5</strong> {q.anchors[5]}
           </div>
+
+          {suggestions[q.id] && (
+            <div
+              className="help-text"
+              style={{
+                marginTop: 6,
+                padding: '6px 8px',
+                background: 'var(--muted-bg)',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              <strong>Suggested {suggestions[q.id].score}/5</strong> · {suggestions[q.id].confidence}{' '}
+              confidence — a starting point, not a score.
+              <ul style={{ margin: '4px 0 0 16px' }}>
+                {suggestions[q.id].rationale.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+              {typeof scores[q.id] === 'number' && scores[q.id] !== suggestions[q.id].score && (
+                <div style={{ marginTop: 3, color: 'var(--info)' }}>
+                  You set {scores[q.id]} — overriding the suggestion.
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="field" style={{ marginTop: 6 }}>
             <label htmlFor={`nt-${q.id}`}>What they said</label>
