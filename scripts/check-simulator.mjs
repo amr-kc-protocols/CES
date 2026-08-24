@@ -1426,9 +1426,8 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     ok('the card sits in a wrapper that can hold its place', !!wrap && wrap.contains(card))
     // jsdom has no layout, so offsetHeight is 0 either way — what is checkable
     // here is that the wrapper is frozen and released in step with the class.
-    w.eval("document.getElementById('runSentinel').getBoundingClientRect=()=>({bottom:-10})")
     Object.defineProperty(w, 'innerWidth', { value: 1180, configurable: true })
-    w.eval('RAIL_MQ=null; applyRunCondense()')
+    w.eval('RAIL_MQ=null; collapseRunCard()')
     ok('condensing freezes the wrapper', wrap.style.height !== '', `height "${wrap.style.height}"`)
     w.eval('expandRunCard()')
     ok('and expanding releases it', wrap.style.height === '', `height "${wrap.style.height}"`)
@@ -1454,7 +1453,14 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     const tally1 = w.eval('JSON.stringify(miniTally())')
     ok('the tally follows a tick', JSON.parse(tally1).done === JSON.parse(tally0).done + 1, `${tally0} -> ${tally1}`)
 
-    // Condensing, with layout faked — jsdom has none.
+    // Collapsing is the facilitator's choice, not the scroll position's.
+    //
+    // This used to collapse itself as soon as the page scrolled past the card,
+    // which is what was reported as the megacode controls "disappearing": a
+    // facilitator who scrolled down to give a drug and then needed to change a
+    // rhythm at the top found the card gone. Scrolling down is not a statement
+    // that you are done with the controls, so the card now stays whole however
+    // far the page scrolls, and collapses only when asked.
     const past = (yes) =>
       w.eval(`document.getElementById('runSentinel').getBoundingClientRect=()=>({bottom:${yes ? -10 : 10}})`)
     const cond = () => w.eval("document.getElementById('runCard').classList.contains('condensed')")
@@ -1463,14 +1469,17 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     past(false); w.eval('applyRunCondense()')
     ok('the card is whole while it is still on screen', !cond())
     past(true); w.eval('applyRunCondense()')
-    ok('and condenses once the page has scrolled past it', cond())
+    ok('and stays whole once the page has scrolled past it', !cond(), 'the controls vanished on scroll')
+    w.eval('collapseRunCard()')
+    ok('collapsing by hand condenses it', cond())
+    past(false); w.eval('applyRunCondense()')
+    ok('and scrolling back to the top does not reopen it', cond(), 'scroll position must not drive the card')
     w.eval('expandRunCard()')
     ok('a tap opens it again', !cond())
-    w.eval('applyRunCondense()')
-    ok('and it stays open while the facilitator works below it', !cond())
-    past(false); w.eval('applyRunCondense()')
     past(true); w.eval('applyRunCondense()')
-    ok('scrolling back to the top resets that', cond())
+    ok('and it stays open while the facilitator works below it', !cond())
+    ok('there is a collapse control in the header', /onclick="collapseRunCard\(\)"/.test(panelSrc))
+    ok('the card is no longer driven by the scroll event', !/addEventListener\('scroll',applyRunCondense/.test(panelSrc))
     width(1440)
     w.eval('RAIL_MQ=null; applyRunCondense()')
     ok('the rail never condenses — it costs no vertical space to start with', !cond())
@@ -2076,6 +2085,140 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.applySimScenario()
   const panelHtml = d.getElementById('runCard').innerHTML + d.getElementById('simStatePanel').innerHTML
   ok('coaching renders as a labelled program note', /Program coaching/.test(panelHtml), 'coaching note not shown')
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The scenario drives itself off what the crew actually did
+//
+// A graded run starts with nothing attached: the crew is assessed on finding
+// the rhythm, not on reading it off a screen that was live before they touched
+// the patient. The facilitator marks each intervention as they watch it happen,
+// and the monitor follows — the leads bring the screen up, oxygen moves the
+// saturation, an advanced airway puts capnography on. Each mark also ticks
+// whichever published checklist step it satisfies, so it is one tap, not two.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  ok('a graded run starts with the monitor blank', S().patientConnected === false, 'the screen was live before the crew touched the patient')
+  ok('and with nothing marked as done', w.eval('JSON.stringify(crewDid)') === JSON.stringify({ monitor: false, o2: 'none', airway: 'none', access: 'none' }), w.eval('JSON.stringify(crewDid)'))
+
+  // Leads on is what makes the screen live.
+  w.setIntervention('monitor', true)
+  ok('marking the monitor attached brings the screen up', S().patientConnected === true)
+  ok('and it lands on the timeline', w.eval("deviceFeed.some(e => e.type === 'intervention' && /MONITOR/.test(e.label))"))
+  // ...and satisfies the published step that names it, without editing that text.
+  ok(
+    'and ticks the checklist step that names placing the monitor',
+    w.eval("run.states[run.current].actions.some(a => a.done && /places monitor|Places monitor/i.test(a.text))"),
+    'the facilitator would have to tick it a second time by hand',
+  )
+
+  // Oxygen: a gradual climb toward the stage's target, not a jump.
+  w.setIntervention('o2', 'nrb15')
+  const startSpo2 = S().spo2
+  const goal = w.eval('JSON.stringify(o2Goal())')
+  ok('oxygen sets a target above where the patient started', JSON.parse(goal).target > startSpo2, goal)
+  w.eval('o2Tick(); o2Tick()')
+  const afterTwo = S().spo2
+  ok('and the saturation climbs toward it rather than jumping', afterTwo > startSpo2 && afterTwo < JSON.parse(goal).target, `${startSpo2} -> ${afterTwo}, target ${JSON.parse(goal).target}`)
+  for (let i = 0; i < 400; i++) w.eval('o2Tick()')
+  ok('and settles at the target', S().spo2 === JSON.parse(goal).target, `${S().spo2} vs ${JSON.parse(goal).target}`)
+  ok('the oxygen device is on the timeline', w.eval("deviceFeed.some(e => /OXYGEN/.test(e.label))"))
+
+  // An advanced airway is what puts waveform capnography on the screen.
+  ok('capnography is off until an airway is placed', S().etco2On === false, 'EtCO2 was already displayed')
+  w.setIntervention('airway', 'ett')
+  ok('an advanced airway turns capnography on', S().etco2On === true)
+  w.close()
+}
+
+{
+  // Oxygen cannot fix every hypoxia, and the scenarios say which.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'asthma_initial'
+  w.applySimScenario()
+  w.setIntervention('monitor', true)
+  const before = S().spo2
+  w.setIntervention('o2', 'nrb15')
+  const g = w.eval('JSON.stringify(o2Goal())')
+  ok('a scenario can say oxygen alone will not work', JSON.parse(g).blocked === true, g)
+  for (let i = 0; i < 30; i++) w.eval('o2Tick()')
+  ok('and then the saturation does not move on oxygen', S().spo2 === before, `${before} -> ${S().spo2}`)
+  ok('and the timeline records that it did not respond', w.eval("deviceFeed.some(e => /NO RESPONSE/.test(e.label))"))
+
+  // A pulseless patient never responds — there is no perfusion to carry it.
+  w.setR('vfib')
+  ok('oxygen does nothing for a pulseless patient', w.eval('o2Goal()') === null, 'an arrest was given an oxygen target')
+  w.close()
+}
+
+{
+  // Defibrillation transitions: the panel counts the shocks the script is
+  // written around and offers the move as one tap. It never moves the patient
+  // itself — a miscounted shock would otherwise convert a rhythm nobody did.
+  const { w, d, S } = load()
+  const sims = w.eval('SIMULATIONS')
+  const withCue = Object.keys(sims).filter((k) => (sims[k].states || []).some((st) => st.advanceOn))
+  ok('the defibrillation scenarios script a shock count', withCue.length === 5, withCue.join(','))
+
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.applySimState('megacode1', 1) // pulseless VT — scripted to move after the third shock
+  ok('the pVT stage is scripted around three shocks', sims.megacode1.states[1].advanceOn.shocks === 3)
+  ok('there is no cue before any shock', w.eval('advanceCue()') === null)
+
+  const shock = () =>
+    w.onDeviceEvent({ t: new Date().toISOString(), ms: Date.now(), type: 'shock', label: 'SHOCK', detail: '200J · shock' })
+  const advBtn = () => {
+    const b = d.querySelector('.adv-btn')
+    return b ? `${b.className}|${b.textContent.trim()}` : 'MISSING'
+  }
+  ok('the stage offers a plain advance before any shock', /→ Advance to/.test(advBtn()), advBtn())
+
+  shock(); shock()
+  ok('and none after two', w.eval('advanceCue()') === null, 'the cue fired early')
+  shock()
+  const cue = w.eval('JSON.stringify(advanceCue())')
+  ok('the third shock cues the transition', cue !== 'null', cue)
+  ok('and the cue names the stage it moves to', /PEA/.test(cue), cue)
+  // The cue has to reach the screen, not just the model. The count changes on a
+  // device event, and nothing else repaints the card — so without an explicit
+  // repaint the button sat there reading "Advance" while the shock that scripts
+  // the transition had already been delivered.
+  ok('and the button on screen becomes the cue', /cued/.test(advBtn()) && /Shock 3 delivered/.test(advBtn()), advBtn())
+
+  // The cue is an offer. Until it is taken, the patient has not moved.
+  ok('the patient has not moved on its own', w.eval('activeStateIdx') === 1, 'the panel converted the rhythm by itself')
+  w.advanceStage()
+  ok('taking the cue moves the patient on', w.eval('activeStateIdx') === 2)
+  ok('and the shock count starts again for the new stage', w.eval('run.stageShocks') === 0, String(w.eval('run.stageShocks')))
+  ok('so the cue is gone', w.eval('advanceCue()') === null)
+
+  // The plain Advance control exists whatever the stage.
+  const src = readFileSync(PAGE, 'utf8')
+  ok('every stage offers a one-tap advance', /onclick="advanceStage\(\)"/.test(src))
+  ok('and the last stage offers none', (w.applySimState('megacode1', 3), w.eval('nextStage()') === null))
+  w.close()
+}
+
+{
+  // Interventions belong to the run, like everything else it leaves behind.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.setIntervention('monitor', true)
+  w.setIntervention('o2', 'nc4')
+  w.setIntervention('access', 'io')
+  ok('the interventions are set', w.eval("crewDid.o2") === 'nc4' && w.eval("crewDid.access") === 'io')
+  d.getElementById('simScenarioSel').value = 'megacode4'
+  w.applySimScenario()
+  ok('a new scenario clears them', w.eval('JSON.stringify(crewDid)') === JSON.stringify({ monitor: false, o2: 'none', airway: 'none', access: 'none' }), w.eval('JSON.stringify(crewDid)'))
+  ok('and blanks the monitor again', S().patientConnected === false)
+  ok('and stops any oxygen trend', w.eval('o2Timer') === null)
   w.close()
 }
 
