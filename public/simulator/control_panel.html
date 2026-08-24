@@ -2450,9 +2450,12 @@ function applySimState(simKey, stateIdx){
     enterRunState(stateIdx);
   }
   applyVitals(st.vitals, sim.patientType);
-  // A new stage is a new answer to oxygen — restart the trend against it rather
-  // than leaving the last stage's target in force.
-  if(crewDid.o2!=='none') startO2Trend();
+  // The trend does NOT restart here. A stage carries the saturation its author
+  // wrote, and oxygen the crew put on two stages ago must not quietly drag that
+  // number somewhere else — at ROSC the authored 94% was climbing to 99% on its
+  // own. Oxygen moves the number when the CREW changes something; the scenario
+  // moves it when the facilitator changes stage.
+  stopO2Trend();
   // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
   // printout matches the described findings (applyVitals cleared any prior one).
   if(st.ecg){ S.ecg=st.ecg; save(); }
@@ -2619,6 +2622,10 @@ function runWarnings(){
 
 function endRun(){
   if(!run) return;
+  // Nothing should still be moving the patient once the run is over — the
+  // oxygen trend outlived the run and went on changing the saturation behind
+  // the debrief summary.
+  stopO2Trend();
   // Warn, and let the facilitator confirm, before a run with gaps is saved.
   const warns=runWarnings();
   if(warns.length&&typeof window.confirm==='function'){
@@ -2884,27 +2891,32 @@ function setIntervention(kind,value){
     const a=ACCESS.find(x=>x.id===value);
     logLocal('intervention','ACCESS',a?a.label:value);
   }
-  // The same tap that changed the patient marks the step it satisfies.
-  if(value&&value!=='none') tickForIntervention(kind);
+  // The same tap that changed the patient marks any step it now satisfies.
+  tickForIntervention();
   syncToggles();
   updateAllUI();
   save();
   renderInterventions();
 }
 
-/* Which checklist step each intervention satisfies. The published wording puts
-   oxygen, the monitor and IV access in one line, so more than one of these can
-   land on the same step — ticking an already-ticked step is a no-op, which is
-   the correct behaviour for a step that names three acts. */
-const IV_TICKS={
-  monitor:[/places monitor/i,/Places monitor leads/i],
-  o2:[/Starts oxygen/i],
-  airway:[/airway management/i],
-  access:[/starts IV/i],
-};
-function tickForIntervention(kind){
+/* Which checklist step each intervention satisfies.
+
+   The published first step reads "Starts oxygen if needed, places monitor,
+   starts IV" — three acts on one line. Ticking it because the leads went on
+   would credit the crew for oxygen and access they have not established, which
+   in a competency record is not a convenience, it is an overstatement. So that
+   step waits until all three of the things it names are marked; the steps that
+   name one act tick on that act alone. */
+const IV_TICKS=[
+  // The bundled step: only when everything it names has been done.
+  {re:/Starts oxygen.*places monitor.*starts IV/i,
+   when:()=>crewDid.monitor&&crewDid.o2!=='none'&&crewDid.access!=='none'},
+  {re:/Places monitor leads/i, when:()=>crewDid.monitor},
+  {re:/airway management/i,    when:()=>crewDid.airway==='sga'||crewDid.airway==='ett'},
+];
+function tickForIntervention(){
   if(!run||run.current<0) return;
-  for(const re of (IV_TICKS[kind]||[])) autoTick(re,{type:'intervention'});
+  for(const t of IV_TICKS) if(t.when()) autoTick(t.re,{type:'intervention'});
 }
 
 /* ── Moving the patient on ────────────────────────────────────────────────
@@ -3062,7 +3074,11 @@ function autoTick(re,ev){
   if(!st) return;
   const a=st.actions.find(x=>re.test(x.text)&&!x.done);
   if(!a) return;
-  a.done=true; a.auto=true;
+  // Where it came from matters at the debrief: a press at the defibrillator is
+  // the device reporting itself, while an intervention mark is the facilitator
+  // saying they watched it happen. Labelling both "from monitor" credited the
+  // device with an observation a person made.
+  a.done=true; a.auto=(ev&&ev.type==='intervention')?'crew':'monitor';
   run.device.push({at:Math.max(0,Math.round((Date.now()-Date.parse(run.startedAt))/1000)),
     type:'autotick',label:'Auto-ticked',detail:a.text});
   renderSimPanel(run.scenario);
@@ -3309,8 +3325,8 @@ function renderSimPanel(simKey){
   if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
     actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
       `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" aria-pressed="${a.done}" onclick="toggleAction(${i})"
-            title="${a.auto?'Ticked from the monitor — click to undo':''}">
-        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?'<span class="auto-tag">from monitor</span>':''}
+            title="${a.auto?(a.auto==='crew'?'Ticked from the interventions you marked — click to undo':'Ticked from a press at the defibrillator — click to undo'):''}">
+        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?`<span class="auto-tag">${a.auto==='crew'?'from interventions':'from monitor'}</span>`:''}
       </div>`).join('');
   }
   // The transition, as a control rather than as prose to act on. The cue only

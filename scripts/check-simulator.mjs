@@ -2222,6 +2222,81 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// What a full megacode turned up
+//
+// Walking Megacode 1 end to end in a browser — leads, oxygen, access, airway,
+// three shocks, the transition, epinephrine, ROSC, end run — found four things
+// the unit checks had not: a step credited for work nobody did, a tick
+// attributed to the wrong observer, the oxygen model overruling the scenario
+// author, and a ticker still running after the run was over.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+
+  // The published first step names three acts. Marking one must not tick it.
+  const bundled = () =>
+    w.eval("run.states[run.current].actions.find(a => /Starts oxygen.*places monitor.*starts IV/i.test(a.text)) || {}")
+  w.setIntervention('monitor', true)
+  ok(
+    'marking the monitor does not credit the step that also names oxygen and IV',
+    bundled().done !== true,
+    'the crew was credited for oxygen and access they had not established',
+  )
+  // The step that names only the leads does tick.
+  ok(
+    'but the step that names only the leads does',
+    w.eval("run.states[run.current].actions.some(a => a.done && /Places monitor leads/i.test(a.text))"),
+  )
+  w.setIntervention('o2', 'nrb15')
+  ok('still not credited with two of the three done', bundled().done !== true)
+  w.setIntervention('access', 'iv')
+  ok('and it ticks once all three are marked', bundled().done === true, 'the bundled step never ticks')
+
+  // A tick from the interventions strip is the facilitator's observation, not
+  // the defibrillator reporting itself.
+  ok(
+    'an intervention tick is attributed to the facilitator',
+    w.eval("run.states[run.current].actions.find(a => /Places monitor leads/i.test(a.text)).auto") === 'crew',
+    'it was credited to the monitor',
+  )
+  w.onDeviceEvent({ t: '', ms: Date.now(), type: 'pacer', label: 'PACER ON', detail: '' })
+  ok(
+    'and a press at the defibrillator is attributed to the monitor',
+    w.eval("run.states[run.current].actions.some(a => a.auto === 'monitor')"),
+  )
+  ok('the two are labelled differently on screen', /from interventions/.test(readFileSync(PAGE, 'utf8')))
+  w.close()
+}
+
+{
+  // The scenario author owns the numbers a stage carries. Oxygen the crew put
+  // on earlier must not drag them somewhere else on a stage change — the ROSC
+  // stage's authored 94% was climbing to 99% on its own.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.setIntervention('monitor', true)
+  w.setIntervention('o2', 'nrb15')
+  ok('oxygen starts a trend while the crew is acting', w.eval('!!o2Timer'))
+  for (let i = 0; i < 40; i++) w.eval('o2Tick()')
+  ok('and it moves the saturation', S().spo2 > 92, String(S().spo2))
+
+  w.applySimState('megacode1', 3) // ROSC — authored at 94
+  ok('a stage change stops the trend', w.eval('o2Timer') === null, 'the trend outlived the stage that started it')
+  ok("and the stage's authored saturation stands", S().spo2 === 94, `${S().spo2} — the model overrode the author`)
+
+  // Ending a run must leave nothing still moving the patient.
+  w.setIntervention('o2', 'bvm')
+  ok('the crew changing oxygen starts it again', w.eval('!!o2Timer'))
+  w.confirm = () => true
+  w.endRun()
+  ok('ending the run stops the oxygen trend', w.eval('o2Timer') === null, 'it went on changing the patient behind the summary')
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)
