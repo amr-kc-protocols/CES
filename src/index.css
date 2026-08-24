@@ -801,6 +801,32 @@ a.row:hover {
 .row.acc-crit { border-left-color: var(--crit); }
 .row.acc-muted { border-left-color: var(--border-strong); }
 
+/* ---------- Candidate row (AEMT selection) ----------
+   A selection row carries more than an ordinary list row: the name and score
+   breakdown, a composite figure, and four actions. On a phone that trio cannot
+   shrink far enough — measured at 430px the name wrapped one word per line, the
+   blockers became a vertical column of single words, and the button group
+   pushed the whole page into horizontal scroll, which clipped the toolbar too.
+   So below the breakpoint the row becomes two stacked bands: the detail, then
+   the composite and the actions side by side. */
+@media (max-width: 620px) {
+  .row.cand-row { flex-wrap: wrap; align-items: flex-start; }
+  .row.cand-row .grow { flex: 1 1 100%; }
+  .row.cand-row .cand-score {
+    flex: 0 0 auto;
+    text-align: left;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .row.cand-row .cand-actions {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+  /* Full-height tap targets rather than the compact desktop button. */
+  .row.cand-row .cand-actions .btn { min-height: 40px; }
+}
+
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
