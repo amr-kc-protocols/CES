@@ -327,11 +327,13 @@ function InterviewModal({
         </button>
         {showTx && (
           <>
-            <div className="banner warn" style={{ marginTop: 8 }}>
+            {/* Info, not warn: on a signed-out device this sits directly under
+                the amber "not signed in" banner, and two ambers in a row means
+                neither is read. */}
+            <div className="banner info" style={{ marginTop: 8 }}>
               <strong>An assistant, not the decision.</strong> Suggestions come from keyword signals
-              in the words on the page — a starting point so you are not scoring six answers from
-              memory, not an assessment. You confirm every answer and every score, and you are the
-              scorer of record.
+              in the words on the page — a starting point, not an assessment. You confirm every
+              answer and every score, and you remain the scorer of record.
             </div>
             <div className="field" style={{ marginTop: 8 }}>
               <label htmlFor="tx-paste">Paste the transcript, or upload the Teams .docx</label>
@@ -512,24 +514,54 @@ function InterviewModal({
  * the justification of the whole procedure — printed to PDF or saved as an
  * editable .doc, fingerprinted so a filed copy is tamper-evident.
  */
+const DECISIONS: { id: 'advance' | 'hold' | 'declined'; label: string }[] = [
+  { id: 'advance', label: 'Advance' },
+  { id: 'hold', label: 'Hold' },
+  { id: 'declined', label: 'Do not advance' },
+]
+
 function RecordModal({
   candidate,
   course,
   actor,
+  canRecord,
   onClose,
 }: {
   candidate: AemtCandidate
   course: AemtCourse
   actor: string
+  canRecord: boolean
   onClose: () => void
 }) {
-  const score = scoreCandidate(candidate)
+  // The decision is recorded here because this is the moment it is filed. Held
+  // in local state and written through, so the document generated below carries
+  // the decision the button shows without waiting for a store round-trip.
+  const [decision, setDecisionState] = useState(candidate.decision)
+  const stamped: AemtCandidate = {
+    ...candidate,
+    decision,
+    decidedBy: decision ? actor : undefined,
+    decidedAt: decision ? candidate.decidedAt ?? new Date().toISOString() : undefined,
+  }
+  const score = scoreCandidate(stamped)
   const [fingerprint, setFingerprint] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
+  function chooseDecision(id: 'advance' | 'hold' | 'declined') {
+    // Clicking the recorded decision again clears it, for a mis-tap.
+    const next = decision === id ? undefined : id
+    setDecisionState(next)
+    updateCandidate(candidate.id, {
+      decision: next,
+      decidedBy: next ? actor : undefined,
+      decidedAt: next ? new Date().toISOString() : undefined,
+    })
+  }
+
   useEffect(() => {
     let live = true
-    recordFingerprint(candidate, score).then((h) => {
+    setReady(false)
+    recordFingerprint(stamped, score).then((h) => {
       if (live) {
         setFingerprint(h)
         setReady(true)
@@ -538,9 +570,10 @@ function RecordModal({
     return () => {
       live = false
     }
-    // score is derived from candidate; candidate identity is the real dependency.
+    // Re-fingerprint when the decision changes — the decision is one of the
+    // scoring facts the hash covers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidate])
+  }, [candidate, decision])
 
   const meta = () => ({ actor, generatedAt: new Date().toLocaleString(), fingerprint })
   const ivCount = candidate.interviews?.length ?? 0
@@ -567,12 +600,38 @@ function RecordModal({
         </div>
       )}
 
+      <div className="field" style={{ marginTop: 10 }}>
+        <label id="dec-lbl">Final decision</label>
+        <div className="segmented" role="radiogroup" aria-labelledby="dec-lbl" style={{ width: '100%' }}>
+          {DECISIONS.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              role="radio"
+              aria-checked={decision === d.id}
+              disabled={!canRecord}
+              title={canRecord ? undefined : 'Signed out — a decision recorded here could not be attributed.'}
+              className={decision === d.id ? 'active' : ''}
+              style={{ flex: 1 }}
+              onClick={() => chooseDecision(d.id)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <div className="help-text">
+          {decision
+            ? `Recorded ${actor === 'local' ? 'on this device' : `as ${actor}`}, and stamped on the document. Tap again to clear.`
+            : 'Optional — the record prints “No final decision recorded” until one is set.'}
+        </div>
+      </div>
+
       <div className="btn-row" style={{ marginTop: 12 }}>
         <button
           className="btn primary"
           disabled={!ready}
           onClick={() =>
-            printDoc(candidateRecordTitle(candidate), candidateRecordBody(candidate, score, course, meta()))
+            printDoc(candidateRecordTitle(stamped), candidateRecordBody(stamped, score, course, meta()))
           }
         >
           Print / Save as PDF
@@ -583,15 +642,12 @@ function RecordModal({
           onClick={() =>
             downloadDoc(
               safeFilename(`AEMT-selection-${candidate.name}`),
-              candidateRecordTitle(candidate),
-              candidateRecordBody(candidate, score, course, meta()),
+              candidateRecordTitle(stamped),
+              candidateRecordBody(stamped, score, course, meta()),
             )
           }
         >
           Download .doc
-        </button>
-        <button className="btn" onClick={onClose}>
-          Close
         </button>
       </div>
       <div className="help-text" style={{ marginTop: 6 }}>
@@ -855,7 +911,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
             return (
               <div
                 key={c.id}
-                className={`row left-accent ${clear ? 'acc-ok' : score.complete ? 'acc-crit' : 'acc-warn'}`}
+                className={`row cand-row left-accent ${clear ? 'acc-ok' : score.complete ? 'acc-crit' : 'acc-warn'}`}
               >
                 <div className="grow">
                   <div className="title">
@@ -864,6 +920,15 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                     {score.bonus > 0 && (
                       <span className="pill info" style={{ marginLeft: 8 }}>
                         +{score.bonus} additional duty
+                      </span>
+                    )}
+                    {/* The filed decision, visible without opening the record. */}
+                    {c.decision && (
+                      <span
+                        className={`pill ${c.decision === 'advance' ? 'ok' : c.decision === 'declined' ? 'crit' : 'warn'}`}
+                        style={{ marginLeft: 8 }}
+                      >
+                        {DECISIONS.find((d) => d.id === c.decision)?.label}
                       </span>
                     )}
                   </div>
@@ -900,7 +965,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                     </div>
                   )}
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="cand-score" style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 800, fontSize: 20 }}>
                     {score.composite.toFixed(1)}
                   </div>
@@ -909,7 +974,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                   </div>
                 </div>
                 {canEdit && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div className="cand-actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button className="btn sm" onClick={() => setScoring(c)}>
                       Scores
                     </button>
@@ -1017,6 +1082,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
           candidate={recording}
           course={course}
           actor={safety.actor}
+          canRecord={safety.canRecordOfficial}
           onClose={() => setRecording(null)}
         />
       )}

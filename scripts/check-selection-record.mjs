@@ -158,6 +158,84 @@ ok(cohort.includes('Alex Rivera') && cohort.includes('Sam Okafor'), 'lists the w
 ok(/Clears/.test(cohort) && /Below/.test(cohort), 'marks who clears and who is below the bar')
 ok(/methodology and justification/i.test(cohort), 'and carries the same methodology')
 
+// ----- hardening: free text reaches this document, so it must be escaped -----
+// Candidate names, interviewer names and "what they said" are typed by people.
+// An unescaped '<' would break the document; a pasted tag would be worse.
+{
+  const hostile = '<script>alert(1)</script> & "quoted" <b>bold</b>'
+  const nasty = {
+    ...candidate,
+    name: hostile,
+    employeeNumber: '<img src=x onerror=1>',
+    notes: hostile,
+    interviews: [
+      {
+        scorer: hostile,
+        at: '2026-08-24T15:00:00.000Z',
+        scores: { q1: 4, q2: 4, q3: 4, q4: 4, q5: 4, q6: 4 },
+        notes: { q1: hostile },
+      },
+    ],
+  }
+  const out = candidateRecordBody(nasty, score, { ...course, label: hostile }, meta)
+  ok(!/<script>/.test(out), 'a pasted <script> tag never reaches the document raw')
+  // What matters is that no TAG is produced from data. The attribute name may
+  // survive as inert text inside an escaped entity (&lt;img … onerror=1&gt;),
+  // which renders as visible characters and executes nothing.
+  ok(!/<img|<b>bold/.test(out), 'no element is ever constructed out of typed text')
+  ok(out.includes('&lt;img src=x onerror=1&gt;'), 'an injected tag is neutralised into visible text')
+  ok(out.includes('&lt;script&gt;'), 'hostile text is escaped rather than dropped')
+  ok(out.includes('&amp;') && out.includes('&quot;'), 'ampersands and quotes are escaped')
+  // The rendered text is still readable — escaping must not eat the content.
+  ok(out.includes('bold'), 'the words survive escaping')
+}
+
+// ----- edge cases that must not throw or print nonsense ---------------------
+{
+  // No gates object, no employee number, no notes, no bonus, nothing scored.
+  const bare = {
+    id: 'bare', courseId: 'c1', name: 'Pat Lee', gates: {}, createdAt: '2026-08-01T00:00:00.000Z',
+  }
+  const bareScore = {
+    base: 0, bonus: 0, composite: 0, complete: false, sections: [],
+    blockers: ['Not all components scored yet'], gatesMet: false,
+  }
+  let body2 = ''
+  let threw = ''
+  try {
+    body2 = candidateRecordBody(bare, bareScore, course, meta)
+  } catch (e) {
+    threw = String(e.message || e)
+  }
+  ok(threw === '', `a bare candidate does not throw (${threw})`)
+  ok(/Pat Lee/.test(body2), 'the bare record still names the candidate')
+  ok(/No final decision recorded/.test(body2), 'and says no decision has been recorded')
+  ok(/No interview recorded/.test(body2), 'and says no interview was recorded')
+  ok(/not met/.test(body2), 'unmet gates are shown as unmet, not blank')
+  ok(!/undefined|NaN|\[object Object\]/.test(body2), 'no undefined / NaN / [object Object] leaks into the document')
+
+  // A cohort with nobody in it.
+  let empty = ''
+  try {
+    empty = cohortRecordBody(course, [], { actor: 'a', generatedAt: 'now' })
+  } catch (e) {
+    empty = 'THREW: ' + e.message
+  }
+  ok(!/^THREW/.test(empty), 'an empty cohort does not throw')
+  ok(/0 candidates/.test(empty), 'and reports zero candidates')
+
+  // A scorer who only answered some questions.
+  const partial = {
+    ...candidate,
+    interviews: [{ scorer: 'J. Jones', at: '2026-08-24T15:00:00.000Z', scores: { q1: 4, q3: 5 }, notes: {} }],
+  }
+  const pbody = candidateRecordBody(partial, score, course, meta)
+  ok(!/undefined/.test(pbody), 'an unanswered question prints a dash, not undefined')
+}
+
+// The main document must never contain a raw unescaped angle bracket from data.
+ok(!/<script/i.test(body), 'the ordinary record carries no script tag')
+
 // Emit a rendered sample for the eye (not part of the pass/fail).
 const CSS = `body{font-family:'Segoe UI',Arial,sans-serif;color:#111;margin:24px;font-size:12px}
 h1{font-size:20px;margin:0 0 2px;color:#0b2e4f}h2{font-size:14px;margin:18px 0 6px;color:#0b2e4f;border-bottom:2px solid #0b2e4f;padding-bottom:3px}
