@@ -210,6 +210,26 @@ select:focus{border-color:var(--accent);}
    buttons move: giving capture at 40 mA says this patient captures at 40, and
    taking it away at 80 says they need more than 80. The facilitator still owns
    the number — it just is not a press per pacing attempt any more. */
+.adv-btn{display:block;width:100%;margin:8px 0 4px;padding:9px 12px;border-radius:var(--radius-sm);
+  cursor:pointer;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--t);
+  font:700 .68rem/1.3 inherit;letter-spacing:.5px;text-align:left;}
+.adv-btn:hover{border-color:var(--accent);color:var(--accent);}
+/* Cued: the crew have delivered the shocks this stage is scripted around. */
+.adv-btn.cued{background:rgba(90,162,240,.14);border-color:var(--accent);color:var(--accent);
+  animation:advPulse 1.6s ease-in-out infinite;}
+@keyframes advPulse{0%,100%{border-color:var(--accent);}50%{border-color:var(--t-dim);}}
+.iv-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;
+  padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--inset);}
+.iv-strip:empty{display:none;}
+.iv-lbl{font-size:.62rem;font-weight:bold;letter-spacing:.5px;color:var(--accent);}
+.iv-f{display:flex;align-items:center;gap:4px;font-size:.6rem;color:var(--t-dim);}
+.iv-f select{width:auto;min-height:34px;padding:2px 6px;font-size:.66rem;margin-bottom:0;}
+.iv-btn{min-height:34px;padding:4px 12px;border-radius:var(--radius-sm);cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--t-dim);
+  font:700 .64rem/1 inherit;letter-spacing:.5px;}
+.iv-btn.on{background:rgba(63,185,132,.12);border-color:var(--ok);color:var(--ok);}
+.iv-note{font-size:.6rem;color:var(--ok);}
+.iv-note.warn{color:var(--amber);}
 .pacer-prompt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;
   padding:8px 10px;border:1px solid #6a4ea8;border-radius:6px;background:#1a1230;}
 .pacer-prompt[hidden]{display:none;}
@@ -337,11 +357,16 @@ select:focus{border-color:var(--accent);}
 
 /* The rail overrides live here, after the .run-cols rules they have to beat —
    a media query adds no specificity, so source order is all there is. */
-@media (min-width:1320px){
+/* 1280 rather than 1320: a 1280x800 laptop is the commonest facilitator screen
+   in this program, and it was landing just under the old threshold — so the one
+   layout where the controls never move was reserved for the machines least
+   likely to be in the room. A 360px rail leaves 920px for a page that lays out
+   at 960 and stays three columns above 860. */
+@media (min-width:1280px){
   /* run-mode alone, not run-active: the finished-run summary lives in the
      same card and would otherwise sit on top of the controls. */
-  body.run-mode{padding-right:400px;}
-  .run-card{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:none;
+  body.run-mode{padding-right:376px;}
+  .run-card{position:fixed;top:0;right:0;bottom:0;width:360px;max-width:none;
     max-height:none;margin:0;border-radius:0;border-left:1px solid var(--border);
     border-top:none;border-right:none;border-bottom:none;
     overflow-y:auto;z-index:40;box-shadow:-8px 0 22px rgba(0,0,0,.5);}
@@ -360,6 +385,8 @@ select:focus{border-color:var(--accent);}
   /* Out of flow here as well, so the wrapper has nothing to hold. */
   #runWrap{margin-bottom:0;}
   .run-mini{display:none !important;}
+  /* Nothing to collapse in a rail — it costs no vertical space. */
+  .rc-collapse{display:none;}
 }
 .run-cols .col-h{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
 .run-card .state-btn{margin-bottom:4px;}
@@ -1278,6 +1305,8 @@ function flushSave(){
 // ── Connect Patient ───────────────────────────────────────────
 function toggleConnect(){
   S.patientConnected=!S.patientConnected;
+  crewDid.monitor=S.patientConnected;
+  if(!S.patientConnected) stopO2Trend();
   const btn=document.getElementById('connectBtn');
   const lbl=document.getElementById('connectLabel');
   if(S.patientConnected){
@@ -1326,6 +1355,9 @@ function syncToggles(){
 }
 
 function sv(k,v){
+  // The facilitator dragging saturation is them taking it back from the oxygen
+  // trend; a slider that springs back to where the model wanted it is unusable.
+  if(k==='spo2') stopO2Trend();
   S[k]=v;
   // Physiology lock first, so the value the A-Line mirrors is the corrected
   // one. Mirroring before the lock ran let refreshArt() write the unclamped
@@ -1667,7 +1699,7 @@ const SIMULATIONS={
     {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:90,dbp:58,spo2:95,etco2:32,rr:18,temp:36.8},display:'HR 102 | BP 90/58 | SpO₂ 95% | EtCO₂ 32 | RR 18',note:'MAP improving. Continue resuscitation. Vasopressors titrated. Goal MAP >65. Rapid transport to definitive care.'},
   ]},
   qs_hypoxia:{name:'Hypoxia',subtitle:'Acute Hypoxic Respiratory Failure',patientType:'Adult',states:[
-    {label:'Initial State',color:'var(--amber)',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',o2Response:{target:94,perMin:14},note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
     {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:128,rhythm:'tachy',sbp:94,dbp:60,spo2:76,etco2:58,rr:32,temp:37.4},display:'HR 128 | BP 94/60 | SpO₂ 76% | EtCO₂ 58 | RR 32',note:'Worsening hypoxia. CPAP/BiPAP initiated? Consider RSI if patient tiring. Albuterol if bronchospasm.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:140,rhythm:'tachy',sbp:82,dbp:50,spo2:68,etco2:66,rr:38,temp:37.6},display:'HR 140 | BP 82/50 | SpO₂ 68% | EtCO₂ 66 | RR 38',note:'Respiratory failure — RSI indicated. Pre-oxygenate aggressively. Post-intubation vent management critical.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:104,rhythm:'tachy',sbp:108,dbp:68,spo2:94,etco2:42,rr:18,temp:37.2},display:'HR 104 | BP 108/68 | SpO₂ 94% | EtCO₂ 42 | RR 18',note:'SpO₂ improving with intervention. Titrate FiO₂. Address underlying cause. Reassess frequently en route.'},
@@ -1684,6 +1716,7 @@ const SIMULATIONS={
         color:'var(--amber)',
         vitals:{hr:128,rhythm:'tachy',sbp:92,dbp:58,spo2:82,etco2:65,rr:7,temp:34.5},
         display:'HR 128 | BP 92/58 | SpO₂ 82% | EtCO₂ 65 | RR 7 | Temp 34.5°C',
+        o2Response:{target:90,perMin:10,why:'Aspiration and shunt — oxygen helps but will not reach normal without positive pressure and PEEP.'},
         note:'Patient found in recovery position. Gurgling frothy secretions. Shallow/irregular breathing. GCS 9.',
       },
       {
@@ -1723,6 +1756,7 @@ const SIMULATIONS={
         color:'var(--amber)',
         vitals:{hr:122,rhythm:'tachy',sbp:116,dbp:70,spo2:90,etco2:50,rr:32,temp:37.0,co2Shape:'shark'},
         display:'HR 122 | BP 116/70 | SpO₂ 90% | EtCO₂ 50 | RR 32 | Shark-fin',
+        o2Response:{responds:false,why:'Severe bronchospasm — oxygen alone will not shift this. The scenario states the patient does not improve without albuterol and epinephrine.'},
         note:'Tripoding, anxious. Speaks 2–3 words. Diffuse expiratory wheeze, prolonged expiration. GCS 15. Initiate nebulizer/MDI — patient will worsen after 5 min regardless.',
       },
       {
@@ -1856,7 +1890,8 @@ const SIMULATIONS={
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:180,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:18,rr:0,temp:36.8,pvcOn:false},
        display:'HR 180 | Pulseless VT | BP 0/0 | EtCO₂ 18',
-       note:'With the introduction of the pacing impulse the monitor displays VT and there is no pulse. Pacing should be discontinued and the patient defibrillated.'},
+       note:'With the introduction of the pacing impulse the monitor displays VT and there is no pulse. Pacing should be discontinued and the patient defibrillated.',
+       advanceOn:{shocks:3,note:'The manual moves the patient to an organized rhythm after the third shock.'}},
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:40,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:20,rr:0,temp:36.7},
        display:'HR 40 | PEA | BP 0/0 | EtCO₂ 20',
@@ -1880,7 +1915,8 @@ const SIMULATIONS={
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:22,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 22',
-       note:'No respirations and no pulse. After the first 2 minutes of CPR the rhythm is still VF. EtCO₂ 22 mmHg with an advanced airway placed.'},
+       note:'No respirations and no pulse. After the first 2 minutes of CPR the rhythm is still VF. EtCO₂ 22 mmHg with an advanced airway placed.',
+       advanceOn:{shocks:2,note:'Shock, 2 minutes of CPR, a second shock — then the rhythm is asystole.'}},
       {id:'asystole',label:'Asystole',color:'#880000',
        vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:14,rr:0,temp:36.4},
        display:'Asystole | BP 0/0 | EtCO₂ 14',
@@ -1905,7 +1941,8 @@ const SIMULATIONS={
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:170,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:22,rr:0,temp:36.7},
        display:'HR 170 | Pulseless VT | BP 0/0 | EtCO₂ 22',
-       note:'Before the transcutaneous pacemaker acquires capture the patient becomes unresponsive and apneic, the rhythm changes to VT and there is no pulse.'},
+       note:'Before the transcutaneous pacemaker acquires capture the patient becomes unresponsive and apneic, the rhythm changes to VT and there is no pulse.',
+       advanceOn:{shocks:2,note:'Two shocks with CPR between them, then sinus bradycardia with no pulse.'}},
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:32,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:48,rr:0,temp:36.6},
        display:'HR 32 | PEA | BP 0/0 | EtCO₂ 48',
@@ -1928,7 +1965,8 @@ const SIMULATIONS={
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:25,rr:0,temp:36.8},
        display:'VF | BP 0/0 | EtCO₂ 25',
-       note:'Moved from the car to the stretcher, CPR and rapid defibrillation. IO access achieved; bag-mask ventilation with mild difficulty. Still VF after 2 minutes; advanced airway placed, capnography 25.'},
+       note:'Moved from the car to the stretcher, CPR and rapid defibrillation. IO access achieved; bag-mask ventilation with mild difficulty. Still VF after 2 minutes; advanced airway placed, capnography 25.',
+       advanceOn:{shocks:2,note:'Still VF after the first shock and 2 minutes of CPR; after the second the rhythm is organized.'}},
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:70,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:25,rr:0,temp:36.8},
        display:'HR 70 | PEA | BP 0/0 | EtCO₂ 22–27',
@@ -1955,7 +1993,8 @@ const SIMULATIONS={
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:20,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 20',
-       note:'The heart rate continues to drop, then he suddenly becomes unresponsive and pulseless. Advanced learners may discuss IV lipid emulsion therapy and extracorporeal CPR.'},
+       note:'The heart rate continues to drop, then he suddenly becomes unresponsive and pulseless. Advanced learners may discuss IV lipid emulsion therapy and extracorporeal CPR.',
+       advanceOn:{shocks:2,note:'After the second shock the rhythm changes to asystole.'}},
       {id:'asystole',label:'Asystole',color:'#880000',
        vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:12,rr:0,temp:36.4},
        display:'Asystole | BP 0/0 | EtCO₂ 12',
@@ -2411,6 +2450,12 @@ function applySimState(simKey, stateIdx){
     enterRunState(stateIdx);
   }
   applyVitals(st.vitals, sim.patientType);
+  // The trend does NOT restart here. A stage carries the saturation its author
+  // wrote, and oxygen the crew put on two stages ago must not quietly drag that
+  // number somewhere else — at ROSC the authored 94% was climbing to 99% on its
+  // own. Oxygen moves the number when the CREW changes something; the scenario
+  // moves it when the facilitator changes stage.
+  stopO2Trend();
   // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
   // printout matches the described findings (applyVitals cleared any prior one).
   if(st.ecg){ S.ecg=st.ecg; save(); }
@@ -2447,9 +2492,11 @@ const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
 // carry forward.
 function resetForNewScenario(){
   stopDrugs();
+  stopO2Trend();
   drugLog=[]; renderDrugLog();
   deviceFeed=[]; renderDeviceFeed();
   pacer={on:false,rate:70,ma:0};
+  crewDid={monitor:false,o2:'none',airway:'none',access:'none'};
   captureThreshold=70; preCapture=null;
   Object.assign(S,{
     co2Shape:DEF.co2Shape, etco2On:DEF.etco2On,
@@ -2466,6 +2513,11 @@ function startRun(simKey){
   const sim=SIMULATIONS[simKey], doc=SCENARIO_DOCS[simKey];
   if(!sim||!doc) return;
   resetForNewScenario();
+  // A graded run starts with nothing attached. The crew is being assessed on
+  // finding the rhythm, not on reading it off a screen that was already live
+  // when they walked in — so the monitor stays blank until the facilitator
+  // marks the leads on.
+  S.patientConnected=false;
   const cl=sim.checklist?ACLS_CHECKLISTS[sim.checklist]:null;
   run={
     scenario:simKey,
@@ -2501,6 +2553,8 @@ function enterRunState(idx){
     run.states[run.current].seconds += Math.round((now-run.enteredAt)/1000);
   run.current=idx;
   run.enteredAt=now;
+  run.stageShocks=0;
+  pendingAdvance=false;
 }
 
 function toggleAction(i){
@@ -2568,6 +2622,10 @@ function runWarnings(){
 
 function endRun(){
   if(!run) return;
+  // Nothing should still be moving the patient once the run is over — the
+  // oxygen trend outlived the run and went on changing the saturation behind
+  // the debrief summary.
+  stopO2Trend();
   // Warn, and let the facilitator confirm, before a run with gaps is saved.
   const warns=runWarnings();
   if(warns.length&&typeof window.confirm==='function'){
@@ -2612,8 +2670,8 @@ function endRun(){
 // the whole panel down with it. innerWidth is the same answer either way.
 let RAIL_MQ=null;
 function railMode(){
-  if(!RAIL_MQ&&window.matchMedia) RAIL_MQ=window.matchMedia('(min-width:1320px)');
-  return RAIL_MQ?RAIL_MQ.matches:window.innerWidth>=1320;
+  if(!RAIL_MQ&&window.matchMedia) RAIL_MQ=window.matchMedia('(min-width:1280px)');
+  return RAIL_MQ?RAIL_MQ.matches:window.innerWidth>=1280;
 }
 
 // Elapsed run time. run.states[i].seconds only banks a state when it is left,
@@ -2629,21 +2687,32 @@ function miniTally(){
   return rs?{done:rs.actions.filter(a=>a.done).length,total:rs.actions.length}:{done:0,total:0};
 }
 
-// Expanded by hand stays expanded: ticking four actions in a row should not
-// fight a card that re-collapses under you. Scrolling back to the top of the
-// page clears it, which is the same gesture that would have shown it anyway.
-let runExpanded=false;
-function expandRunCard(){ runExpanded=true; applyRunCondense(); }
+/* Collapsing is the facilitator's choice, not the scroll position's.
+
+   It used to collapse itself the moment the page scrolled past the card, which
+   is the behaviour reported here as the megacode controls "disappearing" — a
+   facilitator who scrolled down to give a drug and then needed to change a
+   rhythm or tick an action at the top found the card gone, and had to find the
+   bar and tap it open again on every trip. Scrolling down is not a statement
+   that you are finished with the controls.
+
+   So the card stays whole while the page scrolls under it. It is sticky and
+   scrolls internally, so it is always reachable and never taller than the
+   screen, and the mini bar is still there for when the facilitator actually
+   wants the room back — reached by the collapse control in the run header
+   rather than by scrolling. */
+let runCollapsed=false;
+function expandRunCard(){ runCollapsed=false; applyRunCondense(); }
+function collapseRunCard(){ runCollapsed=true; applyRunCondense(); }
+function toggleRunCard(){ runCollapsed=!runCollapsed; applyRunCondense(); }
 function applyRunCondense(){
   const card=document.getElementById('runCard');
-  const sent=document.getElementById('runSentinel');
-  if(!card||!sent) return;
-  const past=sent.getBoundingClientRect().bottom<0;
-  if(!past) runExpanded=false;
+  if(!card) return;
   // Only the live run has a bar to condense to. The finished-run summary is
   // rendered into the same card and would collapse to an empty strip.
   const hasBar=!!card.querySelector('.run-mini');
-  const want=hasBar&&!railMode()&&past&&!runExpanded;
+  // The rail costs no vertical space, so there is nothing to collapse there.
+  const want=hasBar&&!railMode()&&runCollapsed;
   const wrap=document.getElementById('runWrap');
   if(want===card.classList.contains('condensed')) return;
   // Measured before the class changes, because after it the card is 52px.
@@ -2651,7 +2720,6 @@ function applyRunCondense(){
   card.classList.toggle('condensed',want);
   if(!want&&wrap) wrap.style.height='';
 }
-window.addEventListener('scroll',applyRunCondense,{passive:true});
 window.addEventListener('resize',applyRunCondense);
 // The mini bar is keyboard-reachable like every other role="button" here; the
 // delegated Enter/Space handler further down covers it.
@@ -2686,6 +2754,237 @@ let deviceFeed=[];       // last few events, shown whether or not a run is open
    not something anyone should have to know under time pressure, so the panel
    surfaces their settings with a button that does exactly that. */
 let pacer={on:false,rate:70,ma:0};
+
+/* ── Interventions ────────────────────────────────────────────────────────
+   What the crew has actually done to the patient, and what the monitor shows
+   because of it.
+
+   The scenario used to begin with the patient already on the monitor and every
+   number visible, whatever the crew had or had not done. That gives away the
+   assessment: a student who has not touched the patient can read their rhythm
+   and their saturation off the screen. So a graded run starts with the monitor
+   blank — as though nothing is attached — and the facilitator brings each thing
+   to life as they watch it happen.
+
+   These are deliberately NOT the AHA checklist. The published step is one line
+   reading "Starts oxygen if needed, places monitor, starts IV", and that text is
+   transcribed verbatim and graded against — three separate acts in one tick,
+   which cannot drive three separate effects on the screen. So the interventions
+   are their own controls, and ticking one also ticks whichever checklist step it
+   satisfies. The facilitator taps once; the record and the monitor both follow.
+
+   Reset by resetForNewScenario, like everything else a run leaves behind. */
+const O2_DEVICES=[
+  {id:'none',  label:'Room air',  short:'RA',   boost:0},
+  {id:'nc2',   label:'NC 2 L',    short:'NC2',  boost:4},
+  {id:'nc4',   label:'NC 4 L',    short:'NC4',  boost:7},
+  {id:'nc6',   label:'NC 6 L',    short:'NC6',  boost:9},
+  {id:'nrb15', label:'NRB 15 L',  short:'NRB',  boost:14},
+  {id:'bvm',   label:'BVM + O₂',  short:'BVM',  boost:16},
+  {id:'cpap',  label:'CPAP',      short:'CPAP', boost:15},
+];
+const AIRWAYS=[
+  {id:'none', label:'None'},
+  {id:'basic',label:'OPA / NPA'},
+  {id:'sga',  label:'Supraglottic'},
+  {id:'ett',  label:'ET tube'},
+];
+const ACCESS=[
+  {id:'none',label:'None'},
+  {id:'iv',  label:'IV'},
+  {id:'io',  label:'IO'},
+];
+
+let crewDid={monitor:false,o2:'none',airway:'none',access:'none'};
+
+function o2Device(id){ return O2_DEVICES.find(d=>d.id===(id||'none'))||O2_DEVICES[0]; }
+
+/** The stage the facilitator currently has the patient in, if any. */
+function activeStage(){
+  const sim=SIMULATIONS[activeSim];
+  return sim&&sim.states?sim.states[activeStateIdx]:null;
+}
+
+/**
+ * Where oxygen can take this patient, and how fast.
+ *
+ * A stage may declare its own answer — `o2Response:{responds:false,why:...}` for
+ * a hypoxia oxygen alone cannot fix, or `{target:96,perMin:14}` to say exactly
+ * where it goes. Absent that, the device's boost is applied to the saturation
+ * the stage started at, which is a teaching approximation and nothing more.
+ *
+ * A pulseless patient never improves: there is no perfusion to carry it, and
+ * the monitor shows --- for saturation anyway.
+ */
+function o2Goal(){
+  const dev=o2Device(crewDid.o2);
+  if(dev.id==='none') return null;
+  if(!S.patientConnected) return null;
+  if(!S.sbp||S.rhythm==='vfib'||S.rhythm==='asystole') return null;
+  const st=activeStage();
+  const r=st&&st.o2Response;
+  if(r&&r.responds===false) return {blocked:true,why:r.why||'This patient will not improve on oxygen alone.'};
+  const base=(st&&st.vitals&&typeof st.vitals.spo2==='number')?st.vitals.spo2:S.spo2;
+  const target=Math.min(99,(r&&typeof r.target==='number')?r.target:base+dev.boost);
+  const perMin=(r&&r.perMin)||18;
+  return {target,perSec:Math.max(0.05,perMin/60)};
+}
+
+let o2Timer=null;
+/* The saturation shown is a whole number, but the climb is not: at a realistic
+   rate a tick moves it a third of a point, and rounding that back into S every
+   second meant the number never moved at all. The precise value is carried
+   here and only rounded on its way to the screen. */
+let o2Float=null;
+function stopO2Trend(){ if(o2Timer){clearInterval(o2Timer);o2Timer=null;} o2Float=null; }
+function startO2Trend(){
+  stopO2Trend();
+  if(!o2Goal()) return;
+  o2Float=drugBase?drugBase.spo2:S.spo2;
+  o2Timer=setInterval(o2Tick,1000);
+  o2Tick();
+}
+/**
+ * Ease the saturation toward the goal a second at a time.
+ *
+ * Where medications are on board the drug engine owns S.spo2 and recomputes it
+ * from its own baseline every tick, so oxygen moves the BASELINE and lets the
+ * drug deltas ride on top. Writing S.spo2 directly in that case would be undone
+ * 100ms later.
+ */
+function o2Tick(){
+  const goal=o2Goal();
+  if(!goal||goal.blocked){ stopO2Trend(); return; }
+  if(o2Float===null) o2Float=drugBase?drugBase.spo2:S.spo2;
+  const done=Math.abs(o2Float-goal.target)<=goal.perSec;
+  o2Float=done?goal.target:o2Float+Math.sign(goal.target-o2Float)*goal.perSec;
+  const shown=Math.round(o2Float);
+  if(drugBase) drugBase.spo2=shown; else setVital('spo2',shown);
+  save();
+  // Reaching the target ends the trend, but the value stays where it landed.
+  if(done){ if(o2Timer){clearInterval(o2Timer);o2Timer=null;} }
+}
+
+/** Apply an intervention: change the patient, log it, and tick what it satisfies. */
+function setIntervention(kind,value){
+  if(kind==='monitor'){
+    crewDid.monitor=!!value;
+    S.patientConnected=crewDid.monitor;
+    logLocal('intervention',crewDid.monitor?'MONITOR ATTACHED':'MONITOR REMOVED','');
+    // Leads on is what makes the screen live; nothing else can be read until then.
+    if(!crewDid.monitor) stopO2Trend();
+  } else if(kind==='o2'){
+    crewDid.o2=value;
+    const d=o2Device(value);
+    logLocal('intervention','OXYGEN',d.label);
+    const goal=o2Goal();
+    if(goal&&goal.blocked) logLocal('intervention','NO RESPONSE TO O₂',goal.why);
+    startO2Trend();
+  } else if(kind==='airway'){
+    crewDid.airway=value;
+    const a=AIRWAYS.find(x=>x.id===value);
+    logLocal('intervention','AIRWAY',a?a.label:value);
+    // An advanced airway is what puts waveform capnography on the screen.
+    if(value==='sga'||value==='ett'){ S.etco2On=true; }
+  } else if(kind==='access'){
+    crewDid.access=value;
+    const a=ACCESS.find(x=>x.id===value);
+    logLocal('intervention','ACCESS',a?a.label:value);
+  }
+  // The same tap that changed the patient marks any step it now satisfies.
+  tickForIntervention();
+  syncToggles();
+  updateAllUI();
+  save();
+  renderInterventions();
+}
+
+/* Which checklist step each intervention satisfies.
+
+   The published first step reads "Starts oxygen if needed, places monitor,
+   starts IV" — three acts on one line. Ticking it because the leads went on
+   would credit the crew for oxygen and access they have not established, which
+   in a competency record is not a convenience, it is an overstatement. So that
+   step waits until all three of the things it names are marked; the steps that
+   name one act tick on that act alone. */
+const IV_TICKS=[
+  // The bundled step: only when everything it names has been done.
+  {re:/Starts oxygen.*places monitor.*starts IV/i,
+   when:()=>crewDid.monitor&&crewDid.o2!=='none'&&crewDid.access!=='none'},
+  {re:/Places monitor leads/i, when:()=>crewDid.monitor},
+  {re:/airway management/i,    when:()=>crewDid.airway==='sga'||crewDid.airway==='ett'},
+];
+function tickForIntervention(){
+  if(!run||run.current<0) return;
+  for(const t of IV_TICKS) if(t.when()) autoTick(t.re,{type:'intervention'});
+}
+
+/* ── Moving the patient on ────────────────────────────────────────────────
+   The scenario's own "Moves on when…" is prose the facilitator has to read and
+   then act on by finding the right state button. For the defibrillation
+   scenarios the trigger is a count — "after the third shock the patient
+   develops an organized rhythm" — and counting shocks while running a code and
+   grading it is exactly the sort of bookkeeping this panel should be doing.
+
+   So the panel counts the shocks delivered in the current stage, and when the
+   count the scenario scripts is reached it offers the transition as one tap.
+   It does NOT move the patient itself: a miscounted shock would otherwise
+   convert a rhythm nobody converted, and the facilitator is still the one who
+   decides what the patient does. */
+function nextStage(){
+  const sim=SIMULATIONS[activeSim];
+  if(!sim||activeStateIdx<0) return null;
+  const i=activeStateIdx+1;
+  return i<sim.states.length?{idx:i,state:sim.states[i]}:null;
+}
+function advanceStage(){
+  const n=nextStage();
+  if(!n) return;
+  pendingAdvance=false;
+  applySimState(activeSim,n.idx);
+}
+/** True once the crew have delivered the shocks this stage is scripted around. */
+let pendingAdvance=false;
+function shocksThisStage(){ return run?(run.stageShocks||0):0; }
+function advanceCue(){
+  const st=activeStage();
+  const n=nextStage();
+  if(!st||!n||!st.advanceOn||!st.advanceOn.shocks) return null;
+  if(shocksThisStage()<st.advanceOn.shocks) return null;
+  return {
+    label:`Shock ${st.advanceOn.shocks} delivered → ${n.state.label}`,
+    why:st.advanceOn.note||'',
+  };
+}
+
+/* The strip itself. Rendered into every .iv-strip on the page, the same way the
+   pacing prompt is, so it is reachable whether the run card is full width, in
+   the rail, or the facilitator is working from the ECG card. */
+function renderInterventions(){
+  const els=document.querySelectorAll('.iv-strip');
+  if(!els.length) return;
+  const goal=o2Goal();
+  const sel=(kind,opts,cur)=>
+    `<select aria-label="${kind}" onchange="setIntervention('${kind}',this.value)">`+
+    opts.map(o=>`<option value="${o.id}"${o.id===cur?' selected':''}>${esc(o.label)}</option>`).join('')+
+    `</select>`;
+  const monBtn=`<button class="iv-btn ${crewDid.monitor?'on':''}" onclick="setIntervention('monitor',${!crewDid.monitor})"
+      title="${crewDid.monitor?'Leads are on — the screen is live':'The monitor is blank until this is on'}">
+      ${crewDid.monitor?'◉ Monitor on':'○ Monitor off'}</button>`;
+  const note=crewDid.o2!=='none'&&goal
+    ? (goal.blocked
+        ? `<span class="iv-note warn">${esc(goal.why)}</span>`
+        : `<span class="iv-note">SpO₂ → ${goal.target}%</span>`)
+    : '';
+  const html=
+    `<span class="iv-lbl">✚ Crew has done</span>`+
+    monBtn+
+    `<span class="iv-f">O₂ ${sel('o2',O2_DEVICES,crewDid.o2)}</span>`+
+    `<span class="iv-f">Airway ${sel('airway',AIRWAYS,crewDid.airway)}</span>`+
+    `<span class="iv-f">Access ${sel('access',ACCESS,crewDid.access)}</span>`+
+    note;
+  els.forEach(el=>{ el.innerHTML=html; });
+}
 
 // Auto-tick.
 //
@@ -2742,7 +3041,20 @@ function onDeviceEvent(ev){
   if(run){
     const at=Math.max(0,Math.round((now-Date.parse(run.startedAt))/1000));
     run.device.push({at,type:ev.type,label:ev.label,detail:ev.detail||''});
-    if(ev.type==='shock') run.lastShockAt=now;
+    if(ev.type==='shock'){
+      run.lastShockAt=now;
+      // Counted per stage, not per run: the scripts say "after the third shock"
+      // of THIS rhythm, and a run carries several.
+      run.stageShocks=(run.stageShocks||0)+1;
+      // The count is what raises the cue, so the card has to be repainted when
+      // it changes — otherwise the transition button sits there reading
+      // "Advance" while the shock that scripts it has already been delivered.
+      if(!pendingAdvance&&advanceCue()){
+        pendingAdvance=true;
+        logLocal('advance','TRANSITION CUED',advanceCue().label);
+        renderSimPanel(run.scenario);
+      }
+    }
     const ctx={sinceShock:run.lastShockAt?(now-run.lastShockAt)/1000:null};
     for(const rule of AUTO_TICK){
       if(!rule.when(ev,ctx)) continue;
@@ -2762,7 +3074,11 @@ function autoTick(re,ev){
   if(!st) return;
   const a=st.actions.find(x=>re.test(x.text)&&!x.done);
   if(!a) return;
-  a.done=true; a.auto=true;
+  // Where it came from matters at the debrief: a press at the defibrillator is
+  // the device reporting itself, while an intervention mark is the facilitator
+  // saying they watched it happen. Labelling both "from monitor" credited the
+  // device with an observation a person made.
+  a.done=true; a.auto=(ev&&ev.type==='intervention')?'crew':'monitor';
   run.device.push({at:Math.max(0,Math.round((Date.now()-Date.parse(run.startedAt))/1000)),
     type:'autotick',label:'Auto-ticked',detail:a.text});
   renderSimPanel(run.scenario);
@@ -2772,7 +3088,7 @@ const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
   pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
   ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
   alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',capture:'⌁',
-  power:'⏻',display:'☀',disarm:'⚡',mode:'☰'};
+  power:'⏻',display:'☀',disarm:'⚡',mode:'☰',intervention:'✚',advance:'⇥'};
 
 /* Electrical capture: the paced rhythm at the rate the crew dialled in.
 
@@ -3009,10 +3325,20 @@ function renderSimPanel(simKey){
   if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
     actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
       `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" aria-pressed="${a.done}" onclick="toggleAction(${i})"
-            title="${a.auto?'Ticked from the monitor — click to undo':''}">
-        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?'<span class="auto-tag">from monitor</span>':''}
+            title="${a.auto?(a.auto==='crew'?'Ticked from the interventions you marked — click to undo':'Ticked from a press at the defibrillator — click to undo'):''}">
+        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?`<span class="auto-tag">${a.auto==='crew'?'from interventions':'from monitor'}</span>`:''}
       </div>`).join('');
   }
+  // The transition, as a control rather than as prose to act on. The cue only
+  // appears once the scripted shocks have actually been delivered.
+  const nx=nextStage();
+  const cue=advanceCue();
+  const advanceHtml=nx
+    ? (cue
+        ? `<button class="adv-btn cued" onclick="advanceStage()">⚡ ${esc(cue.label)}</button>`
+        : `<button class="adv-btn" onclick="advanceStage()"
+             title="Move the patient to the next stage">→ Advance to ${esc(nx.state.label)}</button>`)
+    : '';
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
   const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
   // Program coaching, distinct from the AHA-transcribed note above it: the
@@ -3047,11 +3373,14 @@ function renderSimPanel(simKey){
                  oninput="setRunField('notes',this.value)">
           <button class="apply-btn" style="padding:7px 12px;" onclick="toggleSetup()"
                   title="Show the scenario pickers without ending the run">⚙</button>
+          <button class="apply-btn rc-collapse" style="padding:7px 12px;" onclick="collapseRunCard()"
+                  title="Collapse this card to a single line — it stays put while you scroll either way">▲</button>
           <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
         </div>
       </div>
+      <div class="iv-strip"></div>
       <div class="run-cols">
-        <div><div class="col-h">Patient state — click to drive</div>${states}</div>
+        <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}</div>
         <div><div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
         <div>${triggerHtml}${noteHtml}${coachHtml}
           <div class="col-h" style="color:var(--accent);margin-top:10px;">At the monitor</div>
@@ -3062,6 +3391,7 @@ function renderSimPanel(simKey){
       ${run&&run.checklist?checklistStripHtml():''}`;
     renderDeviceFeed();
     renderPacerPrompt();
+    renderInterventions();
     applyRunCondense();
     return;
   }
@@ -3070,6 +3400,7 @@ function renderSimPanel(simKey){
   // the compact in-grid card they have always had.
   let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t-dim);font-weight:normal;">${sim.subtitle}</span></div>`;
   html+=`<div class="sim-states">${states}</div>`;
+  html+=advanceHtml;
   html+=noteHtml;
   html+=coachHtml;
   panel.innerHTML=html;
