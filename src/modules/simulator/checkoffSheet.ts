@@ -57,7 +57,7 @@ const SHEET_CSS = `
   /* One page, as the form is. The shared document CSS sets a print margin for
      ordinary documents; the sheet sets its own so the table lands where the
      published one does. */
-  @page { size: letter; margin: 12mm; }
+  @page { size: letter; margin: 11mm; }
   @media print { body { margin: 0; } }
   .aha { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #000; }
   .aha-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 9px; }
@@ -76,8 +76,8 @@ const SHEET_CSS = `
   table.aha-t { border-collapse: collapse; width: 100%; table-layout: fixed;
                 page-break-inside: auto; margin: 0; }
   table.aha-t tr { page-break-inside: avoid; }
-  table.aha-t td, table.aha-t th { border: 1px solid #c9c3b4; padding: 3px 8px;
-                vertical-align: middle; font-size: 11.5px; line-height: 1.3; }
+  table.aha-t td, table.aha-t th { border: 1px solid #c9c3b4; padding: 2.5px 8px;
+                vertical-align: middle; font-size: 11.5px; line-height: 1.28; }
   table.aha-t th { background: #c9161d; color: #fff; font-weight: 700; text-align: center; }
   table.aha-t th.steps { font-style: italic; font-size: 12.5px; }
   table.aha-t th.tick, table.aha-t td.tick { width: 118px; text-align: center; }
@@ -110,7 +110,11 @@ const SHEET_CSS = `
   .aha-copy { font-size: 9px; margin-top: 6px; page-break-before: avoid; }
   .aha-prov { font-size: 8px; color: #777; margin-top: 2px; line-height: 1.45;
               page-break-before: avoid; page-break-inside: avoid; }
-  .aha-notes { page-break-before: always; }
+  /* The debrief note, on the quarterly record only — the megacode sheet is one
+     page and stays one page. */
+  .rec-notes { margin-top: 10px; page-break-inside: avoid; }
+  .rec-notes-h { font-weight: 700; font-size: 11.5px; margin-bottom: 3px; }
+  .rec-notes p { font-size: 11.5px; line-height: 1.45; }
 `
 
 /**
@@ -207,16 +211,19 @@ function provenance(run: SimRun, observed: number, total: number, seconds: numbe
 }
 
 /**
- * The debrief note, on a page of its own and marked as not being part of the
- * form — page one has to be the sheet and nothing else.
+ * The debrief note. On the quarterly performance record only.
+ *
+ * It is deliberately NOT on the megacode sheet. That sheet is a submission: it
+ * is one page, the same one page the training centre already knows, and a
+ * second sheet of paper stapled behind it is a second thing to lose or to
+ * question. The note is not lost — it stays on the run in CES, where the
+ * debrief is read from.
  */
 function notesBlock(run: SimRun): string {
   if (!run.notes?.trim()) return ''
-  return `<div class="aha-notes">
-    <h2>Instructor notes — not part of the AHA form</h2>
+  return `<div class="rec-notes">
+    <div class="rec-notes-h">Instructor notes</div>
     <p>${esc(run.notes.trim())}</p>
-    <p class="sub2">${esc(run.scenarioName)} · ${esc(run.crew || 'unnamed')} ·
-      ${esc(formatDateTime(run.startedAt))}</p>
   </div>`
 }
 
@@ -267,7 +274,6 @@ export function megacodeSheetHTML(run: SimRun): string {
       ${resultsBlock(run)}
       <div class="aha-copy">© 2025 American Heart Association</div>
       ${provenance(run, observed, total, seconds)}
-      ${notesBlock(run)}
     </div>`
 }
 

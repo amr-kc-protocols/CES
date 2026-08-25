@@ -242,7 +242,6 @@ const picked = (html, which) =>
 ok(picked(sheet, 'PASS') && !picked(sheet, 'NR'), 'PASS is checked and NR is not')
 ok(/Instructor Initials[\s\S]{0,120}?JJ/.test(sheet), 'the instructor initials are on the sheet')
 ok(/Instructor Number[\s\S]{0,120}?KS-114-2026/.test(sheet), 'and the instructor number')
-ok(/Prompt defibrillation/.test(sheet), 'the debrief note is carried as instructor notes')
 ok(/American Heart Association/.test(sheet), 'the steps are attributed to their source')
 ok(/facilitated by J\. Jones/.test(sheet), 'and the sheet says who ran it')
 ok(!/undefined|NaN/.test(sheet), 'nothing prints as undefined or NaN')
@@ -276,19 +275,22 @@ ok(
 // Page one has to be the form and nothing else — it is what gets submitted.
 ok(/@page \{ size: letter/.test(sheet), 'the sheet sets its own page so the table lands where the form’s does')
 ok(
-  sheet.indexOf('© 2025 American Heart Association') < sheet.indexOf('class="aha-notes"'),
-  'the copyright line closes the form before anything of ours follows it',
+  sheet.trim().endsWith('</div>') && /aha-prov[\s\S]*$/.test(sheet.slice(sheet.indexOf('© 2025'))),
+  'the copyright line and the stamp close the sheet',
+)
+// One page, and it stays one page: a submission is the sheet the training
+// centre knows, and a second sheet stapled behind it is a thing to lose.
+ok(!/page-break-before: always/.test(sheet), 'nothing on the sheet forces a second page')
+ok(
+  !/class="rec-notes"/.test(sheet) && !/Instructor notes/.test(sheet),
+  'the debrief note is not on the sheet — it stays on the run in CES',
 )
 ok(
-  /class="aha-notes"/.test(sheet) && /page-break-before: always/.test(sheet),
-  'the debrief note is pushed onto a page of its own',
+  megacodeSheetHTML({ ...run, notes: 'x'.repeat(4000) }).length -
+    megacodeSheetHTML({ ...run, notes: '' }).length ===
+    0,
+  'and a long note cannot grow it',
 )
-ok(
-  /not part of the AHA form/.test(sheet),
-  'and is labelled as not being part of the form',
-)
-const noNotes = megacodeSheetHTML({ ...run, notes: '' })
-ok(!/class="aha-notes"/.test(noNotes), 'a run with no note prints the form alone')
 
 // Anything typed by a person is data, not markup.
 const nasty = megacodeSheetHTML({ ...run, crew: '<img src=x onerror=1>', notes: '<script>x()</script>' })
@@ -316,6 +318,11 @@ ok(
   /Position the patient and suction the airway/.test(record),
   "the scenario's own expected actions are on it",
 )
+// The note the megacode sheet cannot carry is still printed here: this record
+// is the program's own paperwork, not a submission, and can run to two pages.
+const noted = scenarioRecordHTML({ ...quarterly, notes: 'Slow to suction; coached.' })
+ok(/class="rec-notes"/.test(noted) && /Slow to suction/.test(noted), 'the record carries the debrief note')
+
 ok(runSheetHTML(quarterly) === record, 'runSheetHTML picks the record for a quarterly run')
 ok(runSheetHTML(run) === sheet, 'and the AHA sheet for a megacode')
 ok(/Megacode Testing Checklist — A\. Rivera/.test(runSheetTitle(run)), 'the print title names the student')
