@@ -1286,12 +1286,14 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     /body\.run-active \.scenario-row\{display:none;\}/.test(panelSrc),
   )
   ok('and can be brought back without ending the run', /function toggleSetup\(\)/.test(panelSrc))
-  ok(
-    'the debrief checklist starts collapsed',
-    /let clOpen=false;/.test(panelSrc),
-    'it was 190px of the most valuable space on the screen, for controls nobody touches until the end',
-  )
-  ok('and its summary keeps the tally in view', /cl-tally/.test(panelSrc) && /cl-res/.test(panelSrc))
+  // The megacode check-off is laid out as the AHA sheet: one column of steps in
+  // the published order, the tick column on the right, and the result at the
+  // foot. It replaced a per-phase actions column with team behaviour, CPR
+  // quality and PASS / NR collapsed into a separate strip below the columns —
+  // neither of which is where an instructor's eye expects them on that form.
+  ok('the sheet scrolls inside the card rather than growing it', /\.sheet\{[^}]*overflow-y:auto/s.test(panelSrc))
+  ok('the result block stays at the foot of the sheet', /\.sh-foot\{position:sticky;bottom:0/.test(panelSrc))
+  ok('and the tick column is on the right, as the form has it', /\.sh-row \.box\{margin-left:auto/.test(panelSrc))
 
   // Exactly one. A second delegated handler double-fires every activation, and
   // on a toggle — every expected action is one — two clicks cancel out, so
@@ -1980,7 +1982,8 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.applySimScenario()
   w.setResult('pass')
   const warns = w.eval('runWarnings()')
-  ok('an empty PASS run warns about the crew name', warns.some((x) => /crew/.test(x)), warns.join(' | '))
+  ok('an empty PASS run warns about the student name', warns.some((x) => /student|crew/.test(x)), warns.join(' | '))
+  ok('and about the sheet having no instructor on it', warns.some((x) => /instructor/.test(x)), warns.join(' | '))
   ok('and about the missing result being unobserved actions', warns.some((x) => /1 of 18|of \d+ expected/.test(x)) || warns.some((x) => /PASS/.test(x)), warns.join(' | '))
   ok('and about the missing debrief note', warns.some((x) => /debrief/.test(x)))
 
@@ -2001,6 +2004,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   }
   w.setRunField('crew', 'Med 3 — Alvarez / Boyd')
   w.setRunField('notes', 'Strong code; timely defibrillation.')
+  w.setInstructor('instructorInitials', 'JJ')
   if (w.eval('run.result') !== 'pass') w.setResult('pass') // setResult toggles; ensure PASS
   ok('a complete, labelled PASS run has nothing to warn about', w.eval('runWarnings()').length === 0, w.eval('runWarnings()').join(' | '))
 
@@ -2294,6 +2298,100 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.confirm = () => true
   w.endRun()
   ok('ending the run stops the oxygen trend', w.eval('o2Timer') === null, 'it went on changing the patient behind the summary')
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The check-off sheet.
+//
+// A megacode is graded on the AHA Megacode Testing Checklist, so the run card
+// lays that sheet out: the whole form in one column, the tick box on the right,
+// the result at the foot. The quarterly scenarios have no such instrument and
+// keep the per-phase actions column.
+// ---------------------------------------------------------------------------
+{
+  const { w, d } = load()
+  const panelSrcNow = readFileSync(PAGE, 'utf8')
+  d.getElementById('simScenarioSel').value = 'megacode4'
+  w.applySimScenario()
+  const card = () => d.getElementById('runCard').innerHTML
+
+  ok('a megacode renders the sheet', /class="sheet"/.test(card()))
+  ok('headed as the published checklist', /Megacode Testing Checklist: Scenarios 4\/7\/10/.test(card()))
+  ok('with the student and the date of test at the head', /Student/.test(card()) && /Date of test/.test(card()))
+  ok('and the check column named as the form names it', /check if done correctly/.test(card()))
+
+  // Every section, in the published order, not only the phase on screen.
+  const headings = [...card().matchAll(/class="sh-sec-h">\s*([^<]+?)\s*</g)].map((m) => m[1])
+  ok(
+    'the whole form is on screen, in order',
+    headings[0] === 'Team Leader/Team Members' &&
+      headings.includes('Tachycardia Management') &&
+      headings.includes('VF Management') &&
+      headings.includes('PEA Management') &&
+      headings.includes('Post–Cardiac Arrest Care'),
+    headings.join(' | '),
+  )
+  ok('the phase the patient is in is marked', /class="sh-sec now"/.test(card()))
+
+  // The correction the paper sheet allows: go back up the page.
+  w.applySimState('megacode4', 2)
+  ok('the run has moved to the third phase', w.eval('run.current') === 2)
+  w.toggleActionAt(0, 1)
+  ok(
+    'a step in a section already left can still be ticked',
+    w.eval('run.states[0].actions[1].done') === true,
+    'on paper the whole sheet is in front of you',
+  )
+  ok('and it is ticked on screen', /class="sh-row done"/.test(card()))
+
+  // Re-rendering the card replaces the sheet's markup, and a fresh element
+  // starts at scrollTop 0 — which sent the instructor back to the top of the
+  // form on every tick. Measured in a browser; jsdom lays nothing out, so what
+  // is asserted here is that the render banks the position and puts it back.
+  ok(
+    'the render banks the sheet scroll position',
+    /const scrollWas=sheetScrollState\(\);/.test(panelSrcNow),
+  )
+  ok('and restores it before scrolling to the phase', /restoreSheetScroll\(scrollWas\);\s*\n\s*syncSheetScroll\(\);/.test(panelSrcNow))
+
+  // STOP TEST and the result block the sheet closes with.
+  ok('the sheet closes with STOP TEST', /sh-stop/.test(card()) && /Stop test/i.test(card()))
+  ok('over the PASS / NR the instructor circles', /res-btn pass/.test(card()) && /res-btn nr/.test(card()))
+  ok('and the instructor block a registry needs', /Instr\. initials/.test(card()) && /Instr\. number/.test(card()))
+
+  // The instructor is the same person all morning.
+  w.setInstructor('instructorInitials', 'JJ')
+  w.setInstructor('instructorNumber', 'KS-114')
+  ok('the instructor is remembered on this machine', /KS-114/.test(w.localStorage.getItem('ces.sim.instructor') || ''))
+  w.startRun('megacode4')
+  ok('and carried into the next run', w.eval('run.instructorNumber') === 'KS-114', w.eval('run.instructorNumber'))
+
+  // The published section heading goes onto the record, so a sheet printed
+  // months later carries the headings it was graded under.
+  w.applySimState('megacode4', 1)
+  w.confirm = () => true
+  w.endRun()
+  ok(
+    'the record carries the published section headings',
+    w.eval("lastRun.states[1].section") === 'VF Management',
+    w.eval('lastRun.states[1].section'),
+  )
+  ok('and the instructor of record', w.eval('lastRun.instructorInitials') === 'JJ')
+  w.close()
+}
+
+{
+  // A quarterly scenario has no AHA sheet — its approved document defines no
+  // outcome — so it keeps the per-phase actions column and gains no result.
+  const { w, d } = load()
+  d.getElementById('simScenarioSel').value = 'drowning_initial'
+  w.applySimScenario()
+  const card = () => d.getElementById('runCard').innerHTML
+  ok('the quarterly scenario is running', w.eval('run && run.scenario') === 'drowning')
+  ok('a quarterly scenario renders no check-off sheet', !/class="sheet"/.test(card()))
+  ok('and keeps its expected-actions column', /Expected actions/.test(card()))
+  ok('with no PASS / NR to circle', !/res-btn/.test(card()))
   w.close()
 }
 

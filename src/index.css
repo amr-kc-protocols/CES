@@ -2548,3 +2548,20 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   margin-top: 10px; padding: 8px 10px; border-radius: 7px;
   background: var(--surface-2, #f2f5f9); font-size: 13px; line-height: 1.5;
 }
+
+/* What a saved run can be done with: printed as the sheet the student submits,
+   downloaded to add a note to, or — for the runs that were only ever a test of
+   the equipment — deleted. Deleting is at the far end of the row, away from the
+   two that get pressed on purpose. */
+.sim-run-acts {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.sim-run-acts .grow { flex: 1 1 auto; }
+
+/* A button that reads as a link, inside a line of running text. */
+.link-inline {
+  border: 0; background: none; padding: 0; font: inherit; color: var(--navy-600);
+  text-decoration: underline; cursor: pointer;
+}
+.link-inline:hover { color: var(--navy); }

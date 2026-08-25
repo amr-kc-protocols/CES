@@ -48,6 +48,10 @@
   --danger:#f2686b;
   --amber:#e0a13c;
   --drug:#e07a4a;
+  /* The red the AHA Megacode Testing Checklist bands its sections with,
+     darkened for a screen that is mostly black. The printed sheet uses the
+     published #c9161d itself. */
+  --aha-band:#9e1219;
   --radius:12px;
   --radius-sm:8px;
   --shadow:0 1px 2px rgba(0,0,0,.30);
@@ -333,8 +337,7 @@ select:focus{border-color:var(--accent);}
 .run-card.condensed{padding:0 12px;position:fixed;top:0;left:50%;
   transform:translateX(-50%);width:min(960px,calc(100vw - 40px));z-index:40;}
 .run-card.condensed .run-head,
-.run-card.condensed .run-cols,
-.run-card.condensed .cl-wrap{display:none;}
+.run-card.condensed .run-cols{display:none;}
 .run-card.condensed .run-mini{display:flex;}
 .run-mini .rm-chev{color:var(--t-dim);font-size:.8rem;width:14px;flex:0 0 auto;}
 .run-mini .rm-phase{font-size:.72rem;font-weight:bold;letter-spacing:.5px;
@@ -393,35 +396,108 @@ select:focus{border-color:var(--accent);}
 .run-card .sim-note{margin-top:8px;}
 .run-inline{display:flex;gap:8px;align-items:center;}
 
-/* The AHA checklist assesses team behaviour and CPR quality once for the whole
-   code rather than in any one rhythm, and ends in a PASS / NR. One strip under
-   the header, so it is never mistaken for a step in the state on screen. */
-.cl-wrap{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;}
-.cl-head{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.66rem;color:var(--t);
-  padding:4px 2px;border-radius:5px;}
-.cl-head:hover{background:var(--surface);}
-.cl-head:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
-.cl-chev{color:var(--t-dim);width:10px;}
-.cl-tally{color:var(--t-dim);font-size:.6rem;}
-.cl-res{margin-left:auto;font-size:.6rem;letter-spacing:1px;color:var(--t-faint);}
-.cl-res.pass{color:#7fe0a5;} .cl-res.nr{color:#ff8844;}
-.cl-strip{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;
-  margin:0 0 10px;padding:8px 10px;border-radius:7px;background:var(--inset);border:1px solid var(--border);}
-.cl-grp{display:flex;flex-direction:column;gap:4px;}
-.cl-grp>.col-h{margin-bottom:1px;}
-.cl-row{display:flex;gap:10px;flex-wrap:wrap;}
-.cl-chk{display:flex;gap:5px;align-items:center;cursor:pointer;font-size:.63rem;color:var(--t);
-  padding:3px 7px;border-radius:5px;border:1px solid var(--border);transition:all .12s;}
-.cl-chk:hover{border-color:var(--ok);}
-.cl-chk.done{background:#04240f;border-color:var(--ok);color:#7fe0a5;}
-.cl-chk .box{width:12px;height:12px;border:1px solid var(--border-strong);border-radius:3px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#04240f;}
-.cl-chk.done .box{background:var(--ok);border-color:var(--ok);}
-.cl-num{display:flex;gap:5px;align-items:center;font-size:.63rem;color:var(--t-dim);}
-.cl-num input{width:52px;background:var(--surface);border:1px solid var(--border);border-radius:5px;
-  color:var(--t-strong);padding:3px 6px;font-size:.66rem;outline:none;text-align:right;}
-.cl-num input:focus{border-color:var(--accent);}
-.res-grp{margin-left:auto;display:flex;gap:6px;align-items:center;}
+/* ── The check-off sheet ─────────────────────────────────────────────────────
+   A megacode is graded on the AHA Megacode Testing Checklist, and the instructor
+   grading it knows that sheet by its shape. So the run card lays the same shape
+   out: the student and the date of test at the head, one column of Critical
+   Performance Steps down the page in the published section order with the tick
+   box on the right, the Team Leader block the sheet opens with, and STOP TEST
+   over PASS / NR at the foot.
+
+   It replaces two things. The per-state actions column showed only the phase the
+   patient was in, so a step missed in bradycardia could not be ticked once the
+   patient was in VF — on paper the whole sheet is in front of you and you go
+   back up it. And team behaviour, CPR quality and the result were a separate
+   collapsed strip under the columns, which is not where they are on the form.
+
+   The sheet scrolls inside the card rather than growing it; the phase the
+   patient is in is highlighted and scrolled to as the run moves. */
+.sheet{border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  background:var(--inset-deep);max-height:min(58vh,540px);overflow-y:auto;}
+.sh-head{padding:8px 10px 7px;border-bottom:1px solid var(--border-strong);
+  background:var(--surface-2);position:sticky;top:0;z-index:2;}
+.sh-title{font-size:.64rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--t-strong);}
+.sh-sub{font-size:.58rem;color:var(--t-dim);margin-top:2px;line-height:1.35;}
+.sh-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:7px;font-size:.56rem;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--t-faint);}
+.sh-meta label{display:flex;align-items:center;gap:6px;flex:1 1 150px;margin:0;font-size:.56rem;}
+.sh-meta input{flex:1 1 auto;min-width:0;background:transparent;border:none;
+  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:2px 3px;
+  font-family:inherit;font-size:.66rem;text-transform:none;letter-spacing:0;outline:none;}
+.sh-meta input:focus{border-bottom-color:var(--accent);}
+.sh-meta .writ{flex:1 1 auto;border-bottom:1px solid var(--border);padding:2px 3px;
+  color:var(--t);font-size:.66rem;text-transform:none;letter-spacing:0;}
+/* The form's own header and section bands. The printed sheet is the published
+   one in the published colours; this is the same furniture in the console's
+   key, so an instructor grading on screen is looking at the shape of the paper
+   they will hand in. */
+.sh-colhead{display:flex;gap:8px;padding:6px 10px;background:var(--aha-band);color:#fff;
+  font-size:.56rem;font-weight:bold;letter-spacing:.5px;font-style:italic;}
+.sh-colhead .sh-tick{margin-left:auto;flex:none;text-align:right;font-style:normal;
+  font-size:.5rem;letter-spacing:1px;text-transform:uppercase;}
+.sh-sec-h{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:.6rem;
+  font-weight:bold;letter-spacing:.5px;color:#fff;background:var(--aha-band);}
+.sh-sec-h .sh-n{margin-left:auto;font-weight:normal;font-size:.56rem;color:rgba(255,255,255,.75);
+  font-variant-numeric:tabular-nums;}
+/* The sub-heading inside the Team Leader band is a label, not a band. */
+.sh-sec-h.sub{background:none;color:var(--t-dim);font-style:italic;font-weight:normal;
+  padding:6px 10px 2px;}
+.sh-sec.now .sh-sec-h{box-shadow:inset 3px 0 0 var(--accent);}
+.sh-now{font-size:.48rem;letter-spacing:1px;text-transform:uppercase;color:var(--accent);
+  border:1px solid var(--accent);border-radius:20px;padding:1px 6px;font-weight:bold;}
+.sh-row{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;cursor:pointer;
+  font-size:.64rem;line-height:1.35;color:var(--t);border-top:1px solid rgba(36,52,73,.5);}
+.sh-row:first-of-type{border-top:none;}
+.sh-row:hover{background:var(--inset);}
+.sh-row.done{color:#7fe0a5;}
+.sh-row .sh-txt{min-width:0;}
+/* The tick column, on the right where the form has it. */
+.sh-row .box{margin-left:auto;flex:0 0 15px;height:15px;border:1px solid var(--border-strong);
+  border-radius:3px;display:flex;align-items:center;justify-content:center;
+  font-size:.62rem;color:#04240f;background:var(--inset);}
+.sh-row.done .box{background:var(--ok);border-color:var(--ok);}
+/* A tick that came from the interventions strip or from a press at the
+   defibrillator rather than from the instructor's own eye. Dashed, and named,
+   because the person signing the sheet is still the one who decides. */
+.sh-row.auto .box{border-style:dashed;}
+.sh-row .auto-tag{flex:none;align-self:center;font-size:.5rem;letter-spacing:.5px;
+  text-transform:uppercase;color:#8fb6ff;white-space:nowrap;}
+.sh-write{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:.62rem;
+  color:var(--t-dim);border-top:1px solid rgba(36,52,73,.5);}
+.sh-write input{width:62px;margin-left:auto;background:var(--inset);border:1px solid var(--border);
+  border-radius:5px;color:var(--t-strong);padding:3px 6px;font-family:inherit;font-size:.66rem;
+  text-align:right;outline:none;}
+.sh-write input:focus{border-color:var(--accent);}
+.sh-write .sh-suffix{flex:none;width:34px;font-size:.56rem;color:var(--t-faint);}
+/* STOP TEST, then the result. Sticky at the foot of the sheet: it is the one
+   thing that must not be scrolled past at the end of a code. */
+.sh-stop{padding:6px 10px;border-top:1px solid var(--border-strong);background:var(--surface-2);
+  font-size:.56rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:var(--amber);}
+.sh-foot{position:sticky;bottom:0;background:var(--surface-2);border-top:1px solid var(--border);
+  padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;z-index:2;}
+.sh-foot .sh-res-lbl{font-size:.54rem;letter-spacing:1px;text-transform:uppercase;color:var(--t-faint);}
+.sh-foot label{display:flex;align-items:center;gap:5px;margin:0;font-size:.54rem;
+  letter-spacing:1px;text-transform:uppercase;color:var(--t-faint);flex:1 1 120px;}
+.sh-foot input{flex:1 1 auto;min-width:0;background:transparent;border:none;
+  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:2px 3px;
+  font-family:inherit;font-size:.66rem;text-transform:none;letter-spacing:0;outline:none;}
+.sh-foot input:focus{border-bottom-color:var(--accent);}
+.res-grp{display:flex;gap:6px;align-items:center;}
+
+/* One scrollbar, not two. The rail is already a tall scrolling column, and a
+   sheet with its own capped scroll inside it means scrolling the rail to find
+   the sheet and then scrolling the sheet to find the section, with the result
+   block hidden below both. In the rail the sheet runs its full length and the
+   rail scrolls it; the head and the result block stay stuck to the top and
+   bottom of the card, so the student's name and where PASS lives are both
+   always on screen.
+
+   After the rules it overrides, not inside the rail block further up: a media
+   query adds no specificity, and .sheet's own max-height is written later in
+   this file. */
+@media (min-width:1280px){
+  .sheet{max-height:none;overflow:visible;}
+}
 .res-btn{padding:5px 16px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
   color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
 .res-btn.pass.on{background:#04240f;border-color:var(--ok);color:var(--ok);}
@@ -2533,15 +2609,41 @@ function startRun(simKey){
     team:cl?ACLS_TEAM_STEPS.map(t=>({text:t,done:false})):null,
     cpr:cl?{rate:false,depth:false,recoil:false,fraction:'',ventRate:''}:null,
     result:null,
+    // The two the renewal paperwork is signed with. Carried forward from the
+    // last run on this machine — it is the same instructor all morning, and
+    // typing an instructor number into every sheet is how sheets go out blank.
+    instructorInitials:rememberedInstructor().initials||'',
+    instructorNumber:rememberedInstructor().number||'',
     // Every press at the monitor, with its offset into the run.
     device:[], lastShockAt:null,
     states:sim.states.map((st,i)=>({
       id:st.id||('state'+i),
       label:st.label,
+      // The published section this phase is tested against — "VF Management",
+      // not the scenario's own name for the rhythm. Empty on the quarterly
+      // scenarios, which have no sheet. Kept on the record so a sheet printed
+      // months later still carries the headings it was graded under.
+      section:(doc.states[i]||{}).section||'',
       seconds:0,
       actions:((doc.states[i]||{}).actions||[]).map(t=>({text:t,done:false})),
     })),
   };
+  sheetPhase=-1;
+}
+
+// ── The instructor signing the sheet ─────────────────────────────────────────
+const INSTRUCTOR_KEY='ces.sim.instructor';
+function rememberedInstructor(){
+  try{ return JSON.parse(localStorage.getItem(INSTRUCTOR_KEY))||{}; }catch(e){ return {}; }
+}
+function setInstructor(field,value){
+  if(!run) return;
+  run[field]=value;
+  try{
+    localStorage.setItem(INSTRUCTOR_KEY,JSON.stringify({
+      initials:run.instructorInitials||'', number:run.instructorNumber||'',
+    }));
+  }catch(e){}
 }
 
 // Close the clock on the state being left and open it on the next. Passing -1
@@ -2558,8 +2660,18 @@ function enterRunState(idx){
 }
 
 function toggleAction(i){
-  if(!run||run.current<0) return;
-  const a=run.states[run.current].actions[i];
+  if(!run) return;
+  toggleActionAt(run.current,i);
+}
+/* Any step in any section, not only the phase on screen.
+   The sheet shows the whole form, and an instructor who notices in VF that
+   "places monitor leads in proper position" was never ticked back in
+   bradycardia has to be able to reach up the page and tick it — which is what
+   they would do on paper. */
+function toggleActionAt(si,ai){
+  if(!run||si<0) return;
+  const st=run.states[si];
+  const a=st&&st.actions[ai];
   if(!a) return;
   a.done=!a.done;
   // A tick the facilitator has touched is theirs, however it started.
@@ -2608,9 +2720,11 @@ function setResult(r){
 function runWarnings(){
   const out=[];
   if(!run) return out;
-  if(!run.crew||!run.crew.trim()) out.push('no crew name recorded');
+  if(!run.crew||!run.crew.trim()) out.push(run.checklist?'no student name recorded':'no crew name recorded');
   if(!run.notes||!run.notes.trim()) out.push('no debrief note');
   if(run.checklist&&!run.result) out.push('no PASS / NR result circled');
+  // A sheet with no instructor on it is not a document a registry will take.
+  if(run.checklist&&!(run.instructorInitials||'').trim()) out.push('no instructor initials on the sheet');
   const total=run.states.reduce((n,s)=>n+s.actions.length,0);
   const done=run.states.reduce((n,s)=>n+s.actions.filter(a=>a.done).length,0);
   // A PASS with most of the critical actions unobserved is the one the review
@@ -2636,7 +2750,7 @@ function endRun(){
     scenario:run.scenario, scenarioName:run.scenarioName,
     startedAt:run.startedAt, endedAt:new Date().toISOString(),
     crew:run.crew.trim(), notes:run.notes.trim(),
-    states:run.states.map(st=>({id:st.id,label:st.label,seconds:st.seconds,actions:st.actions})),
+    states:run.states.map(st=>({id:st.id,label:st.label,section:st.section||'',seconds:st.seconds,actions:st.actions})),
     device:run.device.slice(),
   };
   if(run.checklist){
@@ -2645,6 +2759,9 @@ function endRun(){
     rec.team=run.team;
     rec.cpr=run.cpr;
     rec.result=run.result;   // 'pass' | 'nr' | null
+    // Printed on the sheet the student submits for card renewal.
+    rec.instructorInitials=(run.instructorInitials||'').trim();
+    rec.instructorNumber=(run.instructorNumber||'').trim();
   }
   // Hand it to the CES app. Same origin, so this is a direct call to the host
   // that framed us; standalone the panel simply keeps the summary on screen.
@@ -3234,57 +3351,144 @@ function renderBrief(simKey){
   document.getElementById('briefBody').innerHTML=html;
 }
 
-// The run-level half of the AHA checklist: team behaviour, CPR quality, and the
-// PASS / NR the instructor circles at the end.
-/* Collapsed while the run is live. Team behaviour, CPR quality and PASS / NR
-   are graded once at the end, but the strip was sitting between the run header
-   and the columns — 190px of the most valuable space on the screen, occupied
-   by controls nobody touches until the debrief. The summary line keeps the
-   tally visible so nothing is forgotten. */
-let clOpen=false;
-function toggleChecklist(){ clOpen=!clOpen; renderSimPanel(activeSim); }
-function checklistStripHtml(){
-  if(!run||!run.checklist) return '';
-  const teamDone=run.team.filter(t=>t.done).length;
-  const cprDone=ACLS_CPR_FIELDS.filter(f=>f.type==='check'&&run.cpr[f.id]).length;
-  const cprChecks=ACLS_CPR_FIELDS.filter(f=>f.type==='check').length;
-  const head=`<div class="cl-head" role="button" tabindex="0" onclick="toggleChecklist()">
-      <span class="cl-chev">${clOpen?'▾':'▸'}</span>
-      <span>Team &amp; CPR quality</span>
-      <span class="cl-tally">${teamDone}/${run.team.length} team · ${cprDone}/${cprChecks} CPR</span>
-      <span class="cl-res ${run.result||''}">${run.result==='pass'?'PASS':run.result==='nr'?'NR':'no result yet'}</span>
-    </div>`;
-  if(!clOpen) return `<div class="cl-wrap">${head}</div>`;
-  return `<div class="cl-wrap">${head}${checklistBodyHtml()}</div>`;
+// ── The check-off sheet ──────────────────────────────────────────────────────
+// A megacode run graded on the shape of the paper form: student and date of
+// test at the head, Critical Performance Steps in the published section order
+// with the tick column on the right, the Team Leader block first, and STOP TEST
+// over PASS / NR at the foot.
+//
+// The whole sheet is live. On paper an instructor who realises in VF that the
+// bradycardia lead placement was never ticked goes back up the page and ticks
+// it; the actions column only ever showed the phase on screen, so here they
+// could not. Every section stays tickable for the length of the run.
+//
+// Which phase the patient is in is a highlight and a scroll, not a filter.
+let sheetPhase=-1;
+
+function sheetRow(text,done,auto,handler){
+  const tag=auto?`<span class="auto-tag">${auto==='crew'?'from interventions':'from monitor'}</span>`:'';
+  const why=auto?(auto==='crew'?'Ticked from the interventions you marked — click to undo'
+                               :'Ticked from a press at the defibrillator — click to undo'):'';
+  return `<div class="sh-row${done?' done':''}${auto?' auto':''}" role="button" tabindex="0"
+       aria-pressed="${!!done}" title="${esc(why)}" onclick="${handler}">
+    <span class="sh-txt">${esc(text)}</span>${tag}<span class="box">${done?'✓':''}</span></div>`;
 }
-function checklistBodyHtml(){
-  const team=run.team.map((t,i)=>
-    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" aria-pressed="${!!t.done}" onclick="toggleTeam(${i})">
-       <span class="box">${t.done?'✓':''}</span><span>${esc(t.text)}</span></div>`).join('');
-  const cpr=ACLS_CPR_FIELDS.map(f=>{
-    if(f.type==='check'){
-      const on=run.cpr[f.id];
-      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" aria-pressed="${!!on}" onclick="toggleCpr('${f.id}')">
-        <span class="box">${on?'✓':''}</span><span>${esc(f.label)}</span></div>`;
-    }
-    return `<label class="cl-num">${esc(f.label)}
+
+function sheetHtml(){
+  if(!run||!run.checklist) return '';
+  const cl=ACLS_CHECKLISTS[run.checklist]||{};
+  const title=(run.checklistName||'').split(' — ');
+  // Team leader and CPR quality, as the sheet opens.
+  const team=run.team.map((t,i)=>sheetRow(t.text,t.done,null,`toggleTeam(${i})`)).join('');
+  const cprChecks=ACLS_CPR_FIELDS.filter(f=>f.type==='check')
+    .map(f=>sheetRow(f.label,run.cpr[f.id],null,`toggleCpr('${f.id}')`)).join('');
+  const cprWrite=ACLS_CPR_FIELDS.filter(f=>f.type==='value').map(f=>
+    `<div class="sh-write"><span>${esc(f.label)}</span>
       <input inputmode="numeric" type="number" min="${f.min}" max="${f.max}" aria-label="${esc(f.label)}"
-        value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value,${f.min},${f.max})">${f.suffix}</label>`;
+        value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value,${f.min},${f.max})">
+      <span class="sh-suffix">${esc(f.suffix)}</span></div>`).join('');
+  const teamDone=run.team.filter(t=>t.done).length
+    +ACLS_CPR_FIELDS.filter(f=>f.type==='check'&&run.cpr[f.id]).length;
+  const teamTotal=run.team.length+ACLS_CPR_FIELDS.filter(f=>f.type==='check').length;
+
+  const sections=run.states.map((st,si)=>{
+    const done=st.actions.filter(a=>a.done).length;
+    const now=si===run.current;
+    const rows=st.actions.map((a,ai)=>sheetRow(a.text,a.done,a.auto,`toggleActionAt(${si},${ai})`)).join('');
+    return `<div class="sh-sec${now?' now':''}">
+      <div class="sh-sec-h">${esc(st.section||st.label)}
+        ${now?'<span class="sh-now">now</span>':''}
+        <span class="sh-n">${done}/${st.actions.length}</span></div>
+      ${rows}</div>`;
   }).join('');
-  return `<div class="cl-strip">
-    <div class="cl-grp"><div class="col-h">Team leader / team members</div><div class="cl-row">${team}</div></div>
-    <div class="cl-grp"><div class="col-h">High-quality CPR at all times</div><div class="cl-row">${cpr}</div></div>
-    <div class="res-grp">
-      <span class="col-h" style="margin:0 4px 0 0;">Result</span>
-      <button class="res-btn pass${run.result==='pass'?' on':''}" aria-pressed="${run.result==='pass'}" onclick="setResult('pass')">PASS</button>
-      <button class="res-btn nr${run.result==='nr'?' on':''}" aria-pressed="${run.result==='nr'}" onclick="setResult('nr')">NR</button>
+
+  return `<div class="sheet" id="sheet">
+    <div class="sh-head">
+      <div class="sh-title">Megacode Testing Checklist${title[0]?': '+esc(title[0]):''}</div>
+      <div class="sh-sub">${esc(title[1]||cl.path||'')}</div>
+      <div class="sh-meta">
+        <label>Student <input id="crewIn" placeholder="name" value="${esc(run.crew)}"
+          oninput="setRunField('crew',this.value)"></label>
+        <label>Date of test <span class="writ">${esc(sheetDate(run.startedAt))}</span></label>
+      </div>
+    </div>
+    <div class="sh-colhead"><span>Critical Performance Steps</span><span class="sh-tick">check if done correctly</span></div>
+    <div class="sh-sec">
+      <div class="sh-sec-h">Team Leader/Team Members<span class="sh-n">${teamDone}/${teamTotal}</span></div>
+      ${team}
+      <div class="sh-sec-h sub">Ensures high-quality CPR at all times</div>
+      ${cprChecks}${cprWrite}
+    </div>
+    ${sections}
+    <div class="sh-stop">■ Stop test</div>
+    <div class="sh-foot">
+      <span class="sh-res-lbl">Test results</span>
+      <span class="res-grp">
+        <button class="res-btn pass${run.result==='pass'?' on':''}" aria-pressed="${run.result==='pass'}" onclick="setResult('pass')">PASS</button>
+        <button class="res-btn nr${run.result==='nr'?' on':''}" aria-pressed="${run.result==='nr'}" onclick="setResult('nr')">NR</button>
+      </span>
+      <label>Instr. initials <input aria-label="Instructor initials" maxlength="6"
+        value="${esc(run.instructorInitials)}" oninput="setInstructor('instructorInitials',this.value)"></label>
+      <label>Instr. number <input aria-label="Instructor number" maxlength="16"
+        value="${esc(run.instructorNumber)}" oninput="setInstructor('instructorNumber',this.value)"></label>
     </div>
   </div>`;
+}
+
+/** Date of test, as a form is filled in. */
+function sheetDate(iso){
+  const d=new Date(iso||Date.now());
+  if(isNaN(d)) return '';
+  return String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'/'+d.getFullYear();
+}
+
+/* The sheet is re-rendered from scratch on every tick, and replacing innerHTML
+   throws the scroll position away — so ticking a step half way down the form
+   sent the instructor back to the top of it, on every single tick. Both boxes
+   that can be doing the scrolling are banked before the render and put back
+   after it. */
+function sheetScrollState(){
+  const sheet=document.getElementById('sheet');
+  const card=document.getElementById('runCard');
+  return {sheet:sheet?sheet.scrollTop:null, card:card?card.scrollTop:null};
+}
+function restoreSheetScroll(prev){
+  if(!prev) return;
+  const sheet=document.getElementById('sheet');
+  const card=document.getElementById('runCard');
+  if(sheet&&prev.sheet!=null) sheet.scrollTop=prev.sheet;
+  if(card&&prev.card!=null) card.scrollTop=prev.card;
+}
+
+/* Bring the phase the patient is in into view — but only when the phase itself
+   changes. Scrolling on every tick would drag the form out from under an
+   instructor working their way down a section. */
+function syncSheetScroll(){
+  if(!run||!run.checklist) return;
+  if(run.current===sheetPhase) return;
+  sheetPhase=run.current;
+  try{
+    const sheet=document.getElementById('sheet');
+    const sec=sheet&&sheet.querySelector('.sh-sec.now');
+    if(!sheet||!sec) return;
+    const head=sheet.querySelector('.sh-head');
+    const headH=head?head.offsetHeight:0;
+    // Whichever box actually scrolls: the sheet where it is capped, the run
+    // card where the rail lets the sheet run its full length. Measured rather
+    // than read off offsetTop, which is relative to the nearest positioned
+    // ancestor — the card, not the sheet — and put the scroll nowhere.
+    const box=(sheet.scrollHeight>sheet.clientHeight+2)?sheet:document.getElementById('runCard');
+    if(!box) return;
+    const delta=sec.getBoundingClientRect().top-box.getBoundingClientRect().top;
+    box.scrollTop=Math.max(0,box.scrollTop+delta-headH-6);
+  }catch(e){}
 }
 
 function renderSimPanel(simKey){
   const panel=document.getElementById('simStatePanel');
   const card=document.getElementById('runCard');
+  // Banked before anything is replaced; see sheetScrollState above.
+  const scrollWas=sheetScrollState();
   const graded=!!SCENARIO_DOCS[simKey];
   document.body.classList.toggle('run-mode',graded);
   document.body.classList.toggle('run-active',!!run);
@@ -3367,8 +3571,8 @@ function renderSimPanel(simKey){
       <div class="run-head">
         <div class="rh-name">📋 ${esc(sim.name)}<br><span class="rh-sub">${esc(sim.subtitle)}</span></div>
         <div class="rh-sp run-inline">
-          <input id="crewIn" placeholder="Crew being assessed" value="${esc(run?run.crew:'')}"
-                 oninput="setRunField('crew',this.value)">
+          ${run&&run.checklist?'':`<input id="crewIn" placeholder="Crew being assessed" value="${esc(run?run.crew:'')}"
+                 oninput="setRunField('crew',this.value)">`}
           <input id="noteIn" placeholder="Debrief note" value="${esc(run?run.notes:'')}"
                  oninput="setRunField('notes',this.value)">
           <button class="apply-btn" style="padding:7px 12px;" onclick="toggleSetup()"
@@ -3381,17 +3585,20 @@ function renderSimPanel(simKey){
       <div class="iv-strip"></div>
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}</div>
-        <div><div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
+        <div>${run&&run.checklist
+          ? sheetHtml()
+          : `<div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}`}</div>
         <div>${triggerHtml}${noteHtml}${coachHtml}
           <div class="col-h" style="color:var(--accent);margin-top:10px;">At the monitor</div>
           <div class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
         </div>
-      </div>
-      ${run&&run.checklist?checklistStripHtml():''}`;
+      </div>`;
     renderDeviceFeed();
     renderPacerPrompt();
     renderInterventions();
+    restoreSheetScroll(scrollWas);
+    syncSheetScroll();
     applyRunCondense();
     return;
   }
@@ -3424,6 +3631,8 @@ function runSummaryHtml(rec){
          `<span style="color:var(--amber);">No result recorded — the checklist asks for PASS or NR.</span> `)+
        `<span style="color:var(--t-dim);">${esc(rec.checklistName||'')}</span></div>`;
     h+=`<div style="margin-bottom:8px;color:var(--t-dim);">Team ${teamHit}/${(rec.team||[]).length} · CPR ${esc(cprBits)}</div>`;
+    h+=`<div style="margin-bottom:8px;color:var(--t-dim);">Instructor ${esc(rec.instructorInitials||'—')}`+
+       (rec.instructorNumber?` · number ${esc(rec.instructorNumber)}`:'')+`</div>`;
   }
   h+=`<div style="margin-bottom:8px;color:var(--t-dim);">${hit} of ${tot} expected actions observed · ${mmss(total)} total`+
      (rec.crew?` · ${esc(rec.crew)}`:'')+`</div>`;
@@ -3437,9 +3646,23 @@ function runSummaryHtml(rec){
   });
   h+=`</div>`;
   h+=`<div class="run-foot" style="color:var(--t-dim);font-size:.6rem;line-height:1.4;">`+
-     (rec.saved?'Saved to CES — see Records above.':'Not saved: the panel is open on its own rather than inside CES.')+
+     (rec.saved?'Saved to CES — see Runs above.':'Not saved: the panel is open on its own rather than inside CES.')+
+     // The sheet the student submits to renew the card. Printed by CES, which
+     // is where the record now lives and which knows who is signed in; the
+     // panel on its own has no record to print from.
+     (rec.saved&&rec.checklist
+       ? `<button class="end-btn" style="margin-top:8px;" onclick="printSheet()">🖨 Print check-off sheet</button>`
+       : '')+
      `<button class="end-btn" style="margin-top:8px;" onclick="newRun()">↻ Run this scenario again</button></div>`;
   return h;
+}
+
+/** Ask CES to open the print dialog on the sheet for the run just saved. */
+function printSheet(){
+  try{
+    if(window.parent&&window.parent!==window)
+      window.parent.postMessage({type:'ces-sim-print'},window.location.origin);
+  }catch(e){}
 }
 
 // ── Open Monitor ─────────────────────────────────────────────

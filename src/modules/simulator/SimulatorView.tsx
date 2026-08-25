@@ -3,6 +3,10 @@ import type { SimRun } from '../../types'
 import { setState, useDB } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { formatDate } from '../../lib/date'
+import { confirmAction } from '../../lib/dialog'
+import { pushUndo } from '../../lib/undo'
+import { downloadDoc, printDoc, safeFilename } from '../academy/docGen'
+import { runSheetFilename, runSheetHTML, runSheetTitle } from './checkoffSheet'
 import { Empty } from '../../components/ui'
 
 // ---------------------------------------------------------------------------
@@ -33,6 +37,16 @@ const MONITOR_URL = '/simulator/patient_monitor_display.html'
 const PANEL_TITLE = 'Simulator Control Panel'
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+
+/** The sheet, in a print window — browser print dialog, then paper or PDF. */
+function printRunSheet(run: SimRun): void {
+  printDoc(runSheetTitle(run), runSheetHTML(run))
+}
+
+/** The same sheet as an editable .doc, for a sheet that needs a note added. */
+function downloadRunSheet(run: SimRun): void {
+  downloadDoc(safeFilename(runSheetFilename(run)), runSheetTitle(run), runSheetHTML(run))
+}
 
 export default function SimulatorView() {
   const db = useDB()
@@ -72,16 +86,29 @@ export default function SimulatorView() {
   // A finished run, posted from the framed panel. The panel knows what the crew
   // did; only this side knows who is signed in and where records live, so the
   // facilitator is stamped here rather than asked for twice.
+  //
+  // The panel can also ask for the sheet to be printed the moment the run ends,
+  // which is the flow at a megacode: end the run, hand the student their sheet.
+  // It has no record to print from — the record is here — so it asks, and the
+  // saved run is held in a ref because the message arrives outside React's
+  // render and the state set alongside it has not landed yet.
+  const lastSaved = useRef<SimRun | null>(null)
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return
-      if (!e.data || e.data.type !== 'ces-sim-run' || !e.data.run) return
+      if (!e.data) return
+      if (e.data.type === 'ces-sim-print') {
+        if (lastSaved.current) printRunSheet(lastSaved.current)
+        return
+      }
+      if (e.data.type !== 'ces-sim-run' || !e.data.run) return
       const incoming = e.data.run as Omit<SimRun, 'id' | 'facilitator'>
       const record: SimRun = {
         ...incoming,
         id: uid('simrun'),
         facilitator: db.settings.reviewer || '',
       }
+      lastSaved.current = record
       setState((prev) => ({ ...prev, simRuns: [...prev.simRuns, record] }))
       setJustSaved(record.id)
     }
@@ -138,7 +165,16 @@ export default function SimulatorView() {
           <>
             <div className="sim-bar-text">
               {justSaved ? (
-                <strong className="sim-saved">✔ Run saved — see Runs</strong>
+                <strong className="sim-saved">
+                  ✔ Run saved —{' '}
+                  <button
+                    className="link-inline"
+                    onClick={() => lastSaved.current && printRunSheet(lastSaved.current)}
+                  >
+                    print the check-off sheet
+                  </button>{' '}
+                  or see Runs
+                </strong>
               ) : (
                 <span className="subtle">
                   Set vitals, rhythm and medications here. Open the monitor on the screen the crew
@@ -157,9 +193,10 @@ export default function SimulatorView() {
           <div className="sim-bar-text">
             <span className="subtle">
               Every graded run. Actions are the scenario's own expected actions. ACLS megacodes
-              carry the AHA checklist's PASS / NR; the quarterly scenarios do not, because their
-              approved documents define no outcome. Runs driven from the LIFEPAK monitor also
-              carry the crew's own timeline at the defibrillator.
+              carry the AHA checklist's PASS / NR and print as that check-off sheet, filled in,
+              for the student's card; the quarterly scenarios print as a performance record,
+              because their approved documents define no outcome. Runs driven from the LIFEPAK
+              monitor also carry the crew's own timeline at the defibrillator.
             </span>
           </div>
         )}
@@ -211,6 +248,36 @@ export default function SimulatorView() {
 
 function RunList({ runs }: { runs: SimRun[] }) {
   const [open, setOpen] = useState<string | null>(runs[0]?.id ?? null)
+
+  // Practice runs, equipment tests, a scenario started twice by mistake. These
+  // are competency records, so deleting one asks first and stays undoable for
+  // the length of the toast — but a list nobody can clean up is a list nobody
+  // trusts, and a test run sitting next to a real megacode is worse than no
+  // record at all.
+  async function onDelete(run: SimRun) {
+    const label = run.crew?.trim() ? `${run.scenarioName} — ${run.crew.trim()}` : run.scenarioName
+    const ok = await confirmAction({
+      title: 'Delete this run?',
+      body:
+        `${label}, recorded ${formatDate(run.startedAt.slice(0, 10))}. ` +
+        (run.checklist && run.result
+          ? `It carries a ${run.result === 'pass' ? 'PASS' : 'NR'} result. `
+          : '') +
+        'The record goes; print the sheet first if it is needed.',
+      confirmLabel: 'Delete run',
+      danger: true,
+    })
+    if (!ok) return
+    setState((prev) => ({ ...prev, simRuns: prev.simRuns.filter((x) => x.id !== run.id) }))
+    pushUndo(`Deleted run "${label}"`, () =>
+      setState((prev) =>
+        prev.simRuns.some((x) => x.id === run.id)
+          ? prev
+          : { ...prev, simRuns: [...prev.simRuns, run] },
+      ),
+    )
+  }
+
   if (!runs.length) {
     return (
       <div className="sim-records">
@@ -272,6 +339,12 @@ function RunList({ runs }: { runs: SimRun[] }) {
                         {r.cpr.ventRate || '—'}/min
                       </div>
                     ) : null}
+                    {/* What the printed sheet will be signed with. Blank here
+                        means blank on the sheet the student submits. */}
+                    <div className={r.instructorInitials ? 'sim-act subtle' : 'sim-act miss'}>
+                      Instructor {r.instructorInitials || '— not recorded'}
+                      {r.instructorNumber ? ` · number ${r.instructorNumber}` : ''}
+                    </div>
                   </div>
                 ) : null}
                 {r.states.map((st, i) =>
@@ -306,6 +379,18 @@ function RunList({ runs }: { runs: SimRun[] }) {
                   </div>
                 ) : null}
                 {r.notes ? <div className="sim-run-note">{r.notes}</div> : null}
+                <div className="sim-run-acts">
+                  <button className="btn primary sm" onClick={() => printRunSheet(r)}>
+                    🖨 {r.checklist ? 'Print check-off sheet' : 'Print record'}
+                  </button>
+                  <button className="btn sm" onClick={() => downloadRunSheet(r)}>
+                    ⬇ Download .doc
+                  </button>
+                  <span className="grow" />
+                  <button className="btn danger sm" onClick={() => onDelete(r)}>
+                    Delete run
+                  </button>
+                </div>
               </div>
             )}
           </div>

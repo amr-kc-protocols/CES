@@ -1201,6 +1201,12 @@ export interface SimRunState {
   id: string
   /** Label as it read at run time, so a reworded scenario still renders. */
   label: string
+  /**
+   * The AHA checklist section this phase is graded under — "VF Management",
+   * not the scenario's own name for the rhythm. Megacodes only, and absent on
+   * runs recorded before the printed sheet existed, which fall back to `label`.
+   */
+  section?: string
   /** Seconds the patient spent in this state. */
   seconds: number
   /** The state's expected actions, and whether the crew was seen to do each. */
@@ -1232,6 +1238,14 @@ export interface SimRunChecklist {
   }
   /** null when the instructor ended the run without circling one. */
   result: 'pass' | 'nr' | null
+  /**
+   * The instructor of record, as the printed sheet is signed. Initials and the
+   * AHA instructor number are what a training centre files with a card
+   * renewal; both are typed on the sheet in the control panel and carried
+   * forward between runs on that machine.
+   */
+  instructorInitials?: string
+  instructorNumber?: string
 }
 
 /**
