@@ -744,6 +744,66 @@ export interface AemtStudent {
   email?: string
   phone?: string
   status: AemtStudentStatus
+  /** What the hospital requires of this student before a rotation. */
+  clearance?: AemtClearance
+}
+
+/**
+ * A student's clinical clearance, as the affiliation agreement defines it.
+ *
+ * Every field here is a fact the program asserts in the letter of good standing
+ * it sends the facility before a rotation, so every field is a date or a
+ * result — never a "done" checkbox. A tick is a claim; a date is a record, and
+ * a record is what the facility can ask to see.
+ *
+ * Section numbers are the AdventHealth master affiliation agreement, which is
+ * the strictest of the program's agreements. A facility with lighter
+ * requirements is still covered by these; one with heavier requirements would
+ * need its own fields.
+ */
+export interface AemtClearance {
+  /** Physical examination (§4.4). */
+  physicalDate?: string
+  /** Immunisations (§4.4). Hepatitis B may be a signed declination instead. */
+  varicellaDate?: string
+  /** A negative titer means the student must be vaccinated before the rotation. */
+  varicellaTiter?: 'positive' | 'negative'
+  hepBDate?: string
+  hepBDeclined?: boolean
+  mmrDate?: string
+  tdapDate?: string
+  /** Influenza is seasonal, and the agreement allows masking instead. */
+  fluDate?: string
+  /** Tuberculosis screening — must be within one year of the rotation (§4.4). */
+  ppdDate?: string
+  ppdResult?: 'negative' | 'positive'
+  /** A positive PPD needs a clear chest film and no active symptoms. */
+  cxrDate?: string
+  cxrClear?: boolean
+  /** Criminal background check (§4.5). */
+  backgroundDate?: string
+  /** Every city, county and state lived or worked in for seven years. */
+  backgroundSevenYear?: boolean
+  /** Screened against the facility's disqualification list, not disqualified. */
+  backgroundCleared?: boolean
+  /** Drug screen (§4.6). */
+  drugScreenDate?: string
+  /** The agreement names nine specific analytes; a five-panel is not this. */
+  drugScreenNinePanel?: boolean
+  drugScreenNegative?: boolean
+  /** Personal health insurance, in force for the rotation (§4.8). */
+  insuranceCarrier?: string
+  insuranceThrough?: string
+  /**
+   * Employed by the facility and in good standing, which exempts the student
+   * from the physical, the background check and the drug screen (§4.21).
+   * Immunisations and TB screening are NOT exempt.
+   */
+  facilityEmployee?: boolean
+  notes?: string
+  /** Who last checked these records against the source documents, and when. */
+  verifiedBy?: string
+  verifiedAt?: string
 }
 
 /** One meeting of the class, carrying the hours it is worth. */

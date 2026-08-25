@@ -2565,3 +2565,42 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   text-decoration: underline; cursor: pointer;
 }
 .link-inline:hover { color: var(--navy); }
+
+/* ---------------------------------------------------------------------------
+   Clinical clearance.
+
+   A student cannot start a rotation until the program holds a specific list of
+   dated records. The panel is a per-student row of those records as chips, so
+   what is missing reads across a roster at a glance rather than one modal at a
+   time.
+   --------------------------------------------------------------------------- */
+.clr-card { padding: 0; overflow: hidden; margin-bottom: 14px; }
+.clr-head {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 14px; background: none; border: 0; cursor: pointer; text-align: left;
+}
+.clr-head:hover { background: var(--surface-2, #f2f5f9); }
+.clr-body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
+.clr-row {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.clr-row:last-of-type { border-bottom: 0; }
+.clr-name { flex: 1 1 12rem; min-width: 0; }
+.clr-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 2 1 22rem; }
+.clr-chips .pill { font-size: 11px; }
+.clr-acts { display: flex; gap: 8px; margin-left: auto; }
+.clr-foot { margin-top: 12px; font-size: 12px; }
+.ok-text { color: #0a7d43; font-weight: 600; }
+
+/* A checkbox and its label on one line, with room for help text underneath —
+   several of the clearance fields are a confirmation about a document rather
+   than a date. */
+.check-row {
+  display: flex; gap: 9px; align-items: flex-start;
+  margin: 6px 0; font-size: 13.5px; line-height: 1.45; cursor: pointer;
+}
+.check-row input[type='checkbox'] {
+  width: auto; min-height: 0; margin-top: 3px; flex: 0 0 auto;
+}
+.check-row .help-text { margin-top: 2px; }

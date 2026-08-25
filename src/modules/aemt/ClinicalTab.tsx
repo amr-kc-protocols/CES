@@ -22,6 +22,7 @@ import {
 } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import ShiftPanel, { shiftLabel } from './ShiftPanel'
+import ClearancePanel from './ClearancePanel'
 import { useCan } from '../../lib/role'
 import type { AemtClinicalShift, AemtCourse, AemtEncounter, AemtSiteKind } from '../../types'
 
@@ -253,6 +254,10 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
 
   return (
     <div>
+      {/* Before any of the below: what the facility requires of the student to
+          let them through the door at all. */}
+      <ClearancePanel course={course} />
+
       <div className="banner info">
         Progress toward the <strong>seven K.A.R. 109-11-8(a)(4)</strong> clinical minimums. A rep
         counts only when the setting is allowed for that requirement, the preceptor holds a
