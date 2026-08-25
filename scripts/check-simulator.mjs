@@ -311,7 +311,15 @@ function endRunSaving(w) {
 // ---------------------------------------------------------------------------
 const MONITOR_SRC = readFileSync(MONITOR, 'utf8')
 
-function loadMonitor(storage = {}) {
+/**
+ * The monitor page, with the unit powered on.
+ *
+ * It now opens OFF — the crew pressing ON is part of what a megacode watches —
+ * so every test that drives a key, a menu or a shock has to power it up first,
+ * exactly as a crew would. `powerOn: false` gets the page as it actually opens,
+ * which is what the power tests want.
+ */
+function loadMonitor(storage = {}, { powerOn = true } = {}) {
   // A no-op 2D context, installed before the page's script runs. Letting the
   // page execute as a real script (rather than eval'ing it afterwards) is what
   // keeps its top-level `let S` reachable from here.
@@ -326,6 +334,7 @@ function loadMonitor(storage = {}) {
     },
   })
   const w = dom.window
+  if (powerOn) w.setPower(true)
   return { w, d: w.document, S: () => w.eval('S') }
 }
 
@@ -1637,6 +1646,9 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     const D = w.eval('D')
     return RESET_FIELDS.map((k) => `${k}=${JSON.stringify(D[k])}`).join(',') + `,log=${w.eval('D.log.length')}`
   }
+  // Powering the unit on is itself an event, so the log starts at one entry —
+  // cleared here so the baseline is the device, not the harness.
+  w.eval('D.log.length = 0')
   const baseline = snap()
 
   // A full first run: a shock count, AED advisory, a lead and size change, the
@@ -1726,19 +1738,30 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('a synchronized shock disarms SYNC afterwards', D().sync === false, 'SYNC stayed armed after the shock')
   ok('and the shock recorded itself as synchronized', w.eval("D.log.some(e => e.type === 'shock' && /synchronized/.test(e.detail))"))
 
-  // The SHOCK key: a plain tap can never deliver a synchronized shock — it
-  // requires a press-and-hold, so a tap on an armed SYNC unit does nothing.
+  /* The SHOCK key delivers on a press, synchronized or not.
+
+     It used to refuse a tap while SYNC was armed and ask for a press-and-hold,
+     after the manual's description of holding SHOCK until the unit fires on
+     the next R wave. In a classroom that read as a broken button — reported
+     from a live megacode as the cardioversion failing to fire — so a press is
+     a press, and the hold path still works for crews taught that way. */
   const shk = w.document.getElementById('kSHOCK')
   w.eval('aedReset(); D.sync = true; D.charged = true; D.shocks = 0')
   shk.dispatchEvent(new w.Event('pointerdown'))
   shk.dispatchEvent(new w.Event('pointerup'))
-  ok('a tap does not deliver a synchronized shock', D().shocks === 0, `${D().shocks} shocks from a tap`)
-  // ...while a plain manual defibrillation still fires on a tap.
+  ok('a press delivers a synchronized shock', D().shocks === 1, `${D().shocks} shocks from a press`)
+  ok('and disarms SYNC behind it', D().sync === false)
+  // ...as does a plain manual defibrillation.
   w.eval('aedReset(); D.sync = false; D.charged = true; D.shocks = 0')
   shk.dispatchEvent(new w.Event('pointerdown'))
   shk.dispatchEvent(new w.Event('pointerup'))
   ok('a manual defibrillation delivers on a tap', D().shocks === 1, `${D().shocks} shocks from a tap`)
-  ok('SHOCK is wired press-and-hold for cardioversion', /bindHold\('kSHOCK'/.test(MONITOR_SRC))
+  // An uncharged unit still does nothing, whatever the mode.
+  w.eval('aedReset(); D.sync = true; D.charged = false; D.shocks = 0')
+  shk.dispatchEvent(new w.Event('pointerdown'))
+  shk.dispatchEvent(new w.Event('pointerup'))
+  ok('an uncharged unit delivers nothing', D().shocks === 0, `${D().shocks} shocks with no charge`)
+  ok('the hold path is still wired', /bindHold\('kSHOCK'/.test(MONITOR_SRC))
   w.close()
 }
 
@@ -2682,24 +2705,106 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
 }
 
 // ---------------------------------------------------------------------------
+// Ventilation through an advanced airway.
+//
+// An arrest state carries RR 0, which is true of the patient and stops being
+// what the monitor should show the moment somebody puts a tube in and starts
+// bagging them. Two rates: one breath every six seconds in an arrest, faster
+// once there is a pulse — and the capnogram has to be drawn at whichever one
+// is running, which is where this was wrong. The CPR trace was drawn at a
+// fixed 100 per minute, the compression rate, so a crew ventilating once every
+// six seconds watched a waveform chattering ten times faster than they bagged.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+
+  w.applySimState('megacode2', 1) // VF — authored RR 0
+  w.setIntervention('airway', 'ett')
+  ok('an arrest is ventilated at one breath every six seconds', S().rr === 10, String(S().rr))
+  ok('with the CPR capnogram', S().co2Shape === 'cpr', S().co2Shape)
+
+  w.applySimState('megacode2', 3) // ROSC — a pulse, and still being bagged
+  ok('a patient with a pulse is ventilated faster', S().rr === 12, String(S().rr))
+  ok('and the capnogram goes back to a normal waveform', S().co2Shape === 'normal', S().co2Shape)
+  ok("and the stage's authored EtCO₂ still stands", S().etco2 === 50, String(S().etco2))
+
+  // A scenario that authored its own waveform keeps it — this rule owns the
+  // two shapes it switches between and nothing else.
+  w.eval("S.co2Shape='shark'")
+  w.setIntervention('airway', 'sga')
+  ok('an authored waveform is left alone', S().co2Shape === 'shark', S().co2Shape)
+  w.close()
+}
+
+{
+  // Monitor side: the CPR capnogram is drawn at the ventilation rate.
+  const { w, S } = loadMonitor()
+  Object.assign(S(), { patientConnected: true, etco2On: true, etco2: 22, co2Shape: 'cpr', rr: 10 })
+  const sCo2 = w.eval('sCo2')
+  // Sample a whole minute at 20Hz and count the breaths — a rising edge out of
+  // the baseline is one ventilation.
+  const breaths = (rate) => {
+    Object.assign(S(), { rr: rate })
+    let n = 0
+    let was = false
+    for (let i = 0; i < 60 * 20; i++) {
+      const v = sCo2(i / 20)
+      const up = v > 0.25
+      if (up && !was) n++
+      was = up
+    }
+    return n
+  }
+  const at10 = breaths(10)
+  const at20 = breaths(20)
+  ok('the CPR capnogram draws one breath per ventilation', at10 >= 9 && at10 <= 11, `${at10} breaths at RR 10`)
+  ok('and follows the rate when it changes', at20 >= 18 && at20 <= 22, `${at20} breaths at RR 20`)
+  ok(
+    'not the compression rate it used to be locked to',
+    at10 < 30,
+    `${at10} breaths at RR 10 — the old trace drew 100/min whatever the crew did`,
+  )
+  ok('compressions still show on the trace', /COMPRESSION_RATE/.test(MONITOR_SRC))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
 // The ON key, and the screen staying up.
 // ---------------------------------------------------------------------------
 {
-  const { w, d } = loadMonitor()
-  ok('the unit starts powered on', w.eval('D.on') === true)
+  // The unit as it opens: off, the way it sits on the shelf. The crew turning
+  // it on is the first thing they do with it, and on a megacode it is part of
+  // what is being watched.
+  const { w, d } = loadMonitor({}, { powerOn: false })
+  ok('the unit opens powered off', w.eval('D.on') === false)
+  ok('with a dark screen', d.body.classList.contains('powered-off'))
 
+  const el = () => d.getElementById('kON')
+  // Down and up with nothing between them is a tap — the hold that powers the
+  // unit off is a real three-second timer, which no synchronous press reaches.
   const press = () => {
-    const el = d.getElementById('kON')
-    el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
-    el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
+    const k = el()
+    k.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+    k.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
   }
   press()
-  ok('a press turns it off', w.eval('D.on') === false, 'a key that answers in one direction reads as broken')
-  ok('and the screen goes with it', d.body.classList.contains('powered-off'))
-  press()
-  ok('a second press brings it back', w.eval('D.on') === true)
+  ok('a press brings it up', w.eval('D.on') === true)
   ok('through a self test', d.body.classList.contains('booting'))
-  ok('the manual’s press-and-hold still powers it off', /bindHold\('kON',1200/.test(MONITOR_SRC))
+  ok('and the screen with it', !d.body.classList.contains('powered-off'))
+
+  // A press while it is already on does nothing — powering down is the harder
+  // gesture on purpose, because it is the one that loses the screen mid-code.
+  press()
+  ok('a second press leaves it on', w.eval('D.on') === true, 'a stray press must not black out the screen')
+
+  // Three seconds of hold is what takes it down.
+  ok('powering off takes a three-second hold', /const POWER_OFF_HOLD_MS=3000/.test(MONITOR_SRC))
+  ok('and that is what the key is wired to', /bindHold\('kON',POWER_OFF_HOLD_MS/.test(MONITOR_SRC))
+  w.eval('setPower(false)')
+  ok('which turns it off', w.eval('D.on') === false)
+  ok('and darkens the screen', d.body.classList.contains('powered-off'))
 
   // Off is off: no alarm can sound through a unit that is switched off.
   ok('alarms are gated on the unit being on', /const almShow=D\.on&&/.test(MONITOR_SRC))

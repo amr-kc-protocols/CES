@@ -2152,6 +2152,8 @@ function sArt(t){
            :L.art;
   return Math.max(0,Math.min(1, db/sc+(sb/sc-db/sc)*sL(lut,ph)));
 }
+/** Compressions per minute — the metronome's tempo and the capnogram's ripple. */
+const COMPRESSION_RATE=110;
 function sCo2(t){
   if(!S.patientConnected) return null;
   if(S.etco2On===false) return 0;
@@ -2159,10 +2161,26 @@ function sCo2(t){
   const etco2=S.etco2||0;
   const rr=Math.max(S.rr||0,1);
   if(shape==='flat') return 0;
+  /* Capnography during CPR.
+   *
+   * This used to draw at a fixed 100 per minute — the compression rate — so a
+   * crew ventilating once every six seconds through a tube watched a trace
+   * chattering ten times faster than they were bagging, and nothing on the
+   * screen answered the rate they were actually giving.
+   *
+   * What a capnogram looks like in an arrest with an advanced airway is a
+   * normal square wave at the ventilation rate, low and flattened by the poor
+   * cardiac output CPR produces, with compression oscillations riding on it.
+   * So: the same waveform as any other breath, at S.rr, scaled down, plus a
+   * small ripple at compression rate. The number stays the scenario author's.
+   */
   if(shape==='cpr'){
-    const ph=((t/(60/100))%1+1)%1;
-    const n=Math.max(etco2,10)/co2Ceiling();
-    return ph<.35?n*.6*Math.sin(Math.PI*(ph/.35)):0;
+    const bp=60/rr, ph=((t/bp)%1+1)%1;
+    const n=Math.max(etco2,4)/co2Ceiling();
+    const breath=n*sL(L.co2,ph);
+    const ripple=Math.sin(2*Math.PI*t*(COMPRESSION_RATE/60))*n*.07;
+    // Compressions show on the plateau and as a low chatter on the baseline.
+    return Math.max(0,Math.min(1,breath>n*.15?breath+ripple:Math.abs(ripple)*.5));
   }
   if(!etco2||!S.rr) return 0;
   const bp=60/rr, ph=((t/bp)%1+1)%1;
@@ -2966,8 +2984,17 @@ const ANALYZE_CYCLE_MS=120000;
 const NIBP_MS=25000;
 const SILENCE_MS=120000;
 
+/* How long ON has to be held to power the unit down. Three seconds: long
+   enough that a knuckle brushing the key mid-code cannot black out the screen
+   the crew is reading. */
+const POWER_OFF_HOLD_MS=3000;
+
 const D={
-  on:true,
+  /* The unit starts off, the way it sits on the shelf. The crew turning it on
+     is the first thing they do with it, and on a megacode it is part of what
+     is being watched — a monitor that is already up has done that step for
+     them. */
+  on:false,
   energyIx:ENERGIES.indexOf(200),
   charging:false, charged:false, chargeStart:0, disarmAt:0,
   shocks:0, lastShockAt:0,
@@ -3129,7 +3156,7 @@ function readyTone(on){
 let cprTimer=null;
 function cprMetronome(on){
   clearInterval(cprTimer); cprTimer=null;
-  if(on) cprTimer=setInterval(()=>beep(880,60,.09,'square'),60000/110);
+  if(on) cprTimer=setInterval(()=>beep(880,60,.09,'square'),60000/COMPRESSION_RATE);
 }
 
 /* ── Fitting the unit to the window ──────────────────────────────────── */
@@ -3592,6 +3619,7 @@ function setPower(on){
   }
   logEvent('power',on?'ON':'OFF','');
 }
+/** Kept for the console and for tests; the key itself does not toggle. */
 function togglePower(){ setPower(!D.on); }
 
 /* ── Wiring ──────────────────────────────────────────────────────────── */
@@ -3611,9 +3639,11 @@ function bindHold(id,ms,onHold,onRelease,onTap){
   el.addEventListener('pointercancel',up);
 }
 
-/* Hold to power off, as the manual has it — and a plain press toggles, because
-   a key that answers only in one direction reads as a key that is not working. */
-bindHold('kON',1200,()=>{ if(D.on) setPower(false); },null,()=>togglePower());
+/* ON, as the key works on the device: a press brings the unit up, and holding
+   it for three seconds takes it down. A press while it is already on does
+   nothing, which is also what the unit does — powering off is deliberately the
+   harder gesture, because it is the one that loses the screen mid-code. */
+bindHold('kON',POWER_OFF_HOLD_MS,()=>{ if(D.on) setPower(false); },null,()=>{ if(!D.on) setPower(true); });
 
 bind('kCPR',()=>{ if(!D.on) return; D.cpr=!D.cpr; cprMetronome(D.cpr);
   logEvent('cpr',D.cpr?'CPR metronome ON':'CPR metronome OFF',''); });
@@ -3657,21 +3687,19 @@ function nudgeEnergy(d){
 bind('kEnergyUp',()=>nudgeEnergy(1));
 bind('kEnergyDn',()=>nudgeEnergy(-1));
 bind('kCHARGE',()=>startCharge());
-/* SHOCK: a manual defibrillation fires on a press; a synchronized cardioversion
-   requires press-and-hold until the unit delivers on the next sensed R wave, as
-   the manual directs — so a normal tap can never deliver a synchronized shock.
-   bindHold gives us both: the hold path always delivers a charged unit, while
-   the tap path delivers only when SYNC is off. */
+/* SHOCK delivers on a press, synchronized or not.
+   
+   It used to refuse a tap while SYNC was armed and ask for a press-and-hold,
+   after the manual's description of holding SHOCK until the unit fires on the
+   next R wave. In a classroom that reads as a broken button: the crew calls
+   the cardioversion, presses SHOCK, and nothing happens — reported from a live
+   megacode as "synchronized cardioversion fails to defibrillate". Holding
+   still works, for the crews taught that way, but a press is a press. */
 bindHold('kSHOCK',450,
   ()=>{ armAudio(); if(D.charged) deliverShock(); },      // held: delivers if charged
   null,
   ()=>{ armAudio();
     if(!D.charged){ beep(220,120,.08,'square'); return; }
-    if(D.sync){                                            // tap in SYNC: refuse, prompt hold
-      beep(220,120,.08,'square');
-      banner('PRESS AND HOLD SHOCK TO CARDIOVERT',2200,true,true);
-      return;
-    }
     deliverShock();
   });
 
@@ -3969,6 +3997,10 @@ function applySkinPrefs(){
   if(lock) document.body.classList.add('skin-locked');
 }
 applySkinPrefs();
+
+/* The unit opens off, so the screen has to start dark — setPower() is what
+   normally paints this, and nobody has pressed anything yet. */
+document.body.classList.toggle('powered-off',!D.on);
 
 /* ── Keeping the screen up ───────────────────────────────────────────────
    The monitor is a patient monitor: it is meant to sit on a table showing a
