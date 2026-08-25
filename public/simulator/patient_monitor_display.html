@@ -489,6 +489,9 @@ body.lp-skin .zxseg{display:none;}
 .lpBP .lphd{color:#e8e8e8;} .lpBP .lpval{color:#e8e8e8;font-size:32px;flex:0 1 auto;}
 .lpBP .lpdia{font-size:26px;}
 .lpBP .lpsub{color:#8d949c;font-size:14px;text-align:left;padding-left:8px;}
+/* When the reading on screen was taken. A cuff number is of its moment, and
+   during a code the moment matters more than the number. */
+.lpBP .lpage{display:block;font-size:12px;color:#6f7780;letter-spacing:.5px;}
 .lpP1{display:none;} .lpP1.visible{display:flex;}
 .lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:31px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
 /* A cuff cycle in progress, or a parameter the patient is not wearing. */
@@ -593,8 +596,21 @@ body.lp-skin.portrait #rotate{
 #rotate span{font-size:14px;line-height:1.55;color:#9aa2ab;max-width:340px;}
 
 /* ---- power off ---- */
-body.lp-skin.powered-off #screen>*{visibility:hidden;}
-body.lp-skin.powered-off #screenWrap{background:#050505;}
+body.powered-off #screen>*{visibility:hidden;}
+body.powered-off #screenWrap{background:#050505;}
+/* The self-test the unit runs on the way up. Two seconds of it is enough to
+   make powering on read as powering on rather than as a screen appearing. */
+#lpBoot{position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;background:#050505;z-index:60;
+  font-family:'Public Sans',Arial,sans-serif;color:#cfd6de;letter-spacing:2px;}
+body.booting #lpBoot{display:flex;}
+body.booting #screen>*{visibility:hidden;}
+#lpBoot .bt-name{font-size:26px;font-weight:800;letter-spacing:4px;color:#e8edf3;}
+#lpBoot .bt-sub{font-size:13px;color:#8d949c;letter-spacing:1.5px;}
+#lpBoot .bt-bar{width:180px;height:4px;border-radius:2px;background:#1c2027;overflow:hidden;}
+#lpBoot .bt-bar i{display:block;height:100%;width:0;background:#2f8f4e;
+  animation:btFill 1.6s linear forwards;}
+@keyframes btFill{from{width:0}to{width:100%}}
 
 </style>
 </head>
@@ -630,7 +646,11 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 
   <div id="screenCol">
    <div class="screenLabel"><b>LIFEPAK 15</b><span>MONITOR/DEFIBRILLATOR</span></div>
-   <div id="screenWrap"><div id="screen">
+   <div id="screenWrap"><div id="lpBoot" aria-hidden="true">
+     <div class="bt-name">LIFEPAK 15</div>
+     <div class="bt-sub">SELF TEST</div>
+     <div class="bt-bar"><i></i></div>
+   </div><div id="screen">
 
 <div id="alm">⚠ ALARM</div>
 
@@ -702,7 +722,7 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
     <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
     <div class="lpval" id="lpSys">---</div>
     <div class="lpval lpdia" id="lpDia">--</div>
-    <div class="lpsub"><span class="lpmap" id="lpMap">--</span></div>
+    <div class="lpsub"><span class="lpmap" id="lpMap">--</span><span class="lpage" id="lpBPage"></span></div>
   </div>
   <div class="lpb lpP1" id="lpP1box">
     <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>P1</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
@@ -1334,8 +1354,9 @@ function upNums(){
   const almEl=document.getElementById('alm');
   almEl.textContent='\u26a0 '+alarms.join('   \u26a0 ');
   // Same condition as the banner: a breach the facilitator has not muted and
-  // the crew has not silenced at the unit.
-  const almShow=!!alarms.length&&!S.alarmMuted&&Date.now()>=D.silenceUntil;
+  // the crew has not silenced at the unit — and the unit being switched off is
+  // the loudest silence of all.
+  const almShow=D.on&&!!alarms.length&&!S.alarmMuted&&Date.now()>=D.silenceUntil;
   alarmTone(almShow);
   almEl.classList.toggle('shown',almShow);
   almEl.style.display=currentSkin==='lp'?'':(almShow?'block':'none');
@@ -1353,18 +1374,28 @@ function upNums(){
     setEl('lpSP', noP?'---':S.spo2);
     setEl('lpCO2v', nc||!S.etco2On?'---':S.etco2);
     setEl('lpRR', nc?'--':S.rr);
+    // Temperature needs a probe on the patient. Until one is placed the block
+    // is empty, as it is on a unit nobody has connected a probe to.
     const tv2=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
-    setEl('lpTMP', nc?'---':tv2);
+    setEl('lpTMP', (nc||!D.tempProbe)?'---':tv2);
     const el2=document.getElementById('lpTu');if(el2)el2.textContent='°'+(S.tempUnit||'C');
 
-    // A cuff cycle takes the reading away while it runs, as the unit does —
-    // pressing NIBP and watching the old number sit there teaches nothing.
+    /* A cuff cycle takes the reading away while it runs, as the unit does —
+       pressing NIBP and watching the old number sit there teaches nothing.
+
+       What is shown between cycles is the last reading the crew took, not the
+       patient's live pressure. That is what a cuff gives you, and it is the
+       whole point at ROSC: the pressure comes back, and nobody knows it until
+       somebody cycles the cuff. The reading ages on screen so a number taken
+       four minutes and two rhythms ago is not mistaken for this one. */
     const cuff=nibpBusy();
     const bpBox=document.getElementById('lpBPbox');
     if(bpBox) bpBox.classList.toggle('pending',cuff);
-    setEl('lpSys', cuff||noP?'---':S.sbp);
-    setEl('lpDia', cuff||noP?'--':S.dbp);
-    setEl('lpMap', cuff||mv==='---'?'--':mv);
+    const nb=(cuff||nc)?null:D.nibp;
+    setEl('lpSys', nb?nb.sys:'---');
+    setEl('lpDia', nb?nb.dia:'--');
+    setEl('lpMap', nb?m3(nb.sys,nb.dia):'--');
+    setEl('lpBPage', nb?nibpAge():(cuff?'cuff':''));
 
     const p1box=document.getElementById('lpP1box');
     const showP1=S.artActive&&!nc&&!dead;
@@ -2948,6 +2979,17 @@ const D={
   alarms:true, silenceUntil:0,
   sunvue:false,
   nibpUntil:0,
+  /* What the crew have actually measured.
+     A cuff reading and a temperature are not vital signs the monitor knows —
+     they are measurements somebody took, and until they are taken the screen
+     has nothing to show. This mattered most at ROSC: the patient gets a blood
+     pressure back and the old screen handed it to the crew before anyone had
+     put a cuff on them, which is a hand-out, not an assessment.
+     `nibp` is a snapshot, not a live mirror: a reading is of the moment it was
+     taken, and it ages on screen the way it does on the real unit. */
+  nibp:null,             // {sys,dia,at} — last completed cuff cycle
+  nibpTimer:null,
+  tempProbe:false,       // no probe on the patient, no temperature
   leadIx:1, leadFromPanel:null,
   sizeIx:2,
   menu:null, menuIx:0, homeSel:-1, printing:false,
@@ -2991,6 +3033,8 @@ function resetDevice(){
   D.pacer=false; D.pacerRate=70; D.pacerMa=0; D.pacePaused=false;
   D.alarms=true; D.silenceUntil=0;
   D.nibpUntil=0;
+  if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
+  D.nibp=null; D.tempProbe=false;
   D.leadIx=1; D.leadFromPanel=null; D.sizeIx=2;
   D.log.length=0;
   if(D.sunvue){ D.sunvue=false; document.body.classList.remove('sunvue'); invalidateCanvases(); }
@@ -3303,13 +3347,38 @@ function finishAnalyze(){
   else banner(D.advisory,6000,shockable,shockable);
 }
 
-/* ── NIBP ────────────────────────────────────────────────────────────── */
+/* ── NIBP ──────────────────────────────────────────────────────────────
+   A cycle takes the old reading off the screen, runs, and then either produces
+   a number or does not. On a patient in arrest it does not: there is no
+   pulsatile flow for a cuff to find, and a monitor that answered 0/0 would be
+   teaching that the machine can tell you what a code is doing. */
 function startNibp(){
-  if(!D.on||Date.now()<D.nibpUntil) return;
+  if(!D.on||nibpBusy()) return;
   D.nibpUntil=Date.now()+NIBP_MS;
+  if(D.nibpTimer) clearTimeout(D.nibpTimer);
+  D.nibpTimer=setTimeout(finishNibp,NIBP_MS);
   logEvent('nibp','NIBP','cycle started');
 }
+function finishNibp(){
+  D.nibpTimer=null;
+  if(!D.on) return;
+  const sys=Math.round(Number(S.sbp)||0), dia=Math.round(Number(S.dbp)||0);
+  if(!sys){
+    D.nibp=null;
+    banner('NIBP UNABLE TO MEASURE',6000,true);
+    logEvent('nibp','NIBP','unable to measure');
+    return;
+  }
+  D.nibp={sys:sys,dia:dia,at:Date.now()};
+  logEvent('nibp','NIBP',sys+'/'+dia+' mmHg');
+}
 const nibpBusy=()=>Date.now()<D.nibpUntil;
+/** How long ago the reading on screen was taken, as the unit prints it. */
+function nibpAge(){
+  if(!D.nibp) return '';
+  const mins=Math.floor((Date.now()-D.nibp.at)/60000);
+  return mins<1?'now':mins+'m';
+}
 
 /* ── Menus and screen selection ───────────────────────────────────────────
    "Scrolls through and selects screen or menu items" — Table 3-3. Both
@@ -3368,7 +3437,7 @@ const SCREEN_ITEMS=[
   {key:'hr',    el:'lpHRbox', menu:()=>limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
   {key:'spo2',  el:'lpSPbox', menu:()=>limitsMenu('SpO2','%',S.spo2AlarmLow,null)},
   {key:'co2',   el:'lpCO2box',menu:()=>limitsMenu('CO2','mmHg',null,null)},
-  {key:'temp',  el:'lpTMPbox',menu:()=>limitsMenu('Temp','°'+(S.tempUnit||'C'),null,null)},
+  {key:'temp',  el:'lpTMPbox',menu:()=>tempMenu()},
   {key:'nibp',  el:'lpBPbox', menu:()=>limitsMenu('NIBP','mmHg',null,null)},
 ];
 
@@ -3389,6 +3458,19 @@ const sizeMenu=()=>({title:'SIZE',items:SIZES.map((z,i)=>
 /* Alarm limits are the facilitator's to set from the panel, so these read
    them out rather than offering to edit them — a monitor-side edit would be
    overwritten by the panel's next broadcast a second later. */
+/* Temperature is a probe you put on a patient, so it is a thing the crew does
+   rather than a number the monitor knows. Offered from the temperature block's
+   own menu, which is where the parameter's own controls live on this unit. */
+const tempMenu=()=>{
+  const m=limitsMenu('Temp','°'+(S.tempUnit||'C'),null,null);
+  m.items.unshift({label:D.tempProbe?'Remove temperature probe':'Place temperature probe',run:()=>{
+    D.tempProbe=!D.tempProbe;
+    logEvent('temp','TEMP PROBE',D.tempProbe?'placed':'removed');
+    closeMenu();
+  }});
+  return m;
+};
+
 function limitsMenu(name,unit,low,high){
   const items=[];
   if(low==null&&high==null) items.push({label:'No alarm limits on this parameter',info:true});
@@ -3477,16 +3559,40 @@ function openCodeSummary(){
   return true;
 }
 
-/* ── Power ───────────────────────────────────────────────────────────── */
+/* ── Power ─────────────────────────────────────────────────────────────
+   ON is a real button on a real device and it does the thing it says: press it
+   and the unit comes up, press it again and it goes down. The manual's
+   press-and-hold to power off still works — that is what the crew are taught
+   at the side of the truck — but a press that did nothing at all, which is
+   what this key did while the unit was already on, reads as a broken button.
+
+   Powering off is not a reset. Shock count, therapy mode, the crew's lead and
+   the event log are all still there when it comes back up, exactly as they are
+   on the unit; only the screen and the noises go away. */
+let bootTimer=null;
 function setPower(on){
+  if(D.on===on) return;
   D.on=on;
   document.body.classList.toggle('powered-off',!on);
+  if(bootTimer){ clearTimeout(bootTimer); bootTimer=null; }
+  document.body.classList.remove('booting');
   if(!on){
     disarm(); cprMetronome(false); D.cpr=false; D.pacer=false; D.analyzing=false;
     printerRun(false); closeMenu(); clearHomeSel(); banner(null);
+    // A cuff cycle does not survive the unit being switched off.
+    if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
+    D.nibpUntil=0;
+  }else{
+    document.body.classList.add('booting');
+    bootTimer=setTimeout(()=>{
+      document.body.classList.remove('booting');
+      bootTimer=null;
+      beep(880,120,.10,'square');
+    },1700);
   }
   logEvent('power',on?'ON':'OFF','');
 }
+function togglePower(){ setPower(!D.on); }
 
 /* ── Wiring ──────────────────────────────────────────────────────────── */
 function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();armAudio();fn();}); }
@@ -3505,7 +3611,9 @@ function bindHold(id,ms,onHold,onRelease,onTap){
   el.addEventListener('pointercancel',up);
 }
 
-bindHold('kON',1200,()=>{ if(D.on) setPower(false); },null,()=>{ if(!D.on) setPower(true); });
+/* Hold to power off, as the manual has it — and a plain press toggles, because
+   a key that answers only in one direction reads as a key that is not working. */
+bindHold('kON',1200,()=>{ if(D.on) setPower(false); },null,()=>togglePower());
 
 bind('kCPR',()=>{ if(!D.on) return; D.cpr=!D.cpr; cprMetronome(D.cpr);
   logEvent('cpr',D.cpr?'CPR metronome ON':'CPR metronome OFF',''); });
@@ -3861,6 +3969,43 @@ function applySkinPrefs(){
   if(lock) document.body.classList.add('skin-locked');
 }
 applySkinPrefs();
+
+/* ── Keeping the screen up ───────────────────────────────────────────────
+   The monitor is a patient monitor: it is meant to sit on a table showing a
+   rhythm for twenty minutes while nobody touches it, which is exactly what an
+   iPad reads as "nobody is using this" before it dims and locks. A crew who
+   lose the screen mid-code lose the scenario.
+
+   The Screen Wake Lock API holds the display on. It is dropped by the browser
+   whenever the page is hidden — the tab backgrounded, the device locked by
+   hand — so it is taken again on every return to visibility. Everything here
+   is best-effort: Safari needs 16.4+, the request can be refused outright on
+   low battery, and none of that is worth a broken monitor, so every call is
+   guarded and nothing depends on it. */
+let wakeLock=null;
+async function holdScreenAwake(){
+  try{
+    if(!('wakeLock' in navigator)||document.visibilityState!=='visible') return;
+    if(wakeLock) return;
+    wakeLock=await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release',()=>{ wakeLock=null; });
+  }catch(e){ wakeLock=null; }
+}
+function releaseScreenAwake(){
+  try{ if(wakeLock) wakeLock.release(); }catch(e){}
+  wakeLock=null;
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') holdScreenAwake();
+});
+/* Some browsers only grant the lock inside a user gesture, so the first touch
+   on the monitor asks again. Once is enough — the listener takes itself off. */
+['pointerdown','keydown'].forEach(ev=>
+  window.addEventListener(ev,function once(){
+    window.removeEventListener(ev,once);
+    holdScreenAwake();
+  },{passive:true}));
+holdScreenAwake();
 
 fitDevice();
 requestAnimationFrame(loop);

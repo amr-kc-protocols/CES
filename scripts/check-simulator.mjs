@@ -2634,6 +2634,86 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+// ---------------------------------------------------------------------------
+// Measurements, not vital signs.
+//
+// A cuff reading and a temperature are things somebody took. The screen used to
+// hand both over the moment the panel published them, which at ROSC meant the
+// crew were told the pressure was back before anyone had put a cuff on the
+// patient — the assessment done for them.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = loadMonitor()
+  Object.assign(S(), { patientConnected: true, hr: 76, sbp: 118, dbp: 76, temp: 36.8 })
+
+  ok('the unit opens with no cuff reading', w.eval('D.nibp') === null)
+  ok('and no temperature probe on the patient', w.eval('D.tempProbe') === false)
+
+  w.startNibp()
+  ok('pressing NIBP starts a cycle', w.eval('nibpBusy()') === true)
+  w.finishNibp()
+  const reading = w.eval('D.nibp')
+  ok('the cycle produces a reading', reading && reading.sys === 118 && reading.dia === 76, JSON.stringify(reading))
+
+  // A snapshot, not a mirror: the patient moves on, the reading does not.
+  Object.assign(S(), { sbp: 180, dbp: 108 })
+  ok(
+    'and it does not follow the patient afterwards',
+    w.eval('D.nibp.sys') === 118,
+    'a cuff reading is of the moment it was taken',
+  )
+
+  // In an arrest there is nothing for a cuff to find.
+  Object.assign(S(), { sbp: 0, dbp: 0 })
+  w.eval('D.nibpUntil=0')
+  w.startNibp()
+  w.finishNibp()
+  ok('a cycle in arrest produces no reading', w.eval('D.nibp') === null)
+  ok('and says so', /NIBP UNABLE TO MEASURE/.test(MONITOR_SRC))
+
+  // Temperature waits for a probe, and the probe is on the block's own menu.
+  ok('the temperature block has a probe control', /Place temperature probe/.test(MONITOR_SRC))
+  ok('and the display is gated on it', /\(nc\|\|!D\.tempProbe\)\?'---'/.test(MONITOR_SRC))
+
+  // A new scenario is a unit nobody has measured anything with yet.
+  w.eval('D.nibp={sys:1,dia:1,at:1}; D.tempProbe=true; resetDevice()')
+  ok('a new scenario clears both', w.eval('D.nibp') === null && w.eval('D.tempProbe') === false)
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The ON key, and the screen staying up.
+// ---------------------------------------------------------------------------
+{
+  const { w, d } = loadMonitor()
+  ok('the unit starts powered on', w.eval('D.on') === true)
+
+  const press = () => {
+    const el = d.getElementById('kON')
+    el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+    el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
+  }
+  press()
+  ok('a press turns it off', w.eval('D.on') === false, 'a key that answers in one direction reads as broken')
+  ok('and the screen goes with it', d.body.classList.contains('powered-off'))
+  press()
+  ok('a second press brings it back', w.eval('D.on') === true)
+  ok('through a self test', d.body.classList.contains('booting'))
+  ok('the manual’s press-and-hold still powers it off', /bindHold\('kON',1200/.test(MONITOR_SRC))
+
+  // Off is off: no alarm can sound through a unit that is switched off.
+  ok('alarms are gated on the unit being on', /const almShow=D\.on&&/.test(MONITOR_SRC))
+  // Powering off is not a reset — the shock count and the log are the crew's.
+  w.eval('D.shocks=3; setPower(false); setPower(true)')
+  ok('and the shock count survives a power cycle', w.eval('D.shocks') === 3)
+
+  // The screen wake lock, which is what stops an iPad locking mid-code.
+  ok('the monitor holds a screen wake lock', /navigator\.wakeLock\.request\('screen'\)/.test(MONITOR_SRC))
+  ok('and takes it again when the page comes back', /visibilitychange/.test(MONITOR_SRC))
+  ok('every call is guarded', /if\(!\('wakeLock' in navigator\)/.test(MONITOR_SRC))
+  w.close()
+}
+
 if (failures.length) {
   console.error(`check-simulator: ${failures.length} of ${checks} checks failed\n`)
   for (const f of failures) console.error(`  ✗ ${f}`)
