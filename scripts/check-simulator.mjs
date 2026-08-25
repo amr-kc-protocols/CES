@@ -1299,7 +1299,11 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   // quality and PASS / NR collapsed into a separate strip below the columns —
   // neither of which is where an instructor's eye expects them on that form.
   ok('the sheet scrolls inside the card rather than growing it', /\.sheet\{[^}]*overflow-y:auto/s.test(panelSrc))
-  ok('the result block stays at the foot of the sheet', /\.sh-foot\{position:sticky;bottom:0/.test(panelSrc))
+  // Not sticky, deliberately: three rows of result and instructor fields
+  // following the scroll spent a megacode sitting on top of the steps being
+  // checked. It sits at the foot of the form, as it does on paper.
+  ok('the result block sits at the foot rather than following the scroll',
+     /\.sh-foot\{background:var\(--surface-2\)/.test(panelSrc) && !/\.sh-foot\{position:sticky/.test(panelSrc))
   ok('and the tick column is on the right, as the form has it', /\.sh-row \.box\{margin-left:auto/.test(panelSrc))
 
   // Exactly one. A second delegated handler double-fires every activation, and
@@ -1376,7 +1380,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   const rail = railBlock.slice(0, railBlock.indexOf('\n}'))
   ok('the run card has a wide-screen rail', rail.includes('.run-card{position:fixed'))
   const railW = parseInt((rail.match(/\.run-card\{[^}]*?width:(\d+)px/s) || [])[1] || 0)
-  const bodyPad = parseInt((rail.match(/body\.run-mode\{padding-right:(\d+)px/) || [])[1] || 0)
+  const bodyPad = parseInt((rail.match(/body\.run-mode:not\(\.sheet-run\)\{padding-right:(\d+)px/) || [])[1] || 0)
   ok(
     'the page is padded clear of the rail',
     railW > 0 && bodyPad >= railW,
@@ -2413,6 +2417,89 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     w.eval('lastRun.states[1].section'),
   )
   ok('and the instructor of record', w.eval('lastRun.instructorInitials') === 'JJ')
+  w.close()
+}
+
+{
+  // A megacode is graded on the sheet, so the sheet is the window: no rail, and
+  // the form gets the width and the height.
+  const { w, d } = load()
+  const src = readFileSync(PAGE, 'utf8')
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  ok('a megacode marks the page as a sheet run', d.body.classList.contains('sheet-run'))
+  ok('and stands the rail down whatever the width', w.eval('railMode()') === false)
+  ok(
+    'the rail rules are scoped out of it',
+    /body\.run-mode:not\(\.sheet-run\)\{padding-right/.test(src) &&
+      /body:not\(\.sheet-run\) \.run-card\{position:fixed/.test(src),
+  )
+  ok(
+    'the sheet takes the wide column and a taller box',
+    /\.run-card\.sheet-run \.run-cols\{grid-template-columns:minmax\(190px,\.62fr\) minmax\(0,2\.5fr\)/.test(src) &&
+      /\.run-card\.sheet-run \.sheet\{max-height:min\(72vh,780px\)/.test(src),
+  )
+  // The rail's overflow override must not reach a megacode, or the form sits in
+  // a capped box with no way to scroll it.
+  ok(
+    'and it can still be scrolled',
+    /body:not\(\.sheet-run\) \.sheet\{max-height:none;overflow:visible;\}/.test(src),
+  )
+  // A quarterly scenario keeps the layout it had.
+  d.getElementById('simScenarioSel').value = 'drowning_initial'
+  w.applySimScenario()
+  ok('a quarterly scenario keeps the rail', !d.body.classList.contains('sheet-run'))
+  w.close()
+}
+
+{
+  // Capnography through an arrest: the patient is not breathing, but once the
+  // crew have an advanced airway in they are ventilating, and the capnogram
+  // shows their breaths at the rate the algorithm asks for.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  w.applySimState('megacode2', 1) // VF: authored RR 0, EtCO2 22
+  ok('the arrest state carries the author’s numbers', S().rr === 0 && S().etco2 === 22)
+  w.setIntervention('airway', 'ett')
+  ok('an advanced airway turns capnography on', S().etco2On === true)
+  ok('and ventilates at 10/min — one breath every six seconds', S().rr === 10, String(S().rr))
+  ok('with a CPR capnogram', S().co2Shape === 'cpr', S().co2Shape)
+  ok("the author's EtCO₂ is untouched", S().etco2 === 22, String(S().etco2))
+
+  // It follows the patient into the next arrest stage rather than being set once.
+  w.applySimState('megacode2', 2) // asystole, authored RR 0
+  ok('the ventilation rate holds through the next arrest stage', S().rr === 10, String(S().rr))
+
+  // A basic airway is not an advanced one.
+  w.setIntervention('airway', 'basic')
+  w.applySimState('megacode2', 2)
+  ok('a basic airway does not ventilate for them', S().rr === 0, String(S().rr))
+  w.close()
+}
+
+{
+  // The EtCO₂ surge — the ROSC sign the crew is meant to notice.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  w.applySimState('megacode2', 1)
+  w.setIntervention('airway', 'ett')
+  ok('the surge is offered while it would mean something', w.eval('surgeReady()') === true)
+  ok('and is on the card', /EtCO₂ surge/.test(d.getElementById('runCard').innerHTML))
+
+  const start = S().etco2
+  w.etco2Surge()
+  ok('it does not jump the number', S().etco2 === start, 'a step change reads as a slider being moved')
+  for (let i = 0; i < 4; i++) w.eval('surgeFloat+=(42-' + start + ')/12; setVital("etco2",Math.round(surgeFloat))')
+  ok('it climbs', S().etco2 > start, String(S().etco2))
+  ok('and the patient has not moved on', w.eval('activeStateIdx') === 1, 'the transition stays the facilitator’s')
+
+  // Anything still moving the patient stops when the stage or the run does.
+  w.applySimState('megacode2', 3)
+  ok('a stage change stops the surge', w.eval('surgeTimer') === null)
+  ok("and the ROSC stage's authored EtCO₂ stands", S().etco2 === 50, String(S().etco2))
+  ok('the surge is not offered once there is a pulse', w.eval('surgeReady()') === false)
   w.close()
 }
 
