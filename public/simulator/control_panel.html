@@ -241,6 +241,13 @@ select:focus{border-color:var(--accent);}
   overflow:hidden;text-overflow:ellipsis;max-width:38vw;}
 @media (max-width:520px){ .run-card.condensed .adv-btn.adv-mini{max-width:44vw;} }
 .adv-btn:hover{border-color:var(--accent);color:var(--accent);}
+/* The EtCO₂ surge sits under Advance and reads as the capnography colour, so
+   it is never mistaken for the transition control above it. */
+.adv-btn.surge{border-color:rgba(200,119,214,.5);color:var(--co2);}
+.adv-btn.surge:hover{border-color:var(--co2);color:var(--co2);background:rgba(200,119,214,.12);}
+.surge-live{margin:8px 0 4px;padding:9px 12px;border-radius:var(--radius-sm);
+  border:1px solid var(--co2);background:rgba(200,119,214,.12);color:var(--co2);
+  font-size:.7rem;font-weight:bold;letter-spacing:.5px;}
 /* Cued: the crew have delivered the shocks this stage is scripted around. */
 .adv-btn.cued{background:rgba(90,162,240,.14);border-color:var(--accent);color:var(--accent);
   animation:advPulse 1.6s ease-in-out infinite;}
@@ -387,6 +394,22 @@ select:focus{border-color:var(--accent);}
 .run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:16px;}
 @media (max-width:820px){.run-cols{grid-template-columns:1fr;}}
 
+/* A megacode is graded on the sheet, so in a megacode the sheet is the window
+   and everything else is the margin: the state list narrows to what it needs to
+   name a rhythm, the trigger prose and the monitor feed drop underneath, and
+   the form gets the width to set its steps on one line each and the height to
+   show a whole section at once.
+   Quarterly scenarios keep the even three columns they have always had — their
+   action lists are four or five lines, not twenty-three. */
+.run-card.sheet-run .run-cols{grid-template-columns:minmax(190px,.62fr) minmax(0,2.5fr);}
+.run-card.sheet-run .run-cols>div:nth-child(3){grid-column:1 / -1;
+  display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+@media (max-width:820px){
+  .run-card.sheet-run .run-cols{grid-template-columns:1fr;}
+  .run-card.sheet-run .run-cols>div:nth-child(3){grid-template-columns:1fr;}
+}
+.run-card.sheet-run .sheet{max-height:min(72vh,780px);}
+
 /* The rail overrides live here, after the .run-cols rules they have to beat —
    a media query adds no specificity, so source order is all there is. */
 /* 1280 rather than 1320: a 1280x800 laptop is the commonest facilitator screen
@@ -394,11 +417,14 @@ select:focus{border-color:var(--accent);}
    layout where the controls never move was reserved for the machines least
    likely to be in the room. A 360px rail leaves 920px for a page that lays out
    at 960 and stays three columns above 860. */
+/* The rail is for the quarterly scenarios. A megacode's sheet needs the width
+   — 360px sets its steps two and three lines deep — so `body.sheet-run` opts
+   out of the rail and keeps the full-width card at the top of the page. */
 @media (min-width:1280px){
   /* run-mode alone, not run-active: the finished-run summary lives in the
      same card and would otherwise sit on top of the controls. */
-  body.run-mode{padding-right:376px;}
-  .run-card{position:fixed;top:0;right:0;bottom:0;width:360px;max-width:none;
+  body.run-mode:not(.sheet-run){padding-right:376px;}
+  body:not(.sheet-run) .run-card{position:fixed;top:0;right:0;bottom:0;width:360px;max-width:none;
     max-height:none;margin:0;border-radius:0;border-left:1px solid var(--border);
     border-top:none;border-right:none;border-bottom:none;
     overflow-y:auto;z-index:40;box-shadow:-8px 0 22px rgba(0,0,0,.5);}
@@ -407,18 +433,18 @@ select:focus{border-color:var(--accent);}
      and the states and actions — the two things touched constantly — both sit
      above the fold on a 768px screen. What scrolls off is the trigger prose
      and the monitor feed, which are read, not tapped. */
-  .run-cols{grid-template-columns:1fr;gap:12px;}
-  .run-head{flex-direction:column;align-items:stretch;}
+  body:not(.sheet-run) .run-cols{grid-template-columns:1fr;gap:12px;}
+  body:not(.sheet-run) .run-head{flex-direction:column;align-items:stretch;}
   /* The header is one flex row at full width; in a 380px rail it has to wrap
      or the End run button hangs off the edge of the screen. */
-  .run-head .rh-sp{margin-left:0;flex-wrap:wrap;}
-  .run-head .rh-sp input{flex:1 1 100%;width:100%;}
-  .run-head .rh-sp .end-btn{flex:1 1 auto;}
+  body:not(.sheet-run) .run-head .rh-sp{margin-left:0;flex-wrap:wrap;}
+  body:not(.sheet-run) .run-head .rh-sp input{flex:1 1 100%;width:100%;}
+  body:not(.sheet-run) .run-head .rh-sp .end-btn{flex:1 1 auto;}
   /* Out of flow here as well, so the wrapper has nothing to hold. */
-  #runWrap{margin-bottom:0;}
-  .run-mini{display:none !important;}
+  body:not(.sheet-run) #runWrap{margin-bottom:0;}
+  body:not(.sheet-run) .run-mini{display:none !important;}
   /* Nothing to collapse in a rail — it costs no vertical space. */
-  .rc-collapse{display:none;}
+  body:not(.sheet-run) .rc-collapse{display:none;}
 }
 .run-cols .col-h{font-size:.62rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
 .run-card .state-btn{margin-bottom:4px;}
@@ -506,8 +532,14 @@ select:focus{border-color:var(--accent);}
    thing that must not be scrolled past at the end of a code. */
 .sh-stop{padding:6px 10px;border-top:1px solid var(--border-strong);background:var(--surface-2);
   font-size:.56rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:var(--amber);}
-.sh-foot{position:sticky;bottom:0;background:var(--surface-2);border-top:1px solid var(--border);
-  padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;z-index:2;}
+/* Not sticky. It was — so that PASS / NR was never out of reach — and in a
+   megacode it spent the whole code sitting on top of the steps being checked:
+   three rows of result and instructor fields covering the bottom third of the
+   form, exactly where the section the patient is in tends to land. It goes at
+   the foot of the sheet, where the paper form has it, and the run ends by
+   scrolling to it. */
+.sh-foot{background:var(--surface-2);border-top:1px solid var(--border-strong);
+  padding:10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;}
 .sh-foot .sh-res-lbl{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);}
 .sh-foot label{display:flex;align-items:center;gap:5px;margin:0;font-size:.58rem;
   letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);flex:1 1 120px;}
@@ -529,7 +561,10 @@ select:focus{border-color:var(--accent);}
    query adds no specificity, and .sheet's own max-height is written later in
    this file. */
 @media (min-width:1280px){
-  .sheet{max-height:none;overflow:visible;}
+  /* Only where the rail is actually in use. A megacode opts out of the rail
+     and re-caps the sheet's height — leaving `overflow:visible` on it there
+     made a 1368px form sit inside a 546px box with no way to scroll it. */
+  body:not(.sheet-run) .sheet{max-height:none;overflow:visible;}
 }
 .res-btn{padding:9px 18px;min-height:40px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
   color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
@@ -2502,9 +2537,40 @@ function applyVitals(vitals, patType){
   // Only mirror into the A-Line while it is linked. Overwriting an unlinked
   // A-Line threw away values the instructor had set independently.
   if(S.artLinked){ S.artSbp=S.sbp; S.artDbp=S.dbp; }
+  applyAirwayVentilation();
   updateAllUI();
   save();
 }
+
+/** Arrest rhythms, for the rules that only apply while the patient has none. */
+function inArrest(){
+  return S.rhythm==='vfib'||S.rhythm==='asystole'||S.rhythm==='pea'||(!S.hr&&!S.sbp);
+}
+const ADVANCED_AIRWAYS=['sga','ett'];
+function advancedAirway(){ return ADVANCED_AIRWAYS.indexOf(crewDid.airway)>=0; }
+
+/* Capnography through an arrest.
+ *
+ * A scenario's arrest states carry RR 0, which is true of the patient: they are
+ * not breathing. It is not true of the screen once the crew have put in an
+ * advanced airway and are ventilating through it — the capnogram then shows
+ * their breaths, at the rate the algorithm asks for, which is one every 6
+ * seconds (2025 AHA: 1 breath every 6 seconds, 10/min, continuous compressions).
+ *
+ * So an advanced airway in an arrest turns the capnogram on, sets the rate to
+ * the ventilations the crew are giving, and puts the CPR shape on it. The
+ * numbers stay the scenario author's: EtCO₂ is theirs, this only decides
+ * whether and how often the waveform draws a breath.
+ */
+function applyAirwayVentilation(){
+  if(!advancedAirway()) return;
+  S.etco2On=true;
+  if(inArrest()){
+    S.rr=ADV_AIRWAY_RR;
+    if(!S.co2Shape||S.co2Shape==='normal') S.co2Shape='cpr';
+  }
+}
+const ADV_AIRWAY_RR=10;
 
 // Every select that reflects a piece of state, so a scenario that sets one
 // (the asthma states set a shark-fin capnogram; the pediatric sims set the
@@ -2596,7 +2662,7 @@ function applySimState(simKey, stateIdx){
   // number somewhere else — at ROSC the authored 94% was climbing to 99% on its
   // own. Oxygen moves the number when the CREW changes something; the scenario
   // moves it when the facilitator changes stage.
-  stopO2Trend();
+  stopO2Trend(); stopEtco2Surge();
   // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
   // printout matches the described findings (applyVitals cleared any prior one).
   if(st.ecg){ S.ecg=st.ecg; save(); }
@@ -2633,7 +2699,7 @@ const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
 // carry forward.
 function resetForNewScenario(){
   stopDrugs();
-  stopO2Trend();
+  stopO2Trend(); stopEtco2Surge();
   drugLog=[]; renderDrugLog();
   deviceFeed=[]; renderDeviceFeed();
   pacer={on:false,rate:70,ma:0};
@@ -2813,7 +2879,7 @@ function endRun(){
   // Nothing should still be moving the patient once the run is over — the
   // oxygen trend outlived the run and went on changing the saturation behind
   // the debrief summary.
-  stopO2Trend();
+  stopO2Trend(); stopEtco2Surge();
   const warns=runWarnings();
   if(warns.length){ openEndPrompt(warns); return; }
   commitRun();
@@ -2886,9 +2952,14 @@ function endPromptOpen(){
 // the whole panel down with it. innerWidth is the same answer either way.
 let RAIL_MQ=null;
 function railMode(){
+  // A megacode keeps the full-width card whatever the screen: the sheet is what
+  // is being graded, and a 360px rail sets its steps two and three lines deep.
+  if(sheetRun()) return false;
   if(!RAIL_MQ&&window.matchMedia) RAIL_MQ=window.matchMedia('(min-width:1280px)');
   return RAIL_MQ?RAIL_MQ.matches:window.innerWidth>=1280;
 }
+/** Is the card showing a megacode check sheet? Drives the layout it gets. */
+function sheetRun(){ return !!(run&&run.checklist); }
 
 // Elapsed run time. run.states[i].seconds only banks a state when it is left,
 // so the state on screen has to be added live or the clock stops on entry.
@@ -3081,6 +3152,40 @@ function o2Tick(){
   if(done){ if(o2Timer){clearInterval(o2Timer);o2Timer=null;} }
 }
 
+/* ── The EtCO₂ surge ──────────────────────────────────────────────────────
+   A sudden sharp rise in end-tidal CO₂ during CPR is one of the signs of
+   return of spontaneous circulation, and it is a sign the crew is meant to
+   notice and act on rather than be told about. So it is a control, not a
+   consequence: the facilitator taps it when they want the crew to have that
+   information, and the number climbs on the crew's screen the way it does in
+   an arrest — over a few seconds, not in one step, because a step change reads
+   as the instructor moving a slider.
+
+   It does not move the patient on. Whether the crew see the surge and check a
+   pulse is the thing being assessed, and the transition stays the
+   facilitator's, on the Advance control, as every other transition is. */
+const SURGE_TARGET=42;      // mmHg — the "sudden rise" ACLS teaches to look for
+const SURGE_SECONDS=6;
+let surgeTimer=null, surgeFloat=null;
+function stopEtco2Surge(){ if(surgeTimer){clearInterval(surgeTimer);surgeTimer=null;} surgeFloat=null; }
+/** Can a surge be offered? Only with capnography up on an arrested patient. */
+function surgeReady(){ return !!S.etco2On&&inArrest()&&S.etco2<SURGE_TARGET-4; }
+function etco2Surge(target){
+  const to=target||SURGE_TARGET;
+  stopEtco2Surge();
+  surgeFloat=Number(S.etco2)||0;
+  const perTick=(to-surgeFloat)/(SURGE_SECONDS*2);   // twice a second
+  if(perTick<=0) return;
+  logLocal('etco2','EtCO₂ RISING','ROSC indicator — '+Math.round(surgeFloat)+' → '+to+' mmHg');
+  surgeTimer=setInterval(()=>{
+    surgeFloat+=perTick;
+    if(surgeFloat>=to){ surgeFloat=to; stopEtco2Surge(); }
+    setVital('etco2',Math.round(surgeFloat));
+    save();
+    renderSimPanel(activeSim);
+  },500);
+}
+
 /** Apply an intervention: change the patient, log it, and tick what it satisfies. */
 function setIntervention(kind,value){
   if(kind==='monitor'){
@@ -3100,8 +3205,9 @@ function setIntervention(kind,value){
     crewDid.airway=value;
     const a=AIRWAYS.find(x=>x.id===value);
     logLocal('intervention','AIRWAY',a?a.label:value);
-    // An advanced airway is what puts waveform capnography on the screen.
-    if(value==='sga'||value==='ett'){ S.etco2On=true; }
+    // An advanced airway is what puts waveform capnography on the screen, and
+    // in an arrest it is also what puts a ventilation rate on it.
+    applyAirwayVentilation();
   } else if(kind==='access'){
     crewDid.access=value;
     const a=ACCESS.find(x=>x.id===value);
@@ -3304,7 +3410,8 @@ const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
   pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
   ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
   alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',capture:'⌁',
-  power:'⏻',display:'☀',disarm:'⚡',mode:'☰',intervention:'✚',advance:'⇥'};
+  power:'⏻',display:'☀',disarm:'⚡',mode:'☰',intervention:'✚',advance:'⇥',
+  temp:'🌡',etco2:'⤴'};
 
 /* Electrical capture: the paced rhythm at the rate the crew dialled in.
 
@@ -3608,12 +3715,9 @@ function syncSheetScroll(){
     // anyway — and took the run header, the student's name and End run off the
     // top of the screen with it.
     //
-    // "In front of them" means clear of both sticky blocks. The result block at
-    // the foot is three rows tall in a rail, and a section band sitting behind
-    // it counted as visible and was left there.
-    const foot=sheet.querySelector('.sh-foot');
-    const footH=foot?foot.offsetHeight:0;
-    if(secRect.top>=boxRect.top+headH&&secRect.top<boxRect.bottom-footH-24) return;
+    // "In front of them" means clear of the sticky head above and far enough
+    // from the bottom edge that the section's first steps are on screen too.
+    if(secRect.top>=boxRect.top+headH&&secRect.top<boxRect.bottom-120) return;
     const delta=secRect.top-boxRect.top;
     box.scrollTop=Math.max(0,box.scrollTop+delta-headH-6);
   }catch(e){}
@@ -3627,6 +3731,9 @@ function renderSimPanel(simKey){
   const graded=!!SCENARIO_DOCS[simKey];
   document.body.classList.toggle('run-mode',graded);
   document.body.classList.toggle('run-active',!!run);
+  // Megacode layout: the sheet is the window, and the rail stands down.
+  document.body.classList.toggle('sheet-run',sheetRun());
+  if(card) card.classList.toggle('sheet-run',sheetRun());
   if(card) card.hidden=!graded;
 
   if(!simKey||!SIMULATIONS[simKey]){
@@ -3688,6 +3795,15 @@ function renderSimPanel(simKey){
                title="${esc(advTitle)}">${advBody}</button>`
     : '';
   const advanceHtml=advBtn('adv-col');
+  // The ROSC sign the crew is meant to notice, offered only while it would mean
+  // something: capnography up, patient in arrest, EtCO₂ still down where CPR
+  // holds it.
+  const surgeHtml=surgeReady()
+    ? `<button class="adv-btn surge" onclick="etco2Surge()"
+         title="Raise EtCO₂ sharply over six seconds — the crew should notice and check a pulse">⤴ EtCO₂ surge — ROSC sign</button>`
+    : (surgeTimer
+        ? `<div class="surge-live">⤴ EtCO₂ rising — ${esc(String(S.etco2))} mmHg</div>`
+        : '');
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
   const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
   // Program coaching, distinct from the AHA-transcribed note above it: the
@@ -3731,7 +3847,7 @@ function renderSimPanel(simKey){
       </div>
       <div class="iv-strip"></div>
       <div class="run-cols">
-        <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}</div>
+        <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}${surgeHtml}</div>
         <div>${run&&run.checklist
           ? sheetHtml()
           : `<div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}`}</div>

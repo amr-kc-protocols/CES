@@ -1299,7 +1299,11 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   // quality and PASS / NR collapsed into a separate strip below the columns —
   // neither of which is where an instructor's eye expects them on that form.
   ok('the sheet scrolls inside the card rather than growing it', /\.sheet\{[^}]*overflow-y:auto/s.test(panelSrc))
-  ok('the result block stays at the foot of the sheet', /\.sh-foot\{position:sticky;bottom:0/.test(panelSrc))
+  // Not sticky, deliberately: three rows of result and instructor fields
+  // following the scroll spent a megacode sitting on top of the steps being
+  // checked. It sits at the foot of the form, as it does on paper.
+  ok('the result block sits at the foot rather than following the scroll',
+     /\.sh-foot\{background:var\(--surface-2\)/.test(panelSrc) && !/\.sh-foot\{position:sticky/.test(panelSrc))
   ok('and the tick column is on the right, as the form has it', /\.sh-row \.box\{margin-left:auto/.test(panelSrc))
 
   // Exactly one. A second delegated handler double-fires every activation, and
@@ -1376,7 +1380,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   const rail = railBlock.slice(0, railBlock.indexOf('\n}'))
   ok('the run card has a wide-screen rail', rail.includes('.run-card{position:fixed'))
   const railW = parseInt((rail.match(/\.run-card\{[^}]*?width:(\d+)px/s) || [])[1] || 0)
-  const bodyPad = parseInt((rail.match(/body\.run-mode\{padding-right:(\d+)px/) || [])[1] || 0)
+  const bodyPad = parseInt((rail.match(/body\.run-mode:not\(\.sheet-run\)\{padding-right:(\d+)px/) || [])[1] || 0)
   ok(
     'the page is padded clear of the rail',
     railW > 0 && bodyPad >= railW,
@@ -2417,6 +2421,89 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
 }
 
 {
+  // A megacode is graded on the sheet, so the sheet is the window: no rail, and
+  // the form gets the width and the height.
+  const { w, d } = load()
+  const src = readFileSync(PAGE, 'utf8')
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  ok('a megacode marks the page as a sheet run', d.body.classList.contains('sheet-run'))
+  ok('and stands the rail down whatever the width', w.eval('railMode()') === false)
+  ok(
+    'the rail rules are scoped out of it',
+    /body\.run-mode:not\(\.sheet-run\)\{padding-right/.test(src) &&
+      /body:not\(\.sheet-run\) \.run-card\{position:fixed/.test(src),
+  )
+  ok(
+    'the sheet takes the wide column and a taller box',
+    /\.run-card\.sheet-run \.run-cols\{grid-template-columns:minmax\(190px,\.62fr\) minmax\(0,2\.5fr\)/.test(src) &&
+      /\.run-card\.sheet-run \.sheet\{max-height:min\(72vh,780px\)/.test(src),
+  )
+  // The rail's overflow override must not reach a megacode, or the form sits in
+  // a capped box with no way to scroll it.
+  ok(
+    'and it can still be scrolled',
+    /body:not\(\.sheet-run\) \.sheet\{max-height:none;overflow:visible;\}/.test(src),
+  )
+  // A quarterly scenario keeps the layout it had.
+  d.getElementById('simScenarioSel').value = 'drowning_initial'
+  w.applySimScenario()
+  ok('a quarterly scenario keeps the rail', !d.body.classList.contains('sheet-run'))
+  w.close()
+}
+
+{
+  // Capnography through an arrest: the patient is not breathing, but once the
+  // crew have an advanced airway in they are ventilating, and the capnogram
+  // shows their breaths at the rate the algorithm asks for.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  w.applySimState('megacode2', 1) // VF: authored RR 0, EtCO2 22
+  ok('the arrest state carries the author’s numbers', S().rr === 0 && S().etco2 === 22)
+  w.setIntervention('airway', 'ett')
+  ok('an advanced airway turns capnography on', S().etco2On === true)
+  ok('and ventilates at 10/min — one breath every six seconds', S().rr === 10, String(S().rr))
+  ok('with a CPR capnogram', S().co2Shape === 'cpr', S().co2Shape)
+  ok("the author's EtCO₂ is untouched", S().etco2 === 22, String(S().etco2))
+
+  // It follows the patient into the next arrest stage rather than being set once.
+  w.applySimState('megacode2', 2) // asystole, authored RR 0
+  ok('the ventilation rate holds through the next arrest stage', S().rr === 10, String(S().rr))
+
+  // A basic airway is not an advanced one.
+  w.setIntervention('airway', 'basic')
+  w.applySimState('megacode2', 2)
+  ok('a basic airway does not ventilate for them', S().rr === 0, String(S().rr))
+  w.close()
+}
+
+{
+  // The EtCO₂ surge — the ROSC sign the crew is meant to notice.
+  const { w, d, S } = load()
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  w.applySimState('megacode2', 1)
+  w.setIntervention('airway', 'ett')
+  ok('the surge is offered while it would mean something', w.eval('surgeReady()') === true)
+  ok('and is on the card', /EtCO₂ surge/.test(d.getElementById('runCard').innerHTML))
+
+  const start = S().etco2
+  w.etco2Surge()
+  ok('it does not jump the number', S().etco2 === start, 'a step change reads as a slider being moved')
+  for (let i = 0; i < 4; i++) w.eval('surgeFloat+=(42-' + start + ')/12; setVital("etco2",Math.round(surgeFloat))')
+  ok('it climbs', S().etco2 > start, String(S().etco2))
+  ok('and the patient has not moved on', w.eval('activeStateIdx') === 1, 'the transition stays the facilitator’s')
+
+  // Anything still moving the patient stops when the stage or the run does.
+  w.applySimState('megacode2', 3)
+  ok('a stage change stops the surge', w.eval('surgeTimer') === null)
+  ok("and the ROSC stage's authored EtCO₂ stands", S().etco2 === 50, String(S().etco2))
+  ok('the surge is not offered once there is a pulse', w.eval('surgeReady()') === false)
+  w.close()
+}
+
+{
   // Advance is pressed at every rhythm change, standing up, while watching a
   // crew. Under the state list it is 590px down a stacked layout and not on
   // screen at all once the card is condensed, so it is rendered three times and
@@ -2544,6 +2631,86 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('a quarterly scenario renders no check-off sheet', !/class="sheet"/.test(card()))
   ok('and keeps its expected-actions column', /Expected actions/.test(card()))
   ok('with no PASS / NR to circle', !/res-btn/.test(card()))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// Measurements, not vital signs.
+//
+// A cuff reading and a temperature are things somebody took. The screen used to
+// hand both over the moment the panel published them, which at ROSC meant the
+// crew were told the pressure was back before anyone had put a cuff on the
+// patient — the assessment done for them.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = loadMonitor()
+  Object.assign(S(), { patientConnected: true, hr: 76, sbp: 118, dbp: 76, temp: 36.8 })
+
+  ok('the unit opens with no cuff reading', w.eval('D.nibp') === null)
+  ok('and no temperature probe on the patient', w.eval('D.tempProbe') === false)
+
+  w.startNibp()
+  ok('pressing NIBP starts a cycle', w.eval('nibpBusy()') === true)
+  w.finishNibp()
+  const reading = w.eval('D.nibp')
+  ok('the cycle produces a reading', reading && reading.sys === 118 && reading.dia === 76, JSON.stringify(reading))
+
+  // A snapshot, not a mirror: the patient moves on, the reading does not.
+  Object.assign(S(), { sbp: 180, dbp: 108 })
+  ok(
+    'and it does not follow the patient afterwards',
+    w.eval('D.nibp.sys') === 118,
+    'a cuff reading is of the moment it was taken',
+  )
+
+  // In an arrest there is nothing for a cuff to find.
+  Object.assign(S(), { sbp: 0, dbp: 0 })
+  w.eval('D.nibpUntil=0')
+  w.startNibp()
+  w.finishNibp()
+  ok('a cycle in arrest produces no reading', w.eval('D.nibp') === null)
+  ok('and says so', /NIBP UNABLE TO MEASURE/.test(MONITOR_SRC))
+
+  // Temperature waits for a probe, and the probe is on the block's own menu.
+  ok('the temperature block has a probe control', /Place temperature probe/.test(MONITOR_SRC))
+  ok('and the display is gated on it', /\(nc\|\|!D\.tempProbe\)\?'---'/.test(MONITOR_SRC))
+
+  // A new scenario is a unit nobody has measured anything with yet.
+  w.eval('D.nibp={sys:1,dia:1,at:1}; D.tempProbe=true; resetDevice()')
+  ok('a new scenario clears both', w.eval('D.nibp') === null && w.eval('D.tempProbe') === false)
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The ON key, and the screen staying up.
+// ---------------------------------------------------------------------------
+{
+  const { w, d } = loadMonitor()
+  ok('the unit starts powered on', w.eval('D.on') === true)
+
+  const press = () => {
+    const el = d.getElementById('kON')
+    el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+    el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
+  }
+  press()
+  ok('a press turns it off', w.eval('D.on') === false, 'a key that answers in one direction reads as broken')
+  ok('and the screen goes with it', d.body.classList.contains('powered-off'))
+  press()
+  ok('a second press brings it back', w.eval('D.on') === true)
+  ok('through a self test', d.body.classList.contains('booting'))
+  ok('the manual’s press-and-hold still powers it off', /bindHold\('kON',1200/.test(MONITOR_SRC))
+
+  // Off is off: no alarm can sound through a unit that is switched off.
+  ok('alarms are gated on the unit being on', /const almShow=D\.on&&/.test(MONITOR_SRC))
+  // Powering off is not a reset — the shock count and the log are the crew's.
+  w.eval('D.shocks=3; setPower(false); setPower(true)')
+  ok('and the shock count survives a power cycle', w.eval('D.shocks') === 3)
+
+  // The screen wake lock, which is what stops an iPad locking mid-code.
+  ok('the monitor holds a screen wake lock', /navigator\.wakeLock\.request\('screen'\)/.test(MONITOR_SRC))
+  ok('and takes it again when the page comes back', /visibilitychange/.test(MONITOR_SRC))
+  ok('every call is guarded', /if\(!\('wakeLock' in navigator\)/.test(MONITOR_SRC))
   w.close()
 }
 
