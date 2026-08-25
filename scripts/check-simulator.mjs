@@ -2223,7 +2223,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
 
   // The plain Advance control exists whatever the stage.
   const src = readFileSync(PAGE, 'utf8')
-  ok('every stage offers a one-tap advance', /onclick="advanceStage\(\)"/.test(src))
+  ok('every stage offers a one-tap advance', /advanceStage\(\)"/.test(src))
   ok('and the last stage offers none', (w.applySimState('megacode1', 3), w.eval('nextStage()') === null))
   w.close()
 }
@@ -2414,6 +2414,79 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   )
   ok('and the instructor of record', w.eval('lastRun.instructorInitials') === 'JJ')
   w.close()
+}
+
+{
+  // Advance is pressed at every rhythm change, standing up, while watching a
+  // crew. Under the state list it is 590px down a stacked layout and not on
+  // screen at all once the card is condensed, so it is rendered three times and
+  // the CSS shows one.
+  const { w, d } = load()
+  const src = readFileSync(PAGE, 'utf8')
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  const card = () => d.getElementById('runCard').innerHTML
+
+  const copies = [...card().matchAll(/class="adv-btn (adv-[a-z]+)/g)].map((m) => m[1])
+  ok(
+    'Advance is rendered under the states, in the header and in the condensed bar',
+    ['adv-col', 'adv-head', 'adv-mini'].every((c) => copies.includes(c)),
+    copies.join(' | '),
+  )
+  ok('two of the three are hidden by default', /\.adv-btn\.adv-head, \.adv-btn\.adv-mini\{display:none;\}/.test(src))
+  ok(
+    'the header copy takes over where the columns stack',
+    /@media \(max-width:820px\)\{[\s\S]*?\.run-card \.adv-btn\.adv-col\{display:none;\}[\s\S]*?\.adv-btn\.adv-head\{display:block/.test(src),
+  )
+  ok(
+    'and the condensed bar shows its own',
+    /\.run-card\.condensed \.adv-btn\.adv-mini\{display:block/.test(src),
+  )
+  // The quick scenarios render Advance into the in-grid card, where it is the
+  // only copy there is — the stacked-layout hide must not reach it.
+  ok(
+    'the quick scenarios keep their Advance at every width',
+    /\.run-card \.adv-btn\.adv-col\{display:none;\}/.test(src) && !/^\.adv-btn\.adv-col\{display:none/m.test(src),
+  )
+
+  // Every copy says the same thing, including once the cue is up — which is a
+  // property of the stage, so this has to be a stage that is scripted around
+  // shocks.
+  w.applySimState('megacode2', 1)
+  w.eval('run.stageShocks=9; renderSimPanel("megacode2")')
+  const labels = [...d.querySelectorAll('.adv-btn')].map((b) => b.textContent.trim())
+  ok('every copy carries the same label', new Set(labels).size === 1, labels.join(' | '))
+  ok('and the cue when the scripted shocks have landed', /⚡/.test(labels[0] || ''), labels[0])
+
+  // The condensed bar is itself a button that expands the card; advancing from
+  // it must not also open the card back up.
+  w.eval('RAIL_MQ=null; collapseRunCard()')
+  const before = w.eval('run.current')
+  d.querySelector('.adv-btn.adv-mini').click()
+  ok('advancing from the condensed bar moves the patient', w.eval('run.current') === before + 1)
+  ok(
+    'and leaves the card condensed',
+    d.getElementById('runCard').classList.contains('condensed'),
+    'the tap fell through to the bar behind it',
+  )
+  ok('every copy is a 44px target', /\.adv-btn\{display:block;width:100%;min-height:44px/.test(src))
+  w.close()
+}
+
+{
+  // Type. The check rows were 10.2px and the two labels above them 9px in the
+  // tone the tokens reserve for non-essential text — that is the student's name
+  // and the date of test, read across a classroom.
+  const src = readFileSync(PAGE, 'utf8')
+  ok('the check rows are set at .72rem', /\.sh-row\{[^}]*font-size:\.72rem/s.test(src))
+  ok('the section bands at .66rem', /\.sh-sec-h\{[^}]*font-size:\.66rem/s.test(src))
+  ok('the sheet head fields at .72rem', /\.sh-meta input\{[^}]*font-size:\.72rem/s.test(src))
+  ok(
+    'and nothing on the sheet is left in the faintest tone',
+    !/\.sh-[a-z-]+[^{]*\{[^}]*color:var\(--t-faint\)/s.test(src),
+  )
+  ok('the transition prose is readable at arm’s length', /\.trig\{font-size:\.66rem;color:var\(--t\)/.test(src))
+  ok('and so is the debrief summary', /\.run-sum\{font-size:\.68rem/.test(src))
 }
 
 {
