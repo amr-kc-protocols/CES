@@ -2355,6 +2355,24 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   )
   ok('and restores it before scrolling to the phase', /restoreSheetScroll\(scrollWas\);\s*\n\s*syncSheetScroll\(\);/.test(panelSrcNow))
 
+  // Starting a run must not scroll the card: the scenario, the student's name
+  // and End run are all at the top of it, and the first section is where the
+  // view already is.
+  ok(
+    'the first phase of a run does not scroll the card',
+    /if\(wasPhase<0\) return;/.test(panelSrcNow),
+  )
+  // Every tick replaces the row that was clicked, and focus goes with it.
+  ok('sheet rows carry a key that survives the re-render', /data-k="\$\{esc\(key\|\|''\)\}"/.test(panelSrcNow))
+  w.eval("document.querySelectorAll('.sh-row')[3].focus()")
+  const key = w.eval("document.activeElement.dataset.k")
+  w.eval("document.activeElement.click()")
+  ok(
+    'and focus lands back on the same step after it',
+    w.eval('document.activeElement.dataset.k') === key,
+    `focus went to ${w.eval("document.activeElement.className||document.activeElement.tagName")}`,
+  )
+
   // STOP TEST and the result block the sheet closes with.
   ok('the sheet closes with STOP TEST', /sh-stop/.test(card()) && /Stop test/i.test(card()))
   ok('over the PASS / NR the instructor circles', /res-btn pass/.test(card()) && /res-btn nr/.test(card()))

@@ -3365,12 +3365,16 @@ function renderBrief(simKey){
 // Which phase the patient is in is a highlight and a scroll, not a filter.
 let sheetPhase=-1;
 
-function sheetRow(text,done,auto,handler){
+/* `key` survives the re-render that follows every tick: the row that was
+   focused is gone by the time the click handler returns, and without a way to
+   find its replacement a keyboard or screen-reader user is dropped back to the
+   top of the document on every step they check. */
+function sheetRow(text,done,auto,handler,key){
   const tag=auto?`<span class="auto-tag">${auto==='crew'?'from interventions':'from monitor'}</span>`:'';
   const why=auto?(auto==='crew'?'Ticked from the interventions you marked — click to undo'
                                :'Ticked from a press at the defibrillator — click to undo'):'';
   return `<div class="sh-row${done?' done':''}${auto?' auto':''}" role="button" tabindex="0"
-       aria-pressed="${!!done}" title="${esc(why)}" onclick="${handler}">
+       data-k="${esc(key||'')}" aria-pressed="${!!done}" title="${esc(why)}" onclick="${handler}">
     <span class="sh-txt">${esc(text)}</span>${tag}<span class="box">${done?'✓':''}</span></div>`;
 }
 
@@ -3379,9 +3383,9 @@ function sheetHtml(){
   const cl=ACLS_CHECKLISTS[run.checklist]||{};
   const title=(run.checklistName||'').split(' — ');
   // Team leader and CPR quality, as the sheet opens.
-  const team=run.team.map((t,i)=>sheetRow(t.text,t.done,null,`toggleTeam(${i})`)).join('');
+  const team=run.team.map((t,i)=>sheetRow(t.text,t.done,null,`toggleTeam(${i})`,'t'+i)).join('');
   const cprChecks=ACLS_CPR_FIELDS.filter(f=>f.type==='check')
-    .map(f=>sheetRow(f.label,run.cpr[f.id],null,`toggleCpr('${f.id}')`)).join('');
+    .map(f=>sheetRow(f.label,run.cpr[f.id],null,`toggleCpr('${f.id}')`,'c'+f.id)).join('');
   const cprWrite=ACLS_CPR_FIELDS.filter(f=>f.type==='value').map(f=>
     `<div class="sh-write"><span>${esc(f.label)}</span>
       <input inputmode="numeric" type="number" min="${f.min}" max="${f.max}" aria-label="${esc(f.label)}"
@@ -3394,7 +3398,7 @@ function sheetHtml(){
   const sections=run.states.map((st,si)=>{
     const done=st.actions.filter(a=>a.done).length;
     const now=si===run.current;
-    const rows=st.actions.map((a,ai)=>sheetRow(a.text,a.done,a.auto,`toggleActionAt(${si},${ai})`)).join('');
+    const rows=st.actions.map((a,ai)=>sheetRow(a.text,a.done,a.auto,`toggleActionAt(${si},${ai})`,'a'+si+'.'+ai)).join('');
     return `<div class="sh-sec${now?' now':''}">
       <div class="sh-sec-h">${esc(st.section||st.label)}
         ${now?'<span class="sh-now">now</span>':''}
@@ -3450,7 +3454,13 @@ function sheetDate(iso){
 function sheetScrollState(){
   const sheet=document.getElementById('sheet');
   const card=document.getElementById('runCard');
-  return {sheet:sheet?sheet.scrollTop:null, card:card?card.scrollTop:null};
+  const active=document.activeElement;
+  return {
+    sheet:sheet?sheet.scrollTop:null,
+    card:card?card.scrollTop:null,
+    // The row that had focus, by the key that outlives the render.
+    focus:active&&active.dataset?active.dataset.k||null:null,
+  };
 }
 function restoreSheetScroll(prev){
   if(!prev) return;
@@ -3458,6 +3468,13 @@ function restoreSheetScroll(prev){
   const card=document.getElementById('runCard');
   if(sheet&&prev.sheet!=null) sheet.scrollTop=prev.sheet;
   if(card&&prev.card!=null) card.scrollTop=prev.card;
+  if(prev.focus){
+    // Same step, new element. Without this, checking a step from the keyboard
+    // drops focus to the top of the document and the next one has to be tabbed
+    // back to from there.
+    const back=document.querySelector('[data-k="'+prev.focus+'"]');
+    if(back) try{ back.focus({preventScroll:true}); }catch(e){ back.focus(); }
+  }
 }
 
 /* Bring the phase the patient is in into view — but only when the phase itself
@@ -3466,7 +3483,13 @@ function restoreSheetScroll(prev){
 function syncSheetScroll(){
   if(!run||!run.checklist) return;
   if(run.current===sheetPhase) return;
+  const wasPhase=sheetPhase;
   sheetPhase=run.current;
+  // Not on the first phase of a run. Everything is at the top of the card at
+  // that point — the scenario, the student's name, End run — and scrolling the
+  // form up to meet the first section takes all of it off the screen before
+  // the crew have done anything.
+  if(wasPhase<0) return;
   try{
     const sheet=document.getElementById('sheet');
     const sec=sheet&&sheet.querySelector('.sh-sec.now');
@@ -3479,7 +3502,14 @@ function syncSheetScroll(){
     // ancestor — the card, not the sheet — and put the scroll nowhere.
     const box=(sheet.scrollHeight>sheet.clientHeight+2)?sheet:document.getElementById('runCard');
     if(!box) return;
-    const delta=sec.getBoundingClientRect().top-box.getBoundingClientRect().top;
+    const boxRect=box.getBoundingClientRect();
+    const secRect=sec.getBoundingClientRect();
+    // Already in front of them: leave the view alone. Without this, starting a
+    // run scrolled the rail down to the first section — which is where it was
+    // anyway — and took the run header, the student's name and End run off the
+    // top of the screen with it.
+    if(secRect.top>=boxRect.top+headH&&secRect.top<boxRect.bottom-60) return;
+    const delta=secRect.top-boxRect.top;
     box.scrollTop=Math.max(0,box.scrollTop+delta-headH-6);
   }catch(e){}
 }
