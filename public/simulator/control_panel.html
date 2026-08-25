@@ -275,9 +275,15 @@ select:focus{border-color:var(--accent);}
 .run-foot input{width:100%;background:var(--inset);border:1px solid var(--border);border-radius:5px;
   color:var(--t-strong);padding:5px 8px;font-size:.68rem;outline:none;margin-bottom:6px;}
 .run-foot input:focus{border-color:var(--accent);}
-.end-btn{width:100%;padding:8px;border-radius:6px;border:1px solid var(--ok);background:#04240f;
+/* End run is a 44px target: it saves a competency record, and it is pressed
+   once, at the end, by someone who has just finished running a code. */
+.end-btn{width:100%;padding:11px 8px;min-height:44px;border-radius:6px;border:1px solid var(--ok);background:#04240f;
   color:var(--ok);font-size:.68rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
 .end-btn:hover{background:#06381a;}
+/* Reopening is a correction, not the way forward — it reads as the quieter of
+   the two so "run this again" stays the obvious next move. */
+.end-btn.reopen{background:var(--surface-2);border-color:var(--border-strong);color:var(--t-dim);}
+.end-btn.reopen:hover{background:var(--surface-2);border-color:var(--accent);color:var(--t-strong);}
 .run-sum{font-size:.63rem;color:var(--t);line-height:1.5;}
 .run-sum .rs-state{margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid #16283a;}
 .run-sum .rs-miss{color:#ff8844;}
@@ -418,12 +424,12 @@ select:focus{border-color:var(--accent);}
   background:var(--surface-2);position:sticky;top:0;z-index:2;}
 .sh-title{font-size:.64rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--t-strong);}
 .sh-sub{font-size:.58rem;color:var(--t-dim);margin-top:2px;line-height:1.35;}
-.sh-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:7px;font-size:.56rem;
-  letter-spacing:.5px;text-transform:uppercase;color:var(--t-faint);}
-.sh-meta label{display:flex;align-items:center;gap:6px;flex:1 1 150px;margin:0;font-size:.56rem;}
-.sh-meta input{flex:1 1 auto;min-width:0;background:transparent;border:none;
-  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:2px 3px;
-  font-family:inherit;font-size:.66rem;text-transform:none;letter-spacing:0;outline:none;}
+.sh-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:7px;font-size:.6rem;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--t-dim);}
+.sh-meta label{display:flex;align-items:center;gap:6px;flex:1 1 150px;margin:0;font-size:.6rem;}
+.sh-meta input{flex:1 1 auto;min-width:0;min-height:38px;background:transparent;border:none;
+  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:4px 4px;
+  font-family:inherit;font-size:.72rem;text-transform:none;letter-spacing:0;outline:none;}
 .sh-meta input:focus{border-bottom-color:var(--accent);}
 .sh-meta .writ{flex:1 1 auto;border-bottom:1px solid var(--border);padding:2px 3px;
   color:var(--t);font-size:.66rem;text-transform:none;letter-spacing:0;}
@@ -445,8 +451,12 @@ select:focus{border-color:var(--accent);}
 .sh-sec.now .sh-sec-h{box-shadow:inset 3px 0 0 var(--accent);}
 .sh-now{font-size:.48rem;letter-spacing:1px;text-transform:uppercase;color:var(--accent);
   border:1px solid var(--accent);border-radius:20px;padding:1px 6px;font-weight:bold;}
-.sh-row{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;cursor:pointer;
-  font-size:.64rem;line-height:1.35;color:var(--t);border-top:1px solid rgba(36,52,73,.5);}
+/* 40px, not the 30 these were. This is the most-tapped row in the program —
+   a facilitator checks 23 of them per megacode, standing up, often on a touch
+   screen — and 30px is below anything you can hit without looking. The height
+   costs the sheet ~230px, which its own scroll absorbs. */
+.sh-row{display:flex;gap:9px;align-items:center;padding:9px 10px;min-height:40px;cursor:pointer;
+  font-size:.66rem;line-height:1.35;color:var(--t);border-top:1px solid rgba(36,52,73,.5);}
 .sh-row:first-of-type{border-top:none;}
 .sh-row:hover{background:var(--inset);}
 .sh-row.done{color:#7fe0a5;}
@@ -462,11 +472,11 @@ select:focus{border-color:var(--accent);}
 .sh-row.auto .box{border-style:dashed;}
 .sh-row .auto-tag{flex:none;align-self:center;font-size:.5rem;letter-spacing:.5px;
   text-transform:uppercase;color:#8fb6ff;white-space:nowrap;}
-.sh-write{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:.62rem;
+.sh-write{display:flex;align-items:center;gap:8px;padding:5px 10px;min-height:40px;font-size:.62rem;
   color:var(--t-dim);border-top:1px solid rgba(36,52,73,.5);}
-.sh-write input{width:62px;margin-left:auto;background:var(--inset);border:1px solid var(--border);
-  border-radius:5px;color:var(--t-strong);padding:3px 6px;font-family:inherit;font-size:.66rem;
-  text-align:right;outline:none;}
+.sh-write input{width:70px;min-height:38px;margin-left:auto;background:var(--inset);
+  border:1px solid var(--border);border-radius:5px;color:var(--t-strong);padding:4px 8px;
+  font-family:inherit;font-size:.72rem;text-align:right;outline:none;}
 .sh-write input:focus{border-color:var(--accent);}
 .sh-write .sh-suffix{flex:none;width:34px;font-size:.56rem;color:var(--t-faint);}
 /* STOP TEST, then the result. Sticky at the foot of the sheet: it is the one
@@ -478,9 +488,9 @@ select:focus{border-color:var(--accent);}
 .sh-foot .sh-res-lbl{font-size:.54rem;letter-spacing:1px;text-transform:uppercase;color:var(--t-faint);}
 .sh-foot label{display:flex;align-items:center;gap:5px;margin:0;font-size:.54rem;
   letter-spacing:1px;text-transform:uppercase;color:var(--t-faint);flex:1 1 120px;}
-.sh-foot input{flex:1 1 auto;min-width:0;background:transparent;border:none;
-  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:2px 3px;
-  font-family:inherit;font-size:.66rem;text-transform:none;letter-spacing:0;outline:none;}
+.sh-foot input{flex:1 1 auto;min-width:0;min-height:38px;background:transparent;border:none;
+  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:4px 4px;
+  font-family:inherit;font-size:.72rem;text-transform:none;letter-spacing:0;outline:none;}
 .sh-foot input:focus{border-bottom-color:var(--accent);}
 .res-grp{display:flex;gap:6px;align-items:center;}
 
@@ -498,12 +508,30 @@ select:focus{border-color:var(--accent);}
 @media (min-width:1280px){
   .sheet{max-height:none;overflow:visible;}
 }
-.res-btn{padding:5px 16px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
+.res-btn{padding:9px 18px;min-height:40px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
   color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
 .res-btn.pass.on{background:#04240f;border-color:var(--ok);color:var(--ok);}
 .res-btn.nr.on{background:#2a0e00;border-color:#ff8844;color:#ff8844;}
 .res-btn:hover{border-color:var(--t-dim);}
-.run-inline input{flex:1;min-width:120px;}
+.run-inline input{flex:1;min-width:120px;min-height:36px;padding:6px 9px;font-size:.72rem;}
+
+/* The end-of-run prompt. Above the rail and the condensed bar, both of which
+   sit at z-index 40. */
+.modal-veil{position:fixed;inset:0;background:rgba(4,9,16,.72);z-index:100;
+  display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-veil[hidden]{display:none;}
+.modal{width:min(460px,100%);background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--radius);box-shadow:var(--shadow-float);padding:18px 20px 16px;}
+.modal h3{font-size:.86rem;color:var(--t-strong);letter-spacing:.5px;margin-bottom:6px;}
+.modal-sub{font-size:.68rem;color:var(--t-dim);margin-bottom:8px;}
+.modal-list{margin:0 0 16px 18px;padding:0;font-size:.72rem;line-height:1.7;color:var(--amber);}
+.modal-btns{display:flex;gap:10px;flex-wrap:wrap;}
+.modal-btn{flex:1 1 auto;min-height:44px;padding:11px 14px;border-radius:var(--radius-sm);
+  cursor:pointer;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--t);
+  font:700 .72rem/1.2 inherit;letter-spacing:.5px;}
+.modal-btn:hover{border-color:var(--accent);color:var(--t-strong);}
+.modal-btn.go{background:#04240f;border-color:var(--ok);color:var(--ok);}
+.modal-btn.go:hover{background:#06381a;}
 
 /* In a graded run the state list lives in the full-width card above, so the
    in-grid card would be a duplicate. Hiding it leaves a hole at column 3 row 2,
@@ -734,6 +762,20 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <div id="runSentinel" aria-hidden="true"></div>
 <div id="runWrap"><div class="card run-card" id="runCard" hidden></div></div>
+
+<!-- Asked before a run with gaps in it is filed. Part of the page rather than
+     window.confirm(), which a browser is free to suppress — see endRun(). -->
+<div class="modal-veil" id="endPrompt" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="endPromptTitle">
+    <h3 id="endPromptTitle">Save this run anyway?</h3>
+    <p class="modal-sub">This run is a competency record. It is missing:</p>
+    <ul class="modal-list" id="endPromptList"></ul>
+    <div class="modal-btns">
+      <button class="modal-btn" id="endPromptBack" onclick="closeEndPrompt()">← Go back and fix it</button>
+      <button class="modal-btn go" onclick="commitRun()">Save as it is</button>
+    </div>
+  </div>
+</div>
 
 <div class="grid">
 
@@ -2734,17 +2776,29 @@ function runWarnings(){
   return out;
 }
 
+/* Ending a run, in two halves: the check, and the save.
+
+   The check used to be window.confirm(). That dialog is unstyled, it blocks
+   the whole tab, and — the reason it had to go — a browser told to "prevent
+   this page from creating additional dialogs", or an in-app browser that
+   suppresses them outright, returns false without showing anything. On this
+   page that meant End run silently doing nothing, on the one press that files
+   a competency record. The prompt below is part of the page, so it is always
+   seen and always answerable. */
 function endRun(){
   if(!run) return;
   // Nothing should still be moving the patient once the run is over — the
   // oxygen trend outlived the run and went on changing the saturation behind
   // the debrief summary.
   stopO2Trend();
-  // Warn, and let the facilitator confirm, before a run with gaps is saved.
   const warns=runWarnings();
-  if(warns.length&&typeof window.confirm==='function'){
-    if(!window.confirm('Save this run anyway?\n\n• '+warns.join('\n• '))) return;
-  }
+  if(warns.length){ openEndPrompt(warns); return; }
+  commitRun();
+}
+
+function commitRun(){
+  if(!run) return;
+  closeEndPrompt();
   enterRunState(-1);
   const rec={
     scenario:run.scenario, scenarioName:run.scenarioName,
@@ -2775,6 +2829,28 @@ function endRun(){
   rec.saved=saved;
   lastRun=rec; run=null;
   renderSimPanel(rec.scenario);
+}
+
+// ── "Save this run anyway?" ──────────────────────────────────────────────────
+// Everything the run is missing, in one list, with the way back to fix it.
+function openEndPrompt(warns){
+  const box=document.getElementById('endPrompt');
+  if(!box){ commitRun(); return; }   // no dialog in the page: never block a save
+  document.getElementById('endPromptList').innerHTML=
+    warns.map(w=>`<li>${esc(w)}</li>`).join('');
+  box.hidden=false;
+  const back=document.getElementById('endPromptBack');
+  // Focus lands on the way back, not on the save: the prompt exists because
+  // something is missing, and fixing it is the likelier answer.
+  if(back) back.focus();
+}
+function closeEndPrompt(){
+  const box=document.getElementById('endPrompt');
+  if(box) box.hidden=true;
+}
+function endPromptOpen(){
+  const box=document.getElementById('endPrompt');
+  return !!box&&!box.hidden;
 }
 
 // ── The run card's footprint ─────────────────────────────────────────────────
@@ -3605,9 +3681,9 @@ function renderSimPanel(simKey){
                  oninput="setRunField('crew',this.value)">`}
           <input id="noteIn" placeholder="Debrief note" value="${esc(run?run.notes:'')}"
                  oninput="setRunField('notes',this.value)">
-          <button class="apply-btn" style="padding:7px 12px;" onclick="toggleSetup()"
+          <button class="apply-btn" style="padding:9px 13px;min-height:38px;" onclick="toggleSetup()"
                   title="Show the scenario pickers without ending the run">⚙</button>
-          <button class="apply-btn rc-collapse" style="padding:7px 12px;" onclick="collapseRunCard()"
+          <button class="apply-btn rc-collapse" style="padding:9px 13px;min-height:38px;" onclick="collapseRunCard()"
                   title="Collapse this card to a single line — it stays put while you scroll either way">▲</button>
           <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
         </div>
@@ -3683,8 +3759,54 @@ function runSummaryHtml(rec){
      (rec.saved&&rec.checklist
        ? `<button class="end-btn" style="margin-top:8px;" onclick="printSheet()">🖨 Print check-off sheet</button>`
        : '')+
+     // Ended by mistake, or ended one action early. Restores the run and takes
+     // the record back off CES.
+     `<button class="end-btn reopen" style="margin-top:8px;" onclick="reopenRun()"
+              title="Put this run back on the clock — the record just filed is withdrawn">↩ Reopen this run</button>`+
      `<button class="end-btn" style="margin-top:8px;" onclick="newRun()">↻ Run this scenario again</button></div>`;
   return h;
+}
+
+/* Put a run that has just been ended back on the clock.
+
+   End run & save is one press, it is next to the controls that get pressed
+   constantly, and until now it was final: a mis-tap with the crew still working
+   meant the record was filed, and putting it right meant going to CES, deleting
+   it and running the scenario again from the top.
+
+   Reopening restores the run exactly as it was and asks CES to drop the record
+   it just filed, so there is one record at the end and not two. The patient is
+   left alone — ending a run never touched the vitals, so the monitor is still
+   showing what the crew are looking at. */
+function reopenRun(){
+  const rec=lastRun;
+  if(!rec) return;
+  run={
+    scenario:rec.scenario, scenarioName:rec.scenarioName,
+    startedAt:rec.startedAt,
+    crew:rec.crew||'', notes:rec.notes||'',
+    current:-1, enteredAt:Date.now(),
+    checklist:rec.checklist||null, checklistName:rec.checklistName||'',
+    team:rec.team||null, cpr:rec.cpr||null, result:rec.result||null,
+    instructorInitials:rec.instructorInitials||'', instructorNumber:rec.instructorNumber||'',
+    device:(rec.device||[]).slice(), lastShockAt:null, stageShocks:0,
+    states:rec.states.map(st=>({
+      id:st.id, label:st.label, section:st.section||'', seconds:st.seconds,
+      actions:st.actions.map(a=>Object.assign({},a)),
+    })),
+  };
+  lastRun=null;
+  sheetPhase=-1;
+  if(rec.saved){
+    try{
+      if(window.parent&&window.parent!==window)
+        window.parent.postMessage({type:'ces-sim-unsave'},window.location.origin);
+    }catch(e){}
+  }
+  // Back on the clock at the stage the panel is showing, which is the stage the
+  // patient is actually in.
+  enterRunState(activeStateIdx>=0?activeStateIdx:0);
+  renderSimPanel(run.scenario);
 }
 
 /** Ask CES to open the print dialog on the sheet for the run just saved. */
@@ -3891,6 +4013,8 @@ function makeFocusable(){
   });
 }
 document.addEventListener('keydown',e=>{
+  // Escape is the way out of the end-of-run prompt, as it is out of any dialog.
+  if(e.key==='Escape'&&endPromptOpen()){ e.preventDefault(); closeEndPrompt(); return; }
   const t=e.target;
   if(!t||typeof t.matches!=='function'||!t.matches('[role="button"]')) return;
   if(e.key==='Enter'||e.key===' '){e.preventDefault();t.click();}

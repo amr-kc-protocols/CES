@@ -101,6 +101,20 @@ export default function SimulatorView() {
         if (lastSaved.current) printRunSheet(lastSaved.current)
         return
       }
+      // The facilitator ended a run by mistake and put it back on the clock.
+      // The record filed a moment ago is withdrawn rather than left to become a
+      // duplicate of the one that will be filed when the run really ends.
+      if (e.data.type === 'ces-sim-unsave') {
+        const withdrawn = lastSaved.current
+        if (!withdrawn) return
+        lastSaved.current = null
+        setJustSaved(null)
+        setState((prev) => ({
+          ...prev,
+          simRuns: prev.simRuns.filter((x) => x.id !== withdrawn.id),
+        }))
+        return
+      }
       if (e.data.type !== 'ces-sim-run' || !e.data.run) return
       const incoming = e.data.run as Omit<SimRun, 'id' | 'facilitator'>
       const record: SimRun = {

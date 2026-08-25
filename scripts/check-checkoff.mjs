@@ -96,6 +96,9 @@ function runMegacode(key, fill) {
   w.applySimScenario()
   fill(w)
   w.endRun()
+  // Gaps in the record open the prompt in the page; these fixtures answer it.
+  const box = w.document.getElementById('endPrompt')
+  if (box && !box.hidden) w.commitRun()
   const rec = JSON.parse(JSON.stringify(w.eval('lastRun')))
   const checklists = JSON.parse(JSON.stringify(w.eval('ACLS_CHECKLISTS')))
   w.close()

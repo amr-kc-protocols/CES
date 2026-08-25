@@ -69,10 +69,10 @@ function load(file = PAGE) {
     url: 'https://ces.local/simulator/control_panel.html',
   })
   const w = dom.window
-  // Ending a run now warns-and-confirms when the record has gaps. jsdom's
-  // confirm returns false (and warns "not implemented"), which would abort every
-  // save; default it to "yes" here so tests that are not about the warning save
-  // as before. The warning tests override it explicitly.
+  // Ending a run with gaps in it opens a prompt in the page — see endRun(). It
+  // used to be window.confirm(), which jsdom answers false, aborting every
+  // save. Tests that are not about the prompt end runs through endRunSaving()
+  // below, which answers it; the prompt's own tests drive it directly.
   try { w.confirm = () => true } catch { /* non-writable in some builds */ }
   return {
     w,
@@ -81,6 +81,13 @@ function load(file = PAGE) {
     S: () => w.eval('S'),
     text: (id) => w.document.getElementById(id)?.textContent,
   }
+}
+
+/** End a run, answering the gaps prompt if it appears. */
+function endRunSaving(w) {
+  w.endRun()
+  const box = w.document.getElementById('endPrompt')
+  if (box && !box.hidden) w.commitRun()
 }
 
 // ---------------------------------------------------------------------------
@@ -464,7 +471,7 @@ function loadMonitor(storage = {}) {
   ok('the state being run is the one being graded', w.eval('run').current === 1)
 
   w.setRunField('crew', 'Med 3 — Alvarez / Boyd')
-  w.endRun()
+  endRunSaving(w)
   const rec = w.eval('lastRun')
   ok('ending a run produces a record', !!rec)
   ok('the record keeps the crew', rec.crew === 'Med 3 — Alvarez / Boyd')
@@ -553,7 +560,7 @@ function loadMonitor(storage = {}) {
   w.toggleTeam(0)
   w.toggleCpr('rate')
   w.setCpr('fraction', '82')
-  w.endRun()
+  endRunSaving(w)
   const rec = w.eval('lastRun')
   ok('the record carries the result', rec.result === 'nr', String(rec.result))
   ok('the record carries the team assessment', rec.team[0].done === true)
@@ -1486,7 +1493,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     w.eval('RAIL_MQ=null; applyRunCondense()')
     ok('the rail never condenses — it costs no vertical space to start with', !cond())
     width(1180)
-    w.eval('RAIL_MQ=null; endRun(); applyRunCondense()')
+    w.eval('RAIL_MQ=null; endRun(); if(!document.getElementById("endPrompt").hidden) commitRun(); applyRunCondense()')
     ok(
       'the finished-run summary never condenses',
       !cond(),
@@ -1987,13 +1994,25 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('and about the missing result being unobserved actions', warns.some((x) => /1 of 18|of \d+ expected/.test(x)) || warns.some((x) => /PASS/.test(x)), warns.join(' | '))
   ok('and about the missing debrief note', warns.some((x) => /debrief/.test(x)))
 
-  // Declining the confirmation does not save.
-  w.confirm = () => false
+  // The prompt is part of the page, not window.confirm() — a browser that
+  // suppresses dialogs used to turn End run into a button that did nothing.
+  w.confirm = () => {
+    throw new Error('endRun must not reach window.confirm')
+  }
   w.endRun()
-  ok('declining the warning leaves the run open, unsaved', w.eval('run') !== null && w.eval('lastRun') === null)
+  const prompt = d.getElementById('endPrompt')
+  ok('a run with gaps opens the prompt in the page', prompt && !prompt.hidden)
+  ok(
+    'and the prompt lists what is missing',
+    /student name/.test(d.getElementById('endPromptList').textContent),
+    d.getElementById('endPromptList').textContent,
+  )
+  ok('nothing is saved while it is open', w.eval('run') !== null && w.eval('lastRun') === null)
+  w.closeEndPrompt()
+  ok('going back leaves the run open, unsaved', w.eval('run') !== null && w.eval('lastRun') === null)
+  ok('and closes the prompt', prompt.hidden)
 
   // A complete run does not warn.
-  w.confirm = () => true
   const key = 'megacode1'
   const sims = w.eval('SIMULATIONS')
   // Observe every action across every phase.
@@ -2295,8 +2314,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   // Ending a run must leave nothing still moving the patient.
   w.setIntervention('o2', 'bvm')
   ok('the crew changing oxygen starts it again', w.eval('!!o2Timer'))
-  w.confirm = () => true
-  w.endRun()
+  endRunSaving(w)
   ok('ending the run stops the oxygen trend', w.eval('o2Timer') === null, 'it went on changing the patient behind the summary')
   w.close()
 }
@@ -2388,14 +2406,57 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   // The published section heading goes onto the record, so a sheet printed
   // months later carries the headings it was graded under.
   w.applySimState('megacode4', 1)
-  w.confirm = () => true
-  w.endRun()
+  endRunSaving(w)
   ok(
     'the record carries the published section headings',
     w.eval("lastRun.states[1].section") === 'VF Management',
     w.eval('lastRun.states[1].section'),
   )
   ok('and the instructor of record', w.eval('lastRun.instructorInitials') === 'JJ')
+  w.close()
+}
+
+{
+  // Ended by mistake. End run & save sits beside controls that get pressed
+  // constantly, and until now it was final: the record was filed and putting it
+  // right meant deleting it in CES and running the scenario again.
+  const { w, d } = load()
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  w.setRunField('crew', 'Alex Rivera')
+  w.setRunField('notes', 'Good code.')
+  w.setInstructor('instructorInitials', 'JJ')
+  w.applySimState('megacode2', 1)
+  w.toggleActionAt(0, 0)
+  w.toggleActionAt(1, 2)
+  w.setResult('pass')
+  endRunSaving(w)
+  ok('the run is closed and summarised', w.eval('run') === null && !!w.eval('lastRun'))
+  ok('and the summary offers a way back', /Reopen this run/.test(d.getElementById('runCard').innerHTML))
+
+  w.reopenRun()
+  ok('reopening puts the run back on the clock', !!w.eval('run') && w.eval('lastRun') === null)
+  ok('with the steps that were checked', w.eval('run.states[0].actions[0].done') === true)
+  ok('and the ones that were not', w.eval('run.states[1].actions[0].done') === false)
+  ok('with the result', w.eval('run.result') === 'pass')
+  ok('the student', w.eval('run.crew') === 'Alex Rivera')
+  ok('the instructor', w.eval('run.instructorInitials') === 'JJ')
+  ok('the note', w.eval('run.notes') === 'Good code.')
+  ok('and the time already banked', w.eval('run.states.reduce((n,s)=>n+s.seconds,0)') >= 0)
+  ok('the clock is running again', w.eval('run.current') >= 0 && w.eval('!!run.enteredAt'))
+
+  // Reopening has to take the record back off CES, or ending the run a second
+  // time leaves two records of one megacode.
+  ok(
+    'and CES is told to withdraw the record it filed',
+    /postMessage\(\{type:'ces-sim-unsave'\}/.test(readFileSync(PAGE, 'utf8')),
+  )
+
+  // Ending it again files one record, not a second.
+  w.toggleActionAt(1, 0)
+  endRunSaving(w)
+  ok('ending it again produces one finished run', !!w.eval('lastRun') && w.eval('run') === null)
+  ok('carrying the extra step', w.eval('lastRun.states[1].actions[0].done') === true)
   w.close()
 }
 
