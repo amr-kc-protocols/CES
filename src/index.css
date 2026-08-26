@@ -1194,6 +1194,22 @@ span.att-cell {
   margin-top: 4px;
 }
 
+/* A validation message that belongs under one input rather than atop the form.
+   Same size as the hint it replaces, so nothing shifts when it appears. */
+.help-text.crit-text {
+  color: #991b1b;
+  font-weight: 600;
+}
+
+/* The offending span in a rejected free-text field. Marked, not merely
+   described — the point is to put the eye on the words. */
+.help-text mark {
+  background: var(--crit-bg);
+  color: #991b1b;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 /* ---------- Survey / choice buttons ---------- */
 .q-label {
   display: block;

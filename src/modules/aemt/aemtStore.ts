@@ -20,6 +20,8 @@ import {
 } from '../../data/aemt'
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
+import { clearanceGating, seedPhases, skillClearance } from '../../data/aemtPhases'
+import { checkPhi, phiMessage } from '../../lib/phi'
 import { versionToPin } from '../templates/resolve'
 import {
   SELECTION_WEIGHTS,
@@ -36,8 +38,11 @@ import type {
   Attestation,
   AemtAttendanceRecord,
   AemtCandidate,
+  AemtClinicalPhase,
   AemtInterviewScore,
   AemtClinicalShift,
+  AemtSkillClearance,
+  SkillClearanceCode,
   AemtAuditEvent,
   AemtCompletion,
   AemtEncounter,
@@ -1531,14 +1536,29 @@ export function useShifts(courseId: string | undefined): AemtClinicalShift[] {
   )
 }
 
+/**
+ * Refuse a write whose reflection carries what looks like patient information.
+ *
+ * The screen checks this too, on blur and again on the button — but the screen
+ * is one caller, and the rule is not "warn the person who happens to be
+ * looking". It is enforced at the write so no future caller can route around
+ * it. Nothing about the rejected text is stored, audited or logged.
+ */
+function phiRefusal(reflection: string | undefined): string | undefined {
+  const result = checkPhi(reflection)
+  return result.ok ? undefined : phiMessage(result)
+}
+
 export function addShift(
   courseId: string,
   studentId: string,
   input: Omit<AemtClinicalShift, 'id' | 'courseId' | 'studentId'>,
-): AemtClinicalShift {
+): { ok: boolean; refused?: string; shift?: AemtClinicalShift } {
+  const refused = phiRefusal(input.reflection)
+  if (refused) return { ok: false, refused }
   const shift: AemtClinicalShift = { id: uid('ashift'), courseId, studentId, ...input }
   setState((db) => ({ ...db, aemtShifts: [...db.aemtShifts, shift] }))
-  return shift
+  return { ok: true, shift }
 }
 
 /**
@@ -1586,9 +1606,13 @@ export function updateShift(
   id: string,
   patch: Partial<AemtClinicalShift>,
   opts: { actor?: string; reason?: string } = {},
-): { invalidated: boolean } {
+): { invalidated: boolean; ok: boolean; refused?: string } {
   const before = getState().aemtShifts.find((s) => s.id === id)
-  if (!before) return { invalidated: false }
+  if (!before) return { invalidated: false, ok: false, refused: 'That shift no longer exists.' }
+  if ('reflection' in patch) {
+    const refused = phiRefusal(patch.reflection)
+    if (refused) return { invalidated: false, ok: false, refused }
+  }
 
   const changed = materialShiftChanges(before, patch)
   const wasAttested = !!before.attestedAt
@@ -1628,7 +1652,7 @@ export function updateShift(
         (invalidate ? ` · reason: ${opts.reason?.trim() || 'not stated'}` : ''),
     )
   }
-  return { invalidated: invalidate }
+  return { invalidated: invalidate, ok: true }
 }
 
 /**
@@ -1786,6 +1810,13 @@ export function encounterCounts(
   e: AemtEncounter,
   requirement: KarMinimum,
   shift: AemtClinicalShift | undefined,
+  /**
+   * The student whose clearances gate this requirement. Required rather than
+   * optional: an omitted student reads as "cleared for nothing", and a default
+   * that silently zeroes every tally in the audit package is not a default
+   * anyone should be able to reach by forgetting an argument.
+   */
+  student: AemtStudent | undefined,
 ): boolean {
   // Voided rows stay visible and stop counting. A correction has to be
   // traceable, so nothing is deleted to make a number move.
@@ -1802,6 +1833,11 @@ export function encounterCounts(
   if (!e.shiftId) return false
   if (!shift) return false
   if (!attestationIsEvidence(shift)) return false
+  // A rep performed before the student was checked off on the skill is not a
+  // supervised performance, whatever the preceptor later signed. Judged on the
+  // shift's own date, so withdrawing a clearance retroactively stops the reps
+  // that depended on it rather than leaving them counted.
+  if (clearanceGate(student, requirement.id, shift.date).blocked) return false
   return supervisorEligible(requirement, shift)
 }
 
@@ -1816,6 +1852,260 @@ export function supervisorEligible(
   if (!shift) return false
   const allowed = requirement.eligibleSupervisors ?? SETTING_PRECEPTORS[shift.setting]
   return allowed.includes(shift.preceptorCredential)
+}
+
+// ----- scope-of-practice clearances ------------------------------------------
+//
+// The dated lab check-offs that decide whether a logged rep is evidence. See
+// data/aemtPhases.ts for which requirements each clearance gates and why the
+// assessment clearance is recorded without being enforced.
+
+/** The date a student was cleared for a code, or undefined if never. */
+export function clearedOn(
+  student: AemtStudent | undefined,
+  code: SkillClearanceCode,
+): string | undefined {
+  return student?.skillClearances?.find((c) => c.code === code)?.grantedOn
+}
+
+/**
+ * Record a lab check-off.
+ *
+ * Audited, because the grant date is what decides whether a month of
+ * venipunctures counts. Re-granting overwrites the date rather than stacking a
+ * second row — one check-off, one date — and the audit trail carries the move.
+ */
+export function grantSkillClearance(
+  studentId: string,
+  code: SkillClearanceCode,
+  grantedOn: string,
+  opts: { actor?: string; grantedBy?: string; note?: string } = {},
+): void {
+  const student = getState().aemtStudents.find((s) => s.id === studentId)
+  if (!student) return
+  const previous = clearedOn(student, code)
+  const entry: AemtSkillClearance = {
+    code,
+    grantedOn,
+    grantedBy: opts.grantedBy?.trim() || opts.actor || 'not stated',
+    recordedAt: new Date().toISOString(),
+    note: opts.note?.trim() || undefined,
+  }
+  setState((db) => ({
+    ...db,
+    aemtStudents: db.aemtStudents.map((s) =>
+      s.id !== studentId
+        ? s
+        : {
+            ...s,
+            skillClearances: [...(s.skillClearances ?? []).filter((c) => c.code !== code), entry],
+          },
+    ),
+  }))
+  const label = skillClearance(code)?.label ?? code
+  audit(
+    student.courseId,
+    studentId,
+    opts.actor ?? 'local',
+    previous ? 'skill clearance date changed' : 'skill clearance granted',
+    `${student.name} · ${label} · ${previous ? `${previous} → ${grantedOn}` : grantedOn}` +
+      (opts.grantedBy ? ` · signed ${opts.grantedBy}` : ''),
+  )
+}
+
+/**
+ * Withdraw a check-off.
+ *
+ * Reps already logged against it stop counting from the moment this lands, so
+ * it takes a reason the same way withdrawing an attestation does.
+ */
+export function revokeSkillClearance(
+  studentId: string,
+  code: SkillClearanceCode,
+  actor: string,
+  reason: string,
+): void {
+  const student = getState().aemtStudents.find((s) => s.id === studentId)
+  if (!student) return
+  const previous = clearedOn(student, code)
+  if (!previous) return
+  setState((db) => ({
+    ...db,
+    aemtStudents: db.aemtStudents.map((s) =>
+      s.id !== studentId
+        ? s
+        : { ...s, skillClearances: (s.skillClearances ?? []).filter((c) => c.code !== code) },
+    ),
+  }))
+  audit(
+    student.courseId,
+    studentId,
+    actor,
+    'skill clearance WITHDRAWN',
+    `${student.name} · ${skillClearance(code)?.label ?? code} · was ${previous} · reason: ${
+      reason.trim() || 'not stated'
+    }`,
+  )
+}
+
+export interface ClearanceGate {
+  /** Whether this requirement sits behind a check-off at all. */
+  gated: boolean
+  code?: SkillClearanceCode
+  label?: string
+  /** The check-off date on file, if any. */
+  grantedOn?: string
+  /** True when the rep must be refused. */
+  blocked: boolean
+  /** Why, in the words the instructor needs to act on. */
+  message?: string
+}
+
+/**
+ * Whether a rep against `requirementId`, performed on `date`, may be logged.
+ *
+ * The test is against the date of the shift, not today. A clearance granted
+ * this morning does not make last month's stick supervised, and the app must
+ * not let a late data-entry session quietly turn an unsupported claim into a
+ * regulated count.
+ */
+export function clearanceGate(
+  student: AemtStudent | undefined,
+  requirementId: string,
+  date: string,
+): ClearanceGate {
+  const gating = clearanceGating(requirementId)
+  if (!gating) return { gated: false, blocked: false }
+  const grantedOn = clearedOn(student, gating.code)
+  const base = { gated: true, code: gating.code, label: gating.label, grantedOn }
+  if (!grantedOn) {
+    return {
+      ...base,
+      blocked: true,
+      message: `${student?.name ?? 'This student'} has no ${gating.label.toLowerCase()} check-off on file. Record the ${gating.grantedAt.toLowerCase()} first — a rep logged before one is a claim the program cannot support.`,
+    }
+  }
+  if (date && date < grantedOn) {
+    return {
+      ...base,
+      blocked: true,
+      message: `This shift is dated ${date}, before the ${gating.label.toLowerCase()} check-off on ${grantedOn}. Reps performed before the check-off do not count.`,
+    }
+  }
+  return { ...base, blocked: false }
+}
+
+// ----- clinical phases -------------------------------------------------------
+
+/**
+ * The course's rotation plan, seeding it from the template if it has none.
+ *
+ * Seeding on read rather than on course creation means a course recorded
+ * before phases existed gets a plan the first time anyone looks at one,
+ * without a migration pass over the store.
+ */
+export function phasesFor(course: AemtCourse | undefined): AemtClinicalPhase[] {
+  if (!course) return []
+  return course.phases?.length ? course.phases : seedPhases(course.startDate)
+}
+
+/**
+ * Put the plan back to what the template says for this course's start date.
+ * The way out of a window that was dragged somewhere unhelpful.
+ */
+export function reseedPhases(courseId: string): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, { phases: seedPhases(course.startDate) })
+}
+
+/**
+ * Move one phase window.
+ *
+ * Site availability moves, and when it does the plan is wrong rather than the
+ * site. Writing through `phasesFor` means the first edit also materialises the
+ * seeded plan onto the course, so a course that had only a template now has a
+ * record of what was actually planned.
+ */
+export function updatePhase(
+  courseId: string,
+  ordinal: number,
+  patch: Partial<AemtClinicalPhase>,
+): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, {
+    phases: phasesFor(course).map((p) => (p.ordinal === ordinal ? { ...p, ...patch } : p)),
+  })
+}
+
+/**
+ * Which phase a date falls in, or undefined.
+ *
+ * Undefined is a real answer, not a failure: the plan has a gap over the
+ * weekend before the break block, and a shift picked up outside every window
+ * still happened. Callers report it, they do not refuse it.
+ */
+export function phaseOn(
+  course: AemtCourse | undefined,
+  date: string,
+): AemtClinicalPhase | undefined {
+  return phasesFor(course).find((p) => date >= p.windowStart && date <= p.windowEnd)
+}
+
+// ----- shift entry validation (spec §6.1, §6.4) ------------------------------
+
+export interface FieldIssue {
+  /** Which input is wrong, so the message can sit under it rather than atop the form. */
+  field: string
+  message: string
+}
+
+/** What a shift has to satisfy before it is written. */
+export type ShiftInput = Pick<
+  AemtClinicalShift,
+  'date' | 'setting' | 'site' | 'hours' | 'preceptorName' | 'preceptorCredential'
+> & { reflection?: string }
+
+/**
+ * Everything wrong with a proposed shift, field by field.
+ *
+ * Field-scoped rather than form-scoped on purpose: an instructor typing at the
+ * end of a shift needs to see that the hours are impossible AND that the
+ * reflection names a patient, not to fix one and be stopped again by the other.
+ */
+export function shiftIssues(
+  course: AemtCourse | undefined,
+  input: ShiftInput,
+): FieldIssue[] {
+  const issues: FieldIssue[] = []
+  if (!input.date) {
+    issues.push({ field: 'date', message: 'A shift needs a date.' })
+  } else if (course && (input.date < course.startDate || input.date > course.endDate)) {
+    issues.push({
+      field: 'date',
+      message: `Outside the course window (${course.startDate} to ${course.endDate}). Hours worked outside it are not course hours.`,
+    })
+  }
+  // One hour is the shortest thing anyone calls a shift; twenty-four is the
+  // longest a person can be on the floor and still be supervised for all of it.
+  if (!(input.hours >= 1 && input.hours <= 24)) {
+    issues.push({ field: 'hours', message: 'Hours must be between 1 and 24.' })
+  }
+  if (!input.site.trim()) issues.push({ field: 'site', message: 'Name the site and unit.' })
+  if (!input.preceptorName.trim()) {
+    issues.push({ field: 'preceptorName', message: 'A shift needs a named preceptor.' })
+  }
+  const allowed = SETTING_PRECEPTORS[input.setting]
+  if (!allowed.includes(input.preceptorCredential)) {
+    issues.push({
+      field: 'preceptorCredential',
+      message: `Not a permitted preceptor for this setting under K.A.R. 109-1-1. Allowed: ${allowed.join(', ')}.`,
+    })
+  }
+  const phi = checkPhi(input.reflection)
+  if (!phi.ok) issues.push({ field: 'reflection', message: phiMessage(phi) })
+  return issues
 }
 
 // ----- patient encounter log (K.A.R. 109-11-8) -------------------------------
@@ -1914,6 +2204,12 @@ export interface RequirementProgress {
   subMet: boolean
   /** Recorded but unsuccessful — not a rep, but evidence for remediation. */
   attempts: number
+  /**
+   * Live reps refused because the student was not checked off on the skill by
+   * the date of the shift. A subset of `ineligible`, named separately because
+   * it usually means a lab date has not been entered yet.
+   */
+  uncleared: number
   /** Voided reps, kept for the correction history. */
   voided: number
   /** Counting reps that came from a row representing more than one. */
@@ -1931,17 +2227,25 @@ export interface RequirementProgress {
  */
 export function progressFor(
   encounters: AemtEncounter[],
-  studentId: string,
+  /**
+   * The student, not their id — their skill clearances are one of the
+   * conditions on whether a rep counts, so the record has to be in hand.
+   */
+  student: AemtStudent,
   shifts: AemtClinicalShift[] = [],
 ): RequirementProgress[] {
+  const studentId = student.id
   const mine = encounters.filter((e) => e.studentId === studentId)
   const byId = new Map(shifts.map((s) => [s.id, s]))
   return CLINICAL_REQUIREMENTS.map((requirement) => {
     const rows = mine.filter((e) => e.requirementId === requirement.id)
-    // Three conditions, each of which the review found could be bypassed:
-    // the setting must count for this requirement, the shift's preceptor must
-    // be eligible to supervise it, and the preceptor must have attested.
-    const eligible = rows.filter((e) => encounterCounts(e, requirement, byId.get(e.shiftId ?? '')))
+    // Four conditions, each of which the review found could be bypassed: the
+    // setting must count for this requirement, the shift's preceptor must be
+    // eligible to supervise it, the preceptor must have attested, and the
+    // student must have been checked off on the skill by the date of the shift.
+    const eligible = rows.filter((e) =>
+      encounterCounts(e, requirement, byId.get(e.shiftId ?? ''), student),
+    )
     const total = eligible.reduce((s, e) => s + e.count, 0)
     const eligibleIds = new Set(eligible)
     // The four categories partition the log: counted, voided, attempted, and
@@ -1953,6 +2257,13 @@ export function progressFor(
     const ineligible = live.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
     const unverified = live
       .filter((e) => !e.shiftId || !attestationIsEvidence(byId.get(e.shiftId) ?? ({} as AemtClinicalShift)))
+      .reduce((s, e) => s + e.count, 0)
+    // Broken out of `ineligible` because it is the one reason with a remedy
+    // that is nobody's fault: the check-off happened and the date was entered
+    // late. Naming it separately turns "12 reps not counting" into "the week 5
+    // lab date is wrong", which is a two-second fix instead of an investigation.
+    const uncleared = live
+      .filter((e) => clearanceGate(student, requirement.id, byId.get(e.shiftId ?? '')?.date ?? e.date).blocked)
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
     const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
@@ -1966,7 +2277,7 @@ export function progressFor(
     const fieldMet = field >= (requirement.fieldMinimum ?? 0)
     const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
     return {
-      requirement, total, ineligible, unverified, field, sub,
+      requirement, total, ineligible, unverified, uncleared, field, sub,
       attempts, voided, unitemized, unstated,
       totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet,
     }
@@ -1992,7 +2303,7 @@ export function useClinicalStanding(courseId: string | undefined): StudentClinic
   return useMemo(
     () =>
       students.map((student) => {
-        const progress = progressFor(encounters, student.id, shifts)
+        const progress = progressFor(encounters, student, shifts)
         // Completion is gated on the regulation, not on what the program
         // chooses to also track. A program competency short does not make a
         // student ineligible under K.A.R. 109-11-8.

@@ -583,6 +583,12 @@ export interface AemtCourse {
    * Wichita the Zoll X-Series.
    */
   monitorSheetId?: string
+  /**
+   * The clinical rotation plan, seeded from data/aemtPhases.ts on first use.
+   * Absent on courses created before phases existed — read it through
+   * `phasesFor(course)`, which seeds on demand rather than returning nothing.
+   */
+  phases?: AemtClinicalPhase[]
   notes?: string
   createdAt: string
   updatedAt: string
@@ -746,6 +752,60 @@ export interface AemtStudent {
   status: AemtStudentStatus
   /** What the hospital requires of this student before a rotation. */
   clearance?: AemtClearance
+  /**
+   * What this student has been checked off to do, and when.
+   *
+   * Not the same thing as `clearance` above, which is the hospital's list of
+   * health and background records. This is scope of practice: the dated lab
+   * check-offs that decide whether a logged rep is a rep or a claim. See
+   * data/aemtPhases.ts for which requirements each one gates.
+   */
+  skillClearances?: AemtSkillClearance[]
+}
+
+/** Mirrors SKILL_CLEARANCES in data/aemtPhases.ts. */
+export type SkillClearanceCode = 'assessment' | 'vascular' | 'ecg'
+
+/**
+ * One dated lab check-off.
+ *
+ * A date, not a tick. The gate is "was this student cleared on the day the
+ * shift happened", which a boolean cannot answer — and a clearance granted
+ * today does not retroactively make last month's venipuncture supervised.
+ */
+export interface AemtSkillClearance {
+  code: SkillClearanceCode
+  /** ISO date of the check-off. Reps dated before this do not count. */
+  grantedOn: string
+  /** Instructor who signed the check-off off. */
+  grantedBy: string
+  /** ISO timestamp the grant was recorded, for the audit trail. */
+  recordedAt: string
+  note?: string
+}
+
+/**
+ * One window of the clinical rotation.
+ *
+ * Seeded onto the course from PHASE_TEMPLATE (data/aemtPhases.ts) so a
+ * different cohort re-seeds rather than needing a code change, and editable
+ * afterwards because site availability moves.
+ *
+ * Windows are advisory. A shift logged outside every phase is noted, not
+ * refused — the student who picked up an extra Tuesday still did the work.
+ */
+export interface AemtClinicalPhase {
+  ordinal: number
+  name: string
+  windowStart: string
+  windowEnd: string
+  /** Scope-of-practice check-off the phase assumes the student holds. */
+  requiresClearance: SkillClearanceCode | null
+  shiftsRequired: number
+  hospitalShifts: number
+  fieldShifts: number
+  /** Cumulative counts the phase aims to have produced, by target key. */
+  targets: Record<string, number>
 }
 
 /**
@@ -903,6 +963,14 @@ export interface AemtClinicalShift {
    * not to overwrite what was signed.
    */
   revisions?: ShiftRevision[]
+  /**
+   * What the student took away from the shift, in their own words.
+   *
+   * The one free-text field in the clinical record, and the reason lib/phi.ts
+   * exists. It is checked before it is ever written to the store — a rejected
+   * reflection is not saved, not queued, and not logged anywhere.
+   */
+  reflection?: string
   notes?: string
 }
 
