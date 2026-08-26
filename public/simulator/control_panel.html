@@ -2565,12 +2565,25 @@ function advancedAirway(){ return ADVANCED_AIRWAYS.indexOf(crewDid.airway)>=0; }
 function applyAirwayVentilation(){
   if(!advancedAirway()) return;
   S.etco2On=true;
-  if(inArrest()){
-    S.rr=ADV_AIRWAY_RR;
-    if(!S.co2Shape||S.co2Shape==='normal') S.co2Shape='cpr';
-  }
+  const arrest=inArrest();
+  // Once there is a tube in, the rate on the screen is the crew's, not the
+  // patient's: an arrest state carries RR 0 because the patient is not
+  // breathing, which stops being what the monitor should show the moment
+  // somebody starts ventilating them.
+  S.rr=arrest?ADV_AIRWAY_ARREST_RR:ADV_AIRWAY_PULSE_RR;
+  // The shape follows the perfusion, not the airway. A scenario that authored
+  // its own waveform — the asthma shark fin, a curare cleft — keeps it; only
+  // the two this rule owns are switched between.
+  if(!S.co2Shape||S.co2Shape==='normal'||S.co2Shape==='cpr')
+    S.co2Shape=arrest?'cpr':'normal';
 }
-const ADV_AIRWAY_RR=10;
+/* Ventilation through an advanced airway, in breaths per minute.
+   In an arrest, one breath every six seconds, continuous compressions
+   underneath (2025 AHA). With a pulse back — post-ROSC, or an apnoeic patient
+   the crew is bagging through a tube — the program ventilates faster, and the
+   capnogram is a normal square wave rather than the CPR trace. */
+const ADV_AIRWAY_ARREST_RR=10;
+const ADV_AIRWAY_PULSE_RR=12;
 
 // Every select that reflects a piece of state, so a scenario that sets one
 // (the asthma states set a shark-fin capnogram; the pediatric sims set the

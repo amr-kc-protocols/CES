@@ -16,6 +16,7 @@ import {
 } from '../../data/aemtRecords'
 import {
   attestationIsEvidence,
+  clearanceGate,
   encounterCounts,
   isClassroomSession,
   skillSignoffIsEvidence,
@@ -186,7 +187,7 @@ export function auditPackageHTML(
         )
         // Same rule as the screen — imported, not restated.
         const counted = mine.filter((e) =>
-          encounterCounts(e, req, d.shifts.find((x) => x.id === e.shiftId)),
+          encounterCounts(e, req, d.shifts.find((x) => x.id === e.shiftId), st),
         )
         const n = counted.reduce((a, e) => a + e.count, 0)
         const met = n >= req.minimum
@@ -208,7 +209,8 @@ export function auditPackageHTML(
     .map((e) => {
       const sh = d.shifts.find((x) => x.id === e.shiftId)
       const req = [...KAR_109_11_8, ...PROGRAM_COMPETENCIES].find((r) => r.id === e.requirementId)
-      const counts = req ? encounterCounts(e, req, sh) : false
+      const st = d.students.find((x) => x.id === e.studentId)
+      const counts = req ? encounterCounts(e, req, sh, st) : false
       const why = e.voidedAt
         ? `void — ${esc(e.voidReason ?? 'no reason recorded')}`
         : e.outcome === 'attempt'
@@ -221,7 +223,9 @@ export function auditPackageHTML(
                 ? 'shift not signed by an identified preceptor'
                 : req && !req.allowedSettings.includes(e.siteKind)
                   ? 'setting not allowed for this requirement'
-                  : 'supervisor not eligible for this requirement'
+                  : req && clearanceGate(st, req.id, sh.date).blocked
+                    ? 'student not checked off on this skill by the date of the shift'
+                    : 'supervisor not eligible for this requirement'
       return `<tr><td>${esc(formatDate(e.date))}</td><td>${esc(nameOf(e.studentId))}</td>
       <td>${esc(REQ_LABEL.get(e.requirementId) ?? e.requirementId)}</td>
       <td>${esc(e.siteKind)}</td>

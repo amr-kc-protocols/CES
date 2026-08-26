@@ -9,6 +9,7 @@ import {
   useClinicalStanding,
   useRecordSafety,
   supervisorEligible,
+  clearanceGate,
   duplicateEncounter,
   voidEncounter,
   addEncounter,
@@ -22,8 +23,17 @@ import {
 } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import ShiftPanel, { shiftLabel } from './ShiftPanel'
+import ClearancePanel from './ClearancePanel'
+import SkillClearancePanel from './SkillClearancePanel'
+import PhasePanel from './PhasePanel'
 import { useCan } from '../../lib/role'
-import type { AemtClinicalShift, AemtCourse, AemtEncounter, AemtSiteKind } from '../../types'
+import type {
+  AemtClinicalShift,
+  AemtCourse,
+  AemtEncounter,
+  AemtSiteKind,
+  AemtStudent,
+} from '../../types'
 
 const SITE_LABEL: Record<AemtSiteKind, string> = {
   field: 'Field',
@@ -33,18 +43,19 @@ const SITE_LABEL: Record<AemtSiteKind, string> = {
 
 function LogForm({
   course,
-  studentId,
+  student,
   shifts,
   existing,
   onClose,
 }: {
   course: AemtCourse
-  studentId: string
+  student: AemtStudent
   shifts: AemtClinicalShift[]
   /** Already-logged encounters for this student, for duplicate detection. */
   existing: AemtEncounter[]
   onClose: () => void
 }) {
+  const studentId = student.id
   const [shiftId, setShiftId] = useState(shifts[0]?.id ?? '')
   const [requirementId, setReq] = useState(KAR_109_11_8[0].id)
   const [outcome, setOutcome] = useState<'success' | 'attempt'>('success')
@@ -64,7 +75,14 @@ function LogForm({
     requirementId,
     sourceRef,
   })
-  const canLog = !!shift && (!refRequired || sourceRef.trim() !== '') && !dupe
+  // Scope of practice. Unlike the setting and supervisor rules above — which
+  // log the rep and exclude it — this one refuses the entry outright. Those
+  // record something that happened under conditions that do not count; this
+  // one would record a procedure the program never cleared the student to
+  // perform, which is a different kind of claim and not one to put on file.
+  const gate = clearanceGate(student, requirementId, shift?.date ?? '')
+  const canLog =
+    !!shift && (!refRequired || sourceRef.trim() !== '') && !dupe && !gate.blocked
 
   return (
     <Modal title="Log encounter" onClose={onClose}>
@@ -142,6 +160,19 @@ function LogForm({
           {req.label.toLowerCase()} — K.A.R. names{' '}
           {(req.eligibleSupervisors ?? []).map((c) => PRECEPTOR_LABELS[c]).join(', ')}. This entry
           will be logged but will not count.
+        </div>
+      )}
+      {/* Sits directly under the requirement select, because that is the input
+          it is about — picking a different requirement clears it. */}
+      {shift && gate.blocked && (
+        <div className="banner crit">
+          <strong>Not cleared for this yet.</strong> {gate.message} Assessments, ambulance calls and
+          patient care reports on this shift can still be logged.
+        </div>
+      )}
+      {shift && gate.gated && !gate.blocked && (
+        <div className="meta" style={{ marginTop: 4 }}>
+          ✓ {gate.label} check-off on file from {gate.grantedOn}
         </div>
       )}
       {shift && settingOk && supOk && !shift.attestedAt && (
@@ -244,7 +275,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const studentId = selectedId ?? students[0].id
   const student = students.find((s) => s.id === studentId) ?? students[0]
   const shifts = allShifts.filter((s) => s.studentId === student.id)
-  const progress = progressFor(encounters, student.id, shifts)
+  const progress = progressFor(encounters, student, shifts)
   const mine = encounters.filter((e) => e.studentId === student.id)
   // Only the seven K.A.R. 109-11-8(a)(4) minimums count toward standing.
   const statutory = progress.filter((p) => p.requirement.basis === 'kar')
@@ -253,6 +284,10 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
 
   return (
     <div>
+      {/* Before any of the below: what the facility requires of the student to
+          let them through the door at all. */}
+      <ClearancePanel course={course} />
+
       <div className="banner info">
         Progress toward the <strong>seven K.A.R. 109-11-8(a)(4)</strong> clinical minimums. A rep
         counts only when the setting is allowed for that requirement, the preceptor holds a
@@ -300,6 +335,12 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       <div className="section-title">
         {student.name} · {metCount} of {statutory.length} met
       </div>
+
+      {/* What this student is cleared to do, before the shifts that depend on
+          it — a rep refused downstream is nearly always a date missing here. */}
+      <SkillClearancePanel student={student} canEdit={canEdit} />
+
+      <PhasePanel course={course} shifts={shifts} canEdit={canEdit} />
 
       <ShiftPanel course={course} studentId={student.id} shifts={shifts} canEdit={canEdit} />
 
@@ -396,6 +437,11 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                     <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
                       {p.ineligible} logged but not counting
                       {p.unverified > 0 && ` (${p.unverified} on an unattested shift)`}
+                      {/* Named separately because it is the one reason with a
+                          two-second fix: the check-off happened, the date has
+                          not been entered, or was entered as today. */}
+                      {p.uncleared > 0 &&
+                        ` (${p.uncleared} before the student's check-off for this skill)`}
                     </div>
                   ) : null}
                   {p.requirement.subRequirement ? (
@@ -495,7 +541,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       {logging && (
         <LogForm
           course={course}
-          studentId={student.id}
+          student={student}
           shifts={shifts}
           existing={mine}
           onClose={() => setLogging(false)}

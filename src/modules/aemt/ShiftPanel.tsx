@@ -12,9 +12,11 @@ import {
   materialShiftChanges,
   deleteShift,
   shiftHourTotals,
+  shiftIssues,
   useRecordSafety,
   ATTESTATION_STATEMENT,
 } from './aemtStore'
+import { checkPhi, PHI_PROMPT } from '../../lib/phi'
 import { PRECEPTOR_LABELS, SETTING_PRECEPTORS } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import type { AemtClinicalShift, AemtCourse, AemtSiteKind, PreceptorCredentialId } from '../../types'
@@ -45,6 +47,36 @@ export function shiftLabel(s: AemtClinicalShift): string {
   return `${formatDate(s.date)} · ${s.site || SETTINGS.find((x) => x.value === s.setting)?.label}`
 }
 
+/**
+ * The rejected text with the offending spans marked.
+ *
+ * A message saying "that looks like a record number" is not much use in a
+ * paragraph at 0300 — the point is to put the eye on the words. Rendered from
+ * offsets rather than by re-matching, so what is highlighted is exactly what
+ * the validator objected to. This is display only; the text is never stored.
+ */
+function PhiHighlight({ text }: { text: string }) {
+  const { hits } = checkPhi(text)
+  if (!hits.length) return null
+  const parts: React.ReactNode[] = []
+  let at = 0
+  hits.forEach((h, i) => {
+    if (h.start > at) parts.push(text.slice(at, h.start))
+    parts.push(
+      <mark key={i} title={h.why}>
+        {text.slice(h.start, h.end)}
+      </mark>,
+    )
+    at = h.end
+  })
+  if (at < text.length) parts.push(text.slice(at))
+  return (
+    <div className="help-text" style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
+      {parts}
+    </div>
+  )
+}
+
 function ShiftForm({
   course,
   studentId,
@@ -65,12 +97,25 @@ function ShiftForm({
     existing?.preceptorCredential ?? 'paramedic',
   )
   const [certNumber, setCertNumber] = useState(existing?.preceptorCertNumber ?? '')
+  const [reflection, setReflection] = useState(existing?.reflection ?? '')
   const [reason, setReason] = useState('')
   const { actor } = useRecordSafety()
 
   const allowed = SETTING_PRECEPTORS[setting]
   const credOk = allowed.includes(cred as PreceptorCredential)
   const hoursNum = Number(hours)
+  // Every rule the store will apply, evaluated here so each one lands under
+  // the input it is about instead of as one banner at the bottom.
+  const issues = shiftIssues(course, {
+    date,
+    setting,
+    site,
+    hours: hoursNum,
+    preceptorName: name,
+    preceptorCredential: cred,
+    reflection,
+  })
+  const issueOn = (field: string) => issues.find((i) => i.field === field)?.message
   // Would saving change something the preceptor signed for? Keyed on
   // `attestedAt`, matching what `updateShift` actually acts on — testing
   // `attestationIsEvidence` here meant a legacy shift with a bare timestamp
@@ -88,12 +133,7 @@ function ShiftForm({
       preceptorCredential: cred,
       preceptorCertNumber: certNumber.trim() || undefined,
     }).length > 0
-  const valid =
-    site.trim() !== '' &&
-    name.trim() !== '' &&
-    hoursNum > 0 &&
-    credOk &&
-    (!willInvalidate || reason.trim().length >= 4)
+  const valid = issues.length === 0 && (!willInvalidate || reason.trim().length >= 4)
 
   return (
     <Modal title={existing ? 'Edit shift' : 'Add shift'} onClose={onClose}>
@@ -101,17 +141,20 @@ function ShiftForm({
         <div className="field">
           <label htmlFor="sh-date">Date</label>
           <input id="sh-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          {issueOn('date') && <div className="help-text crit-text">{issueOn('date')}</div>}
         </div>
         <div className="field">
           <label htmlFor="sh-hours">Hours</label>
           <input
             id="sh-hours"
             type="number"
-            min={0}
+            min={1}
+            max={24}
             step={0.5}
             value={hours}
             onChange={(e) => setHours(e.target.value)}
           />
+          {issueOn('hours') && <div className="help-text crit-text">{issueOn('hours')}</div>}
         </div>
       </div>
 
@@ -138,6 +181,7 @@ function ShiftForm({
           onChange={(e) => setSite(e.target.value)}
           placeholder={setting === 'hospital' ? 'AdventHealth KC — ED' : 'AMR Independence 911'}
         />
+        {issueOn('site') && <div className="help-text crit-text">{issueOn('site')}</div>}
       </div>
 
       <div className="section-title" style={{ marginTop: 14 }}>
@@ -146,6 +190,9 @@ function ShiftForm({
       <div className="field">
         <label htmlFor="sh-prec">Name</label>
         <input id="sh-prec" value={name} onChange={(e) => setName(e.target.value)} />
+        {issueOn('preceptorName') && (
+          <div className="help-text crit-text">{issueOn('preceptorName')}</div>
+        )}
       </div>
       <div className="field-row">
         <div className="field">
@@ -180,6 +227,42 @@ function ShiftForm({
         </div>
       )}
 
+      {/* The one free-text field in the clinical record. The reminder above it
+          is permanent rather than conditional: the validator below catches the
+          shapes an identifier takes, and nothing catches "the guy from the
+          house with the blue door", so the person typing has to know the rule
+          before they start rather than after they break it. */}
+      <div className="section-title" style={{ marginTop: 14 }}>
+        Reflection <span className="subtle">(optional)</span>
+      </div>
+      <div className="banner warn" style={{ marginTop: 0 }}>
+        <strong>{PHI_PROMPT}</strong> No names, ages with names, dates of birth, run or record
+        numbers, or addresses. A student found capturing patient information on a device is
+        dismissed from the program.
+      </div>
+      <div className="field">
+        <label htmlFor="sh-reflect" className="sr-only">
+          What the student took from this shift
+        </label>
+        <textarea
+          id="sh-reflect"
+          rows={3}
+          value={reflection}
+          onChange={(e) => setReflection(e.target.value)}
+          placeholder="Second IO of the rotation. Landmarks were easier than in lab."
+        />
+        {issueOn('reflection') ? (
+          <>
+            <div className="help-text crit-text">{issueOn('reflection')}</div>
+            <PhiHighlight text={reflection} />
+          </>
+        ) : (
+          <div className="help-text">
+            What the student did and what they learned. This is not a patient record.
+          </div>
+        )}
+      </div>
+
       {willInvalidate && (
         <>
           <div className="banner crit">
@@ -213,10 +296,15 @@ function ShiftForm({
               preceptorName: name.trim(),
               preceptorCredential: cred,
               preceptorCertNumber: certNumber.trim() || undefined,
+              reflection: reflection.trim() || undefined,
             }
-            if (existing) updateShift(existing.id, patch, { actor, reason })
-            else addShift(course.id, studentId, patch)
-            onClose()
+            // The store re-checks and can refuse. If it does, stay open — the
+            // per-field messages above already say why, and closing the modal
+            // on a refused save would look exactly like a successful one.
+            const result = existing
+              ? updateShift(existing.id, patch, { actor, reason })
+              : addShift(course.id, studentId, patch)
+            if (result.ok) onClose()
           }}
         >
           {existing ? 'Save' : 'Add shift'}
