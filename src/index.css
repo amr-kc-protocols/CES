@@ -663,6 +663,19 @@ input[type='date']::-webkit-date-and-time-value {
   gap: 12px;
 }
 
+/* Three across, for a set that reads as one thing — a date and the two times
+   that bracket it. As a two-column grid the third field dropped to its own row
+   and left half a row of white space beside it. */
+.field-row.trio {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 640px) {
+  .field-row.trio {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Badges / pills ---------- */
 .pill {
   display: inline-flex;
@@ -2712,3 +2725,186 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   width: auto; min-height: 0; margin-top: 3px; flex: 0 0 auto;
 }
 .check-row .help-text { margin-top: 2px; }
+
+/* ---------- CQMP: compact meeting entry ----------
+   The minutes print as tables of one-line rows; the editor now matches that
+   shape instead of giving every row a card of five stacked full-width fields. */
+.minute-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.minute-row .field {
+  margin: 0;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.minute-row .field.grow {
+  flex: 2 1 220px;
+}
+
+.minute-row > .btn {
+  margin-bottom: 1px;
+}
+
+/* Two people per row. A name and a title do not need the full width. */
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 6px;
+}
+
+.person {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.person input {
+  min-width: 0;
+}
+
+/* The officer roster, when it is opened for editing. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0 12px;
+}
+
+@media (max-width: 640px) {
+  .minute-row .field,
+  .minute-row .field.grow {
+    flex-basis: 100%;
+  }
+}
+
+/* ---------- AEMT: who is being looked at ----------
+   A chip row rather than five full rows. Early in a course every student reads
+   "0 of 7 complete", so the rows carried no information and a lot of height. */
+.student-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.student-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+.student-chip:hover {
+  border-color: var(--text-muted);
+}
+
+.student-chip.is-on {
+  border-color: var(--brand, var(--text));
+  background: var(--muted-bg);
+  box-shadow: inset 0 0 0 1px var(--brand, var(--text));
+}
+
+.student-chip .title {
+  display: block;
+  font-weight: 600;
+}
+
+.student-chip .meta {
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ---------- AEMT: the encounter log, grouped ----------
+   One row per performance in the data; one row per block of work on screen. */
+.enc-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.enc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.enc-head:hover {
+  background: var(--surface-2);
+}
+
+.enc-head .title {
+  display: block;
+  font-weight: 600;
+}
+
+.enc-head .meta {
+  display: block;
+}
+
+.enc-count {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.enc-rows {
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.enc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 32px;
+  font-size: 13px;
+}
+
+.enc-row + .enc-row {
+  border-top: 1px solid var(--border);
+}
+
+/* Rules that never change, read once, kept out of the way after that. */
+.rules-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 10px 0;
+}
+
+.rules-note summary {
+  cursor: pointer;
+  color: var(--text);
+}
+
+/* The optional extras on a metric card — a note, a screenshot — as two
+   separate links rather than two words run together. */
+.card-extras {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.card-extras:empty {
+  display: none;
+}
