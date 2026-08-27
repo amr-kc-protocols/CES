@@ -35,6 +35,43 @@ import type {
   AemtStudent,
 } from '../../types'
 
+/**
+ * Encounters that share a shift and a requirement, in the order they were
+ * logged. Everything the rows have in common — date, setting, site, preceptor —
+ * belongs to the group; only the reference and its outcome differ.
+ */
+interface EncounterGroup {
+  key: string
+  requirementId: string
+  date: string
+  siteKind: AemtSiteKind
+  site?: string
+  preceptor?: string
+  entries: AemtEncounter[]
+}
+
+function groupEncounters(encounters: AemtEncounter[]): EncounterGroup[] {
+  const byKey = new Map<string, EncounterGroup>()
+  for (const e of encounters) {
+    // Shift first: two venipunctures on the same date at different sites are
+    // not the same block of work, and a rep with no shift stands on its own.
+    const key = `${e.shiftId ?? `noshift-${e.id}`}:${e.requirementId}`
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        key,
+        requirementId: e.requirementId,
+        date: e.date,
+        siteKind: e.siteKind,
+        site: e.site,
+        preceptor: e.preceptor,
+        entries: [],
+      })
+    }
+    byKey.get(key)!.entries.push(e)
+  }
+  return [...byKey.values()].sort((a, b) => b.date.localeCompare(a.date))
+}
+
 const SITE_LABEL: Record<AemtSiteKind, string> = {
   field: 'Field',
   hospital: 'Hospital',
@@ -262,6 +299,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const [selectedId, setSelected] = useState<string | null>(null)
   const [logging, setLogging] = useState(false)
   const [voiding, setVoiding] = useState<AemtEncounter | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const safety = useRecordSafety()
 
   if (students.length === 0) {
@@ -280,7 +318,6 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   // Only the seven K.A.R. 109-11-8(a)(4) minimums count toward standing.
   const statutory = progress.filter((p) => p.requirement.basis === 'kar')
   const program = progress.filter((p) => p.requirement.basis === 'program')
-  const metCount = statutory.filter((p) => p.met).length
 
   return (
     <div>
@@ -288,52 +325,47 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
           let them through the door at all. */}
       <ClearancePanel course={course} />
 
-      <div className="banner info">
-        Progress toward the <strong>seven K.A.R. 109-11-8(a)(4)</strong> clinical minimums. A rep
-        counts only when the setting is allowed for that requirement, the preceptor holds a
-        credential the regulation accepts for it, and the shift has been attested. Anything short
-        of that is kept and shown, never folded into the total.
-      </div>
+      {/* The counting rules, as a footnote rather than a banner. They do not
+          change, they are read once, and three lines of policy above the work
+          on every visit is three lines nobody reads by the second week. */}
+      <details className="rules-note">
+        <summary>How a rep counts toward the seven K.A.R. 109-11-8(a)(4) minimums</summary>
+        A rep counts only when the setting is allowed for that requirement, the preceptor holds a
+        credential the regulation accepts for it, the student was checked off on the skill by the
+        date of the shift, and the shift has been attested. Anything short of that is kept and
+        shown, never folded into the total.
+      </details>
 
-      {/* Class overview — who is short, at a glance. */}
+      {/* Who to look at, and a way to switch. This was a stack of five full
+          rows each carrying a progress bar — and early in a course every one of
+          them reads "0 of 7 complete" with an empty bar, which is five rows of
+          nothing. It is a chip row now: the name, the count, and how far along
+          the reps themselves are, which moves from week one rather than only
+          when a whole minimum tips over. The selected student's name was then
+          repeated as a heading directly underneath; that heading is gone. */}
       <div className="section-title">Class standing</div>
-      <div className="list">
-        {standing.map((s) => (
-          <button
-            key={s.student.id}
-            className="row"
-            style={{
-              width: '100%',
-              textAlign: 'left',
-              background: s.student.id === student.id ? 'var(--muted-bg)' : undefined,
-              border: 'none',
-              font: 'inherit',
-            }}
-            onClick={() => setSelected(s.student.id)}
-          >
-            <div className="grow">
-              <div className="title">{s.student.name}</div>
-              <div className="meta">
-                {s.metCount} of {s.statutory.length} K.A.R. minimums complete
-              </div>
-              <div style={{ marginTop: 6 }}>
-                <ProgressBar
-                  pct={
-                    s.statutory.length === 0
-                      ? 0
-                      : Math.round((s.metCount / s.statutory.length) * 100)
-                  }
-                  complete={s.complete}
-                />
-              </div>
-            </div>
-            {s.complete && <span className="pill ok">✓ All met</span>}
-          </button>
-        ))}
-      </div>
-
-      <div className="section-title">
-        {student.name} · {metCount} of {statutory.length} met
+      <div className="student-chips">
+        {standing.map((s) => {
+          const reps = s.statutory.reduce((n, p) => n + Math.min(p.total, p.requirement.minimum), 0)
+          const need = s.statutory.reduce((n, p) => n + p.requirement.minimum, 0)
+          return (
+            <button
+              key={s.student.id}
+              className={`student-chip${s.student.id === student.id ? ' is-on' : ''}`}
+              aria-pressed={s.student.id === student.id}
+              onClick={() => setSelected(s.student.id)}
+            >
+              <span className="title">{s.student.name}</span>
+              <span className="meta">
+                {s.complete ? '✓ all seven met' : `${s.metCount}/${s.statutory.length} minimums · ${reps}/${need} reps`}
+              </span>
+              <ProgressBar
+                pct={need === 0 ? 0 : Math.round((reps / need) * 100)}
+                complete={s.complete}
+              />
+            </button>
+          )
+        })}
       </div>
 
       {/* What this student is cleared to do, before the shifts that depend on
@@ -467,70 +499,106 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
         </table>
       </div>
 
-      <div className="section-title">Log · {mine.length} entries</div>
+      {/* The log, grouped.
+          One row per performance is deliberate in the data — a row claiming
+          "12" is one assertion standing in for twelve procedures — but
+          RENDERING one card per row meant twenty-five near-identical blocks
+          sharing a date, a site and a preceptor, and two thousand pixels of
+          scrolling to read seven facts. Grouped by shift and requirement, the
+          repetition collapses and the references are one tap away. */}
+      <div className="section-title">
+        Log · {mine.length} {mine.length === 1 ? 'entry' : 'entries'}
+      </div>
       {mine.length === 0 ? (
         <div className="banner info">Nothing logged for {student.name} yet.</div>
       ) : (
         <div className="list">
-          {mine.map((e) => {
-            const req = CLINICAL_REQUIREMENTS.find((r) => r.id === e.requirementId)
+          {groupEncounters(mine).map((g) => {
+            const req = CLINICAL_REQUIREMENTS.find((r) => r.id === g.requirementId)
+            const label = req?.label ?? g.requirementId
+            const open = expanded.has(g.key)
+            const reps = g.entries.reduce((n, e) => n + e.count, 0)
+            const infusions = g.entries.filter((e) => e.initiatedInfusion).length
+            const attempts = g.entries.filter((e) => e.outcome === 'attempt').length
+            const voided = g.entries.filter((e) => e.voidedAt).length
+            const unstated = g.entries.filter((e) => !e.outcome && !e.voidedAt).length
             return (
-              <div
-                key={e.id}
-                className={`row left-accent ${e.voidedAt ? 'acc-crit' : e.outcome === 'attempt' ? 'acc-warn' : ''}`}
-                style={e.voidedAt ? { opacity: 0.65 } : undefined}
-              >
-                <div className="grow">
-                  <div className="title">
-                    {req?.label ?? e.requirementId}
-                    {e.count > 1 && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        ×{e.count} unitemized
-                      </span>
-                    )}
-                    {e.outcome === 'attempt' && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        attempt — not counted
-                      </span>
-                    )}
-                    {e.outcome === undefined && !e.voidedAt && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        outcome not stated
-                      </span>
-                    )}
-                    {e.initiatedInfusion && (
-                      <span className="pill info" style={{ marginLeft: 8 }}>
-                        infusion
-                      </span>
-                    )}
-                    {e.voidedAt && (
-                      <span className="pill crit" style={{ marginLeft: 8 }}>
-                        voided
-                      </span>
-                    )}
+              <div key={g.key} className="enc-group">
+                <button
+                  className="enc-head"
+                  aria-expanded={open}
+                  onClick={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev)
+                      next.has(g.key) ? next.delete(g.key) : next.add(g.key)
+                      return next
+                    })
+                  }
+                >
+                  <span className="op-caret" aria-hidden="true">
+                    {open ? '▾' : '▸'}
+                  </span>
+                  <span className="grow">
+                    <span className="title">
+                      {label} <span className="enc-count">×{reps}</span>
+                    </span>
+                    <span className="meta">
+                      {formatDate(g.date)} · {SITE_LABEL[g.siteKind]}
+                      {g.site && ` · ${g.site}`}
+                      {g.preceptor && ` · ${g.preceptor}`}
+                    </span>
+                  </span>
+                  {infusions > 0 && <span className="pill info">{infusions} infusion</span>}
+                  {unstated > 0 && <span className="pill warn">{unstated} outcome not stated</span>}
+                  {attempts > 0 && <span className="pill warn">{attempts} attempt</span>}
+                  {voided > 0 && <span className="pill crit">{voided} voided</span>}
+                </button>
+                {open && (
+                  <div className="enc-rows">
+                    {g.entries.map((e) => (
+                      <div key={e.id} className="enc-row" style={e.voidedAt ? { opacity: 0.6 } : undefined}>
+                        <span className="grow">
+                          {e.sourceRef ? `ref ${e.sourceRef}` : 'no reference'}
+                          {e.count > 1 && (
+                            <span className="pill warn" style={{ marginLeft: 8 }}>
+                              ×{e.count} unitemized
+                            </span>
+                          )}
+                          {e.initiatedInfusion && (
+                            <span className="pill info" style={{ marginLeft: 8 }}>
+                              infusion
+                            </span>
+                          )}
+                          {e.outcome === 'attempt' && (
+                            <span className="pill warn" style={{ marginLeft: 8 }}>
+                              attempt — not counted
+                            </span>
+                          )}
+                          {e.outcome === undefined && !e.voidedAt && (
+                            <span className="pill warn" style={{ marginLeft: 8 }}>
+                              outcome not stated
+                            </span>
+                          )}
+                          {e.voidedAt && (
+                            <span className="meta" style={{ color: 'var(--crit)' }}>
+                              Voided by {e.voidedBy} — {e.voidReason}
+                            </span>
+                          )}
+                        </span>
+                        {canEdit && !e.voidedAt && (
+                          <button
+                            className="btn sm"
+                            aria-label={`Void this ${label} entry`}
+                            disabled={!safety.canRecordOfficial}
+                            title={safety.reason}
+                            onClick={() => setVoiding(e)}
+                          >
+                            Void
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div className="meta">
-                    {formatDate(e.date)} · {SITE_LABEL[e.siteKind]}
-                    {e.site && ` · ${e.site}`}
-                    {e.preceptor && ` · ${e.preceptor}`}
-                    {e.sourceRef ? ` · ref ${e.sourceRef}` : ' · no reference'}
-                  </div>
-                  {e.voidedAt && (
-                    <div className="meta" style={{ color: 'var(--crit)' }}>
-                      Voided by {e.voidedBy} — {e.voidReason}
-                    </div>
-                  )}
-                </div>
-                {canEdit && !e.voidedAt && (
-                  <button
-                    className="btn sm danger"
-                    aria-label={`Void this ${req?.label ?? e.requirementId} entry`}
-                    disabled={!safety.canRecordOfficial}
-                    title={safety.reason}
-                    onClick={() => setVoiding(e)}
-                  >
-                    Void
-                  </button>
                 )}
               </div>
             )

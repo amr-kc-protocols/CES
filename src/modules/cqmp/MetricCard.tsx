@@ -5,7 +5,6 @@ import { CQMP_KPIS, type CqmpKpiId } from '../../data/cqmp'
 import {
   addMetricImage,
   deltaOf,
-  isReported,
   percentOf,
   STATUS_LABEL,
   statusOf,
@@ -103,12 +102,17 @@ export default function MetricCard({
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [showNote, setShowNote] = useState(false)
+  const [showShots, setShowShots] = useState(false)
 
   const status = statusOf(metric)
 
   const target = targetFor(metric)
   const delta = deltaOf(metric, prior)
   const derived = metric.numerator != null && metric.denominator != null
+  // Below target with nothing written is the one state the minutes print in
+  // red, so the box is open and labelled with the question it answers.
+  const needsNote = status === 'below' || !!metric.notes?.trim()
 
   function patch(p: Partial<CqmpMetric>): void {
     updateMetric(reportId, opId, kpiId, p)
@@ -172,6 +176,12 @@ export default function MetricCard({
         void takeFiles(e.dataTransfer.files)
       }}
     >
+      {/* Everything that is a read-out rather than an input lives on one
+          line: what the measure is, the target it is judged against, the
+          verdict, and the movement. Each of those used to have its own row —
+          a full-width read-only Target field, a status pill, and a sentence
+          about last month — which is three rows of no editing, twenty-six
+          times over. */}
       <div className="metric-head">
         <div className="grow">
           <div className="title">{kpi.name}</div>
@@ -179,6 +189,16 @@ export default function MetricCard({
             {kpi.source}
           </div>
         </div>
+        {delta !== null && (
+          <span className="subtle" style={{ fontSize: 12 }} title="Change on last month">
+            {delta === 0
+              ? 'no change'
+              : `${delta > 0 ? '▲ +' : '▼ −'}${Math.abs(delta).toFixed(1)} pts`}
+          </span>
+        )}
+        <span className="pill muted" title="Fixed for the region — the same on every operation">
+          Target {target === null ? '—' : `${target}%`}
+        </span>
         <span
           className={`pill ${status === 'met' ? 'ok' : status === 'below' ? 'crit' : 'muted'}`}
         >
@@ -186,7 +206,7 @@ export default function MetricCard({
         </span>
       </div>
 
-      <div className="field-row">
+      <div className="field-row trio">
         <div className="field">
           <label htmlFor={`${opId}-${kpiId}-value`}>Result %</label>
           <DebouncedInput
@@ -201,19 +221,6 @@ export default function MetricCard({
               if (parsed !== undefined) patch({ value: parsed })
             }}
           />
-        </div>
-        {/* Fixed, and the same for every operation. Shown rather than asked
-            for — it is not a decision anyone makes at the keyboard, and an
-            input invites a typo into a number that is not in question. */}
-        <div className="field">
-          <label htmlFor={`${opId}-${kpiId}-target`}>Target</label>
-          <output
-            id={`${opId}-${kpiId}-target`}
-            className="fixed-value"
-            title="Set for the whole region — the same on every operation"
-          >
-            {target === null ? '—' : `${target}%`}
-          </output>
         </div>
         <div className="field">
           <label htmlFor={`${opId}-${kpiId}-num`}>Cases met</label>
@@ -237,29 +244,59 @@ export default function MetricCard({
         </div>
       </div>
 
-      <div className="subtle" style={{ fontSize: 12, marginTop: -4 }}>
-        {derived && 'Result is calculated from the case counts. '}
-        {isReported(metric) && delta !== null && (
-          <>
-            {delta === 0
-              ? 'No change on last month. '
-              : `${delta > 0 ? '▲ +' : '▼ −'}${Math.abs(delta).toFixed(2)} pts on last month. `}
-          </>
+      {derived && (
+        <div className="subtle" style={{ fontSize: 12, marginTop: -4 }}>
+          Result is calculated from the case counts.
+        </div>
+      )}
+
+      {/* The note is the "why not". A measure that met its target rarely needs
+          one, so it stays a one-line link there and opens as a box only when
+          the number is below target — where the minutes will demand it. */}
+      {needsNote ? (
+        <div className="field">
+          <label htmlFor={`${opId}-${kpiId}-notes`}>
+            Why is this below target?{' '}
+            <span style={{ color: 'var(--crit)' }}>The minutes ask for this.</span>
+          </label>
+          <DebouncedInput
+            id={`${opId}-${kpiId}-notes`}
+            multiline
+            value={metric.notes ?? ''}
+            placeholder="What explains this number, and what is being done about it"
+            onCommit={(v) => patch({ notes: v })}
+          />
+        </div>
+      ) : showNote ? (
+        <div className="field">
+          <label htmlFor={`${opId}-${kpiId}-notes`}>Notes for the slide</label>
+          <DebouncedInput
+            id={`${opId}-${kpiId}-notes`}
+            multiline
+            value={metric.notes ?? ''}
+            placeholder="Anything worth saying about this number"
+            onCommit={(v) => patch({ notes: v })}
+          />
+        </div>
+      ) : null}
+
+      <div className="card-extras">
+        {!needsNote && !showNote && (
+          <button className="link-btn" onClick={() => setShowNote(true)}>
+            + Note
+          </button>
         )}
-        {!isReported(metric) && 'No result yet — this measure will show as not reported. '}
+
+        {/* Screenshots are optional evidence for the deck, and most months
+            carry none. Folded behind a link so the common case is one line. */}
+        {metric.images.length === 0 && !showShots && (
+          <button className="link-btn" onClick={() => setShowShots(true)}>
+            + Screenshot
+          </button>
+        )}
       </div>
 
-      <div className="field">
-        <label htmlFor={`${opId}-${kpiId}-notes`}>Notes for the slide</label>
-        <DebouncedInput
-          id={`${opId}-${kpiId}-notes`}
-          multiline
-          value={metric.notes ?? ''}
-          placeholder="What explains this number, and what is being done about it"
-          onCommit={(v) => patch({ notes: v })}
-        />
-      </div>
-
+      {(metric.images.length > 0 || showShots) && (
       <div className="shots">
         {metric.images.map((image) => (
           <Thumbnail key={image.key} image={image} onRemove={() => remove(image)} />
@@ -287,6 +324,7 @@ export default function MetricCard({
           or drop an image here, or click the card and press Ctrl+V
         </span>
       </div>
+      )}
     </div>
   )
 }

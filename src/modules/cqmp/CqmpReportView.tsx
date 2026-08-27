@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import DebouncedInput from '../../components/DebouncedInput'
 import { Empty, Stat } from '../../components/ui'
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import { monthLabel } from '../../lib/date'
@@ -16,7 +15,6 @@ import {
   kpiSummary,
   priorReport,
   progressOf,
-  updateReport,
   useCqmpReports,
   useReportById,
 } from './cqmpStore'
@@ -111,9 +109,6 @@ export default function CqmpReportView() {
           <button className="btn" onClick={() => printMinutes(report, prior)}>
             🖨 Minutes
           </button>
-          <button className="btn" onClick={() => downloadMinutes(report, prior)}>
-            ⬇ Minutes (.doc)
-          </button>
           {/* The filing step. Deliberately a link out rather than a submit
               button: there is no API and no credential here, and a PWA that
               silently failed to file a compliance document would be worse than
@@ -132,16 +127,30 @@ export default function CqmpReportView() {
         </div>
       </div>
 
+      {/* Six buttons overflowed the row at laptop width. The .doc download is
+          the rarer of the two minutes outputs, so it moves down here beside the
+          line that explains the filing order rather than competing for the row. */}
       <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
-        Filing: print the minutes to PDF, then <strong>Submit</strong> opens the Smartsheet intake
-        form to attach it. The form is the system of record for the submission — this app does not
-        post to it, so nothing is filed until you press send there.
+        Filing: print the minutes to PDF, then <strong>Submit</strong> opens the Smartsheet form to
+        attach it — nothing is filed until you press send there. Need to edit them first?{' '}
+        <button className="link-btn" onClick={() => downloadMinutes(report, prior)}>
+          Download as .doc
+        </button>
       </div>
 
+      {/* Three numbers, each answering a different question. "Meeting target"
+          and "Measures reported" were both shown out of 26 and read as the same
+          stat twice — the first is now out of what has actually been reported,
+          which is the honest denominator while a month is half entered. */}
       <div className="stat-grid">
-        <Stat value={`${kpis.met}/${kpis.rows.length}`} label="Meeting target" />
-        <Stat value={`${progress.reported}/${progress.expected}`} label="Measures reported" />
-        <Stat value={`${progress.withScreenshot}/${progress.expected}`} label="With a screenshot" />
+        <Stat
+          value={`${progress.reported}/${progress.expected}`}
+          label="Measures entered"
+        />
+        <Stat
+          value={progress.reported ? `${kpis.met}/${progress.reported}` : '—'}
+          label="Meeting target"
+        />
         <Stat value={prior ? monthLabel(prior.month) : '—'} label="Compared against" />
       </div>
 
@@ -171,28 +180,6 @@ export default function CqmpReportView() {
       {importing && <KpiImport report={report} onClose={() => setImporting(false)} />}
 
       <MeetingPanel report={report} />
-
-      <div className="card" style={{ padding: 14, marginTop: 12 }}>
-        <div className="field">
-          <label htmlFor="cqmp-presenter">Presenting</label>
-          <DebouncedInput
-            id="cqmp-presenter"
-            value={report.presenter ?? ''}
-            placeholder="Name on the title slide"
-            onCommit={(v) => updateReport(report.id, { presenter: v })}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="cqmp-summary">Summary & action items</label>
-          <DebouncedInput
-            id="cqmp-summary"
-            multiline
-            value={report.summary ?? ''}
-            placeholder="One line per bullet — this becomes the closing slide"
-            onCommit={(v) => updateReport(report.id, { summary: v })}
-          />
-        </div>
-      </div>
 
       <div className="toolbar">
         <div className="grow">

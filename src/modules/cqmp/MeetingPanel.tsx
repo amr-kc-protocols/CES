@@ -9,6 +9,7 @@ import {
   removeMinuteRow,
   updateMeeting,
   updateMinuteRow,
+  updateReport,
   type MinuteTable,
 } from './cqmpStore'
 import type { CqmpAttendee, CqmpMinuteRow, CqmpReport } from '../../types'
@@ -69,27 +70,24 @@ function PeopleEditor({
       <div className="help-text" style={{ marginTop: 0 }}>
         {hint}
       </div>
-      <div className="list">
+      {/* Two people per row rather than one bordered card each: a name and a
+          title do not need 840 pixels, and a meeting with a dozen attendees
+          was a dozen cards to scroll past. */}
+      <div className="people-grid">
         {people.map((p, i) => (
-          <div key={i} className="row">
-            <div className="grow" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <DebouncedInput
-                value={p.name}
-                placeholder="Name"
-                aria-label={`${label} ${i + 1} name`}
-                onCommit={(v) =>
-                  set(people.map((x, j) => (j === i ? { ...x, name: v } : x)))
-                }
-              />
-              <DebouncedInput
-                value={p.title ?? ''}
-                placeholder="Title"
-                aria-label={`${label} ${i + 1} title`}
-                onCommit={(v) =>
-                  set(people.map((x, j) => (j === i ? { ...x, title: v } : x)))
-                }
-              />
-            </div>
+          <div key={i} className="person">
+            <DebouncedInput
+              value={p.name}
+              placeholder="Name"
+              aria-label={`${label} ${i + 1} name`}
+              onCommit={(v) => set(people.map((x, j) => (j === i ? { ...x, name: v } : x)))}
+            />
+            <DebouncedInput
+              value={p.title ?? ''}
+              placeholder="Title"
+              aria-label={`${label} ${i + 1} title`}
+              onCommit={(v) => set(people.map((x, j) => (j === i ? { ...x, title: v } : x)))}
+            />
             <button
               className="btn sm"
               aria-label={`Remove ${p.name || `${label} ${i + 1}`}`}
@@ -131,72 +129,76 @@ function RowEditor({
       <div className="help-text" style={{ marginTop: 0 }}>
         {hint}
       </div>
+      {/* One row of the printed table is one row here. It used to be a card of
+          five stacked full-width fields with a red danger button at the foot —
+          about 380 pixels for what prints as a single line, three times over
+          for three tables. Removal is a ✕ like everywhere else, and only asks
+          for confirmation once there is something to lose. */}
       {rows.map((r) => (
-        <div key={r.id} className="card" style={{ padding: 12, marginBottom: 8 }}>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor={`${r.id}-topic`}>{topicLabel}</label>
-              <DebouncedInput
-                id={`${r.id}-topic`}
-                value={r.topic}
-                onCommit={(v) => updateMinuteRow(report.id, table, r.id, { topic: v })}
-              />
-            </div>
-            <div className="field" style={{ maxWidth: 150 }}>
-              <label htmlFor={`${r.id}-status`}>Status</label>
-              <select
-                id={`${r.id}-status`}
-                value={r.status}
-                onChange={(e) =>
-                  updateMinuteRow(report.id, table, r.id, {
-                    status: e.target.value as 'open' | 'closed',
-                  })
-                }
-              >
-                <option value="open">Open</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
-          </div>
+        <div key={r.id} className="minute-row">
           <div className="field">
+            <label htmlFor={`${r.id}-topic`}>{topicLabel}</label>
+            <DebouncedInput
+              id={`${r.id}-topic`}
+              value={r.topic}
+              onCommit={(v) => updateMinuteRow(report.id, table, r.id, { topic: v })}
+            />
+          </div>
+          <div className="field grow">
             <label htmlFor={`${r.id}-notes`}>{notesLabel}</label>
             <DebouncedInput
               id={`${r.id}-notes`}
-              multiline
               value={r.notes ?? ''}
               onCommit={(v) => updateMinuteRow(report.id, table, r.id, { notes: v })}
             />
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor={`${r.id}-action`}>Action required</label>
-              <DebouncedInput
-                id={`${r.id}-action`}
-                value={r.action ?? ''}
-                onCommit={(v) => updateMinuteRow(report.id, table, r.id, { action: v })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor={`${r.id}-who`}>Assigned to</label>
-              <DebouncedInput
-                id={`${r.id}-who`}
-                value={r.assignedTo ?? ''}
-                onCommit={(v) => updateMinuteRow(report.id, table, r.id, { assignedTo: v })}
-              />
-            </div>
+          <div className="field">
+            <label htmlFor={`${r.id}-action`}>Action required</label>
+            <DebouncedInput
+              id={`${r.id}-action`}
+              value={r.action ?? ''}
+              onCommit={(v) => updateMinuteRow(report.id, table, r.id, { action: v })}
+            />
+          </div>
+          <div className="field" style={{ maxWidth: 150 }}>
+            <label htmlFor={`${r.id}-who`}>Assigned to</label>
+            <DebouncedInput
+              id={`${r.id}-who`}
+              value={r.assignedTo ?? ''}
+              onCommit={(v) => updateMinuteRow(report.id, table, r.id, { assignedTo: v })}
+            />
+          </div>
+          <div className="field" style={{ maxWidth: 110 }}>
+            <label htmlFor={`${r.id}-status`}>Status</label>
+            <select
+              id={`${r.id}-status`}
+              value={r.status}
+              onChange={(e) =>
+                updateMinuteRow(report.id, table, r.id, {
+                  status: e.target.value as 'open' | 'closed',
+                })
+              }
+            >
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+            </select>
           </div>
           <button
-            className="btn sm danger"
+            className="btn sm"
+            aria-label={`Remove ${r.topic || 'this row'}`}
             onClick={async () => {
-              const ok = await confirmAction({
-                title: 'Remove this row?',
-                body: r.topic ? `“${r.topic}” comes off the minutes.` : 'The empty row comes off.',
-                confirmLabel: 'Remove',
-              })
-              if (ok) removeMinuteRow(report.id, table, r.id)
+              if (r.topic.trim() || r.notes?.trim()) {
+                const ok = await confirmAction({
+                  title: 'Remove this row?',
+                  body: `“${r.topic || 'This row'}” comes off the minutes.`,
+                  confirmLabel: 'Remove',
+                })
+                if (!ok) return
+              }
+              removeMinuteRow(report.id, table, r.id)
             }}
           >
-            Remove row
+            ✕
           </button>
         </div>
       ))}
@@ -212,6 +214,7 @@ export default function MeetingPanel({ report }: { report: CqmpReport }) {
   // start of the meeting, and a panel that has to be found and expanded first
   // is a panel that gets filled in afterwards from memory, if at all.
   const [open, setOpen] = useState(true)
+  const [editRoster, setEditRoster] = useState(false)
   const meeting = report.meeting ?? {}
   const officers = { ...officerSeed(), ...(meeting.officers ?? {}) }
   const mins = meetingMinutes(meeting)
@@ -223,11 +226,16 @@ export default function MeetingPanel({ report }: { report: CqmpReport }) {
           <div className="section-title" style={{ marginTop: 0 }}>
             Meeting record
           </div>
-          <div className="subtle" style={{ fontSize: 12 }}>
-            {meeting.date ? `Held ${meeting.date}` : 'No meeting date yet'}
-            {mins !== null && ` · ${mins} min`}
-            {(meeting.attendees?.length ?? 0) > 0 && ` · ${meeting.attendees!.length} attending`}
-          </div>
+          {/* Only worth saying when the fields below are hidden — with them on
+              screen it restates what they already show. */}
+          {!open && (
+            <div className="subtle" style={{ fontSize: 12 }}>
+              {meeting.date ? `Held ${meeting.date}` : 'No meeting date yet'}
+              {mins !== null && ` · ${mins} min`}
+              {(meeting.attendees?.length ?? 0) > 0 &&
+                ` · ${meeting.attendees!.length} attending`}
+            </div>
+          )}
         </div>
         <button className="btn sm" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? 'Hide' : 'Edit'}
@@ -236,7 +244,7 @@ export default function MeetingPanel({ report }: { report: CqmpReport }) {
 
       {open && (
         <>
-          <div className="field-row" style={{ marginTop: 10 }}>
+          <div className="field-row trio" style={{ marginTop: 10 }}>
             <div className="field">
               <label htmlFor="mtg-date">Meeting date</label>
               <input
@@ -275,27 +283,47 @@ export default function MeetingPanel({ report }: { report: CqmpReport }) {
             </div>
           </div>
 
-          <div className="section-title" style={{ marginTop: 14 }}>
-            Who held each post
-          </div>
-          <div className="help-text" style={{ marginTop: 0 }}>
-            Carried forward from last month and stored on this report, so a month someone chaired in
-            an acting capacity still reads correctly next year.
-          </div>
-          {CQMP_OFFICERS.map((o) => (
-            <div className="field" key={o.role}>
-              <label htmlFor={`off-${o.role}`}>
-                {o.title} <span className="subtle">({o.short})</span>
-              </label>
-              <DebouncedInput
-                id={`off-${o.role}`}
-                value={officers[o.role] ?? ''}
-                onCommit={(v) =>
-                  updateMeeting(report.id, { officers: { ...officers, [o.role]: v } })
-                }
-              />
+          {/* Seven full-width name fields, on every month, for a roster that
+              carries forward and changes maybe once a year. Folded to one line
+              — the names are still visible, which is the part anyone actually
+              needs, and editing is a click away for the month somebody acts. */}
+          <div className="toolbar" style={{ marginTop: 14 }}>
+            <div className="grow">
+              <div className="section-title" style={{ marginTop: 0 }}>
+                Who held each post
+              </div>
+              <div className="subtle" style={{ fontSize: 12 }}>
+                {CQMP_OFFICERS.map((o) => `${o.short} ${officers[o.role] ?? '—'}`).join(' · ')}
+              </div>
             </div>
-          ))}
+            <button className="btn sm" onClick={() => setEditRoster(!editRoster)}>
+              {editRoster ? 'Done' : 'Edit'}
+            </button>
+          </div>
+          {editRoster && (
+            <>
+              <div className="help-text" style={{ marginTop: 0 }}>
+                Carried forward from last month and stored on this report, so a month someone
+                chaired in an acting capacity still reads correctly next year.
+              </div>
+              <div className="field-grid">
+                {CQMP_OFFICERS.map((o) => (
+                  <div className="field" key={o.role}>
+                    <label htmlFor={`off-${o.role}`}>
+                      {o.title} <span className="subtle">({o.short})</span>
+                    </label>
+                    <DebouncedInput
+                      id={`off-${o.role}`}
+                      value={officers[o.role] ?? ''}
+                      onCommit={(v) =>
+                        updateMeeting(report.id, { officers: { ...officers, [o.role]: v } })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           <PeopleEditor
             report={report}
@@ -309,6 +337,31 @@ export default function MeetingPanel({ report }: { report: CqmpReport }) {
             label="Absent"
             hint="Anyone expected who was not there."
           />
+
+          {/* Who presented and what the month came to. These sat in a card of
+              their own between the meeting record and the KPI entry, belonging
+              to neither; they are meeting facts and live here now. */}
+          <div className="field-row" style={{ marginTop: 14 }}>
+            <div className="field">
+              <label htmlFor="cqmp-presenter">Presenting</label>
+              <DebouncedInput
+                id="cqmp-presenter"
+                value={report.presenter ?? ''}
+                placeholder="Name on the title slide"
+                onCommit={(v) => updateReport(report.id, { presenter: v })}
+              />
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="cqmp-summary">Summary &amp; action items</label>
+            <DebouncedInput
+              id="cqmp-summary"
+              multiline
+              value={report.summary ?? ''}
+              placeholder="One line per bullet — this becomes the closing slide and the minutes"
+              onCommit={(v) => updateReport(report.id, { summary: v })}
+            />
+          </div>
 
           {TABLES.map((t) => (
             <RowEditor
