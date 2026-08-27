@@ -168,6 +168,18 @@ const ok = (cond, msg) => {
 // The names. These are people, on a document going to a regional director.
 
 {
+  // Fixed targets, the same on every operation. These are the numbers the
+  // programme is held to, so they are pinned here rather than left to whatever
+  // somebody last typed into a month.
+  ok(CQMP_KPIS.airway.target === 91, `advanced airway target 91, got ${CQMP_KPIS.airway.target}`)
+  ok(CQMP_KPIS.glucose.target === 75, `blood glucose target 75, got ${CQMP_KPIS.glucose.target}`)
+  ok(CQMP_KPIS.stemi.target === 65, `STEMI bundle target 65, got ${CQMP_KPIS.stemi.target}`)
+  ok(CQMP_KPIS.stroke.target === 88, `stroke bundle target 88, got ${CQMP_KPIS.stroke.target}`)
+  ok(m.cqmpTarget('glucose') === 75, 'cqmpTarget reads the catalogue')
+  ok(m.cqmpTarget('a-measure-that-was-retired') === null, 'and an unknown id has no target')
+}
+
+{
   const byRole = Object.fromEntries(CQMP_OFFICERS.map((o) => [o.role, o.name]))
   ok(byRole.rcm === 'Odie White', `RCM is Odie White, got ${byRole.rcm}`)
   ok(byRole.rcd === 'Eric Divendorf', `RCD is Eric Divendorf, got ${byRole.rcd}`)
@@ -211,9 +223,10 @@ const MARCH = createReport('2026-03')
 const read = (id) => getState().cqmpReports.find((r) => r.id === id)
 
 {
-  // March: everything met, so April has a baseline to move against.
+  // March: 95 clears every target (75/91/88/65), so April has a baseline to
+  // move against.
   for (const { opId, kpiId } of cqmpSlots()) {
-    updateMetric(MARCH.id, opId, kpiId, { value: 95, target: 90 })
+    updateMetric(MARCH.id, opId, kpiId, { value: 95 })
   }
   const marchSummary = kpiSummary(read(MARCH.id), undefined)
   ok(marchSummary.met === 26, `March meets everything, got ${marchSummary.met}`)
@@ -221,17 +234,17 @@ const read = (id) => getState().cqmpReports.find((r) => r.id === id)
 }
 
 {
-  // April: two misses. One explained, one not.
+  // April: 93 clears every target. Then two deliberate misses — one explained,
+  // one not — and one measure nobody reported.
   for (const { opId, kpiId } of cqmpSlots()) {
-    updateMetric(APRIL.id, opId, kpiId, { value: 93, target: 90 })
+    updateMetric(APRIL.id, opId, kpiId, { value: 93 })
   }
   updateMetric(APRIL.id, 'kc', 'glucose', {
-    value: 81.4,
-    target: 90,
+    value: 62.4,
     notes: 'ImageTrend Power Tools consolidation moved the glucose field; crews are re-adapting.',
   })
-  updateMetric(APRIL.id, 'eaglemed-chanute', 'stemi', { value: 72, target: 90, notes: '' })
-  updateMetric(APRIL.id, 'winfield', 'airway', { value: null, target: 90 })
+  updateMetric(APRIL.id, 'eaglemed-chanute', 'stemi', { value: 51, notes: '' })
+  updateMetric(APRIL.id, 'winfield', 'airway', { value: null })
 
   const s = kpiSummary(read(APRIL.id), read(MARCH.id))
   ok(s.rows.length === 26, `every measure gets a verdict, got ${s.rows.length}`)
@@ -257,10 +270,31 @@ const read = (id) => getState().cqmpReports.find((r) => r.id === id)
   ok(!missing.needsExplanation, 'and is not demanded an explanation it cannot have')
 
   // Movement against last month.
-  // 95.0 in March to 81.4 in April. The delta is against last month, not
+  // 95.0 in March to 62.4 in April. The delta is against last month, not
   // against the target — those are different questions and the column says so.
-  ok(explained.delta === -13.6, `KC glucose moved -13.6 points, got ${explained.delta}`)
+  ok(explained.delta === -32.6, `KC glucose moved -32.6 points, got ${explained.delta}`)
   ok(missing.delta === null, 'a month with no number has no delta')
+}
+
+{
+  // A measure right on its target is met, not missed.
+  const edge = createReport('2026-02')
+  updateMetric(edge.id, 'kc', 'glucose', { value: 75 })
+  updateMetric(edge.id, 'kc', 'airway', { value: 90.9 })
+  const s = kpiSummary(read(edge.id), undefined)
+  const at = (op, k) => s.rows.find((r) => r.operation.id === op && r.kpiId === k)
+  ok(at('kc', 'glucose').status === 'met', 'exactly on target is met')
+  ok(at('kc', 'airway').status === 'below', 'a tenth under is below')
+
+  // A target left on a metric from before the standards were fixed must not
+  // override the catalogue, or an old month would be judged by an old number.
+  updateMetric(edge.id, 'kc', 'glucose', { value: 80, target: 99 })
+  ok(
+    kpiSummary(read(edge.id), undefined).rows.find(
+      (r) => r.operation.id === 'kc' && r.kpiId === 'glucose',
+    ).status === 'met',
+    'a stale target stored on the metric is ignored in favour of the catalogue',
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +360,12 @@ const read = (id) => getState().cqmpReports.find((r) => r.id === id)
     'and before the attendee grid',
   )
   ok(/23 of 26 measures met target/.test(html), 'the lede answers the question in one sentence')
+  ok(/91.0%/.test(html), 'the airway target prints from the catalogue')
+  ok(/65.0%/.test(html), 'and so does the STEMI one')
+  ok(
+    /Blood glucose \(75%\)/.test(html),
+    'the definitions footnote carries each target',
+  )
   ok(/Explanation required/.test(html), 'an unexplained miss is printed as such')
   ok(/Power Tools/.test(html), 'and an explained one prints its explanation')
   ok(/127 min/.test(html), 'the duration is computed onto the header')

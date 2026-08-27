@@ -17,10 +17,10 @@ import type { CqmpAttendee, CqmpMinuteRow, CqmpReport } from '../../types'
 // Everything the minutes need that the numbers do not: when the meeting was,
 // who was in it, and the three tracking tables.
 //
-// Deliberately below the KPI cards on the page. The numbers are the month's
-// work and get done across several sittings; this is filled in once, on the
-// day, and asking for it first would put an empty attendee grid in front of
-// someone who came here to type a percentage.
+// Above the KPI cards on the page, because it is what gets filled in first:
+// the meeting is happening, somebody is taking the minutes, and the date, the
+// room and the agenda are known before any percentage is typed. The numbers
+// below it are the month's work and get done across several sittings.
 // ---------------------------------------------------------------------------
 
 const TABLES: { key: MinuteTable; heading: string; topic: string; notes: string; hint: string }[] = [
@@ -208,7 +208,10 @@ function RowEditor({
 }
 
 export default function MeetingPanel({ report }: { report: CqmpReport }) {
-  const [open, setOpen] = useState(false)
+  // Open by default. These are the fields somebody sits down to fill in at the
+  // start of the meeting, and a panel that has to be found and expanded first
+  // is a panel that gets filled in afterwards from memory, if at all.
+  const [open, setOpen] = useState(true)
   const meeting = report.meeting ?? {}
   const officers = { ...officerSeed(), ...(meeting.officers ?? {}) }
   const mins = meetingMinutes(meeting)

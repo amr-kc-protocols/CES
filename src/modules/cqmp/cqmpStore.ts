@@ -5,6 +5,7 @@ import { monthKey, monthLabel } from '../../lib/date'
 import {
   CQMP_OPERATIONS,
   cqmpSlots,
+  cqmpTarget,
   officerSeed,
   type CqmpKpiId,
   type CqmpOperation,
@@ -18,18 +19,21 @@ import type {
 } from '../../types'
 
 // ---------------------------------------------------------------------------
-// CQMP reports — one per month, per market.
+// CQMP reports — one per month for the region.
 //
 // A report is created with an empty metric for every (operation, measure) the
-// market reports, so the entry screen is a fixed checklist rather than a blank
-// page: at a glance you can see which of the month's numbers are still
-// missing. Targets carry forward from the previous month, because they change
-// once a year at most and re-typing them twelve times is how a wrong one gets
-// onto a slide.
+// region reports, so the entry screen is a fixed checklist rather than a blank
+// page: at a glance you can see which of the month's numbers are still missing.
+//
+// Targets are NOT stored here. They are fixed per measure in data/cqmp.ts and
+// the same for every operation, so there is one place they can be wrong rather
+// than twenty-six a month.
 // ---------------------------------------------------------------------------
 
-function emptyMetric(opId: string, kpiId: CqmpKpiId, target: number | null): CqmpMetric {
-  return { opId, kpiId, value: null, target, images: [] }
+function emptyMetric(opId: string, kpiId: CqmpKpiId): CqmpMetric {
+  // No target written onto the metric: it comes from the catalogue now, which
+  // is the only place it can be wrong once instead of twenty-six times.
+  return { opId, kpiId, value: null, target: null, images: [] }
 }
 
 /** The most recent report before `month`, if there is one. */
@@ -57,13 +61,11 @@ export function createReport(month: string): CqmpReport {
     id: uid('cqmp'),
     month,
     presenter: prev?.presenter,
-    metrics: cqmpSlots().map(({ opId, kpiId }) =>
-      emptyMetric(opId, kpiId, findMetric(prev, opId, kpiId)?.target ?? null),
-    ),
+    metrics: cqmpSlots().map(({ opId, kpiId }) => emptyMetric(opId, kpiId)),
     meeting: {
-      // The roster carries forward the same way targets do, falling back to
-      // the seed for the first month ever opened. Copied, not referenced —
-      // a post changing hands must not rewrite last year's minutes.
+      // The roster carries forward from last month, falling back to the seed
+      // for the first month ever opened. Copied, not referenced — a post
+      // changing hands must not rewrite last year's minutes.
       officers: { ...officerSeed(), ...(prev?.meeting?.officers ?? {}) },
     },
     createdAt: now,
@@ -99,7 +101,7 @@ export function updateMetric(
 ): void {
   patchReport(reportId, (r) => {
     const i = r.metrics.findIndex((m) => m.opId === opId && m.kpiId === kpiId)
-    const base = i >= 0 ? r.metrics[i] : emptyMetric(opId, kpiId as CqmpKpiId, null)
+    const base = i >= 0 ? r.metrics[i] : emptyMetric(opId, kpiId as CqmpKpiId)
     const next = { ...base, ...patch }
     const metrics = i >= 0 ? r.metrics.map((m, j) => (j === i ? next : m)) : [...r.metrics, next]
     return { ...r, metrics }
@@ -171,10 +173,23 @@ export function progressOf(report: CqmpReport): ReportProgress {
 
 export type MetricStatus = 'met' | 'below' | 'no-target' | 'not-reported'
 
+/**
+ * The target a measure is judged against.
+ *
+ * Always the catalogue's. A `target` stored on an old metric is legacy — the
+ * figure carried forward month to month before the targets were fixed — and is
+ * deliberately ignored, so every month past and present is read against the
+ * standard the programme is actually held to.
+ */
+export function targetFor(m: CqmpMetric | undefined): number | null {
+  return m ? cqmpTarget(m.kpiId) : null
+}
+
 export function statusOf(m: CqmpMetric | undefined): MetricStatus {
   if (!isReported(m)) return 'not-reported'
-  if (typeof m!.target !== 'number') return 'no-target'
-  return m!.value! + 1e-9 >= m!.target! ? 'met' : 'below'
+  const target = targetFor(m)
+  if (typeof target !== 'number') return 'no-target'
+  return m!.value! + 1e-9 >= target ? 'met' : 'below'
 }
 
 export const STATUS_LABEL: Record<MetricStatus, string> = {

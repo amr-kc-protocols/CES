@@ -12,6 +12,7 @@ import KpiImport from './KpiImport'
 import {
   deleteReport,
   findMetric,
+  isReported,
   kpiSummary,
   priorReport,
   progressOf,
@@ -35,6 +36,10 @@ export default function CqmpReportView() {
   const reports = useCqmpReports()
   const [generating, setGenerating] = useState(false)
   const [importing, setImporting] = useState(false)
+  // Which operations the person has opened or closed by hand, overriding the
+  // automatic fold. Keyed by operation id; absent means "follow the default".
+  const [manual, setManual] = useState<Record<string, boolean>>({})
+  const [showAll, setShowAll] = useState(false)
 
   if (!report) {
     return (
@@ -52,6 +57,9 @@ export default function CqmpReportView() {
   const prior = priorReport(report.month, reports)
   const progress = progressOf(report)
   const kpis = kpiSummary(report, prior)
+  const done = CQMP_OPERATIONS.filter((op) =>
+    op.kpis.every((k) => isReported(findMetric(report, op.id, k))),
+  )
 
   async function generate(): Promise<void> {
     if (!report) return
@@ -186,32 +194,75 @@ export default function CqmpReportView() {
         </div>
       </div>
 
-      {CQMP_OPERATIONS.map((op) => (
-        <section key={op.id}>
-          <div className="section-title">
-            {op.name} <span className="subtle" style={{ fontWeight: 400 }}>· {op.model}</span>
+      <div className="toolbar">
+        <div className="grow">
+          <div className="section-title" style={{ marginTop: 0 }}>
+            KPI entry
           </div>
-          {op.kpis.map((kpiId: CqmpKpiId) => {
-            const metric: CqmpMetric = findMetric(report, op.id, kpiId) ?? {
-              opId: op.id,
-              kpiId,
-              value: null,
-              target: null,
-              images: [],
-            }
-            return (
-              <MetricCard
-                key={`${op.id}-${kpiId}`}
-                reportId={report.id}
-                opId={op.id}
-                kpiId={kpiId}
-                metric={metric}
-                prior={findMetric(prior, op.id, kpiId)}
-              />
-            )
-          })}
-        </section>
-      ))}
+          <div className="subtle" style={{ fontSize: 12 }}>
+            {done.length} of {CQMP_OPERATIONS.length} business units complete
+            {done.length > 0 && !showAll && ' — completed ones are folded away'}
+          </div>
+        </div>
+        {done.length > 0 && (
+          <button className="btn sm" onClick={() => setShowAll(!showAll)}>
+            {showAll ? 'Hide completed' : `Show all ${CQMP_OPERATIONS.length}`}
+          </button>
+        )}
+      </div>
+
+      {CQMP_OPERATIONS.map((op) => {
+        const reported = op.kpis.filter((k) => isReported(findMetric(report, op.id, k))).length
+        const complete = reported === op.kpis.length
+        // A finished unit folds away on its own. With eight of them and
+        // twenty-six measures, the useful question while typing is what is
+        // LEFT — and the way to answer it is for the done ones to stop
+        // taking up the screen. Manually opened ones stay open.
+        const open = manual[op.id] ?? (!complete || showAll)
+        return (
+          <section key={op.id}>
+            <button
+              className={`op-head${complete ? ' is-done' : ''}`}
+              aria-expanded={open}
+              onClick={() => setManual({ ...manual, [op.id]: !open })}
+            >
+              <span className="op-caret" aria-hidden="true">
+                {open ? '▾' : '▸'}
+              </span>
+              <span className="grow">
+                <span className="title">{op.name}</span>
+                <span className="subtle" style={{ fontWeight: 400 }}>
+                  {' '}
+                  · {op.model}
+                </span>
+              </span>
+              <span className={`pill ${complete ? 'ok' : 'muted'}`}>
+                {complete ? '✓ Complete' : `${reported}/${op.kpis.length}`}
+              </span>
+            </button>
+            {open &&
+              op.kpis.map((kpiId: CqmpKpiId) => {
+                const metric: CqmpMetric = findMetric(report, op.id, kpiId) ?? {
+                  opId: op.id,
+                  kpiId,
+                  value: null,
+                  target: null,
+                  images: [],
+                }
+                return (
+                  <MetricCard
+                    key={`${op.id}-${kpiId}`}
+                    reportId={report.id}
+                    opId={op.id}
+                    kpiId={kpiId}
+                    metric={metric}
+                    prior={findMetric(prior, op.id, kpiId)}
+                  />
+                )
+              })}
+          </section>
+        )
+      })}
 
       <div className="subtle" style={{ fontSize: 12, margin: '16px 0 8px' }}>
         Screenshots stay on this device. The numbers, targets and notes sync to the other

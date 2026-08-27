@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '../../components/ui'
 import { notifyUser } from '../../lib/dialog'
-import { CQMP_KPIS, CQMP_OPERATIONS, cqmpOperationName } from '../../data/cqmp'
+import { CQMP_KPIS, CQMP_OPERATIONS, cqmpOperationName, cqmpTarget } from '../../data/cqmp'
 import { findMetric, isReported, updateMetric } from './cqmpStore'
 import { readPastedKpis, type KpiFinding, type ReadConfidence } from './kpiParse'
 import type { CqmpReport } from '../../types'
@@ -26,7 +26,8 @@ import type { CqmpReport } from '../../types'
 //   entered is the worst thing an importer can do.
 //
 // The pasted text is never stored. It lives in the box until the numbers are
-// applied, and only the numbers — value, counts, target — are kept.
+// applied, and only the result and its case counts are kept — targets are
+// fixed in the catalogue and are never written from a paste.
 // ---------------------------------------------------------------------------
 
 const CONF_LABEL: Record<ReadConfidence, string> = {
@@ -136,16 +137,13 @@ export default function KpiImport({
 
   function apply(): void {
     for (const r of takingRows) {
-      const already = findMetric(report, r.opId, r.finding.kpiId)
+      // Only the result and its counts. Targets are fixed in the catalogue and
+      // are never written from a paste — a goal stated in somebody's summary is
+      // a claim about the standard, not the standard.
       updateMetric(report.id, r.opId, r.finding.kpiId, {
         value: r.finding.value,
         numerator: r.finding.numerator ?? null,
         denominator: r.finding.denominator ?? null,
-        // A target read off the summary fills an empty one; it never overwrites
-        // a target already set, which is a decision somebody made.
-        ...(typeof r.finding.target === 'number' && typeof already?.target !== 'number'
-          ? { target: r.finding.target }
-          : {}),
       })
     }
     notifyUser(
@@ -175,7 +173,7 @@ export default function KpiImport({
         <div className="help-text">
           {rows.length > 0
             ? `${rows.length} figure${rows.length === 1 ? '' : 's'} found across ${byOp.size} operation${byOp.size === 1 ? '' : 's'}.`
-            : 'Goal and target percentages are recognised as targets, not results, so "goal 90%, actual 81.4%" reads correctly.'}
+            : 'A stated goal is recognised as a goal, not a result, so "goal 90%, actual 81.4%" reads correctly. Targets are fixed and never taken from a paste.'}
         </div>
       </div>
 
@@ -222,12 +220,17 @@ export default function KpiImport({
                       ({r.finding.numerator} of {r.finding.denominator})
                     </span>
                   )}
-                  {typeof r.finding.target === 'number' && (
-                    <span className="subtle" style={{ fontWeight: 400 }}>
-                      {' '}
-                      · target {r.finding.target}%
-                    </span>
-                  )}
+                  {/* A goal stated in the paste is only worth showing when it
+                      disagrees with the standard — then it is worth checking
+                      which of the two is out of date. */}
+                  {typeof r.finding.target === 'number' &&
+                    r.finding.target !== cqmpTarget(r.finding.kpiId) && (
+                      <span style={{ fontWeight: 400, color: 'var(--warn)' }}>
+                        {' '}
+                        · says goal {r.finding.target}%, ours is{' '}
+                        {cqmpTarget(r.finding.kpiId)}%
+                      </span>
+                    )}
                 </div>
                 {r.existing !== null && (
                   <div className="meta" style={{ color: 'var(--crit)' }}>

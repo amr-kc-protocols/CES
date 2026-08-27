@@ -1,7 +1,7 @@
 import type PptxGenJS from 'pptxgenjs'
 import { monthLabel } from '../../lib/date'
 import { marketName, type Market } from '../../lib/market'
-import { CQMP_KPIS, CQMP_OPERATIONS, cqmpKpiName, cqmpOperationName, type CqmpKpiId } from '../../data/cqmp'
+import { CQMP_KPIS, CQMP_OPERATIONS, cqmpKpiName, cqmpOperationName, cqmpTarget, type CqmpKpiId } from '../../data/cqmp'
 import { deltaOf, findMetric, isReported, STATUS_LABEL, statusOf } from './cqmpStore'
 import { getScreenshotDataUrl } from './images'
 import type { CqmpMetric, CqmpReport } from '../../types'
@@ -227,7 +227,7 @@ function summarySlide(pptx: Pptx, opts: DeckOptions): void {
           text: reported ? pct(m!.value) : 'Not reported',
           options: { bold: reported, color: reported ? INK : MUTED, align: 'center' },
         },
-        { text: pct(m?.target ?? null), options: { color: MUTED, align: 'center' } },
+        { text: pct(cqmpTarget(kpiId)), options: { color: MUTED, align: 'center' } },
         { text: deltaText(m, p), options: { color: deltaColor(m, p), align: 'center' } },
         { text: STATUS_LABEL[statusOf(m)], options: { color: statusColor(m), bold: true, align: 'center' } },
       ])
@@ -305,7 +305,7 @@ function metricSlide(pptx: Pptx, opts: DeckOptions, pm: PreparedMetric): void {
   })
 
   const facts: { label: string; value: string; color: string }[] = [
-    { label: 'Target', value: pct(m.target), color: INK },
+    { label: 'Target', value: pct(cqmpTarget(m.kpiId)), color: INK },
     {
       label: opts.prior ? `vs. ${monthLabel(opts.prior.month)}` : 'vs. prior month',
       value: deltaText(m, pm.prior),
