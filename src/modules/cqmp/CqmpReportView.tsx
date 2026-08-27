@@ -5,7 +5,7 @@ import { Empty, Stat } from '../../components/ui'
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import { monthLabel } from '../../lib/date'
 import { activeMarket } from '../../lib/market'
-import { CQMP_KPIS, CQMP_OPERATIONS, type CqmpKpiId } from '../../data/cqmp'
+import { CQMP_KPIS, CQMP_OPERATIONS, CQMP_SUBMIT_URL, type CqmpKpiId } from '../../data/cqmp'
 import MetricCard from './MetricCard'
 import MeetingPanel from './MeetingPanel'
 import {
@@ -101,10 +101,28 @@ export default function CqmpReportView() {
           <button className="btn" onClick={() => downloadMinutes(report, prior)}>
             ⬇ Minutes (.doc)
           </button>
+          {/* The filing step. Deliberately a link out rather than a submit
+              button: there is no API and no credential here, and a PWA that
+              silently failed to file a compliance document would be worse than
+              one that just opens the form. */}
+          <a
+            className="btn"
+            href={CQMP_SUBMIT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ↗ Submit
+          </a>
           <button className="btn danger" onClick={() => void remove()}>
             Delete
           </button>
         </div>
+      </div>
+
+      <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
+        Filing: print the minutes to PDF, then <strong>Submit</strong> opens the Smartsheet intake
+        form to attach it. The form is the system of record for the submission — this app does not
+        post to it, so nothing is filed until you press send there.
       </div>
 
       <div className="stat-grid">

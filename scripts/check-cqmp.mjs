@@ -91,6 +91,7 @@ const {
   CQMP_KPIS,
   CQMP_OFFICERS,
   CQMP_OPERATIONS,
+  CQMP_SUBMIT_URL,
   GROUND_OPERATIONS,
   createReport,
   cqmpSlots,
@@ -180,6 +181,17 @@ const ok = (cond, msg) => {
     'the director row names the region',
   )
   ok(Object.keys(officerSeed()).length === CQMP_OFFICERS.length, 'the seed covers every post')
+}
+
+{
+  // The filing link. Held as data rather than typed into a component, so the
+  // day the form is replaced it is one edit and not a hunt.
+  ok(/^https:\/\//.test(CQMP_SUBMIT_URL), 'the submission form is https')
+  ok(/smartsheet\.com/.test(CQMP_SUBMIT_URL), 'and points at the Smartsheet intake form')
+  ok(
+    CQMP_SUBMIT_URL === 'https://app.smartsheet.com/b/form/2a67f3482aeb40ec869d56f12ce8c2b8',
+    'at the form id that was given',
+  )
 }
 
 // ---------------------------------------------------------------------------

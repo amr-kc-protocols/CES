@@ -269,6 +269,18 @@ export const CQMP_OFFICERS: CqmpOfficer[] = [
 /** Who the finished minutes are submitted to. */
 export const CQMP_SUBMIT_TO: CqmpOfficerRole = 'director'
 
+/**
+ * Where the finished minutes are filed.
+ *
+ * A Smartsheet intake form that takes the PDF as an upload. The app does not
+ * post to it — there is no API here and no credential, and an offline-first
+ * PWA quietly failing to submit a compliance document would be worse than not
+ * offering to. The link opens the form; the person attaches the file they just
+ * generated and fills in whatever else the form asks for.
+ */
+export const CQMP_SUBMIT_URL =
+  'https://app.smartsheet.com/b/form/2a67f3482aeb40ec869d56f12ce8c2b8'
+
 export function officerSeed(): Record<string, string> {
   return Object.fromEntries(CQMP_OFFICERS.map((o) => [o.role, o.name]))
 }
