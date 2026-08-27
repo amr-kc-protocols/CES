@@ -1393,15 +1393,65 @@ export interface CqmpMetric {
 
 export interface CqmpReport {
   id: string
-  /** The month being reported, 'YYYY-MM'. One report per month per market. */
+  /** The month being reported, 'YYYY-MM'. One report per month for the region. */
   month: string
   /** Who is presenting. Printed on the title slide. */
   presenter?: string
   /** Month-level narrative — printed on the closing slide of the deck. */
   summary?: string
   metrics: CqmpMetric[]
+  /** Everything the meeting minutes need that the numbers do not. */
+  meeting?: CqmpMeeting
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * The meeting the numbers were reviewed at.
+ *
+ * Separate from the metrics because it is a different kind of fact: the metrics
+ * are what the dashboards said, this is what happened in a room. A month can
+ * have numbers and no meeting yet, which is the normal state for most of it.
+ */
+export interface CqmpMeeting {
+  /** ISO date the meeting was held — often the month after the one reported. */
+  date?: string
+  /** 24-hour 'HH:MM', so the duration can be computed rather than typed. */
+  startTime?: string
+  endTime?: string
+  /**
+   * Who held each post that month, keyed by CqmpOfficerRole.
+   *
+   * Copied from the seed when the month is created rather than read live, so a
+   * meeting chaired by somebody acting still reads correctly a year later.
+   */
+  officers?: Record<string, string>
+  attendees?: CqmpAttendee[]
+  absent?: CqmpAttendee[]
+  agenda?: CqmpMinuteRow[]
+  /** Annual quality measure rows — the CQMP table on the minutes. */
+  aqms?: CqmpMinuteRow[]
+  /** Patient safety issues raised. */
+  safety?: CqmpMinuteRow[]
+}
+
+export interface CqmpAttendee {
+  name: string
+  title?: string
+}
+
+/**
+ * One row of any of the three tracking tables on the minutes. They have the
+ * same shape — a thing, what is wrong with it, what is being done, who has it,
+ * and whether it is closed — so they share a type rather than three that drift.
+ */
+export interface CqmpMinuteRow {
+  id: string
+  topic: string
+  notes?: string
+  action?: string
+  assignedTo?: string
+  status: 'open' | 'closed'
 }
 
 // ---------------------------------------------------------------------------
