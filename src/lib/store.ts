@@ -40,6 +40,8 @@ function emptyDB(): DBShape {
     aemtAttendance: [],
     aemtEncounters: [],
     aemtShifts: [],
+    aemtPlacements: [],
+    aemtPreceptors: [],
     aemtDeadlines: [],
     aemtSkillChecks: [],
     aemtFormResponses: [],

@@ -21,6 +21,9 @@ import {
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
 import { clearanceGating, seedPhases, skillClearance } from '../../data/aemtPhases'
+import { SITE_TEMPLATES, seedUnits } from '../../data/aemtSites'
+import { blocking, placementIssues } from './placement'
+import type { PlacementInput } from './placement'
 import { checkPhi, phiMessage } from '../../lib/phi'
 import { versionToPin } from '../templates/resolve'
 import {
@@ -41,7 +44,13 @@ import type {
   AemtClinicalPhase,
   AemtInterviewScore,
   AemtClinicalShift,
+  AemtPlacement,
+  AemtPreceptor,
+  AemtSite,
+  AemtSiteKind,
+  AemtSiteUnit,
   AemtSkillClearance,
+  PreceptorCredentialId,
   SkillClearanceCode,
   AemtAuditEvent,
   AemtCompletion,
@@ -2051,6 +2060,282 @@ export function phaseOn(
   date: string,
 ): AemtClinicalPhase | undefined {
   return phasesFor(course).find((p) => date >= p.windowStart && date <= p.windowEnd)
+}
+
+// ----- sites, preceptors and placements --------------------------------------
+//
+// Scheduling. See modules/aemt/placement.ts for the rules and for why these
+// records stay on the device rather than syncing.
+
+/**
+ * Put the seeded site list onto the course, keeping anything already there.
+ *
+ * Matched by name, because a site the instructor typed in during setup and the
+ * same site in the template are the same hospital — and re-seeding must not
+ * leave two of it with one carrying the executed agreement.
+ */
+export function seedSites(courseId: string): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  const existing = course.sites ?? []
+  const next: AemtSite[] = [...existing]
+  for (const t of SITE_TEMPLATES) {
+    const found = next.findIndex((s) => s.name.toLowerCase() === t.name.toLowerCase())
+    if (found >= 0) {
+      const site = next[found]
+      // Units and the active flag come from the template; the agreement
+      // evidence on the existing record is the instructor's and is left alone.
+      next[found] = {
+        ...site,
+        kind: t.kind,
+        active: site.active ?? t.active,
+        units: site.units?.length ? site.units : seedUnits(site.id, t.units),
+      }
+    } else {
+      const id = uid('asite')
+      next.push({
+        id,
+        name: t.name,
+        kind: t.kind,
+        agreement: 'none',
+        active: t.active,
+        notes: t.note,
+        units: seedUnits(id, t.units),
+      })
+    }
+  }
+  updateCourse(courseId, { sites: next })
+}
+
+/** Sites with somewhere to place someone, in the order they were seeded. */
+export function placeableSites(course: AemtCourse | undefined): AemtSite[] {
+  return (course?.sites ?? []).filter((s) => (s.units?.length ?? 0) > 0)
+}
+
+export function updateSite(courseId: string, siteId: string, patch: Partial<AemtSite>): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, {
+    sites: (course.sites ?? []).map((s) => (s.id === siteId ? { ...s, ...patch } : s)),
+  })
+}
+
+/**
+ * Change one department's weekly cap.
+ *
+ * The one number in this module most likely to be wrong today — every hospital
+ * department is seeded at one student a week because AdventHealth has not
+ * answered — so it is a one-field edit rather than a re-seed.
+ */
+export function updateUnit(
+  courseId: string,
+  siteId: string,
+  unitId: string,
+  patch: Partial<AemtSiteUnit>,
+): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, {
+    sites: (course.sites ?? []).map((s) =>
+      s.id !== siteId
+        ? s
+        : { ...s, units: (s.units ?? []).map((u) => (u.id === unitId ? { ...u, ...patch } : u)) },
+    ),
+  })
+}
+
+export function usePreceptors(courseId: string | undefined): AemtPreceptor[] {
+  return useSelector((db) =>
+    db.aemtPreceptors
+      .filter((p) => p.courseId === courseId)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  )
+}
+
+export function addPreceptor(
+  courseId: string,
+  input: Omit<AemtPreceptor, 'id' | 'courseId'>,
+): AemtPreceptor {
+  const preceptor: AemtPreceptor = { id: uid('aprec'), courseId, ...input }
+  setState((db) => ({ ...db, aemtPreceptors: [...db.aemtPreceptors, preceptor] }))
+  return preceptor
+}
+
+export function updatePreceptor(id: string, patch: Partial<AemtPreceptor>): void {
+  setState((db) => ({
+    ...db,
+    aemtPreceptors: db.aemtPreceptors.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+  }))
+}
+
+/**
+ * Remove a preceptor from the roster.
+ *
+ * Placements pointing at them lose the pointer rather than the placement — the
+ * shift still needs to happen, it just needs a name again. Shifts already
+ * worked are untouched: they carry the name and credential they were signed
+ * under, and that is the evidence.
+ */
+export function deletePreceptor(id: string): void {
+  setState((db) => {
+    const preceptor = db.aemtPreceptors.find((p) => p.id === id)
+    const affected = db.aemtPlacements.filter((p) => p.preceptorId === id)
+    if (preceptor) {
+      pushUndo(`Removed ${preceptor.name}`, () =>
+        setState((cur) => ({
+          ...cur,
+          aemtPreceptors: [...cur.aemtPreceptors, preceptor],
+          aemtPlacements: cur.aemtPlacements.map((p) =>
+            affected.some((a) => a.id === p.id) ? { ...p, preceptorId: id } : p,
+          ),
+        })),
+      )
+    }
+    return {
+      ...db,
+      aemtPreceptors: db.aemtPreceptors.filter((p) => p.id !== id),
+      aemtPlacements: db.aemtPlacements.map((p) =>
+        p.preceptorId === id ? { ...p, preceptorId: undefined } : p,
+      ),
+    }
+  })
+}
+
+export function usePlacements(courseId: string | undefined): AemtPlacement[] {
+  return useSelector((db) =>
+    db.aemtPlacements
+      .filter((p) => p.courseId === courseId)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+  )
+}
+
+/**
+ * Create a placement.
+ *
+ * Refuses on a blocking issue rather than writing and letting the board
+ * complain afterwards — a capacity cap that can be exceeded by a caller that
+ * forgot to check is not a cap.
+ */
+export function addPlacement(
+  courseId: string,
+  input: PlacementInput & { preceptorId?: string; notes?: string },
+): { ok: boolean; refused?: string; placement?: AemtPlacement } {
+  const db = getState()
+  const course = db.aemtCourses.find((c) => c.id === courseId)
+  const issues = blocking(
+    placementIssues(input, {
+      placements: db.aemtPlacements.filter((p) => p.courseId === courseId),
+      sites: course?.sites ?? [],
+      phases: phasesFor(course),
+      courseStart: course?.startDate,
+      courseEnd: course?.endDate,
+    }),
+  )
+  if (issues.length) return { ok: false, refused: issues[0].message }
+  const placement: AemtPlacement = { id: uid('aplace'), courseId, ...input }
+  setState((cur) => ({ ...cur, aemtPlacements: [...cur.aemtPlacements, placement] }))
+  return { ok: true, placement }
+}
+
+export function updatePlacement(
+  id: string,
+  patch: Partial<AemtPlacement>,
+): { ok: boolean; refused?: string } {
+  const db = getState()
+  const before = db.aemtPlacements.find((p) => p.id === id)
+  if (!before) return { ok: false, refused: 'That placement no longer exists.' }
+  const next = { ...before, ...patch }
+  const course = db.aemtCourses.find((c) => c.id === before.courseId)
+  // A cancellation is always allowed — it frees capacity rather than consuming
+  // it, and refusing to cancel an over-capacity placement would be a trap.
+  if (next.status !== 'cancelled') {
+    const issues = blocking(
+      placementIssues(next, {
+        placements: db.aemtPlacements.filter((p) => p.courseId === before.courseId),
+        sites: course?.sites ?? [],
+        phases: phasesFor(course),
+        ignoreId: id,
+        courseStart: course?.startDate,
+        courseEnd: course?.endDate,
+      }),
+    )
+    if (issues.length) return { ok: false, refused: issues[0].message }
+  }
+  setState((cur) => ({
+    ...cur,
+    aemtPlacements: cur.aemtPlacements.map((p) => (p.id === id ? next : p)),
+  }))
+  return { ok: true }
+}
+
+/**
+ * Turn a placement into a worked shift.
+ *
+ * This is the join between the plan and the record. The shift is what carries
+ * the preceptor's signature and the encounters, so it is created here with the
+ * placement's date, site and hours — and from then on the two are linked but
+ * independent: editing the shift does not move the plan, and cancelling the
+ * plan does not touch the evidence.
+ */
+export function workPlacement(
+  id: string,
+  input: {
+    preceptorName: string
+    preceptorCredential: PreceptorCredentialId
+    preceptorCertNumber?: string
+    hours?: number
+  },
+): { ok: boolean; refused?: string; shiftId?: string } {
+  const db = getState()
+  const placement = db.aemtPlacements.find((p) => p.id === id)
+  if (!placement) return { ok: false, refused: 'That placement no longer exists.' }
+  if (!placement.studentId) {
+    return { ok: false, refused: 'Assign a student to the slot before recording it as worked.' }
+  }
+  if (placement.shiftId) {
+    return { ok: false, refused: 'This placement already has a shift on the record.' }
+  }
+  const course = db.aemtCourses.find((c) => c.id === placement.courseId)
+  const site = course?.sites?.find((s) => s.id === placement.siteId)
+  const unit = site?.units?.find((u) => u.id === placement.unitId)
+  const setting: AemtSiteKind = site?.kind === 'field' ? 'field' : 'hospital'
+  const result = addShift(placement.courseId, placement.studentId, {
+    date: placement.date,
+    setting,
+    // The unit is the part that matters when reading a log back — "AdventHealth
+    // Shawnee Mission" says nothing about whether the sticks were available.
+    site: [site?.name, unit?.name].filter(Boolean).join(' — '),
+    hours: input.hours ?? placement.hours,
+    preceptorName: input.preceptorName.trim(),
+    preceptorCredential: input.preceptorCredential,
+    preceptorCertNumber: input.preceptorCertNumber?.trim() || undefined,
+  })
+  if (!result.ok || !result.shift) return { ok: false, refused: result.refused }
+  setState((cur) => ({
+    ...cur,
+    aemtPlacements: cur.aemtPlacements.map((p) =>
+      p.id === id ? { ...p, status: 'worked', shiftId: result.shift!.id } : p,
+    ),
+  }))
+  return { ok: true, shiftId: result.shift.id }
+}
+
+/**
+ * Delete a placement outright.
+ *
+ * Only for slots that never happened — a worked placement keeps its link to the
+ * shift, so cancelling is the right verb there and the shift is untouched.
+ */
+export function deletePlacement(id: string): void {
+  setState((db) => {
+    const placement = db.aemtPlacements.find((p) => p.id === id)
+    if (placement) {
+      pushUndo('Removed placement', () =>
+        setState((cur) => ({ ...cur, aemtPlacements: [...cur.aemtPlacements, placement] })),
+      )
+    }
+    return { ...db, aemtPlacements: db.aemtPlacements.filter((p) => p.id !== id) }
+  })
 }
 
 // ----- shift entry validation (spec §6.1, §6.4) ------------------------------

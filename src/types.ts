@@ -550,7 +550,101 @@ export interface AemtSite {
    * does not cover them cannot support the minimums the course filed.
    */
   permits?: string
+  /**
+   * The departments a student can actually be placed in, with what each one
+   * produces and how many students it will take at once.
+   *
+   * Absent on a site nobody has scheduled against yet. A site with no units is
+   * a name on an agreement; a site with units is somewhere to send someone.
+   */
+  units?: AemtSiteUnit[]
+  /**
+   * Whether the site is in use this cohort. A campus covered by the same
+   * agreement but not being rotated through stays on file with this false, so
+   * turning it on later is a toggle rather than re-entering it.
+   */
+  active?: boolean
 }
+
+/**
+ * One department at a site.
+ *
+ * `produces` is what makes the placement board more than a calendar: a student
+ * projecting short on venipunctures needs pre-op, not "a shift". Keyed to the
+ * phase target keys in data/aemtPhases.ts.
+ */
+export interface AemtSiteUnit {
+  id: string
+  name: string
+  /**
+   * How many students the department will take in one week.
+   *
+   * One is the AdventHealth working assumption until they answer, and one is
+   * also the number that makes scheduling hard — five students and six
+   * departments means no two people in pre-op in the same week.
+   */
+  weeklySlotCap: number
+  /** Phase target keys this department realistically produces. */
+  produces: string[]
+  notes?: string
+}
+
+/**
+ * Someone who can supervise a shift, as a record rather than a name retyped
+ * on every shift.
+ *
+ * Kept separate from the shift so that a credential correction lands once. A
+ * shift still stores the name and credential it was signed under — that is the
+ * evidence, and it must not change because a roster record was edited later.
+ */
+export interface AemtPreceptor {
+  id: string
+  courseId: string
+  siteId: string
+  name: string
+  credential: PreceptorCredentialId
+  certNumber?: string
+  /** Which units at the site they cover. Empty means any. */
+  unitIds?: string[]
+  active: boolean
+  notes?: string
+}
+
+/**
+ * A planned shift — a student, a date, a department.
+ *
+ * Deliberately NOT the same record as AemtClinicalShift. A placement is an
+ * intention and changes freely; a shift is what happened and carries a
+ * preceptor's signature. Confirming a placement creates the shift and links
+ * the two, so the board can show what was planned against what was worked
+ * without one quietly rewriting the other.
+ */
+export interface AemtPlacement {
+  id: string
+  courseId: string
+  /** Null for an open slot nobody is assigned to yet. */
+  studentId?: string
+  date: string
+  siteId: string
+  unitId: string
+  /** Named when known; field placements often are not until the week of. */
+  preceptorId?: string
+  hours: number
+  status: AemtPlacementStatus
+  /** The logged shift this turned into, once it has been worked. */
+  shiftId?: string
+  notes?: string
+}
+
+/**
+ * open      — a slot exists, nobody is in it
+ * assigned  — a student is scheduled, the site has not confirmed
+ * confirmed — the site has agreed to it
+ * worked    — it happened, and there is a shift record
+ * cancelled — kept rather than deleted, so a pattern of cancellations at one
+ *             site is visible instead of silently disappearing
+ */
+export type AemtPlacementStatus = 'open' | 'assigned' | 'confirmed' | 'worked' | 'cancelled'
 
 export interface AemtCourse {
   id: string
@@ -1299,15 +1393,65 @@ export interface CqmpMetric {
 
 export interface CqmpReport {
   id: string
-  /** The month being reported, 'YYYY-MM'. One report per month per market. */
+  /** The month being reported, 'YYYY-MM'. One report per month for the region. */
   month: string
   /** Who is presenting. Printed on the title slide. */
   presenter?: string
   /** Month-level narrative — printed on the closing slide of the deck. */
   summary?: string
   metrics: CqmpMetric[]
+  /** Everything the meeting minutes need that the numbers do not. */
+  meeting?: CqmpMeeting
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * The meeting the numbers were reviewed at.
+ *
+ * Separate from the metrics because it is a different kind of fact: the metrics
+ * are what the dashboards said, this is what happened in a room. A month can
+ * have numbers and no meeting yet, which is the normal state for most of it.
+ */
+export interface CqmpMeeting {
+  /** ISO date the meeting was held — often the month after the one reported. */
+  date?: string
+  /** 24-hour 'HH:MM', so the duration can be computed rather than typed. */
+  startTime?: string
+  endTime?: string
+  /**
+   * Who held each post that month, keyed by CqmpOfficerRole.
+   *
+   * Copied from the seed when the month is created rather than read live, so a
+   * meeting chaired by somebody acting still reads correctly a year later.
+   */
+  officers?: Record<string, string>
+  attendees?: CqmpAttendee[]
+  absent?: CqmpAttendee[]
+  agenda?: CqmpMinuteRow[]
+  /** Annual quality measure rows — the CQMP table on the minutes. */
+  aqms?: CqmpMinuteRow[]
+  /** Patient safety issues raised. */
+  safety?: CqmpMinuteRow[]
+}
+
+export interface CqmpAttendee {
+  name: string
+  title?: string
+}
+
+/**
+ * One row of any of the three tracking tables on the minutes. They have the
+ * same shape — a thing, what is wrong with it, what is being done, who has it,
+ * and whether it is closed — so they share a type rather than three that drift.
+ */
+export interface CqmpMinuteRow {
+  id: string
+  topic: string
+  notes?: string
+  action?: string
+  assignedTo?: string
+  status: 'open' | 'closed'
 }
 
 // ---------------------------------------------------------------------------
@@ -1440,6 +1584,15 @@ export interface DBShape {
   aemtAttendance: AemtAttendanceRecord[]
   aemtEncounters: AemtEncounter[]
   aemtShifts: AemtClinicalShift[]
+  /**
+   * Scheduling, not records. These two are absent from lib/records.ts on
+   * purpose: a placement is a plan and a preceptor roster is a contact list,
+   * neither of which is a K.A.R. 109-17-3 course record. The regulated
+   * artifact is the shift, which already syncs. See the comment in
+   * modules/aemt/placement.ts.
+   */
+  aemtPlacements: AemtPlacement[]
+  aemtPreceptors: AemtPreceptor[]
   aemtDeadlines: AemtDeadlineRecord[]
   aemtSkillChecks: AemtSkillCheck[]
   aemtFormResponses: AemtFormResponse[]

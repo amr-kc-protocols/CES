@@ -5,11 +5,14 @@ import { Empty, Stat } from '../../components/ui'
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import { monthLabel } from '../../lib/date'
 import { activeMarket } from '../../lib/market'
-import { CQMP_OPERATIONS, type CqmpKpiId } from '../../data/cqmp'
+import { CQMP_KPIS, CQMP_OPERATIONS, CQMP_SUBMIT_URL, type CqmpKpiId } from '../../data/cqmp'
 import MetricCard from './MetricCard'
+import MeetingPanel from './MeetingPanel'
+import KpiImport from './KpiImport'
 import {
   deleteReport,
   findMetric,
+  kpiSummary,
   priorReport,
   progressOf,
   updateReport,
@@ -17,6 +20,7 @@ import {
   useReportById,
 } from './cqmpStore'
 import { downloadDeck } from './deck'
+import { downloadMinutes, printMinutes } from './minutes'
 import type { CqmpMetric } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -30,6 +34,7 @@ export default function CqmpReportView() {
   const report = useReportById(reportId)
   const reports = useCqmpReports()
   const [generating, setGenerating] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   if (!report) {
     return (
@@ -46,6 +51,7 @@ export default function CqmpReportView() {
 
   const prior = priorReport(report.month, reports)
   const progress = progressOf(report)
+  const kpis = kpiSummary(report, prior)
 
   async function generate(): Promise<void> {
     if (!report) return
@@ -88,20 +94,75 @@ export default function CqmpReportView() {
           <div className="subtle">Clinical Quality Management Plan — monthly KPI review</div>
         </div>
         <div className="btn-row">
+          <button className="btn" onClick={() => setImporting(true)}>
+            ⬆ Paste KPIs
+          </button>
           <button className="btn primary" onClick={() => void generate()} disabled={generating}>
             {generating ? 'Building…' : '📊 Generate PowerPoint'}
           </button>
+          <button className="btn" onClick={() => printMinutes(report, prior)}>
+            🖨 Minutes
+          </button>
+          <button className="btn" onClick={() => downloadMinutes(report, prior)}>
+            ⬇ Minutes (.doc)
+          </button>
+          {/* The filing step. Deliberately a link out rather than a submit
+              button: there is no API and no credential here, and a PWA that
+              silently failed to file a compliance document would be worse than
+              one that just opens the form. */}
+          <a
+            className="btn"
+            href={CQMP_SUBMIT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ↗ Submit
+          </a>
           <button className="btn danger" onClick={() => void remove()}>
             Delete
           </button>
         </div>
       </div>
 
+      <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
+        Filing: print the minutes to PDF, then <strong>Submit</strong> opens the Smartsheet intake
+        form to attach it. The form is the system of record for the submission — this app does not
+        post to it, so nothing is filed until you press send there.
+      </div>
+
       <div className="stat-grid">
+        <Stat value={`${kpis.met}/${kpis.rows.length}`} label="Meeting target" />
         <Stat value={`${progress.reported}/${progress.expected}`} label="Measures reported" />
         <Stat value={`${progress.withScreenshot}/${progress.expected}`} label="With a screenshot" />
         <Stat value={prior ? monthLabel(prior.month) : '—'} label="Compared against" />
       </div>
+
+      {/* The question the meeting exists to answer, before the twenty-six cards
+          that answer it one at a time. A miss with nothing said about it is the
+          thing that gets asked in the room, so it is named here by operation
+          and measure rather than left to be discovered on the printed page. */}
+      {kpis.unexplained.length > 0 && (
+        <div className="banner crit">
+          <strong>
+            {kpis.unexplained.length} measure{kpis.unexplained.length === 1 ? ' is' : 's are'} below
+            target with no explanation recorded.
+          </strong>{' '}
+          The minutes will print “explanation required” against{' '}
+          {kpis.unexplained
+            .map((r) => `${r.operation.name} ${CQMP_KPIS[r.kpiId].short.toLowerCase()}`)
+            .join(', ')}
+          .
+        </div>
+      )}
+      {kpis.below === 0 && kpis.notReported === 0 && kpis.rows.length > 0 && (
+        <div className="banner ok">
+          Every measure reported is at or above target this month.
+        </div>
+      )}
+
+      {importing && <KpiImport report={report} onClose={() => setImporting(false)} />}
+
+      <MeetingPanel report={report} />
 
       <div className="card" style={{ padding: 14, marginTop: 12 }}>
         <div className="field">

@@ -996,6 +996,47 @@ tbody tr:hover td {
   background: var(--surface-2);
 }
 
+/* ---------- Placement board ----------
+   Weeks down, departments across. Wide by nature — the wrapper scrolls, and
+   the week column stays put so a row never loses its label mid-scroll. */
+.grid-table {
+  min-width: 720px;
+}
+
+.grid-table th[style*='sticky'] {
+  background: var(--surface-2);
+  z-index: 1;
+}
+
+.grid-table td {
+  vertical-align: top;
+  min-width: 120px;
+}
+
+/* The current week, so the eye lands on the row that is actually actionable. */
+.grid-table tr.is-now th,
+.grid-table tr.is-now td {
+  background: var(--info-bg, var(--surface-2));
+}
+
+/* A two-or-three-way switch. Buttons share an edge and read as one control. */
+.seg {
+  display: inline-flex;
+  gap: 0;
+}
+
+.seg .btn {
+  border-radius: 0;
+}
+
+.seg .btn:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.seg .btn:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
 /* ---------- Attendance grid cell ----------
    The cell is a button filling its <td>, so the whole coloured square is the
    hit target rather than a control sitting inside padding. */

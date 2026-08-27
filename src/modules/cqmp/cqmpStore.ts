@@ -2,8 +2,20 @@ import { getState, setState, useSelector } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { pushUndo } from '../../lib/undo'
 import { monthKey, monthLabel } from '../../lib/date'
-import { cqmpSlots, type CqmpKpiId } from '../../data/cqmp'
-import type { CqmpImageRef, CqmpMetric, CqmpReport } from '../../types'
+import {
+  CQMP_OPERATIONS,
+  cqmpSlots,
+  officerSeed,
+  type CqmpKpiId,
+  type CqmpOperation,
+} from '../../data/cqmp'
+import type {
+  CqmpImageRef,
+  CqmpMeeting,
+  CqmpMetric,
+  CqmpMinuteRow,
+  CqmpReport,
+} from '../../types'
 
 // ---------------------------------------------------------------------------
 // CQMP reports — one per month, per market.
@@ -48,6 +60,12 @@ export function createReport(month: string): CqmpReport {
     metrics: cqmpSlots().map(({ opId, kpiId }) =>
       emptyMetric(opId, kpiId, findMetric(prev, opId, kpiId)?.target ?? null),
     ),
+    meeting: {
+      // The roster carries forward the same way targets do, falling back to
+      // the seed for the first month ever opened. Copied, not referenced —
+      // a post changing hands must not rewrite last year's minutes.
+      officers: { ...officerSeed(), ...(prev?.meeting?.officers ?? {}) },
+    },
     createdAt: now,
     updatedAt: now,
   }
@@ -176,6 +194,150 @@ export function deltaOf(current: CqmpMetric | undefined, prior: CqmpMetric | und
 export function percentOf(numerator: number, denominator: number): number | null {
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return null
   return Math.round((numerator / denominator) * 10000) / 100
+}
+
+// ----- the question the meeting actually asks --------------------------------
+//
+// "Are we meeting these KPIs, and if not, why not." Everything below exists to
+// answer that in one table rather than making a director read twenty-six
+// slides and do the subtraction.
+
+export interface KpiRow {
+  operation: CqmpOperation
+  kpiId: CqmpKpiId
+  metric: CqmpMetric | undefined
+  prior: CqmpMetric | undefined
+  status: MetricStatus
+  /** Percentage points against last month, when both months have a number. */
+  delta: number | null
+  /** The stated reason. Only meaningful when the measure is below target. */
+  why: string
+  /**
+   * Below target with nothing said about it.
+   *
+   * This is the one state the minutes must not print silently. A miss with an
+   * explanation is a managed problem; a miss with a blank next to it is a
+   * question the director will ask in the room, and the point of generating
+   * this document is that nobody is surprised by it.
+   */
+  needsExplanation: boolean
+}
+
+/** Every measure the region owes, in meeting order, with its verdict. */
+export function kpiRows(report: CqmpReport, prior: CqmpReport | undefined): KpiRow[] {
+  return CQMP_OPERATIONS.flatMap((operation) =>
+    operation.kpis.map((kpiId) => {
+      const metric = findMetric(report, operation.id, kpiId)
+      const priorMetric = findMetric(prior, operation.id, kpiId)
+      const status = statusOf(metric)
+      const why = metric?.notes?.trim() ?? ''
+      return {
+        operation,
+        kpiId,
+        metric,
+        prior: priorMetric,
+        status,
+        delta: deltaOf(metric, priorMetric),
+        why,
+        needsExplanation: status === 'below' && why === '',
+      }
+    }),
+  )
+}
+
+export interface KpiSummary {
+  rows: KpiRow[]
+  met: number
+  below: number
+  noTarget: number
+  notReported: number
+  /** Below target and unexplained — what has to be filled in before filing. */
+  unexplained: KpiRow[]
+}
+
+export function kpiSummary(report: CqmpReport, prior: CqmpReport | undefined): KpiSummary {
+  const rows = kpiRows(report, prior)
+  return {
+    rows,
+    met: rows.filter((r) => r.status === 'met').length,
+    below: rows.filter((r) => r.status === 'below').length,
+    noTarget: rows.filter((r) => r.status === 'no-target').length,
+    notReported: rows.filter((r) => r.status === 'not-reported').length,
+    unexplained: rows.filter((r) => r.needsExplanation),
+  }
+}
+
+// ----- meeting record --------------------------------------------------------
+
+export function updateMeeting(reportId: string, patch: Partial<CqmpMeeting>): void {
+  patchReport(reportId, (r) => ({ ...r, meeting: { ...(r.meeting ?? {}), ...patch } }))
+}
+
+/**
+ * Meeting length from the two times, in minutes.
+ *
+ * A meeting that ends before it starts has crossed midnight rather than gone
+ * back in time — no clinical quality meeting runs past midnight, but a typo
+ * producing a negative duration on a filed document is worse than one producing
+ * a large one, so it wraps rather than going negative.
+ */
+export function meetingMinutes(meeting: CqmpMeeting | undefined): number | null {
+  const parse = (t: string | undefined): number | null => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t ?? '')
+    if (!m) return null
+    const h = Number(m[1])
+    const min = Number(m[2])
+    if (h > 23 || min > 59) return null
+    return h * 60 + min
+  }
+  const start = parse(meeting?.startTime)
+  const end = parse(meeting?.endTime)
+  if (start === null || end === null) return null
+  return end >= start ? end - start : end + 24 * 60 - start
+}
+
+export type MinuteTable = 'agenda' | 'aqms' | 'safety'
+
+export function addMinuteRow(reportId: string, table: MinuteTable, row?: Partial<CqmpMinuteRow>): void {
+  patchReport(reportId, (r) => {
+    const meeting = r.meeting ?? {}
+    const rows = meeting[table] ?? []
+    const next: CqmpMinuteRow = {
+      id: uid('cqrow'),
+      topic: '',
+      status: 'open',
+      ...row,
+    }
+    return { ...r, meeting: { ...meeting, [table]: [...rows, next] } }
+  })
+}
+
+export function updateMinuteRow(
+  reportId: string,
+  table: MinuteTable,
+  rowId: string,
+  patch: Partial<CqmpMinuteRow>,
+): void {
+  patchReport(reportId, (r) => {
+    const meeting = r.meeting ?? {}
+    return {
+      ...r,
+      meeting: {
+        ...meeting,
+        [table]: (meeting[table] ?? []).map((x) => (x.id === rowId ? { ...x, ...patch } : x)),
+      },
+    }
+  })
+}
+
+export function removeMinuteRow(reportId: string, table: MinuteTable, rowId: string): void {
+  patchReport(reportId, (r) => {
+    const meeting = r.meeting ?? {}
+    return {
+      ...r,
+      meeting: { ...meeting, [table]: (meeting[table] ?? []).filter((x) => x.id !== rowId) },
+    }
+  })
 }
 
 /** Every screenshot key still referenced by any report, for the orphan sweep. */
