@@ -11,7 +11,7 @@
     "icons": "node scripts/gen-icons.mjs",
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr && npm run check:neop && npm run check:sim && npm run check:checkoff && npm run check:nav && npm run check:interview && npm run check:record && npm run check:clearance && npm run check:phi && npm run check:stage1 && npm run check:placement && npm run check:cqmp",
+    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:review && npm run check:pcr && npm run check:neop && npm run check:sim && npm run check:checkoff && npm run check:nav && npm run check:interview && npm run check:record && npm run check:clearance && npm run check:phi && npm run check:stage1 && npm run check:placement && npm run check:cqmp && npm run check:kpiimport",
     "check:plan": "node scripts/check-course-plan.mjs",
     "doc:application": "node scripts/build-application.mjs",
     "check:review": "node scripts/check-chart-review.mjs",
@@ -27,7 +27,8 @@
     "check:phi": "node scripts/check-phi.mjs",
     "check:stage1": "node scripts/check-stage1.mjs",
     "check:placement": "node scripts/check-placement.mjs",
-    "check:cqmp": "node scripts/check-cqmp.mjs"
+    "check:cqmp": "node scripts/check-cqmp.mjs",
+    "check:kpiimport": "node scripts/check-kpi-import.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

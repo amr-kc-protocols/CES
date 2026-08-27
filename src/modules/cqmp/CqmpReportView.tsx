@@ -8,6 +8,7 @@ import { activeMarket } from '../../lib/market'
 import { CQMP_KPIS, CQMP_OPERATIONS, CQMP_SUBMIT_URL, type CqmpKpiId } from '../../data/cqmp'
 import MetricCard from './MetricCard'
 import MeetingPanel from './MeetingPanel'
+import KpiImport from './KpiImport'
 import {
   deleteReport,
   findMetric,
@@ -33,6 +34,7 @@ export default function CqmpReportView() {
   const report = useReportById(reportId)
   const reports = useCqmpReports()
   const [generating, setGenerating] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   if (!report) {
     return (
@@ -92,6 +94,9 @@ export default function CqmpReportView() {
           <div className="subtle">Clinical Quality Management Plan — monthly KPI review</div>
         </div>
         <div className="btn-row">
+          <button className="btn" onClick={() => setImporting(true)}>
+            ⬆ Paste KPIs
+          </button>
           <button className="btn primary" onClick={() => void generate()} disabled={generating}>
             {generating ? 'Building…' : '📊 Generate PowerPoint'}
           </button>
@@ -154,6 +159,8 @@ export default function CqmpReportView() {
           Every measure reported is at or above target this month.
         </div>
       )}
+
+      {importing && <KpiImport report={report} onClose={() => setImporting(false)} />}
 
       <MeetingPanel report={report} />
 
