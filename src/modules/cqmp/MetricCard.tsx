@@ -9,6 +9,7 @@ import {
   percentOf,
   STATUS_LABEL,
   statusOf,
+  targetFor,
   removeMetricImage,
   updateMetric,
 } from './cqmpStore'
@@ -104,6 +105,8 @@ export default function MetricCard({
   const [dragging, setDragging] = useState(false)
 
   const status = statusOf(metric)
+
+  const target = targetFor(metric)
   const delta = deltaOf(metric, prior)
   const derived = metric.numerator != null && metric.denominator != null
 
@@ -199,18 +202,18 @@ export default function MetricCard({
             }}
           />
         </div>
+        {/* Fixed, and the same for every operation. Shown rather than asked
+            for — it is not a decision anyone makes at the keyboard, and an
+            input invites a typo into a number that is not in question. */}
         <div className="field">
-          <label htmlFor={`${opId}-${kpiId}-target`}>Target %</label>
-          <DebouncedInput
+          <label htmlFor={`${opId}-${kpiId}-target`}>Target</label>
+          <output
             id={`${opId}-${kpiId}-target`}
-            value={numberText(metric.target)}
-            inputMode="decimal"
-            placeholder="none"
-            onCommit={(raw) => {
-              const parsed = parseNumber(raw)
-              if (parsed !== undefined) patch({ target: parsed })
-            }}
-          />
+            className="fixed-value"
+            title="Set for the whole region — the same on every operation"
+          >
+            {target === null ? '—' : `${target}%`}
+          </output>
         </div>
         <div className="field">
           <label htmlFor={`${opId}-${kpiId}-num`}>Cases met</label>

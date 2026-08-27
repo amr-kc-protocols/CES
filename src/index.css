@@ -1037,6 +1037,57 @@ tbody tr:hover td {
   border-radius: 0 var(--radius) var(--radius) 0;
 }
 
+/* ---------- CQMP: a fixed value shown where an input used to be ----------
+   Same height and box as the inputs beside it so the row does not jump, but
+   plainly not editable. */
+.fixed-value {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ---------- CQMP: a business unit that folds away once it is done ----------
+   Eight units and twenty-six measures: the useful question while typing is
+   what is LEFT, so a finished one stops taking up the screen. */
+.op-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 16px 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.op-head:hover {
+  border-color: var(--text-muted);
+}
+
+.op-head.is-done {
+  opacity: 0.75;
+}
+
+.op-head .title {
+  font-weight: 600;
+}
+
+.op-caret {
+  color: var(--text-muted);
+  font-size: 12px;
+  width: 12px;
+}
+
 /* ---------- Attendance grid cell ----------
    The cell is a button filling its <td>, so the whole coloured square is the
    hit target rather than a control sitting inside padding. */

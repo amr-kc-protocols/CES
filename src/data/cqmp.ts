@@ -46,6 +46,21 @@ export interface CqmpKpi {
    * by the protocol, not by this app, so no element list is asserted here.
    */
   definition: string
+  /**
+   * The compliance target, as a percentage.
+   *
+   * Fixed, and the same for every operation — a rotor base and an interfacility
+   * unit are held to the same number on the measures they share. It lives here
+   * rather than on each month's metric because it does not vary by month, and a
+   * target that is re-typed twenty-six times a month is a target that will
+   * eventually be typed wrong on a slide in front of leadership.
+   *
+   * Change it here and every report, including the ones already filed, reads
+   * against the new number. That is the intended behaviour: these are the
+   * standards the programme is held to, not a historical record of what
+   * somebody believed the standard was.
+   */
+  target: number
   /** Where in Clinical Analytics the screenshot is taken from. */
   source: string
 }
@@ -57,6 +72,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'Blood glucose',
     definition:
       'Altered mental status patients with a blood glucose obtained and documented.',
+    target: 75,
     source: 'Clinical Analytics → Altered Mental Status → Blood Glucose Verification',
   },
   airway: {
@@ -65,6 +81,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'Advanced airway',
     definition:
       'Advanced airways with placement verification documented.',
+    target: 91,
     source: 'Clinical Analytics → Advanced Airway → Verification of Advanced Airway Placement',
   },
   stroke: {
@@ -73,6 +90,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'Stroke bundle',
     definition:
       'Suspected stroke patients with every element of the stroke bundle documented.',
+    target: 88,
     source: 'Clinical Analytics → Stroke → Stroke Details',
   },
   stemi: {
@@ -81,6 +99,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'STEMI bundle',
     definition:
       'STEMI patients with every element of the STEMI bundle documented.',
+    target: 65,
     source: 'Clinical Analytics → STEMI → STEMI Bundle',
   },
 }
@@ -205,6 +224,17 @@ export function cqmpOperationName(id: string): string {
 
 export function cqmpKpiName(id: string): string {
   return CQMP_KPIS[id as CqmpKpiId]?.name ?? id
+}
+
+/**
+ * The target for a measure.
+ *
+ * Null only for an id that has left the catalogue — a report filed months ago
+ * can still hold one, and it renders without a met/not-met call rather than
+ * being judged against a number that no longer exists.
+ */
+export function cqmpTarget(id: string): number | null {
+  return CQMP_KPIS[id as CqmpKpiId]?.target ?? null
 }
 
 /** Every (operation, measure) pair the region reports, in deck order. */

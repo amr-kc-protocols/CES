@@ -6,6 +6,7 @@ import {
   CQMP_OFFICERS,
   GROUND_OPERATIONS,
   MINUTES_TITLE,
+  cqmpTarget,
   officerSeed,
 } from '../../data/cqmp'
 import { kpiSummary, meetingMinutes, STATUS_LABEL } from './cqmpStore'
@@ -70,9 +71,7 @@ function kpiTableRows(rows: KpiRow[]): string {
         <td>${esc(r.operation.name)}</td>
         <td>${esc(CQMP_KPIS[r.kpiId].short)}</td>
         <td style="text-align:right">${pct(r.metric?.value)}</td>
-        <td style="text-align:right">${
-          typeof r.metric?.target === 'number' ? pct(r.metric.target) : '—'
-        }</td>
+        <td style="text-align:right">${pct(cqmpTarget(r.kpiId))}</td>
         <td style="text-align:right">${delta(r.delta)}</td>
         <td style="${STATUS_STYLE[r.status] ?? ''}">${esc(STATUS_LABEL[r.status])}</td>
         <td>${why}</td>
@@ -206,8 +205,8 @@ export function minutesHTML(report: CqmpReport, prior: CqmpReport | undefined): 
   <table class="mt kpi">${kpiHead}${kpiTableRows(airRows)}</table>
 
   <p class="src">
-    Measure definitions: ${Object.values(CQMP_KPIS)
-      .map((k) => `<strong>${esc(k.short)}</strong> — ${esc(k.definition)}`)
+    Measure definitions and targets: ${Object.values(CQMP_KPIS)
+      .map((k) => `<strong>${esc(k.short)} (${k.target}%)</strong> — ${esc(k.definition)}`)
       .join(' ')}
   </p>
 
