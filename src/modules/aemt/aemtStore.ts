@@ -9,7 +9,6 @@ import {
   buildClassPlan,
   KC_SCHEDULE,
   scheduleTotals,
-  KC_CLASS_PATTERN,
   KC_CLINICAL_TARGET,
   KC_FIELD_TARGET,
   CLINICAL_REQUIREMENTS,
@@ -20,7 +19,15 @@ import {
 } from '../../data/aemt'
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
-import { clearanceGating, seedPhases, skillClearance } from '../../data/aemtPhases'
+import {
+  checkpointDates,
+  checkpointFloors,
+  clearanceGating,
+  PHASE_TARGET_LABELS,
+  seedPhases,
+  skillClearance,
+} from '../../data/aemtPhases'
+import type { DeficitCheckpoint, PhaseTargetKey } from '../../data/aemtPhases'
 import { SITE_TEMPLATES, seedUnits } from '../../data/aemtSites'
 import { blocking, placementIssues } from './placement'
 import type { PlacementInput } from './placement'
@@ -353,7 +360,7 @@ export function useSessions(courseId: string | undefined): AemtSession[] {
  * — identical across today's four kinds and divergent the moment a fifth is
  * added, with the divergent copy being the one that prints for KBEMS.
  */
-export const CLASSROOM_KINDS: readonly AemtSessionKind[] = ['didactic', 'lab', 'exam']
+export const CLASSROOM_KINDS: readonly AemtSessionKind[] = ['didactic', 'lab', 'exam', 'aha']
 
 /**
  * 'HH:MM' to minutes past midnight, or undefined when it is not a clock time.
@@ -519,13 +526,15 @@ export interface SeedOutcome {
 export function seedShortfall(targets: AemtHourTargets | undefined): {
   didactic: number
   lab: number
+  aha: number
   total: number
 } {
   const plan = scheduleTotals()
-  if (!targets) return { didactic: 0, lab: 0, total: 0 }
+  if (!targets) return { didactic: 0, lab: 0, aha: 0, total: 0 }
   const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
   const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
-  return { didactic, lab, total: didactic + lab }
+  const aha = Math.max(0, (targets.aha ?? plan.aha) - plan.aha)
+  return { didactic, lab, aha, total: didactic + lab + aha }
 }
 
 /**
@@ -579,8 +588,8 @@ export interface RebuildPreview {
  * Reseeding used to be impossible once a course had any sessions: the build
  * button is hidden when the list is non-empty, and the only way to clear it was
  * to delete every session by hand. So a course seeded under an older plan kept
- * that plan forever, which is exactly what happened when the schedule moved to
- * the Wichita template.
+ * that plan forever, which is exactly what happened when the Kansas City and
+ * Wichita schedules were merged into the joint October 2026 plan.
  *
  * Two things are never removed. A session with attendance recorded against it
  * is a record of who was in a room, not a plan — deleting it destroys evidence.
@@ -662,13 +671,18 @@ export function rebuildKcSchedule(
 /**
  * Write the filed schedule out as dated sessions.
  *
- * buildClassPlan does the calendar work — the pattern's weekdays, the clock
- * times, and pushing a face-to-face week clear of a holiday. This only turns
- * what it returns into records, so the dates a coordinator sees in the app are
- * the same ones the KBEMS application was built from.
+ * buildClassPlan reads the agreed calendar — every row of the joint plan
+ * carries its own date and clock time. This only turns what it returns into
+ * records, so the dates a coordinator sees in the app are the same ones the
+ * KBEMS application was built from.
+ *
+ * `startISO` re-dates a LATER cohort running the same shape, by whole weeks.
+ * For the October 2026 cohort it is the plan's own start date and nothing
+ * moves. A shifted plan has to be re-checked against its own year's holidays —
+ * `holidayCollisions` in data/aemt.ts is what answers that.
  */
 export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
-  const created: AemtSession[] = buildClassPlan(startISO, KC_CLASS_PATTERN).map((s) => ({
+  const created: AemtSession[] = buildClassPlan(startISO).map((s) => ({
     id: uid('asess'),
     courseId,
     date: s.date,
@@ -719,6 +733,7 @@ export function reconcileHours(
   return [
     { id: 'didactic', label: 'Didactic', target: targets.didactic, scheduled: byKind.didactic },
     { id: 'lab', label: 'Lab / psychomotor', target: targets.lab, scheduled: byKind.lab },
+    { id: 'aha', label: 'AHA provider courses', target: targets.aha, scheduled: byKind.aha },
   ]
     .filter((r): r is HourReconciliation & { target: number } => typeof r.target === 'number')
     .map((r) => ({ ...r, delta: r.scheduled - r.target }))
@@ -732,6 +747,7 @@ export const KC_DEFAULT_TARGETS: AemtHourTargets = {
   // course: the defaults said 110 didactic and the plan laid out 90.
   didactic: scheduleTotals().didactic,
   lab: scheduleTotals().lab,
+  aha: scheduleTotals().aha,
   clinical: KC_CLINICAL_TARGET,
   field: KC_FIELD_TARGET,
 }
@@ -2088,6 +2104,11 @@ export function seedSites(courseId: string): void {
       next[found] = {
         ...site,
         kind: t.kind,
+        // Campus comes from the template even on an existing record. A site
+        // predating the joint cohort has no campus and would default to
+        // Kansas City — which is right for the AdventHealth rows and wrong for
+        // a Wichita one somebody typed in by hand before the merge.
+        campus: t.campus,
         active: site.active ?? t.active,
         units: site.units?.length ? site.units : seedUnits(site.id, t.units),
       }
@@ -2097,6 +2118,7 @@ export function seedSites(courseId: string): void {
         id,
         name: t.name,
         kind: t.kind,
+        campus: t.campus,
         agreement: 'none',
         active: t.active,
         notes: t.note,
@@ -2124,8 +2146,8 @@ export function updateSite(courseId: string, siteId: string, patch: Partial<Aemt
  * Change one department's weekly cap.
  *
  * The one number in this module most likely to be wrong today — every hospital
- * department is seeded at one student a week because AdventHealth has not
- * answered — so it is a one-field edit rather than a re-seed.
+ * department is seeded at one student a week because neither hospital has
+ * answered on capacity — so it is a one-field edit rather than a re-seed.
  */
 export function updateUnit(
   courseId: string,
@@ -2226,6 +2248,7 @@ export function addPlacement(
     placementIssues(input, {
       placements: db.aemtPlacements.filter((p) => p.courseId === courseId),
       sites: course?.sites ?? [],
+      students: db.aemtStudents.filter((st) => st.courseId === courseId),
       phases: phasesFor(course),
       courseStart: course?.startDate,
       courseEnd: course?.endDate,
@@ -2253,6 +2276,7 @@ export function updatePlacement(
       placementIssues(next, {
         placements: db.aemtPlacements.filter((p) => p.courseId === before.courseId),
         sites: course?.sites ?? [],
+        students: db.aemtStudents.filter((st) => st.courseId === before.courseId),
         phases: phasesFor(course),
         ignoreId: id,
         courseStart: course?.startDate,
@@ -2569,6 +2593,77 @@ export function progressFor(
   })
 }
 
+/**
+ * One student against one dated deficit checkpoint.
+ *
+ * `shortfalls` is the whole point: not "behind", but behind on WHAT and by how
+ * much, because the action the tracker prescribes is "assign an added shift" and
+ * an added shift has to be booked somewhere in particular. A student six
+ * venipunctures short needs pre-op; one four calls short needs a truck.
+ */
+export interface CheckpointStanding {
+  checkpoint: DeficitCheckpoint
+  date: string
+  /** Passed, so this is history rather than a plan. */
+  due: boolean
+  shiftsDone: number
+  shiftsShort: number
+  shortfalls: { key: PhaseTargetKey; label: string; done: number; floor: number }[]
+  /** Clearances the checkpoint expects that are not signed off. */
+  missingClearances: SkillClearanceCode[]
+  clear: boolean
+}
+
+/**
+ * Read the tally against every checkpoint.
+ *
+ * Evaluated for all five regardless of today's date, and each one says whether
+ * it is due. A checkpoint that has not arrived yet is still worth showing — it
+ * is how far ahead of the floor a student is, which is the number that tells
+ * you in November whether January is going to be a problem.
+ */
+export function checkpointStanding(
+  course: AemtCourse | undefined,
+  student: AemtStudent,
+  progress: RequirementProgress[],
+  shifts: AemtClinicalShift[],
+  asOf: string = todayISO(),
+): CheckpointStanding[] {
+  if (!course) return []
+  const byId = new Map(progress.map((p) => [p.requirement.id, p]))
+  // The counted keys, including the two sub-counts that are not requirements in
+  // their own right. Reading these off `progress` rather than re-deriving them
+  // keeps one definition of what a rep is: the eligibility rules that decide
+  // whether a venipuncture counted are already applied here.
+  const done = (key: PhaseTargetKey): number => {
+    if (key === 'infusion') return byId.get('venipuncture')?.sub ?? 0
+    if (key === 'assessmentField') return byId.get('assessment')?.field ?? 0
+    return byId.get(key)?.total ?? 0
+  }
+  const granted = new Set((student.skillClearances ?? []).map((c) => c.code))
+
+  return checkpointDates(course.startDate).map((c) => {
+    const shiftsDone = shifts.filter((s) => s.date <= c.date).length
+    const floors = checkpointFloors(c, CLINICAL_REQUIREMENTS)
+    const shortfalls = (Object.entries(floors) as [PhaseTargetKey, number][])
+      .map(([key, floor]) => ({ key, label: PHASE_TARGET_LABELS[key], done: done(key), floor }))
+      .filter((f) => f.done < f.floor)
+      .sort((a, b) => b.floor - b.done - (a.floor - a.done))
+    const missingClearances = (c.clearances ?? []).filter((code) => !granted.has(code))
+    const shiftsShort = Math.max(0, c.shiftsFloor - shiftsDone)
+    return {
+      checkpoint: c,
+      date: c.date,
+      due: asOf >= c.date,
+      shiftsDone,
+      shiftsShort,
+      shortfalls,
+      missingClearances,
+      clear: shiftsShort === 0 && shortfalls.length === 0 && missingClearances.length === 0,
+    }
+  })
+}
+
 export interface StudentClinicalStanding {
   student: AemtStudent
   /** Every counted requirement, statutory and program. */
@@ -2617,6 +2712,7 @@ export function courseHourTotals(sessions: AemtSession[]): {
     lab: 0,
     clinical: 0,
     exam: 0,
+    aha: 0,
   }
   let total = 0
   for (const s of sessions) {

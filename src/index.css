@@ -2030,10 +2030,16 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .cal-chip.lab { background: var(--warn-bg); border-left-color: #b45309; color: #7c3f06; }
 .cal-chip.clinical { background: var(--ok-bg); border-left-color: #15803d; color: #14532d; }
 .cal-chip.exam { background: var(--crit-bg); border-left-color: #b91c1c; color: #7f1d1d; }
+/* The two AHA Saturdays. Purple because they are neither a class day nor a lab
+   day — eight hours, off the Tue/Thu pattern, taught to AHA's curriculum — and
+   the month grid is the one place that difference should be visible at a
+   glance. */
+.cal-chip.aha { background: #ede9fe; border-left-color: #6d28d9; color: #4c1d95; }
 .cal-key.didactic i { background: #1a4480; }
 .cal-key.lab i { background: #b45309; }
 .cal-key.clinical i { background: #15803d; }
 .cal-key.exam i { background: #b91c1c; }
+.cal-key.aha i { background: #6d28d9; }
 
 /* On a phone a 7-column grid of stacked chips is unreadable, so the cells get
    shorter, the titles drop away and each day reduces to its time and hours.

@@ -2,6 +2,8 @@
 // Shared domain types for the AMR Clinical Education Suite.
 // ---------------------------------------------------------------------------
 
+import type { Market } from './lib/market'
+
 export type OperationId = 'kc' | 'cass' | 'linn' | 'wichita'
 
 // ----- Module B: Kansas CE Submission Deadline Tracker ---------------------
@@ -493,7 +495,17 @@ export interface RideAssignment {
 export type AemtStudentStatus = 'active' | 'withdrawn' | 'completed'
 
 /** Didactic lecture, hands-on lab, or a written/practical exam sitting. */
-export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
+/**
+ * What kind of contact time a session is.
+ *
+ * 'aha' is its own kind rather than didactic-with-a-flag because it is counted
+ * separately everywhere it matters: it is eight hours on a Saturday rather than
+ * four on a Tuesday, it is AHA's curriculum on AHA's certificate, and the joint
+ * plan reports it apart from the 106 didactic and 52 lab. Folded into didactic
+ * it silently inflated the didactic total by sixteen hours against the filed
+ * target, which the hours reconciliation then reported as an over-run.
+ */
+export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam' | 'aha'
 
 /**
  * Hours a course commits to in its filed proposal. Per-course rather than
@@ -509,6 +521,8 @@ export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
 export interface AemtHourTargets {
   didactic?: number
   lab?: number
+  /** AHA provider-course hours (ACLS, PALS), counted apart from didactic. */
+  aha?: number
   /** Hospital clinical hours. */
   clinical?: number
   /** Field internship hours, all sites combined. */
@@ -524,6 +538,18 @@ export interface AemtSite {
   id: string
   name: string
   kind: 'clinical' | 'field'
+  /**
+   * Which operation's students rotate here.
+   *
+   * The October 2026 cohort is one class run jointly by AMR Kansas City and
+   * AMR Wichita. The didactic is shared; clinical and field placement is not,
+   * because a Wichita student is not driving to Merriam for six 12-hour
+   * shifts. Every site belongs to one campus and the placement board refuses
+   * to cross them.
+   *
+   * Absent means Kansas City — every site on file before the merge was one.
+   */
+  campus?: Market
   /**
    * DERIVED, never chosen. Retained so existing records keep loading, but the
    * status shown and the approval gate both come from agreementStatus(), which
@@ -837,6 +863,17 @@ export interface AemtStudent {
   id: string
   courseId: string
   name: string
+  /**
+   * Which operation this student belongs to, on a joint cohort.
+   *
+   * Not a market partition — the course record itself lives in one market (see
+   * data/aemt.ts). This is which set of clinical and field sites the student
+   * rotates through, and which instructor is theirs day to day.
+   *
+   * Absent means Kansas City, so every student enrolled before the merge keeps
+   * the placement they already have.
+   */
+  campus?: Market
   /** Kansas EMS certification number (the student's existing EMT cert). */
   certNumber?: string
   /** Employee number, for students who are also AMR staff. */
@@ -981,13 +1018,18 @@ export interface AemtSession {
    *
    * 'f2f'        — instructor-led, in the room. Costs instructor and room time,
    *                and is what the eight-hour weekly cap governs.
-   * 'assignment' — Navigate chapter materials, quizzes and AHA pre-course work
-   *                the student completes on their own.
+   * 'assignment' — Navigate modules, flashcards, practice activities, TestPrep
+   *                sets and AHA pre-course work the student completes on their
+   *                own.
+   * 'aha'        — an AHA provider course. Instructor-led and eight hours long,
+   *                so it is the one thing on the calendar that legitimately
+   *                breaks the four-hour class day; counted in its own bucket
+   *                because it is AHA's curriculum on AHA's certificate.
    *
    * Absent means face-to-face, so sessions written before this field existed
    * keep counting as class time rather than silently leaving the room.
    */
-  delivery?: 'f2f' | 'assignment'
+  delivery?: 'f2f' | 'assignment' | 'aha'
   /**
    * Written by the schedule seeder rather than by hand.
    *

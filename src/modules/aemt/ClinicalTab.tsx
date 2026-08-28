@@ -372,7 +372,13 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
           it — a rep refused downstream is nearly always a date missing here. */}
       <SkillClearancePanel student={student} canEdit={canEdit} />
 
-      <PhasePanel course={course} shifts={shifts} canEdit={canEdit} />
+      <PhasePanel
+        course={course}
+        student={student}
+        progress={progress}
+        shifts={shifts}
+        canEdit={canEdit}
+      />
 
       <ShiftPanel course={course} studentId={student.id} shifts={shifts} canEdit={canEdit} />
 

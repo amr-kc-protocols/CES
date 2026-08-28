@@ -23,11 +23,15 @@ import {
 import {
   CLASS_HOURS_PER_WEEK,
   duplicatedChapters,
-  holidayShifts,
+  FILED_SUMMARY,
+  holidayCollisions,
   KC_CALENDAR_WEEKS,
   KC_CLASS_PATTERN,
   KC_COURSE_WEEKS,
+  KC_END_DATE,
+  KC_START_DATE,
   scheduleTotals,
+  WINTER_BREAK,
 } from '../../data/aemt'
 import ScheduleCalendar from './ScheduleCalendar'
 import { addDays } from '../../lib/date'
@@ -39,6 +43,7 @@ const KINDS: { value: AemtSessionKind; label: string; cls: string }[] = [
   { value: 'lab', label: 'Lab', cls: 'warn' },
   { value: 'clinical', label: 'Clinical', cls: 'ok' },
   { value: 'exam', label: 'Exam', cls: 'crit' },
+  { value: 'aha', label: 'AHA course', cls: 'info' },
 ]
 
 const KIND_CLS: Record<AemtSessionKind, string> = Object.fromEntries(
@@ -385,8 +390,9 @@ function SeedModal({
               <div style={{ marginTop: 8 }}>
                 That second group is ambiguous. A session added by hand looks exactly like one
                 seeded under an <em>older</em> plan, because changing the plan renames the titles
-                a rebuild matches on. If this course was built before the schedule moved to the
-                Wichita template, these are stale and should go.
+                a rebuild matches on. If this course was built before the Kansas City and Wichita
+                schedules were merged into the joint October 2026 plan, these are stale and should
+                go.
               </div>
               <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 8 }}>
                 <input
@@ -406,12 +412,12 @@ function SeedModal({
         </div>
       )}
       <p style={{ marginTop: 0, lineHeight: 1.55 }}>
-        Lays the {KC_COURSE_WEEKS}-week schedule filed for Wichita, which Kansas City runs as the
-        same template —{' '}
+        Lays the joint {KC_COURSE_WEEKS}-week schedule that AMR Kansas City and AMR Wichita agreed
+        for the October 2026 cohort —{' '}
         <strong>
           {plan.didactic} didactic + {plan.lab} lab
         </strong>
-        , {plan.classroom} hours in total.
+        , plus {plan.aha} h of AHA provider courses. {plan.classroom} hours in total.
       </p>
       <p style={{ lineHeight: 1.55 }} className="subtle">
         <strong>{plan.f2f} h of that is face-to-face</strong>, across {plan.f2fWeeks} class weeks —{' '}
@@ -419,25 +425,31 @@ function SeedModal({
         {CLASS_HOURS_PER_WEEK} h a week) from{' '}
         {String(Math.floor(KC_CLASS_PATTERN.startMinute / 60)).padStart(2, '0')}:
         {String(KC_CLASS_PATTERN.startMinute % 60).padStart(2, '0')}. The other {plan.assignment} h
-        is Navigate chapter work, quizzes and AHA pre-course reading the student completes on their
-        own, so it costs no class time. Runs {KC_CALENDAR_WEEKS} calendar weeks once holidays are
-        allowed for.
+        is Navigate modules, flashcards, practice activities and AHA pre-course reading the student
+        completes on their own, so it costs no class time. {KC_COURSE_WEEKS} instructional weeks
+        over {KC_CALENDAR_WEEKS} calendar weeks, ending {formatDate(KC_END_DATE)}.
       </p>
 
       {course.targets ? (
         short.total > 0 ? (
           <div className="banner crit">
             <strong>This plan cannot reach your filed target on its own.</strong> The course files{' '}
-            {course.targets.didactic} didactic and {course.targets.lab} lab hours; the plan lays out{' '}
-            {plan.didactic} and {plan.lab}. That leaves{' '}
+            {course.targets.didactic} didactic, {course.targets.lab} lab
+            {typeof course.targets.aha === 'number' && <> and {course.targets.aha} AHA</>} hours;
+            the plan lays out {plan.didactic}, {plan.lab}
+            {typeof course.targets.aha === 'number' && <> and {plan.aha}</>}. That leaves{' '}
             <strong>
-              {short.didactic > 0 && `${short.didactic} h didactic`}
-              {short.didactic > 0 && short.lab > 0 && ' and '}
-              {short.lab > 0 && `${short.lab} h lab`}
+              {[
+                short.didactic > 0 && `${short.didactic} h didactic`,
+                short.lab > 0 && `${short.lab} h lab`,
+                short.aha > 0 && `${short.aha} h AHA`,
+              ]
+                .filter(Boolean)
+                .join(', ')}
             </strong>{' '}
-            unaccounted for. This course's filed targets do not match the schedule template — it is
-            a defect in the source document, not a rounding error, and it has to be closed before a
-            KBEMS submission.
+            unaccounted for. This course's filed targets do not match the agreed schedule — it is a
+            defect in one document or the other, not a rounding error, and it has to be closed
+            before a KBEMS submission.
           </div>
         ) : (
           <div className="banner ok">
@@ -451,39 +463,63 @@ function SeedModal({
       )}
 
       <div className="banner info">
-        <strong>Two things carried over from the Wichita filing.</strong>
+        <strong>How the calendar absorbs the holidays.</strong> Nothing is pushed. The dates below
+        are the agreement, not a projection, which is why re-seeding cannot quietly move them.
         <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
           <li>
-            Its summary line files <strong>110 didactic hours</strong>, but its own 26 schedule rows
-            sum to <strong>116</strong>. Kansas City files 116 — the schedule is what KBEMS reviews
-            against, so a summary that disagrees with it is the thing that is wrong.
+            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Tuesday only, and ACLS moves
+            out to Saturday 5 December. Pulling the two AHA courses onto Saturdays protects the
+            Tuesday/Thursday rhythm.
           </li>
-          {duplicatedChapters().length > 0 && (
-            <li>
-              Chapter{duplicatedChapters().length === 1 ? ' ' : 's '}
-              {duplicatedChapters().join(' and ')}{' '}
-              {duplicatedChapters().length === 1 ? 'is' : 'are'} assigned twice. Reproduced as filed
-              rather than deduplicated, because removing the repeat would change the hours this
-              template exists to match.
-            </li>
-          )}
+          <li>
+            <strong>A deliberate two-week break</strong>, {formatDate(WINTER_BREAK.start)} to{' '}
+            {formatDate(WINTER_BREAK.end)}, replaces four sessions that would have been half empty.
+            Christmas Eve, Christmas Day, New Year's Eve and New Year's Day all fall inside it. The
+            break is loaded, not idle — concentrated clinical and field shifts plus three dated
+            TestPrep sets.
+          </li>
+          <li>
+            MLK Day and Presidents' Day are Mondays and never touch the pattern.
+          </li>
         </ul>
       </div>
 
-      {holidayShifts().length > 0 && (
-        <div className="banner warn">
+      <div className="banner info">
+        <strong>Where these hours differ from the plan's own summary line.</strong> The document
+        summarises {FILED_SUMMARY.f2fDidactic} h face-to-face didactic and {FILED_SUMMARY.assignment}{' '}
+        h pre-class; its own rows sum to {plan.f2fDidactic} and {plan.assignment}. The rows are what
+        is filed — the schedule is what KBEMS reviews against — and the document itself says to tune
+        the split to whatever totals go to the board, because the sequencing is the part that
+        matters. Week 15 is filed here as 4 h didactic + 4 h lab rather than the document's 6 + 4,
+        which would be ten hours in a week that holds two four-hour sessions.
+        {duplicatedChapters().length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <strong>
+              Chapter{duplicatedChapters().length === 1 ? ' ' : 's '}
+              {duplicatedChapters().join(' and ')}{' '}
+              {duplicatedChapters().length === 1 ? 'is' : 'are'} assigned twice.
+            </strong>{' '}
+            Every chapter of the fourth edition should appear exactly once — the duplicate chapters
+            17 and 18 that Wichita's 2025 filing carried were fixed in the joint plan, so this is a
+            new defect rather than an inherited one.
+          </div>
+        )}
+      </div>
+
+      {holidayCollisions(course.startDate).length > 0 && (
+        <div className="banner crit">
           <strong>
-            {holidayShifts().length} week{holidayShifts().length === 1 ? '' : 's'} pushed by a
-            holiday.
+            {holidayCollisions(course.startDate).length} session
+            {holidayCollisions(course.startDate).length === 1 ? '' : 's'} would land on a holiday.
           </strong>{' '}
-          Class weeks landing on a holiday move to the next clear week, which is why the course runs{' '}
-          {KC_CALENDAR_WEEKS} calendar weeks for {KC_COURSE_WEEKS} course weeks. Assignment weeks are
-          not moved — they cost no class time.
+          This course starts {formatDate(course.startDate)}, not{' '}
+          {formatDate(KC_START_DATE)}, so the plan has been shifted by whole weeks — and the
+          holidays the agreed calendar was built to absorb no longer fall where they did. These
+          dates need deciding before the schedule is filed.
           <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
-            {holidayShifts().map((h) => (
-              <li key={h.week}>
-                <strong>Week {h.week}</strong> — moved clear of {h.holiday}, now starting{' '}
-                {formatDate(h.date)}
+            {holidayCollisions(course.startDate).map((h) => (
+              <li key={h.date}>
+                <strong>{formatDate(h.date)}</strong> — {h.label}, on {h.holiday}
               </li>
             ))}
           </ul>
@@ -531,6 +567,9 @@ function SeedModal({
             }
             if (alsoPlace && short.lab > 0) {
               extra += addPlaceholderSessions(course.id, 'lab', short.lab, course.startDate)
+            }
+            if (alsoPlace && short.aha > 0) {
+              extra += addPlaceholderSessions(course.id, 'aha', short.aha, course.startDate, 8)
             }
             notifyUser(
               `Created ${out.sessions} sessions (${out.didactic} h didactic, ${out.lab} h lab)` +

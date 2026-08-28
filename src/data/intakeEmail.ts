@@ -28,7 +28,9 @@
 
 import {
   CLINICAL_REQUIREMENTS,
+  GRADING_MODEL,
   KC_CALENDAR_WEEKS,
+  KC_COURSE_WEEKS,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from './aemt'
@@ -76,9 +78,30 @@ export const EXAM_URL = 'https://ces-nu.vercel.app/exam'
 
 /** The shape of the program, without committing to an hour count. */
 const PROGRAM_SHAPE = [
-  `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for ${KC_CALENDAR_WEEKS} weeks.`,
-  `Classroom and lab sessions are held at AMR Kansas City headquarters. Hospital clinical and field internship hours are completed at partner sites in the Kansas City area.`,
+  `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for ${KC_CALENDAR_WEEKS} calendar weeks, delivering ${KC_COURSE_WEEKS} instructional weeks with a two-week break over the holidays.`,
+  `It is run jointly with AMR Wichita: one class, one schedule, one standard. Classroom and lab sessions are held at AMR Kansas City headquarters, with Wichita joining by Teams. Hospital clinical and field internship hours are completed at partner sites in your own operation's area — you will not be travelling for them.`,
 ].join(' ')
+
+/**
+ * How the grade is made up, in one line.
+ *
+ * Read off GRADING_MODEL rather than written out, because this is the promise
+ * made to a candidate before they accept a seat and it must not be able to
+ * disagree with the syllabus. The previous wording — "exams are 60% of your
+ * grade and quizzes/homework 40%" — outlived the model it described.
+ */
+function gradingLine(): string {
+  const weighted = GRADING_MODEL.filter((c) => c.weight !== null)
+  const su = GRADING_MODEL.filter((c) => c.weight === null)
+  return [
+    `${MIN_PASSING_PERCENT}% minimum to pass.`,
+    `${weighted.map((c) => `${c.short} ${c.weight}%`).join('; ')}.`,
+    su.length ? `${su.map((c) => c.short).join('; ')}: satisfactory/unsatisfactory.` : '',
+    'Most of the graded weight is closed-book and proctored, because that is what the certification exam is.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 
 export type EmailTemplateId = 'next-steps' | 'interview' | 'not-selected' | 'accepted'
 
@@ -211,8 +234,8 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       ``,
       `WHAT IS EXPECTED OF YOU TO COMPLETE IT`,
       ``,
-      `  • ${MIN_PASSING_PERCENT}% minimum to pass. Exams are 60% of your grade and quizzes/homework 40%; lab, clinical and field internship are satisfactory/unsatisfactory.`,
-      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time fails the course.`,
+      `  • ${gradingLine()}`,
+      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time triggers a documented make-up requirement — an equivalent-competency demonstration on what you missed, within 14 days.`,
       `  • Clinical and field shifts are 12 hours each and are scheduled IN ADDITION TO your regular work schedule. This is the single biggest demand of the program — plan for it now.`,
       `  • You are responsible for documenting your own clinical minimums as you go.`,
       ``,
@@ -333,8 +356,8 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       ...(notes.length ? [...notes, ``] : []),
       `WHAT YOU ARE COMMITTING TO`,
       ``,
-      `  • ${MIN_PASSING_PERCENT}% minimum to pass. Exams are 60% of your grade and quizzes/homework 40%; lab, clinical and field internship are satisfactory/unsatisfactory.`,
-      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time fails the course. Build your schedule around this now.`,
+      `  • ${gradingLine()}`,
+      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time triggers a documented make-up requirement — an equivalent-competency demonstration on what you missed, within 14 days. Build your schedule around this now.`,
       `  • Clinical and field shifts are 12 hours each and are scheduled IN ADDITION TO your regular work schedule.`,
       `  • You are responsible for documenting your own clinical minimums as you go: ${clinicalMinimums()}.`,
       ``,

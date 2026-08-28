@@ -229,6 +229,138 @@ export function seedPhases(startDate: string): AemtClinicalPhase[] {
   }))
 }
 
+// ----- deficit checkpoints ---------------------------------------------------
+
+/**
+ * Five dated reviews of the skill tally, anchored to the didactic gates.
+ *
+ * The reasoning is arithmetic and unsentimental. Eighteen shifts across roughly
+ * fourteen usable weeks is about 1.3 shifts a week per student, and a student
+ * who is one shift behind in November is four behind in January — by which
+ * point the only slack left is the two reserve hospital shifts. So the tally is
+ * read on fixed dates and a student below the floor gets an added shift ASSIGNED
+ * that week, not a conversation in January.
+ *
+ * These are floors, not targets. Being at the floor is not comfortable; it is
+ * the line below which the rotation stops being recoverable. And a shortfall
+ * that is site availability rather than the student is escalated to the site
+ * immediately — that one has a long lead time and no late fix.
+ *
+ * Offsets rather than dates, for the same reason the phases use them: a cohort
+ * starting on a different Tuesday re-seeds rather than being edited into source.
+ */
+export interface DeficitCheckpoint {
+  id: string
+  /** Days from the course start date. */
+  offsetDays: number
+  /** The didactic event this review is tied to, so it is never a standalone diary entry. */
+  courseAnchor: string
+  /** Shifts that should be logged by this date. */
+  shiftsFloor: number
+  /** Cumulative floors on the counted requirements. */
+  floors: Partial<Record<PhaseTargetKey, number>>
+  /** Clearances that should be signed off by this date. */
+  clearances?: SkillClearanceCode[]
+  /**
+   * Every K.A.R. minimum should be complete by here. Listed keys are the
+   * exceptions — at Gate 3 the assessments are still accumulating and only
+   * hours remain.
+   */
+  allMinimumsExcept?: PhaseTargetKey[]
+  actionIfBelow: string
+}
+
+export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
+  {
+    id: 'wk8',
+    offsetDays: 49,
+    courseAnchor: 'Week 8 — the Tuesday before Thanksgiving',
+    shiftsFloor: 3,
+    floors: { venipuncture: 6, assessment: 2, pcr: 2, calls: 2 },
+    clearances: ['ecg'],
+    actionIfBelow:
+      'Assign one added shift before 5 December. If the shortfall is site availability rather than the student, escalate to the site now — that is a lead-time problem and it does not fix itself.',
+  },
+  {
+    id: 'wk11',
+    offsetDays: 72,
+    courseAnchor: 'Week 11 — the last class before the winter break',
+    shiftsFloor: 9,
+    floors: {
+      venipuncture: 16,
+      injection: 10,
+      ecg: 6,
+      nebulizer: 1,
+      assessment: 7,
+      pcr: 4,
+      calls: 4,
+    },
+    actionIfBelow:
+      'Add shifts into the break block. This is the last window with real slack in it — 48 hours inside 14 days, no class competing for the time, and holiday call volume is high.',
+  },
+  {
+    id: 'wk12',
+    offsetDays: 93,
+    courseAnchor: 'Week 12 — return from the break, the day after Simulation #1',
+    shiftsFloor: 13,
+    floors: { venipuncture: 20, infusion: 10, assessment: 12, pcr: 7, calls: 10 },
+    actionIfBelow:
+      'The venipuncture requirement should be closed here. If it is not, the two reserve hospital shifts go to this student.',
+  },
+  {
+    id: 'wk14',
+    offsetDays: 107,
+    courseAnchor: 'Week 14 — Gate 3',
+    shiftsFloor: 16,
+    floors: {},
+    allMinimumsExcept: ['assessment', 'assessmentField'],
+    actionIfBelow:
+      'A student still missing a skill minimum at Gate 3 is at serious risk of an incomplete. Formal progress conference, documented.',
+  },
+  {
+    id: 'end',
+    offsetDays: 121,
+    courseAnchor: 'Course end',
+    shiftsFloor: 18,
+    floors: {},
+    allMinimumsExcept: [],
+    actionIfBelow:
+      'Incomplete clinical or field hours means an incomplete course, which means the student is not eligible for the ATT. There is no exception available at this point.',
+  },
+]
+
+/** The checkpoints as dates, against a course's start. */
+export function checkpointDates(startDate: string): (DeficitCheckpoint & { date: string })[] {
+  return DEFICIT_CHECKPOINTS.map((c) => ({ ...c, date: addDays(startDate, c.offsetDays) }))
+}
+
+/**
+ * The floors a checkpoint imposes, with `allMinimumsExcept` expanded.
+ *
+ * Expanded rather than special-cased at the call site: "all minimums met" and
+ * "20 venipunctures, 10 IV initiations, 5 IOs…" are the same claim, and a
+ * caller that had to know which form a checkpoint used would get one of them
+ * wrong.
+ */
+export function checkpointFloors(
+  c: DeficitCheckpoint,
+  minimums: { id: string; minimum: number; fieldMinimum?: number; subRequirement?: { minimum: number } }[],
+): Partial<Record<PhaseTargetKey, number>> {
+  const out: Partial<Record<PhaseTargetKey, number>> = { ...c.floors }
+  if (c.allMinimumsExcept) {
+    const skip = new Set<string>(c.allMinimumsExcept)
+    for (const r of minimums) {
+      if (skip.has(r.id)) continue
+      out[r.id as PhaseTargetKey] = r.minimum
+      if (r.subRequirement && !skip.has('infusion')) out.infusion = r.subRequirement.minimum
+      if (r.fieldMinimum && r.id === 'assessment' && !skip.has('assessmentField')) {
+        out.assessmentField = r.fieldMinimum
+      }
+    }
+  }
+  return out
+}
+
 /**
  * Where the departments that actually produce each skill are.
  *

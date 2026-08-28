@@ -21,13 +21,16 @@ import {
   blocking,
   phaseCoverage,
   placementIssues,
+  studentCampus,
   studentLoad,
   unitLoad,
   weekStart,
   weeksBetween,
 } from './placement'
 import { PLANNED_SHIFTS } from '../../data/aemtPhases'
-import { PRECEPTOR_LABELS, SETTING_PRECEPTORS } from '../../data/aemt'
+import { CAMPUS_LABEL, PRECEPTOR_LABELS, SETTING_PRECEPTORS } from '../../data/aemt'
+import { siteCampus } from '../../data/aemtSites'
+import type { Market } from '../../lib/market'
 import type { PreceptorCredential } from '../../data/aemt'
 import { useCan } from '../../lib/role'
 import type {
@@ -42,8 +45,16 @@ import type {
 // The placement board.
 //
 // This screen exists because Fisdap's scheduler is not licensed for this
-// cohort. Ninety placements across two organisations, with a department taking
-// one student a week, is otherwise a whiteboard and a text-message thread.
+// cohort. A hundred and eight placements across two markets, with a department
+// taking one student a week, is otherwise a whiteboard and a text-message
+// thread.
+//
+// The board is per campus, and the switch at the top is not cosmetic. Kansas
+// City and Wichita share the classroom and nothing else here: a Wichita student
+// cannot work a Merriam shift, and their two students against one hospital is a
+// different problem from Kansas City's four against two. Pooling the numbers
+// would report one market's shortfall against the other's headroom and show
+// neither.
 //
 // The layout is weeks down, departments across — because the question being
 // asked is almost always "who can go where next week", and because a full
@@ -108,6 +119,7 @@ function PlacementModal({
   const issues = placementIssues(input, {
     placements,
     sites,
+    students,
     phases: phasesFor(course),
     ignoreId: existing?.id,
     courseStart: course.startDate,
@@ -191,11 +203,19 @@ function PlacementModal({
           onChange={(e) => setStudentId(e.target.value)}
         >
           <option value="">Leave the slot open</option>
-          {students.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
+          {/*
+            Only this site's own campus. A joint cohort makes the full roster
+            the wrong list: offering a Wichita student for a Merriam shift and
+            then refusing it teaches nothing, and it is the kind of refusal
+            somebody works around rather than reads.
+          */}
+          {students
+            .filter((s) => !site || studentCampus(s) === siteCampus(site))
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
         </select>
         {issueOn('studentId') && <div className="help-text crit-text">{issueOn('studentId')}</div>}
       </div>
@@ -409,8 +429,8 @@ function PreceptorModal({ course, onClose }: { course: AemtCourse; onClose: () =
       <div className="list">
         {preceptors.length === 0 && (
           <div className="banner info">
-            None yet. AdventHealth has not named theirs, and the AMR field preceptors depend on FTO
-            availability — placements can be made without one and named later.
+            None yet. Neither hospital has named theirs, and the field preceptors depend on FTO
+            availability in each operation — placements can be made without one and named later.
           </div>
         )}
         {preceptors.map((p) => (
@@ -523,8 +543,8 @@ function CapModal({
     <Modal title={`${site.name} — capacity`} onClose={onClose}>
       <div className="banner warn" style={{ marginTop: 0 }}>
         Every department is seeded at <strong>one student a week</strong>, which is the working
-        assumption while AdventHealth has not answered on capacity. Correct these as the real
-        numbers arrive — everything the board refuses is refused against them.
+        assumption until the site answers on capacity. Correct these as the real numbers arrive —
+        everything the board refuses is refused against them.
       </div>
       <div className="list">
         {(site.units ?? []).map((u: AemtSiteUnit) => (
@@ -573,6 +593,20 @@ export default function PlacementBoard({ course }: { course: AemtCourse }) {
   const [preceptorsOpen, setPreceptors] = useState(false)
   const [caps, setCaps] = useState<AemtSite | null>(null)
 
+  // Which operation's board this is.
+  //
+  // Not a cosmetic filter. Capacity is per campus, so a board that pooled both
+  // markets would report Kansas City's shortfall against Wichita's headroom and
+  // show neither. Default to whichever campus the roster actually has students
+  // in, so a single-market course never sees the switch matter.
+  const campuses = useMemo(
+    () => [...new Set(students.map(studentCampus))].sort(),
+    [students],
+  )
+  const [campus, setCampus] = useState<Market>(campuses[0] ?? 'kc')
+  const active = campuses.includes(campus) ? campus : (campuses[0] ?? 'kc')
+  const roster = students.filter((s) => studentCampus(s) === active)
+
   const phases = phasesFor(course)
   // The first phase that actually has clinical in it — no point showing eight
   // weeks of empty board before anyone is allowed on a unit.
@@ -581,10 +615,12 @@ export default function PlacementBoard({ course }: { course: AemtCourse }) {
     () => weeksBetween(first?.windowStart ?? course.startDate, course.endDate),
     [first, course.startDate, course.endDate],
   )
-  const shown = sites.filter((s) => s.kind === kind && s.active !== false)
+  const shown = sites.filter(
+    (s) => s.kind === kind && s.active !== false && siteCampus(s) === active,
+  )
   const columns = shown.flatMap((s) => (s.units ?? []).map((u) => ({ site: s, unit: u })))
-  const coverage = phaseCoverage(phases, sites, placements, students.length, kind)
-  const load = studentLoad(students, placements)
+  const coverage = phaseCoverage(phases, sites, placements, roster.length, kind, active)
+  const load = studentLoad(roster, placements)
   const thisWeek = weekStart(todayISO())
 
   if (sites.length === 0) {
@@ -606,10 +642,36 @@ export default function PlacementBoard({ course }: { course: AemtCourse }) {
   return (
     <div>
       <div className="banner info">
-        Ninety placements across two organisations, with each department taking one student a week
-        until AdventHealth confirms otherwise. A full department is shown as full — the board
-        refuses an over-capacity placement rather than accepting it and letting the site discover it.
+        {roster.length * PLANNED_SHIFTS} placements for the {CAMPUS_LABEL[active]} students, with
+        each department taking one student a week until the site confirms otherwise. A full
+        department is shown as full — the board refuses an over-capacity placement rather than
+        accepting it and letting the site discover it.
+        {campuses.length > 1 && (
+          <>
+            {' '}
+            <strong>Capacity is counted per campus.</strong> The two markets share the classroom,
+            not the hospitals, so a shortfall here cannot be relieved by slack on the other board.
+          </>
+        )}
       </div>
+
+      {campuses.length > 1 && (
+        <div className="toolbar">
+          <div className="seg">
+            {campuses.map((c) => (
+              <button
+                key={c}
+                className={`btn sm ${active === c ? 'primary' : ''}`}
+                onClick={() => setCampus(c)}
+              >
+                {CAMPUS_LABEL[c]}
+                {' · '}
+                {students.filter((s) => studentCampus(s) === c).length}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="toolbar">
         <div className="seg">
