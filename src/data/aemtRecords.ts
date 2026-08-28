@@ -59,7 +59,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     id: 'gradebook',
     label: 'Gradebook',
     source: 'external',
-    why: 'Exams 60% and quizzes 40% live in the Navigate LMS. The completion record stores the attested final percentage, not the working grades.',
+    why: 'The Navigate pre-class component lives in the LMS; the closed-book quizzes, the three gate exams and the final are scored by the instructor. The completion record stores the attested final percentage, not the working grades.',
   },
   {
     id: 'conferences',

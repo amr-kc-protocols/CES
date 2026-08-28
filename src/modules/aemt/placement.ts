@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // Placement logic.
 //
-// Ninety placements across two organisations with per-department capacity caps,
-// and no Fisdap scheduler to do it. Everything here is pure — the board reads
-// it, the store writes through it, and the tests drive it directly.
+// A hundred and eight placements — six students, eighteen 12-hour shifts each —
+// across two markets with per-department capacity caps, and no Fisdap scheduler
+// to do it. Everything here is pure — the board reads it, the store writes
+// through it, and the tests drive it directly.
 //
 // Two ideas worth holding onto while reading:
 //
@@ -16,9 +17,17 @@
 //
 // Capacity is per unit per week, not per day. That is how the departments
 // actually think about it — "we'll take one student a week in pre-op" — and it
-// is what makes the schedule hard at one-per-department: five students against
-// six departments means no two people in pre-op in the same week, so the board
-// has to be able to say no.
+// is what makes the schedule hard at one-per-department: four Kansas City
+// students against six departments means no two people in pre-op in the same
+// week, so the board has to be able to say no.
+//
+// Campus is a hard boundary, not a preference. The October 2026 cohort is one
+// class run jointly by Kansas City and Wichita, and the didactic is shared —
+// but a Wichita student cannot work a shift at AdventHealth Shawnee Mission,
+// and every capacity number is per campus for the same reason. Placing across
+// campuses is refused rather than warned about: it is not a tight fit, it is a
+// two-hundred-mile drive against an affiliation agreement that does not name
+// the student.
 //
 // On storage: placements and preceptors are deliberately NOT in lib/records.ts,
 // so they stay on the device. A placement is a plan and a preceptor roster is a
@@ -29,6 +38,9 @@
 // ---------------------------------------------------------------------------
 
 import { fromISODate, toISODate } from '../../lib/date'
+import { siteCampus } from '../../data/aemtSites'
+import { CAMPUS_LABEL } from '../../data/aemt'
+import type { Market } from '../../lib/market'
 import type {
   AemtClinicalPhase,
   AemtPlacement,
@@ -72,6 +84,16 @@ export function weeksBetween(from: string, to: string): string[] {
     cur = toISODate(d)
   }
   return out
+}
+
+/**
+ * The campus a student rotates through.
+ *
+ * Absent means Kansas City. Every student enrolled before the two builds were
+ * merged was one, and defaulting the other way would strand them.
+ */
+export function studentCampus(student: { campus?: Market }): Market {
+  return student.campus ?? 'kc'
 }
 
 const live = (p: AemtPlacement) =>
@@ -125,6 +147,8 @@ export function placementIssues(
   ctx: {
     placements: AemtPlacement[]
     sites: AemtSite[]
+    /** The cohort's roster, so a placement can be checked against its student's campus. */
+    students?: AemtStudent[]
     phases?: AemtClinicalPhase[]
     /** Editing an existing placement — do not count it against itself. */
     ignoreId?: string
@@ -177,6 +201,23 @@ export function placementIssues(
 
   if (!(input.hours >= 1 && input.hours <= 24)) {
     issues.push({ field: 'hours', message: 'Hours must be between 1 and 24.', severity: 'block' })
+  }
+
+  // Right student, right city. An open slot belongs to whichever campus its
+  // site does; it is only when someone is put in it that this can be wrong.
+  if (input.studentId && site && ctx.students) {
+    const student = ctx.students.find((st) => st.id === input.studentId)
+    if (student) {
+      const theirs = studentCampus(student)
+      const sites = siteCampus(site)
+      if (theirs !== sites) {
+        issues.push({
+          field: 'studentId',
+          message: `${student.name} is a ${CAMPUS_LABEL[theirs]} student and ${site.name} is a ${CAMPUS_LABEL[sites]} site. Clinical and field placement is local on this cohort — only the didactic is shared.`,
+          severity: 'block',
+        })
+      }
+    }
   }
 
   // One person, one place. Checked only for a placement someone is actually
@@ -243,9 +284,16 @@ export function weeklyCapacity(
   from: string,
   to: string,
   kind?: 'clinical' | 'field',
+  /** Restrict to one campus. Omit to count the whole cohort's supply. */
+  campus?: Market,
 ): WeekCapacity[] {
   const units: AemtSiteUnit[] = sites
-    .filter((s) => s.active !== false && (!kind || s.kind === kind))
+    .filter(
+      (s) =>
+        s.active !== false &&
+        (!kind || s.kind === kind) &&
+        (!campus || siteCampus(s) === campus),
+    )
     .flatMap((s) => s.units ?? [])
   const unitIds = new Set(units.map((u) => u.id))
   const capacity = units.reduce((n, u) => n + u.weeklySlotCap, 0)
@@ -275,6 +323,12 @@ export interface PhaseCoverage {
  *
  * Hospital and field are counted separately because they are not
  * interchangeable: a field shift at Linn County does not relieve a full pre-op.
+ *
+ * CALL THIS PER CAMPUS on a joint cohort. Six students against the two markets'
+ * sites pooled together looks comfortable and is not: Kansas City's four cannot
+ * use Wichita's slack and Wichita's two cannot use AdventHealth's. Pooling them
+ * hides a shortfall on one side behind headroom on the other, which is the one
+ * thing this function exists to prevent.
  */
 export function phaseCoverage(
   phases: AemtClinicalPhase[],
@@ -282,8 +336,11 @@ export function phaseCoverage(
   placements: AemtPlacement[],
   studentCount: number,
   kind: 'clinical' | 'field',
+  campus?: Market,
 ): PhaseCoverage[] {
-  const relevant = sites.filter((s) => s.active !== false && s.kind === kind)
+  const relevant = sites.filter(
+    (s) => s.active !== false && s.kind === kind && (!campus || siteCampus(s) === campus),
+  )
   const unitIds = new Set(relevant.flatMap((s) => (s.units ?? []).map((u) => u.id)))
   const perWeek = relevant
     .flatMap((s) => s.units ?? [])

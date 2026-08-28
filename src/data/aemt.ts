@@ -1,14 +1,31 @@
 // ---------------------------------------------------------------------------
-// AMR KC AEMT program data, transcribed from the Initial Course of Instruction
-// proposal (v5.1) and the Kansas regulations it cites.
+// AEMT program data for the JOINT OCTOBER 2026 COHORT — AMR Kansas City and
+// AMR Wichita running one class.
 //
+// This file used to hold two things in tension: Kansas City's own Initial
+// Course of Instruction proposal, and Wichita's 2025 course approval, which
+// Kansas City had transcribed wholesale as a template. Those two builds are
+// merged here. The schedule, the gates, the grading model and the clinical
+// cadence are the joint October 2026 plan both primary instructors agreed to;
+// what was specific to either market — sites, instructors, campus placement —
+// is carried on a campus tag rather than being replaced by the other side.
+//
+// Source documents:
+//   AEMT_Course_Oct2026_Cohort.docx        the agreed schedule, gates, grading
+//   AEMT_Clinical_Rotation_Tracker.xlsx    the rotation cadence and checkpoints
+//
+// Regulations cited:
 //   K.A.R. 109-11-8    clinical experience minimums
-//   K.A.R. 109-11-4a   AEMT course approval (as amended Nov 1, 2024)
+//   K.A.R. 109-11-1a   course approval filing deadline
+//   K.A.R. 109-11-4a   AEMT course approval contents (as amended Nov 1, 2024)
 //   K.A.R. 109-10-1c   adopts the Kansas AEMT Educational Standards (Oct 2014)
+//   K.A.R. 109-17-3    program records and retention
 //
 // Kept as data, not UI, so the numbers a KBEMS submission depends on live in
 // one reviewable place.
 // ---------------------------------------------------------------------------
+
+import type { Market } from '../lib/market'
 
 // ----- rule set provenance ---------------------------------------------------
 
@@ -59,6 +76,22 @@ export const RULE_SETS: RuleSet[] = [
     effectiveDate: '2024-11-01',
     scope: 'Course approval application contents, and the schedule fields every session must show.',
     verifiedAgainst: 'As amended 1 November 2024.',
+  },
+  {
+    // The deadline, as distinct from the contents. These were conflated in an
+    // earlier version of this file, which carried a 15-day filing window under
+    // the 109-11-4a citation. 109-11-4a says what the application must contain;
+    // 109-11-1a(c) says when it has to be in the board office, and it is 30
+    // calendar days, not 15. The joint plan cites 109-11-1a(c) and it is right.
+    // Filing on the 15-day reading would have missed the deadline by a
+    // fortnight and taken the whole cohort with it.
+    id: 'kar-109-11-1a',
+    citation: 'K.A.R. 109-11-1a(c)',
+    effectiveDate: '2024-11-01',
+    scope:
+      'The course approval application must be in the board office no later than 30 calendar days before the first session. For a 6 October 2026 start that is Sunday 6 September; the Monday after is Labor Day, so the practical deadline is Friday 4 September 2026.',
+    verifiedAgainst:
+      'AEMT_Course_Oct2026_Cohort.docx §2, agreed by both primary instructors. RE-VERIFY against the current regulation text before filing — this supersedes a 15-day figure this file previously carried, and the two disagree by a fortnight.',
   },
   {
     // Recorded because the ABSENCE of a rule is as load-bearing as a rule, and
@@ -298,17 +331,21 @@ export const PROGRAM_COMPETENCIES: KarMinimum[] = CLINICAL_REQUIREMENTS.filter(
  * estimate of ours. `skillDrills` is how many Skill Drills the chapter carries,
  * which is the closest thing the guide gives to a psychomotor workload.
  *
- * THE SCHEDULE IS NO LONGER BUILT FROM THIS. Hours come from the Wichita course
- * approval, which Kansas City runs as its template; see KC_SCHEDULE below. The
- * guide's timings are kept as a cross-check that check-course-plan.mjs reports,
- * so the distance between what the publisher allots and what the filing allots
- * stays visible instead of being rediscovered later.
+ * THE SCHEDULE IS NOT BUILT FROM THIS. Hours come from the joint October 2026
+ * cohort plan; see KC_SCHEDULE below. The guide's timings are kept as a
+ * cross-check that check-course-plan.mjs reports, so the distance between what
+ * the publisher allots and what the schedule allots stays visible instead of
+ * being rediscovered later.
  *
- * ISBN NOTE: the Wichita filing cites 978-1-284-22640-9 and a 2019 date beside
- * a 4th-edition title, which cannot both be right — the 4th edition is 2023.
- * Kansas City uses the 4th edition, 2023, and the ISBN below is the one on the
- * Instructor Resource Guide actually in hand. Worth confirming against what the
- * bookstore ships before the application goes in.
+ * EDITION, RESOLVED. §10 of the joint plan lists the edition mismatch as a fix
+ * before submission: the prior syllabus named a Fourth Edition textbook beside
+ * Third Edition Navigate materials, and Wichita's 2025 filing cited ISBN
+ * 978-1-284-22640-9 with a 2019 date next to a Fourth Edition title, which
+ * cannot both be right. Everything is aligned to the Fourth Edition, 2023,
+ * instructor guide 9781284244175 — the copy actually in hand. The ISBN Wichita
+ * filed is kept below so the discrepancy stays on the record rather than being
+ * quietly dropped; confirm against what the bookstore ships before the
+ * application goes in.
  */
 export const COURSE_TEXT = {
   title: 'Advanced Emergency Care and Transportation of the Sick and Injured',
@@ -316,43 +353,160 @@ export const COURSE_TEXT = {
   copyright: 2023,
   publisher: 'AAOS / Jones & Bartlett Learning',
   isbn: '9781284244175',
-  /** As the Wichita filing cites it; retained because the two disagree. */
+  /** As Wichita's 2025 filing cited it; retained because the two disagree. */
   filedIsbn: '9781284226409',
   source: 'Instructor Resource Guide, lecture timings table',
+  navigateEdition: 'Navigate, Fourth Edition — course shell, TestPrep and gradebook all on 4e.',
+}
+
+// ----- the joint cohort: who runs it, and where -----------------------------
+
+/**
+ * ONE CLASS, TWO OPERATIONS, ONE MARKET RECORD.
+ *
+ * Kansas City and Wichita are running the October 2026 AEMT cohort together.
+ * Both primary instructors have agreed to the schedule above, and the didactic
+ * is delivered jointly.
+ *
+ * The course record lives in the KANSAS CITY market, and that is a decision
+ * rather than an accident. `records.market` plus the RLS policy in
+ * supabase/migrations/2026-08-06-markets.sql hard-partitions the two markets:
+ * a course row written under `wichita` is not readable from a Kansas City
+ * device and vice versa. A cohort cannot straddle that line, so it sits on the
+ * side that files the KBEMS approval and holds the sponsoring organization —
+ * Kansas City. Wichita's students are enrolled in it, and Wichita's instructor
+ * needs a market assignment of `all` (see lib/market.ts) to reach it.
+ *
+ * WHAT IS SHARED AND WHAT IS NOT. The didactic schedule, the gates, the
+ * grading model and the skill sheets are shared: one class, one standard.
+ * Clinical and field placement is LOCAL — a Wichita student is not driving to
+ * Merriam for six 12-hour shifts. Every site below carries the campus it
+ * serves, and so does every student; the placement board routes on it.
+ */
+export type Campus = Market
+
+export const CAMPUS_LABEL: Record<Campus, string> = {
+  kc: 'Kansas City',
+  wichita: 'Wichita',
+}
+
+export interface CourseStaff {
+  campus: Campus
+  operation: string
+  name: string
+  credential: string
+  email?: string
+  /**
+   * K.A.R. 109-11-8 puts the completion verification on the PRIMARY instructor.
+   * A joint course still has exactly one of those; the other market's lead is a
+   * co-instructor of record, named on the application and teaching to the same
+   * schedule, but not the signature on a completion.
+   */
+  role: 'primary' | 'co-instructor'
+  officeHours: string
+  note?: string
+}
+
+export const COURSE_STAFF: CourseStaff[] = [
+  {
+    campus: 'kc',
+    operation: 'AMR Kansas City',
+    name: 'Jordan Jones',
+    credential: 'Paramedic',
+    email: 'jordan.jones@gmr.net',
+    role: 'primary',
+    officeHours:
+      'Available by text anytime; allow a maximum of 12 hours for a reply, though most are much sooner. Teams meetings arranged as needed. Available Monday-Friday 0800-1600.',
+  },
+  {
+    campus: 'wichita',
+    operation: 'AMR Wichita',
+    name: 'Cassandra Powell',
+    credential: 'Paramedic',
+    role: 'co-instructor',
+    officeHours: 'To be confirmed with Wichita before the application is filed.',
+    note: 'Carried from the 2025 Wichita course approval, which is the only record of it this program holds. CONFIRM the name, credential and certificate number with Wichita before the 4 September submission — a wrong instructor of record on a KBEMS application is a rejection, not a correction.',
+  },
+]
+
+/** The one instructor who signs completions. K.A.R. 109-11-8. */
+export const PRIMARY_INSTRUCTOR = COURSE_STAFF.find((s) => s.role === 'primary')!
+
+/** Kept under its old name for the printed application, which names one signer. */
+export const KC_COURSE_STAFF = {
+  primaryInstructor: PRIMARY_INSTRUCTOR.name,
+  credential: PRIMARY_INSTRUCTOR.credential,
+  email: PRIMARY_INSTRUCTOR.email,
+  officeHours: PRIMARY_INSTRUCTOR.officeHours,
 }
 
 /**
- * Course staff and sites of record for the Kansas City filing.
+ * Every site named on the application, both campuses.
  *
- * Wichita's equivalents (Cassandra Powell; Butler County EMS and Sedgwick
- * County EMS; Ascension Via Christi St Francis) are replaced wholesale — these
- * are the only parts of the template that do not carry over.
+ * All of them are filed even where there is no intention of rotating through
+ * them. Adding a site mid-course means going back to KBEMS for a new approval;
+ * naming one costs nothing.
  */
-export const KC_COURSE_STAFF = {
-  primaryInstructor: 'Jordan Jones',
-  credential: 'Paramedic',
-  email: 'jordan.jones@gmr.net',
-  officeHours:
-    'Available by text anytime; allow a maximum of 12 hours for a reply, though most are much sooner. Teams meetings arranged as needed. Available Monday-Friday 0800-1600.',
-}
-
-export const KC_SITES: { name: string; kind: 'clinical' | 'field'; note: string }[] = [
+export const KC_SITES: {
+  name: string
+  kind: 'clinical' | 'field'
+  campus: Campus
+  note: string
+}[] = [
   {
-    name: 'AdventHealth, Kansas City area',
+    name: 'AdventHealth Shawnee Mission',
     kind: 'clinical',
-    note: 'Six 12-hour shifts (72 h) of supervised patient skills.',
+    campus: 'kc',
+    note: 'Primary Kansas City clinical site. 504-bed tertiary teaching hospital, Merriam KS. Six 12-hour shifts (72 h) of supervised patient skills, weighted away from the ED — pre-op is where the venipunctures are.',
+  },
+  {
+    name: 'AdventHealth South Overland Park',
+    kind: 'clinical',
+    campus: 'kc',
+    note: 'Second active campus under the same affiliation agreement. Overflow capacity for the Phase 2 venipuncture block without going back for a new approval.',
+  },
+  {
+    name: 'AdventHealth Prairie Star',
+    kind: 'clinical',
+    campus: 'kc',
+    note: 'Covered by the same agreement and named for overflow. Not rotated through — patient volume too low to be worth a placement.',
+  },
+  {
+    name: 'Ascension Via Christi St Francis',
+    kind: 'clinical',
+    campus: 'wichita',
+    note: 'Wichita clinical site, carried from the 2025 Wichita course approval. Six 12-hour shifts for the Wichita students. Confirm the affiliation agreement is current and covers this cohort before the application is filed.',
   },
   {
     name: 'AMR Independence',
     kind: 'field',
+    campus: 'kc',
     note: 'Urban 911 response. Part of the 144 h field internship.',
   },
   {
     name: 'AMR Linn County',
     kind: 'field',
-    note: 'Rural response. Part of the 144 h field internship — the rural/urban split Wichita met with Butler and Sedgwick counties.',
+    campus: 'kc',
+    note: 'Rural response. Part of the 144 h field internship — the Kansas City half of the urban/rural split.',
+  },
+  {
+    name: 'Sedgwick County EMS',
+    kind: 'field',
+    campus: 'wichita',
+    note: 'Urban 911 response for the Wichita students. Carried from the 2025 Wichita course approval.',
+  },
+  {
+    name: 'Butler County EMS',
+    kind: 'field',
+    campus: 'wichita',
+    note: 'Rural response for the Wichita students — the Wichita half of the urban/rural split. Carried from the 2025 Wichita course approval.',
   },
 ]
+
+/** Sites serving one campus. Clinical and field placement is local, not pooled. */
+export function sitesForCampus(campus: Campus) {
+  return KC_SITES.filter((s) => s.campus === campus)
+}
 
 export interface TextbookChapter {
   n: number
@@ -481,373 +635,904 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
     .filter((c): c is TextbookChapter => !!c && !c.carryForward)
 }
 
-// ----- the course schedule (Wichita template, adapted for Kansas City) -------
+// ----- the course schedule (joint AMR Kansas City / AMR Wichita cohort) ------
 
 /**
- * THE WICHITA FILING IS THE MEASURE, NOT THE INSTRUCTOR GUIDE.
+ * THE SCHEDULE IS THE OCTOBER 2026 JOINT COHORT PLAN, DATED AT SOURCE.
  *
- * These rows are transcribed from the AEMT Initial Instruction Course Approval
- * EagleMed filed for Wichita (course dates 1 Apr - 31 Jul 2025), which Kansas
- * City is running as the same template. Topics, hours and their dispersion are
- * copied from it; only the dates, sites and instructor change.
+ * Kansas City and Wichita are running ONE class. The two builds that used to
+ * exist — Wichita's 2025 course approval, which Kansas City had transcribed as
+ * a template, and Kansas City's own draft on top of it — are merged here into
+ * a single schedule that both primary instructors have agreed to.
  *
- * That replaces a schedule derived from the publisher's Instructor Resource
- * Guide lecture timings. Where the two disagree the filing wins, by decision —
- * so the guide's chapter timings survive in TEXTBOOK_CHAPTERS above as a
- * cross-check reported by scripts/check-course-plan.mjs, and are no longer what
- * the hours are built from.
+ * Transcribed from AEMT_Course_Oct2026_Cohort.docx: Tuesday 6 October 2026
+ * through Thursday 4 February 2027, Tuesdays and Thursdays 09:00-13:00, with
+ * the two AHA provider courses pulled out onto Saturdays.
  *
- * TWO DEFECTS CARRIED OVER FROM THE SOURCE, both deliberate:
+ * WHAT CHANGED, AND WHY IT IS NOT A GENERATED CALENDAR ANY MORE.
  *
- *   1. The filing's summary line reads "Didactic 110", but its own 26 schedule
- *      rows sum to 116. Lab matches at 50. Kansas City files 116 — the schedule
- *      is what KBEMS reviews against, so a summary disagreeing with it is the
- *      thing that is wrong. Decided 11 Aug 2026.
+ * The previous version held sixteen undated course weeks and laid them onto
+ * Tuesdays and Thursdays at seed time, pushing any face-to-face week that
+ * collided with a holiday into the next clear week — which extended the course
+ * past sixteen calendar weeks and moved every later date with it. The joint
+ * plan does the opposite, deliberately: the holidays are ABSORBED rather than
+ * fought, and the resulting calendar is the agreement.
  *
- *   2. Chapters 17 and 18 are assigned twice — once in week 5 with chapter 12
- *      and 16, and again in week 9. Reproduced as filed rather than silently
- *      deduplicated, because removing them would change the week 9 hours and
- *      the whole point of this table is that it matches Wichita's.
+ *   - Thanksgiving (Thu 26 Nov) is surrendered. Week 8 is a single Tuesday
+ *     session, and ACLS moves out to Saturday 5 December.
+ *   - A deliberate two-week break, 21 Dec - 3 Jan, replaces four sessions that
+ *     would have been half empty. Christmas Eve, Christmas Day, New Year's Eve
+ *     and New Year's Day all fall inside it.
+ *   - MLK Day (Mon 18 Jan) and Presidents' Day (Mon 15 Feb) never touch a
+ *     Tuesday or a Thursday.
+ *
+ * So no session needs pushing, and a planner that pushed them would break the
+ * agreed dates. Every row below carries its own date and the plan is a
+ * transcription, not a projection. `buildClassPlan` still exists and still
+ * returns `PlannedSession[]`, because everything downstream reads that shape —
+ * but it now reads the dates rather than computing them.
+ *
+ * TWO DEFECTS IN THE SOURCE, both recorded rather than silently smoothed:
+ *
+ *   1. Week 15 is filed "D 6 / L 4" — ten hours in a week that has two
+ *      four-hour sessions in it. Every other full week in the document sums to
+ *      eight and the week 15 sessions are described as one didactic day and
+ *      one lab day, so it is filed here as D 4 / L 4. With that correction the
+ *      sixteen weeks sum to exactly 15 x 8 + 4 = 124 face-to-face hours, which
+ *      is the arithmetic the rest of the document assumes.
+ *
+ *   2. The summary line reads "approximately 66 face-to-face didactic + 40
+ *      independent pre-class = ~106 didactic". Its own rows sum to 72 didactic
+ *      and its own Navigate module run times sum to 35.6 — 107.6 in total, so
+ *      the ~106 is close and the 66/40 split inside it is not. The rows are
+ *      filed. The document itself says to tune the split to whatever totals go
+ *      to KBEMS, since the sequencing is what matters; scripts/check-course-
+ *      plan.mjs reports the distance so it stays visible.
+ *
+ * ONE DEFECT FIXED, because the source document asks for it by name. Wichita's
+ * filing assigned chapters 17 and 18 in two different weeks. §10 of the joint
+ * plan lists "the prior schedule listed Chapters 17 and 18 in two different
+ * weeks" among the things to fix before submission, and this schedule assigns
+ * every chapter of the fourth edition exactly once.
  */
 
 /**
  * How a session reaches the student.
  *
- * This distinction is what makes the eight-hour weekly cap meaningful. Only
- * `f2f` rows cost instructor time and room time; `assignment` rows are Navigate
- * chapter materials, quizzes and the AHA pre-course reading, which the student
- * works through on their own. Every one of the filing's ten f2f rows is exactly
- * eight hours — one Tuesday/Thursday pair at four hours each.
+ * `f2f`        — Tuesday/Thursday 09:00-13:00 class. Costs instructor time and
+ *                room time, and is what the eight-hour weekly cap is about.
+ * `assignment` — Navigate modules, flashcards, practice activities and the AHA
+ *                pre-course work, done by the student on their own.
+ * `aha`        — an AHA provider course: a Saturday, eight hours, taught to
+ *                AHA's curriculum rather than ours and certificated by them.
+ *                Counted in its own bucket because the joint plan counts it
+ *                that way ("plus 52 lab and 16 hours of AHA courses"), and
+ *                because it is the one thing on the calendar that legitimately
+ *                exceeds four hours in a day.
  */
-export type Delivery = 'f2f' | 'assignment'
+export type Delivery = 'f2f' | 'assignment' | 'aha'
 
 export interface ScheduleRow {
   order: number
-  /** Course week, 1-based, numbered as the filing numbers them. */
+  /**
+   * Instructional week, 1-16. The two AHA Saturdays and the winter break carry
+   * the week they sit alongside; `standalone` marks them as not part of that
+   * week's Tuesday/Thursday pair.
+   */
   week: number
-  /** Row label as the filing writes it. */
+  /** Row label as the joint plan writes it. */
   label: string
   /** Two or three words, for a calendar chip. */
   short: string
-  /** Topic list, as filed. */
+  /** What the session covers, as agreed. */
   title: string
   delivery: Delivery
   didacticHours: number
   labHours: number
+  /**
+   * The date this row is delivered on. Dated at source — the joint plan is a
+   * calendar both instructors signed up to, not a shape to be laid down later.
+   */
+  date: string
+  /** Clock times for anything sat in a room. Assignments carry none. */
+  startTime?: string
+  endTime?: string
   /** Textbook chapters the row assigns. */
   chapters?: number[]
-  /** Kansas AEMT Education Standards codes the row names. */
+  /** Kansas AEMT Education Standards codes the row covers. */
   sections?: string[]
+  /** Graded or gating event this row carries. See data/aemtAssessments.ts. */
+  assessmentIds?: string[]
+  /**
+   * Not one of the week's Tuesday/Thursday sessions — a Saturday AHA course or
+   * the winter break block. Excluded from the eight-hour weekly cap check,
+   * which is about the Tue/Thu pattern.
+   */
+  standalone?: boolean
+  /** Why this row is shaped the way it is, where that is not obvious. */
+  note?: string
 }
 
+const AM = '09:00'
+const PM = '13:00'
+
 export const KC_SCHEDULE: ScheduleRow[] = [
+  // ----- week 1 -------------------------------------------------------------
   {
     order: 1,
     week: 1,
-    label: 'Week 1 Class',
-    short: 'Orientation & Preparatory',
+    label: 'Week 1 pre-class',
+    short: 'Modules 1-5',
     title:
-      'Introduction & Orientation; Course Syllabus/Schedule; EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal Ethical (PR7); Medical Terminology (PR9)',
-    delivery: 'f2f',
-    didacticHours: 8,
+      'Navigate Modules 1-5 (Ch 1-5): EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal & Ethical (PR7); Medical Terminology (PR9). Chapter flashcards and practice activities.',
+    delivery: 'assignment',
+    didacticHours: 3.6,
     labHours: 0,
+    date: '2026-10-06',
+    chapters: [1, 2, 3, 4, 5],
     sections: ['PR1', 'PR2', 'PR3', 'PR4', 'PR5', 'PR6', 'PR7', 'PR9'],
   },
   {
     order: 2,
     week: 1,
-    label: 'Week 1 Assignments',
-    short: 'Ch 1-6',
-    title: 'Chapters 1-6; chapter materials, quizzes & exams',
-    delivery: 'assignment',
+    label: 'Week 1 · Tue',
+    short: 'Orientation',
+    title:
+      'Orientation. How the AEMT cognitive exam actually works: 135 items, linear, no backtracking, all six item types. Baseline 50-item diagnostic. Study-methods brief: why re-reading fails.',
+    delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    chapters: [1, 2, 3, 4, 5, 6],
+    date: '2026-10-06',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['baseline'],
   },
   {
     order: 3,
-    week: 2,
-    label: 'Week 2 Assignments',
-    short: 'Ch 7-10',
+    week: 1,
+    label: 'Week 1 · Thu',
+    short: 'Preparatory',
     title:
-      'Chapters 7-10; Anatomy & Physiology (PR8); Pathophysiology (PR10); Life Span Development (PR11); Scene Size-Up (PA1); Primary Assessment (PA2); Secondary Assessment (PA4); Reassessment (PA6); chapter materials, quizzes & exams',
-    delivery: 'assignment',
-    didacticHours: 8,
+      'EMS systems, medical-legal, documentation, therapeutic communication, medical terminology. First format drill: build-list and options-box.',
+    delivery: 'f2f',
+    didacticHours: 4,
     labHours: 0,
-    chapters: [7, 8, 9, 10],
-    sections: ['PR8', 'PR10', 'PR11', 'PA1', 'PA2', 'PA4', 'PA6'],
+    date: '2026-10-08',
+    startTime: AM,
+    endTime: PM,
   },
+
+  // ----- week 2 -------------------------------------------------------------
   {
     order: 4,
-    week: 3,
-    label: 'Week 3 Assignments',
-    short: 'Ch 11 Airway',
+    week: 2,
+    label: 'Week 2 pre-class',
+    short: 'Modules 7-9',
     title:
-      'Chapter 11; Airway Management (AM1); Respiration (AM2); Artificial Ventilation (AM3); review previous assignments; chapter materials, quizzes & exams',
+      'Navigate Modules 7-9 (Ch 7-9): The Human Body / Anatomy & Physiology (PR8); Pathophysiology (PR10); Life Span Development (PR11).',
     delivery: 'assignment',
-    didacticHours: 2,
+    didacticHours: 2.7,
     labHours: 0,
+    date: '2026-10-13',
+    chapters: [7, 8, 9],
+    sections: ['PR8', 'PR10', 'PR11'],
+  },
+  {
+    order: 5,
+    week: 2,
+    label: 'Week 2 · Tue',
+    short: 'A&P',
+    title:
+      'A&P built on a perfusion and cellular-respiration spine — the oxygen delivery chain end to end.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-10-13',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-a'],
+  },
+  {
+    order: 6,
+    week: 2,
+    label: 'Week 2 · Thu',
+    short: 'Pathophysiology',
+    title:
+      'Pathophysiology: shock states, acid-base, hypoxia vs. hypoxaemia. Drag-and-drop drill: classify findings by shock type.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-10-15',
+    startTime: AM,
+    endTime: PM,
+  },
+
+  // ----- week 3 -------------------------------------------------------------
+  {
+    order: 7,
+    week: 3,
+    label: 'Week 3 pre-class',
+    short: 'Modules 10, 6',
+    title:
+      'Navigate Module 10 (Ch 10) Patient Assessment — Scene Size-Up (PA1); Primary Assessment (PA2); Secondary Assessment (PA4); Monitoring Devices (PA5); Reassessment (PA6). Module 6 (Ch 6) Lifting & Moving.',
+    delivery: 'assignment',
+    didacticHours: 1.8,
+    labHours: 0,
+    date: '2026-10-20',
+    chapters: [10, 6],
+    sections: ['PA1', 'PA2', 'PA4', 'PA5', 'PA6'],
+  },
+  {
+    order: 8,
+    week: 3,
+    label: 'Week 3 · Tue',
+    short: 'Assessment',
+    title:
+      'Assessment framework mapped explicitly onto the six-step clinical judgment cycle: recognize cues → analyze cues → define hypothesis → generate solutions → take action → evaluate.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-10-20',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-b'],
+  },
+  {
+    order: 9,
+    week: 3,
+    label: 'Week 3 · Thu',
+    short: 'Assessment lab',
+    title:
+      'LAB: full patient assessments, monitoring devices, lifting and moving skill drills. Every debrief uses the six-step language.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-10-22',
+    startTime: AM,
+    endTime: PM,
+    note: 'Patient-assessment check-off. Grants the assessment clearance that opens Phase 1 of the rotation.',
+  },
+
+  // ----- week 4 -------------------------------------------------------------
+  {
+    order: 10,
+    week: 4,
+    label: 'Week 4 pre-class',
+    short: 'Module 11',
+    title:
+      'Navigate Module 11 (Ch 11) Airway Management — Airway Management (AM1); Respiration (AM2); Artificial Ventilation (AM3). Skill Drill presentations.',
+    delivery: 'assignment',
+    didacticHours: 1.5,
+    labHours: 0,
+    date: '2026-10-27',
     chapters: [11],
     sections: ['AM1', 'AM2', 'AM3'],
   },
   {
-    order: 5,
-    week: 3,
-    label: 'Week 3 Class',
-    short: 'Assessment & Airway Lab',
-    title:
-      'A&P/Pathophysiology review; Patient Assessment skills; Monitoring Devices (PA5); Airway Management skills; Medication Administration skills; Intro to ECG monitoring',
-    delivery: 'f2f',
-    didacticHours: 4,
-    labHours: 4,
-    sections: ['PA5'],
-  },
-  {
-    order: 6,
-    week: 4,
-    label: 'Week 4 Assignments',
-    short: 'PALS pre-course',
-    title: 'PALS pre-course requirements; study and prepare for PALS; AHA PALS Provider Book',
-    delivery: 'assignment',
-    didacticHours: 6,
-    labHours: 0,
-  },
-  {
-    order: 7,
-    week: 4,
-    label: 'PALS class',
-    short: 'AHA PALS',
-    title: 'AHA PALS Provider Course',
-    delivery: 'f2f',
-    didacticHours: 4,
-    labHours: 4,
-  },
-  {
-    order: 8,
-    week: 5,
-    label: 'Week 5 Assignments',
-    short: 'Ch 12, 16-18',
-    title:
-      'Chapters 12, 16-18; Principles of Pharmacology (PR13); Emergency Medications (PR15); Public Health (PR12); Medical Overview (MT1); Infectious Disease (MT5); chapter materials, quizzes & exams',
-    delivery: 'assignment',
-    didacticHours: 6,
-    labHours: 0,
-    chapters: [12, 16, 17, 18],
-    sections: ['PR13', 'PR15', 'PR12', 'MT1', 'MT5'],
-  },
-  {
-    order: 9,
-    week: 5,
-    label: 'Week 5 Class',
-    short: 'Meds & ECG Lab',
-    title:
-      'Review previous assignments; Medication Administration skills; ECG monitoring; Airway skills checkoff',
-    delivery: 'f2f',
-    didacticHours: 2,
-    labHours: 6,
-  },
-  {
-    order: 10,
-    week: 6,
-    label: 'Week 6 Assignments',
-    short: 'ACLS pre-course',
-    title: 'ACLS pre-course requirements; study and prepare for ACLS; AHA ACLS Provider Book',
-    delivery: 'assignment',
-    didacticHours: 4,
-    labHours: 0,
-  },
-  {
     order: 11,
-    week: 6,
-    label: 'ACLS class',
-    short: 'AHA ACLS',
-    title: 'AHA ACLS Provider Course',
+    week: 4,
+    label: 'Week 4 · Tue',
+    short: 'Airway',
+    title:
+      'Airway, respiration, ventilation. Capnography waveform interpretation drilled as a graphical item type.',
     delivery: 'f2f',
     didacticHours: 4,
-    labHours: 4,
+    labHours: 0,
+    date: '2026-10-27',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-c'],
   },
   {
     order: 12,
-    week: 7,
-    label: 'Week 7 Assignments',
-    short: 'Ch 13-15',
+    week: 4,
+    label: 'Week 4 · Thu',
+    short: 'Airway lab · GATE 1',
     title:
-      'Chapters 13-15; Medication Administration (PR14); Shock and Resuscitation (ST1); chapter materials, quizzes & exams',
-    delivery: 'assignment',
-    didacticHours: 4,
-    labHours: 0,
-    chapters: [13, 14, 15],
-    sections: ['PR14', 'ST1'],
+      'LAB: supraglottic airway, BVM, suction, oxygen delivery. Skill Evaluation Sheets. GATE 1 exam, final 90 minutes.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-10-29',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['gate-1'],
   },
+
+  // ----- week 5 -------------------------------------------------------------
   {
     order: 13,
-    week: 8,
-    label: 'Week 8 Assignments',
-    short: 'Ch 35-36 OB & Peds',
-    title: 'Chapters 35, 36; Obstetrics (SP1); Neonatal Care (SP2); Pediatrics (SP3)',
+    week: 5,
+    label: 'Week 5 pre-class',
+    short: 'Modules 12-13',
+    title:
+      'Navigate Modules 12-13 (Ch 12-13): Principles of Pharmacology (PR13); Medication Administration (PR14); Emergency Medications (PR15); Vascular Access.',
     delivery: 'assignment',
-    didacticHours: 6,
+    didacticHours: 1.2,
     labHours: 0,
-    chapters: [35, 36],
-    sections: ['SP1', 'SP2', 'SP3'],
+    date: '2026-11-03',
+    chapters: [12, 13],
+    sections: ['PR13', 'PR14', 'PR15'],
   },
   {
     order: 14,
-    week: 9,
-    label: 'Week 9 Assignments',
-    short: 'Ch 17-18 Resp & Cardiac',
+    week: 5,
+    label: 'Week 5 · Tue',
+    short: 'Pharmacology',
     title:
-      'Chapters 17, 18; Respiratory (MT10); Cardiovascular (MT8); chapter materials, quizzes & exams',
-    delivery: 'assignment',
+      'Pharmacology principles; the AEMT formulary cold; dose calculation drills under time pressure.',
+    delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    chapters: [17, 18],
-    sections: ['MT10', 'MT8'],
+    date: '2026-11-03',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-d'],
   },
   {
     order: 15,
-    week: 9,
-    label: 'Week 9 Class',
-    short: 'ECG & Meds Checkoff',
-    title: 'Review previous assignments; ECG practice; Medication Administration skills checkoff',
+    week: 5,
+    label: 'Week 5 · Thu',
+    short: 'Vascular access lab',
+    title:
+      'LAB: IV, IO, IM/SubQ and nebulized administration. Begin logging K.A.R. 109-11-8 counts on day one of lab.',
     delivery: 'f2f',
-    didacticHours: 2,
-    labHours: 6,
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-11-05',
+    startTime: AM,
+    endTime: PM,
+    note: 'Vascular-access check-off. Venipuncture, IO and IM/SubQ reps dated before this are refused — see data/aemtPhases.ts.',
   },
+
+  // ----- week 6 -------------------------------------------------------------
   {
     order: 16,
-    week: 10,
-    label: 'Week 10 Assignments',
-    short: 'Ch 39-42 Operations',
+    week: 6,
+    label: 'Week 6 pre-class',
+    short: 'Modules 14-16',
     title:
-      'Chapters 39-42; Principles of Safely Operating a Ground Ambulance (OP1); Incident Management (OP2); Multiple Casualty Incidents (OP3); Air Medical (OP4); Vehicle Extrication (OP5); Haz-Mat Awareness (OP6); Terrorism & Disaster (OP7); chapter materials, quizzes & exams',
+      'Navigate Modules 14-16 (Ch 14-16): Shock and Resuscitation (ST1); BLS Resuscitation; Medical Overview (MT1); Public Health (PR12); Infectious Disease (MT5).',
     delivery: 'assignment',
-    didacticHours: 6,
+    didacticHours: 1.9,
     labHours: 0,
-    chapters: [39, 40, 41, 42],
-    sections: ['OP1', 'OP2', 'OP3', 'OP4', 'OP5', 'OP6', 'OP7'],
+    date: '2026-11-10',
+    chapters: [14, 15, 16],
+    sections: ['ST1', 'MT1', 'PR12', 'MT5'],
   },
   {
     order: 17,
-    week: 11,
-    label: 'Week 11 Class',
-    short: 'Scenario Skills',
-    title: 'Review previous materials; scenario skills',
+    week: 6,
+    label: 'Week 6 · Tue',
+    short: 'Shock',
+    title:
+      'Shock differentiated by type and by what the AEMT can actually do about each. Options-box drill.',
     delivery: 'f2f',
-    didacticHours: 2,
-    labHours: 6,
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-11-10',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-e'],
   },
   {
     order: 18,
-    week: 11,
-    label: 'Week 11 Assignments',
-    short: 'Ch 26-28 Trauma',
+    week: 6,
+    label: 'Week 6 · Thu',
+    short: 'Resuscitation lab',
     title:
-      'Chapters 26-28; Trauma Overview (ST2); Special Considerations in Trauma (ST10); Multisystem Trauma (ST12); Bleeding (ST3); Soft Tissue (ST7)',
-    delivery: 'assignment',
-    didacticHours: 6,
-    labHours: 0,
-    chapters: [26, 27, 28],
-    sections: ['ST2', 'ST10', 'ST12', 'ST3', 'ST7'],
+      'LAB: resuscitation; first integrated scenarios combining airway, shock and vascular access.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-11-12',
+    startTime: AM,
+    endTime: PM,
+    note: 'ECG application check-off sits in this week or the next, deliberately ahead of the week 8 cardiology block — see the ECG decoupling note in the rotation plan.',
   },
+
+  // ----- week 7 -------------------------------------------------------------
   {
     order: 19,
-    week: 12,
-    label: 'Week 12 Assignments',
-    short: 'Ch 29-31 Trauma',
+    week: 7,
+    label: 'Week 7 pre-class',
+    short: 'Module 17',
     title:
-      'Chapters 29-31; Head, Face, Neck & Spine (ST8); Chest Trauma (ST4); Nervous System Trauma (ST9)',
+      'Navigate Module 17 (Ch 17) Respiratory Emergencies (MT10). Ride-Alongs: Difficulty Breathing, Respiratory Distress.',
     delivery: 'assignment',
-    didacticHours: 6,
+    didacticHours: 1,
     labHours: 0,
-    chapters: [29, 30, 31],
-    sections: ['ST8', 'ST4', 'ST9'],
+    date: '2026-11-17',
+    chapters: [17],
+    sections: ['MT10'],
   },
   {
     order: 20,
-    week: 13,
-    label: 'Week 13 Class',
-    short: 'NR Practice',
-    title: 'Review previous materials; National Registry practice',
+    week: 7,
+    label: 'Week 7 · Tue',
+    short: 'Respiratory',
+    title:
+      'Respiratory emergencies: pathophysiology → presentation → intervention. Differentiation drills (asthma vs. COPD vs. CHF vs. PE).',
     delivery: 'f2f',
-    didacticHours: 2,
-    labHours: 6,
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-11-17',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-f'],
   },
   {
     order: 21,
-    week: 13,
-    label: 'Week 13 Assignments',
-    short: 'Ch 32-34 Trauma',
-    title:
-      'Chapters 32-34; Abdominal & Genitourinary Trauma (ST5); Orthopedic Trauma (ST6); Environmental Emergencies (ST11)',
-    delivery: 'assignment',
-    didacticHours: 6,
-    labHours: 0,
-    chapters: [32, 33, 34],
-    sections: ['ST5', 'ST6', 'ST11'],
+    week: 7,
+    label: 'Week 7 · Thu',
+    short: 'Respiratory lab',
+    title: 'LAB: respiratory scenarios with capnography. Clinical judgment debrief.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-11-19',
+    startTime: AM,
+    endTime: PM,
   },
+
+  // ----- week 8 — Thanksgiving week, Tuesday only ---------------------------
   {
     order: 22,
-    week: 14,
-    label: 'Week 14 Assignments',
-    short: 'Ch 19-21 Medical',
+    week: 8,
+    label: 'Week 8 pre-class',
+    short: 'Module 18 · ACLS prep',
     title:
-      'Chapters 19-21; Neurology (MT2); Abdominal & GI Disorders (MT3); Genitourinary/Renal (MT12); Endocrine (MT6); Hematology (MT11)',
+      'Navigate Module 18 (Ch 18) Cardiovascular Emergencies (MT8). AHA ACLS pre-course work, assigned over the holiday — low-cognitive-load work that survives a break.',
     delivery: 'assignment',
-    didacticHours: 6,
+    didacticHours: 1,
     labHours: 0,
-    chapters: [19, 20, 21],
-    sections: ['MT2', 'MT3', 'MT12', 'MT6', 'MT11'],
+    date: '2026-11-24',
+    chapters: [18],
+    sections: ['MT8'],
+    note: 'The AHA pre-course carries no separate hour figure. The joint plan does not quantify it and the provider course itself is counted in the 16-hour AHA block.',
   },
   {
     order: 23,
-    week: 15,
-    label: 'Week 15 Class',
-    short: 'NR Practice',
-    title: 'Review previous materials; National Registry practice',
+    week: 8,
+    label: 'Week 8 · Tue',
+    short: 'Cardiovascular',
+    title:
+      'Cardiovascular emergencies; ECG monitoring within AEMT scope. Flag explicitly what is ACLS-only and NOT testable at AEMT level.',
     delivery: 'f2f',
-    didacticHours: 1,
-    labHours: 7,
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-11-24',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-g'],
+    note: 'No Thursday session. Thanksgiving falls on 26 November and is surrendered rather than fought; ACLS moves to Saturday 5 December to protect the Tue/Thu rhythm.',
   },
+
+  // ----- week 9 -------------------------------------------------------------
   {
     order: 24,
-    week: 15,
-    label: 'Week 15 Assignments',
-    short: 'Ch 22, 25, 37',
+    week: 9,
+    label: 'Week 9 pre-class',
+    short: 'Modules 19, 21',
     title:
-      'Chapters 22, 25 & 37; Immunology (MT4); Gynecology (MT13); Geriatrics (SP4); Special Challenges (SP5)',
+      'Navigate Modules 19, 21 (Ch 19, 21): Neurology (MT2); Endocrine (MT6); Hematology (MT11). Ride-Along: Altered Mental Status.',
     delivery: 'assignment',
-    didacticHours: 6,
+    didacticHours: 1.7,
     labHours: 0,
-    chapters: [22, 25, 37],
-    sections: ['MT4', 'MT13', 'SP4', 'SP5'],
+    date: '2026-12-01',
+    chapters: [19, 21],
+    sections: ['MT2', 'MT6', 'MT11'],
   },
   {
     order: 25,
-    week: 16,
-    label: 'Week 16 Assignments',
-    short: 'Ch 23, 24, 38',
+    week: 9,
+    label: 'Week 9 · Tue',
+    short: 'GATE 2 · Neuro',
     title:
-      'Chapters 23, 24 & 38; Toxicology (MT9); Psychiatric (MT7); Non-Traumatic Musculoskeletal Disorders (MT14)',
-    delivery: 'assignment',
-    didacticHours: 6,
+      'GATE 2 exam, first 90 minutes. Then stroke, seizure and altered mental status.',
+    delivery: 'f2f',
+    didacticHours: 4,
     labHours: 0,
-    chapters: [23, 24, 38],
-    sections: ['MT9', 'MT7', 'MT14'],
+    date: '2026-12-01',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['gate-2'],
   },
   {
     order: 26,
-    week: 16,
-    label: 'Week 16 Class',
-    short: 'Final Exam & NR Prep',
-    title: 'Final exam; National Registry board prep',
+    week: 9,
+    label: 'Week 9 · Thu',
+    short: 'Medical lab',
+    title:
+      'Diabetic and hematologic emergencies. LAB: medical scenarios interleaved with week 4-6 airway and shock material.',
     delivery: 'f2f',
-    didacticHours: 1,
-    labHours: 7,
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-12-03',
+    startTime: AM,
+    endTime: PM,
+  },
+
+  // ----- Saturday 5 December — AHA ACLS -------------------------------------
+  {
+    order: 27,
+    week: 9,
+    label: 'Saturday 5 December',
+    short: 'AHA ACLS',
+    title: 'AHA ACLS Provider Course, 8 hours.',
+    delivery: 'aha',
+    didacticHours: 8,
+    labHours: 0,
+    date: '2026-12-05',
+    startTime: '08:00',
+    endTime: '17:00',
+    standalone: true,
+    note: 'Pulled out of the Tue/Thu rhythm so that Thanksgiving week does not cost the class a session. Most agencies run the AHA courses on Saturdays anyway.',
+  },
+
+  // ----- week 10 ------------------------------------------------------------
+  {
+    order: 28,
+    week: 10,
+    label: 'Week 10 pre-class',
+    short: 'Modules 20, 22, 23',
+    title:
+      'Navigate Modules 20, 22, 23 (Ch 20, 22, 23): Abdominal & GI Disorders (MT3); Genitourinary/Renal (MT12); Immunology (MT4); Toxicology (MT9). Ride-Along: Allergic Reaction.',
+    delivery: 'assignment',
+    didacticHours: 1.8,
+    labHours: 0,
+    date: '2026-12-08',
+    chapters: [20, 22, 23],
+    sections: ['MT3', 'MT12', 'MT4', 'MT9'],
+  },
+  {
+    order: 29,
+    week: 10,
+    label: 'Week 10 · Tue',
+    short: 'GI/GU · Anaphylaxis',
+    title:
+      'GI and GU emergencies, anaphylaxis, toxidromes. High-yield medical content deliberately placed before the break, not after it.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-12-08',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-h'],
+  },
+  {
+    order: 30,
+    week: 10,
+    label: 'Week 10 · Thu',
+    short: 'Medical lab',
+    title: 'LAB: medical scenarios; epinephrine and naloxone administration.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-12-10',
+    startTime: AM,
+    endTime: PM,
+  },
+
+  // ----- week 11 ------------------------------------------------------------
+  {
+    order: 31,
+    week: 11,
+    label: 'Week 11 pre-class',
+    short: 'Modules 25, 35',
+    title:
+      'Navigate Modules 25, 35 (Ch 25, 35): Gynecology (MT13); Obstetrics (SP1); Neonatal Care (SP2).',
+    delivery: 'assignment',
+    didacticHours: 1.5,
+    labHours: 0,
+    date: '2026-12-15',
+    chapters: [25, 35],
+    sections: ['MT13', 'SP1', 'SP2'],
+  },
+  {
+    order: 32,
+    week: 11,
+    label: 'Week 11 · Tue',
+    short: 'OB & GYN',
+    title:
+      'OB emergencies, normal and complicated delivery, neonatal resuscitation, gynecologic emergencies.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2026-12-15',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-i'],
+  },
+  {
+    order: 33,
+    week: 11,
+    label: 'Week 11 · Thu',
+    short: 'OB lab · Bridge quiz',
+    title:
+      'LAB: delivery and neonatal resuscitation. Close with a 30-item cumulative bridge quiz and hand out the break assignment in writing.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2026-12-17',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['bridge'],
+  },
+
+  // ----- winter break -------------------------------------------------------
+  {
+    order: 34,
+    week: 11,
+    label: 'Winter break · 21 Dec - 3 Jan',
+    short: 'Break block',
+    title:
+      'NOT a pause. Concentrated clinical and field shifts — holiday call volume is high and students typically have PTO — plus three dated TestPrep retrieval sets by domain, due 26 December, 30 December and 3 January.',
+    delivery: 'assignment',
+    didacticHours: 0,
+    labHours: 0,
+    date: '2026-12-21',
+    standalone: true,
+    assessmentIds: ['testprep-1', 'testprep-2', 'testprep-3'],
+    note: 'Carries no didactic hours: the retrieval sets are TestPrep, and the shifts are counted as clinical and field internship hours, not classroom. Phase 3 of the rotation plan is this fortnight — four 12-hour field shifts, the highest-yield block in the whole rotation.',
+  },
+
+  // ----- week 12 ------------------------------------------------------------
+  {
+    order: 35,
+    week: 12,
+    label: 'Week 12 pre-class',
+    short: 'Module 36 · PALS prep',
+    title:
+      'Navigate Module 36 (Ch 36) Pediatric Emergencies (SP3). AHA PALS pre-course work.',
+    delivery: 'assignment',
+    didacticHours: 1.8,
+    labHours: 0,
+    date: '2027-01-05',
+    chapters: [36],
+    sections: ['SP3'],
+  },
+  {
+    order: 36,
+    week: 12,
+    label: 'Week 12 · Tue',
+    short: 'Simulation #1',
+    title:
+      'FULL-LENGTH SIMULATION #1 — 135 items, 3 hours, proctored, exam conditions, ungraded. Doubles as the re-entry diagnostic: it measures what survived the break, with five weeks left to fix it.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2027-01-05',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['sim-1'],
+  },
+  {
+    order: 37,
+    week: 12,
+    label: 'Week 12 · Thu',
+    short: 'Peds · Item analysis',
+    title:
+      'Item analysis against the tracker. Pediatric assessment triangle; paediatric respiratory failure and shock. Peds content is integrated across every domain, not siloed.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2027-01-07',
+    startTime: AM,
+    endTime: PM,
+    note: 'Sim #1 item analysis drives every individualised assignment from here forward.',
+  },
+
+  // ----- Saturday 9 January — AHA PALS --------------------------------------
+  {
+    order: 38,
+    week: 12,
+    label: 'Saturday 9 January',
+    short: 'AHA PALS',
+    title: 'AHA PALS Provider Course, 8 hours.',
+    delivery: 'aha',
+    didacticHours: 8,
+    labHours: 0,
+    date: '2027-01-09',
+    startTime: '08:00',
+    endTime: '17:00',
+    standalone: true,
+  },
+
+  // ----- week 13 ------------------------------------------------------------
+  {
+    order: 39,
+    week: 13,
+    label: 'Week 13 pre-class',
+    short: 'Modules 26-29',
+    title:
+      'Navigate Modules 26-29 (Ch 26-29): Trauma Overview (ST2); Bleeding (ST3); Soft Tissue (ST7); Face & Neck (ST8).',
+    delivery: 'assignment',
+    didacticHours: 3.2,
+    labHours: 0,
+    date: '2027-01-12',
+    chapters: [26, 27, 28, 29],
+    sections: ['ST2', 'ST3', 'ST7', 'ST8'],
+  },
+  {
+    order: 40,
+    week: 13,
+    label: 'Week 13 · Tue',
+    short: 'Trauma',
+    title:
+      'Trauma kinematics, haemorrhage, soft-tissue and face/neck injuries. Compressed deliberately — trauma is 7-11% of the exam.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2027-01-12',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-j'],
+  },
+  {
+    order: 41,
+    week: 13,
+    label: 'Week 13 · Thu',
+    short: 'Trauma lab',
+    title: 'LAB: haemorrhage control, wound management, trauma scenarios.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2027-01-14',
+    startTime: AM,
+    endTime: PM,
+  },
+
+  // ----- week 14 ------------------------------------------------------------
+  {
+    order: 42,
+    week: 14,
+    label: 'Week 14 pre-class',
+    short: 'Modules 30-34',
+    title:
+      'Navigate Modules 30-34 (Ch 30-34): Nervous System Trauma (ST9); Chest Trauma (ST4); Abdominal & Genitourinary Trauma (ST5); Orthopedic Trauma (ST6); Environmental Emergencies (ST11); Special Considerations in Trauma (ST10); Multisystem Trauma (ST12).',
+    delivery: 'assignment',
+    didacticHours: 5.1,
+    labHours: 0,
+    date: '2027-01-19',
+    chapters: [30, 31, 32, 33, 34],
+    sections: ['ST9', 'ST4', 'ST5', 'ST6', 'ST11', 'ST10', 'ST12'],
+  },
+  {
+    order: 43,
+    week: 14,
+    label: 'Week 14 · Tue',
+    short: 'Multisystem trauma',
+    title:
+      'Head/spine, chest, abdominal, orthopaedic and environmental emergencies. Emphasis on multisystem decision-making, not injury taxonomy.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2027-01-19',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-k'],
+  },
+  {
+    order: 44,
+    week: 14,
+    label: 'Week 14 · Thu',
+    short: 'Trauma lab · GATE 3',
+    title:
+      'LAB: multisystem trauma scenarios; Ride-Alongs: Motorcycle Crash, Pediatric Trauma. GATE 3 exam, final 90 minutes.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2027-01-21',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['gate-3'],
+  },
+
+  // ----- week 15 ------------------------------------------------------------
+  {
+    order: 45,
+    week: 15,
+    label: 'Week 15 pre-class',
+    short: 'Modules 24, 37-42',
+    title:
+      'Navigate Modules 24, 37-42 (Ch 24, 37-42): Psychiatric (MT7); Geriatrics (SP4); Special Challenges (SP5); Non-Traumatic Musculoskeletal Disorders (MT14); Principles of Safely Operating a Ground Ambulance (OP1); Incident Management (OP2); Multiple Casualty Incidents (OP3); Air Medical (OP4); Vehicle Extrication (OP5); Haz-Mat Awareness (OP6); Terrorism & Disaster (OP7). All three Soft-Skill Simulations.',
+    delivery: 'assignment',
+    didacticHours: 5.8,
+    labHours: 0,
+    date: '2027-01-26',
+    chapters: [24, 37, 38, 39, 40, 41, 42],
+    sections: [
+      'MT7',
+      'SP4',
+      'SP5',
+      'MT14',
+      'OP1',
+      'OP2',
+      'OP3',
+      'OP4',
+      'OP5',
+      'OP6',
+      'OP7',
+    ],
+  },
+  {
+    order: 46,
+    week: 15,
+    label: 'Week 15 · Tue',
+    short: 'Psych · Geri · Ops',
+    title:
+      'Psychiatric emergencies and de-escalation; geriatrics; patients with special challenges; the full EMS Operations block.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2027-01-26',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['quiz-l'],
+    note: 'Filed by the joint plan as D 6 / L 4 across the week — ten hours in a week that holds two four-hour sessions. Filed here as D 4 / L 4; see the schedule header.',
+  },
+  {
+    order: 47,
+    week: 15,
+    label: 'Week 15 · Thu',
+    short: 'MCI · Soft skills',
+    title:
+      'LAB: MCI and triage tabletop. Soft-Skill Simulations debriefed as a group — direct Clinical Judgment preparation in communication and leadership.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2027-01-28',
+    startTime: AM,
+    endTime: PM,
+  },
+
+  // ----- week 16 ------------------------------------------------------------
+  {
+    order: 48,
+    week: 16,
+    label: 'Week 16 pre-class',
+    short: 'Remediation',
+    title:
+      'Individualised remediation generated from Sim #1, the gate exams and the per-student domain tracker.',
+    delivery: 'assignment',
+    didacticHours: 0,
+    labHours: 0,
+    date: '2027-02-02',
+    note: 'Per-student, so it carries no common hour figure. What each student is assigned comes out of their own item analysis.',
+  },
+  {
+    order: 49,
+    week: 16,
+    label: 'Week 16 · Tue',
+    short: 'Final exam',
+    title:
+      'FINAL COMPREHENSIVE EXAM — 135 items, 3 hours, proctored, blueprint-weighted, no backtracking. This is Simulation #2 and it counts toward the 80% completion threshold.',
+    delivery: 'f2f',
+    didacticHours: 4,
+    labHours: 0,
+    date: '2027-02-02',
+    startTime: AM,
+    endTime: PM,
+    assessmentIds: ['final'],
+  },
+  {
+    order: 50,
+    week: 16,
+    label: 'Week 16 · Thu',
+    short: 'NREMT walkthrough',
+    title:
+      'Item analysis. Per-student remediation. NREMT application walkthrough, ATT, Pearson VUE scheduling, exam-day logistics.',
+    delivery: 'f2f',
+    didacticHours: 0,
+    labHours: 4,
+    date: '2027-02-04',
+    startTime: AM,
+    endTime: PM,
   },
 ]
 
-/** Course weeks the filing runs. */
+/** Instructional weeks the joint plan delivers. Sixteen, over eighteen calendar weeks. */
 export const KC_COURSE_WEEKS = KC_SCHEDULE.reduce((n, r) => Math.max(n, r.week), 0)
 
 /** The row's hours, whichever way it is delivered. */
@@ -855,56 +1540,101 @@ export function rowHours(r: ScheduleRow): number {
   return r.didacticHours + r.labHours
 }
 
-export function scheduleTotals(): {
+/** Rounded to a tenth. Navigate module run times are quoted to one decimal. */
+const tenth = (n: number) => Math.round(n * 10) / 10
+
+export interface ScheduleTotals {
+  /** Class didactic plus pre-class Navigate work. Excludes the AHA courses. */
   didactic: number
+  /** Class lab. Excludes the AHA courses. */
   lab: number
+  /** AHA provider-course hours, counted separately as the joint plan counts them. */
+  aha: number
+  /** didactic + lab + aha. */
   classroom: number
   weeks: number
-  /** Instructor-led hours — what the weekly cap and the budget are about. */
+  /** Instructor-led Tuesday/Thursday hours — what the eight-hour cap is about. */
   f2f: number
-  /** Student self-study hours: Navigate materials, quizzes, AHA pre-course. */
+  /** Student self-study: Navigate modules, flashcards, practice activities, AHA pre-course. */
   assignment: number
   f2fWeeks: number
-} {
-  const sum = (f: (r: ScheduleRow) => number) => KC_SCHEDULE.reduce((n, r) => n + f(r), 0)
-  const f2f = sum((r) => (r.delivery === 'f2f' ? rowHours(r) : 0))
+  /** Face-to-face didactic only, for the 66/40 split the joint plan quotes. */
+  f2fDidactic: number
+}
+
+export function scheduleTotals(): ScheduleTotals {
+  const sum = (f: (r: ScheduleRow) => number) => tenth(KC_SCHEDULE.reduce((n, r) => n + f(r), 0))
+  const notAha = (r: ScheduleRow) => r.delivery !== 'aha'
+  const didactic = sum((r) => (notAha(r) ? r.didacticHours : 0))
+  const lab = sum((r) => (notAha(r) ? r.labHours : 0))
+  const aha = sum((r) => (r.delivery === 'aha' ? rowHours(r) : 0))
   return {
-    didactic: sum((r) => r.didacticHours),
-    lab: sum((r) => r.labHours),
-    classroom: sum(rowHours),
+    didactic,
+    lab,
+    aha,
+    classroom: tenth(didactic + lab + aha),
     weeks: KC_COURSE_WEEKS,
-    f2f,
+    f2f: sum((r) => (r.delivery === 'f2f' ? rowHours(r) : 0)),
     assignment: sum((r) => (r.delivery === 'assignment' ? rowHours(r) : 0)),
     f2fWeeks: new Set(KC_SCHEDULE.filter((r) => r.delivery === 'f2f').map((r) => r.week)).size,
+    f2fDidactic: sum((r) => (r.delivery === 'f2f' ? r.didacticHours : 0)),
   }
 }
 
-/** Kept for the standards-coverage note; every section the filing names. */
+/**
+ * What the joint plan's own summary line claims, kept beside what its rows sum
+ * to. The distance between the two is reported by check-course-plan.mjs rather
+ * than being reconciled away — the document says in terms to tune the didactic
+ * split to whatever totals are filed, because the sequencing is the part that
+ * matters.
+ */
+export const FILED_SUMMARY = {
+  f2fDidactic: 66,
+  assignment: 40,
+  didactic: 106,
+  lab: 52,
+  aha: 16,
+  clinical: 72,
+  field: 144,
+  source: 'AEMT_Course_Oct2026_Cohort.docx §3, hours line beneath the schedule table',
+}
+
+/** Every Kansas AEMT Education Standards code the schedule names. */
 export const SCHEDULE_SECTIONS: string[] = [
   ...new Set(KC_SCHEDULE.flatMap((r) => r.sections ?? [])),
 ]
 
-/** Chapters the filing never assigns — a gap against the adopted text. */
+/** Chapters the schedule never assigns — a gap against the adopted text. */
 export function unscheduledChapters(): TextbookChapter[] {
   const taught = new Set(KC_SCHEDULE.flatMap((r) => r.chapters ?? []))
   return TEXTBOOK_CHAPTERS.filter((c) => !taught.has(c.n))
 }
 
-/** Chapters the filing assigns more than once. Wichita duplicates 17 and 18. */
+/**
+ * Chapters assigned more than once.
+ *
+ * Expected to be empty. Wichita's filing assigned chapters 17 and 18 in two
+ * different weeks and Kansas City reproduced that duplication deliberately,
+ * because the point of the old table was to match Wichita's. The joint plan
+ * lists the duplication among the things to fix before submission, so it is
+ * fixed here and this function now guards the fix instead of documenting the
+ * defect.
+ */
 export function duplicatedChapters(): number[] {
   const seen = new Map<number, number>()
   for (const r of KC_SCHEDULE) for (const c of r.chapters ?? []) seen.set(c, (seen.get(c) ?? 0) + 1)
   return [...seen].filter(([, n]) => n > 1).map(([c]) => c).sort((a, b) => a - b)
 }
 
-// ----- laying the schedule onto dates ----------------------------------------
+// ----- the calendar ----------------------------------------------------------
 
 /**
  * The shape of a class week.
  *
- * Wichita ran face-to-face Tuesday and Thursday, 09:00-13:00, and Kansas City
- * keeps that. Eight instructor-led hours a week is a budget constraint, not a
- * preference — the planner will extend the course rather than exceed it.
+ * Tuesday and Thursday, 09:00-13:00. Wichita ran that pattern in 2025, Kansas
+ * City adopted it, and the joint cohort keeps it — eight instructor-led hours a
+ * week is a budget constraint both operations are working inside. The two AHA
+ * Saturdays are the deliberate exception and are marked `standalone`.
  */
 export interface ClassPattern {
   /** Weekdays carrying class, 0 = Sunday. */
@@ -927,26 +1657,40 @@ export const CLASS_HOURS_PER_WEEK = KC_CLASS_PATTERN.days.length * KC_CLASS_PATT
 export const KC_START_DATE = '2026-10-06'
 
 /**
- * Days the program does not meet.
+ * Days the program does not meet, and what the schedule does about each.
  *
- * Only dates falling on a class weekday matter, but the whole holiday is listed
- * so the reason is legible when someone asks why week 13 moved. A face-to-face
- * week that would land on any of these is pushed a week later and the course
- * extends — the filing's content is fixed, so the calendar is what gives.
- *
- * Assignment weeks are NOT pushed. They cost no instructor time and the student
- * works through them on their own schedule, so a holiday inside one changes
- * nothing about what the program owes.
+ * This list used to drive the calendar: a face-to-face week landing on any of
+ * these was pushed a week later and the course extended. The joint plan absorbs
+ * them instead, by decision, so the list is now a record of how each one is
+ * handled rather than an input to a planner. `holidayOn` still answers "is this
+ * date a holiday" for the calendar view, and check-course-plan.mjs still
+ * asserts that no session lands on one.
  */
-export const KC_HOLIDAYS: { date: string; name: string }[] = [
-  { date: '2026-11-26', name: 'Thanksgiving Day' },
-  { date: '2026-11-27', name: 'Day after Thanksgiving' },
-  { date: '2026-12-24', name: 'Christmas Eve' },
-  { date: '2026-12-25', name: 'Christmas Day' },
-  { date: '2026-12-31', name: "New Year's Eve" },
-  { date: '2027-01-01', name: "New Year's Day" },
-  { date: '2027-01-18', name: 'Martin Luther King Jr. Day' },
-  { date: '2027-02-15', name: "Presidents' Day" },
+export const KC_HOLIDAYS: { date: string; name: string; absorbedBy: string }[] = [
+  {
+    date: '2026-11-26',
+    name: 'Thanksgiving Day',
+    absorbedBy: 'Week 8 runs Tuesday only. ACLS moves to Saturday 5 December.',
+  },
+  {
+    date: '2026-11-27',
+    name: 'Day after Thanksgiving',
+    absorbedBy: 'Not a class day.',
+  },
+  { date: '2026-12-24', name: 'Christmas Eve', absorbedBy: 'Inside the winter break.' },
+  { date: '2026-12-25', name: 'Christmas Day', absorbedBy: 'Inside the winter break.' },
+  { date: '2026-12-31', name: "New Year's Eve", absorbedBy: 'Inside the winter break.' },
+  { date: '2027-01-01', name: "New Year's Day", absorbedBy: 'Inside the winter break.' },
+  {
+    date: '2027-01-18',
+    name: 'Martin Luther King Jr. Day',
+    absorbedBy: 'A Monday. Does not touch the Tuesday/Thursday pattern.',
+  },
+  {
+    date: '2027-02-15',
+    name: "Presidents' Day",
+    absorbedBy: 'A Monday, and after the 4 February course end.',
+  },
 ]
 
 const HOLIDAY_BY_DATE = new Map(KC_HOLIDAYS.map((h) => [h.date, h.name]))
@@ -955,20 +1699,27 @@ export function holidayOn(iso: string): string | undefined {
   return HOLIDAY_BY_DATE.get(iso)
 }
 
+/** The winter break, as a closed date range. */
+export const WINTER_BREAK = {
+  start: '2026-12-21',
+  end: '2027-01-03',
+  note: 'Concentrated clinical and field shifts plus three dated TestPrep retrieval sets. Phase 3 of the rotation plan.',
+}
+
 export interface PlannedSession {
   /** ISO date. */
   date: string
-  /** Course week, as the filing numbers it. */
+  /** Instructional week, 1-16. */
   week: number
-  /** Calendar week from the first class date, 1-based. Differs from `week` once a holiday pushes something. */
+  /** Calendar week from the first class date, 1-based. */
   calendarWeek: number
-  kind: 'didactic' | 'lab'
+  kind: 'didactic' | 'lab' | 'aha'
   delivery: Delivery
   hours: number
   rowOrder: number
   title: string
   short: string
-  /** Only face-to-face rows carry clock times; assignments are not sat in a room. */
+  /** Only rows sat in a room carry clock times. */
   startTime?: string
   endTime?: string
 }
@@ -980,145 +1731,94 @@ function addDaysISO(iso: string, days: number): string {
   return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`
 }
 
-function clock(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  return `${String(h).padStart(2, '0')}:${String(Math.round(minutes % 60)).padStart(2, '0')}`
+function daysBetween(fromISO: string, toISO: string): number {
+  const [ay, am, ad] = fromISO.split('-').map(Number)
+  const [by, bm, bd] = toISO.split('-').map(Number)
+  const a = new Date(ay, am - 1, ad).getTime()
+  const b = new Date(by, bm - 1, bd).getTime()
+  return Math.round((b - a) / 86_400_000)
 }
 
 /**
  * The whole course as dated sessions.
  *
- * One course week per calendar week, except that a face-to-face week landing on
- * a holiday is pushed to the next clear week — which is what extends the course
- * past sixteen calendar weeks.
+ * A transcription now, not a projection. Every row already carries the date
+ * both instructors agreed to, so this reads them rather than laying an undated
+ * shape onto a weekday pattern.
  *
- * A face-to-face row is split across the pattern's class days: eight hours
- * becomes 4 + 4, and where a week mixes didactic and lab the didactic is placed
- * first so the lecture precedes the lab practising it.
+ * `startISO` re-dates a LATER COHORT running the same shape: the offset is
+ * rounded to whole weeks so Tuesdays stay Tuesdays and the Saturdays stay
+ * Saturdays. It is not a way to nudge this cohort — the holidays this calendar
+ * absorbs are specific to autumn 2026, and a shifted plan has to be re-checked
+ * against its own year's holidays. `holidayCollisions` is what answers that.
  */
-export function buildClassPlan(
-  startISO: string = KC_START_DATE,
-  pattern: ClassPattern = KC_CLASS_PATTERN,
-): PlannedSession[] {
+export function buildClassPlan(startISO: string = KC_START_DATE): PlannedSession[] {
+  const shiftDays = Math.round(daysBetween(KC_START_DATE, startISO) / 7) * 7
   const out: PlannedSession[] = []
-  const perWeek = pattern.days.length
-  // Anchor on the first class weekday on or after the start date.
-  let anchor = startISO
-  for (let i = 0; i < 7; i++) {
-    const [y, m, d] = anchor.split('-').map(Number)
-    if (new Date(y, m - 1, d).getDay() === pattern.days[0]) break
-    anchor = addDaysISO(anchor, 1)
-  }
 
-  let calendarWeek = 0
-  for (let week = 1; week <= KC_COURSE_WEEKS; week++) {
-    const rows = KC_SCHEDULE.filter((r) => r.week === week)
-    const f2f = rows.filter((r) => r.delivery === 'f2f')
-
-    // Push past any week whose class days collide with a holiday.
-    if (f2f.length > 0) {
-      for (;;) {
-        const dates = pattern.days.map((d) =>
-          addDaysISO(anchor, calendarWeek * 7 + (d - pattern.days[0])),
-        )
-        if (!dates.some((iso) => HOLIDAY_BY_DATE.has(iso))) break
-        calendarWeek++
-      }
+  for (const r of [...KC_SCHEDULE].sort((a, b) => a.order - b.order)) {
+    const date = shiftDays === 0 ? r.date : addDaysISO(r.date, shiftDays)
+    const calendarWeek = Math.floor(daysBetween(startISO, date) / 7) + 1
+    const base = {
+      date,
+      week: r.week,
+      calendarWeek,
+      delivery: r.delivery,
+      rowOrder: r.order,
+      title: r.title,
+      short: r.short,
+      startTime: r.startTime,
+      endTime: r.endTime,
     }
+    // An AHA row's hours are AHA hours, whichever column they were written in.
+    // Bucketing them as didactic is what made the seeded calendar report
+    // sixteen hours more didactic than the course had filed.
+    const segments: { kind: 'didactic' | 'lab' | 'aha'; hours: number }[] = (
+      r.delivery === 'aha'
+        ? [{ kind: 'aha' as const, hours: rowHours(r) }]
+        : [
+            { kind: 'didactic' as const, hours: r.didacticHours },
+            { kind: 'lab' as const, hours: r.labHours },
+          ]
+    ).filter((s) => s.hours > 0)
 
-    const dateFor = (dayIndex: number) =>
-      addDaysISO(anchor, calendarWeek * 7 + (pattern.days[dayIndex] - pattern.days[0]))
+    // A row with no hours is still a thing on the calendar — the winter break
+    // and the week 16 remediation block both matter to whoever is reading it,
+    // and dropping them would make the schedule lie about what the fortnight
+    // between 17 December and 5 January is for.
+    if (segments.length === 0) segments.push({ kind: 'didactic', hours: 0 })
 
-    // Assignments are logged against the week's first class day: they are what
-    // the student is told to go away and do, and that is when they are told.
-    for (const r of rows.filter((x) => x.delivery === 'assignment')) {
-      out.push({
-        date: dateFor(0),
-        week,
-        calendarWeek: calendarWeek + 1,
-        kind: 'didactic',
-        delivery: 'assignment',
-        hours: r.didacticHours,
-        rowOrder: r.order,
-        title: r.title,
-        short: r.short,
-      })
-    }
-
-    // Face-to-face: fill each class day to the pattern's length, didactic first.
-    let dayIndex = 0
-    let used = 0
-    for (const r of f2f) {
-      for (const seg of [
-        { kind: 'didactic' as const, hours: r.didacticHours },
-        { kind: 'lab' as const, hours: r.labHours },
-      ]) {
-        let left = seg.hours
-        while (left > 1e-9 && dayIndex < perWeek) {
-          const take = Math.min(pattern.hoursPerDay - used, left)
-          const startMin = pattern.startMinute + Math.round(used * 60)
-          const endMin = startMin + Math.round(take * 60)
-          out.push({
-            date: dateFor(dayIndex),
-            week,
-            calendarWeek: calendarWeek + 1,
-            kind: seg.kind,
-            delivery: 'f2f',
-            hours: Math.round(take * 100) / 100,
-            rowOrder: r.order,
-            title: r.title,
-            short: r.short,
-            startTime: clock(startMin),
-            endTime: clock(endMin),
-          })
-          used += take
-          left -= take
-          if (used >= pattern.hoursPerDay - 1e-9) {
-            dayIndex++
-            used = 0
-          }
-        }
-      }
-    }
-    calendarWeek++
+    for (const seg of segments) out.push({ ...base, kind: seg.kind, hours: seg.hours })
   }
   return out
 }
 
 const CLASS_PLAN = buildClassPlan()
 
-/** Calendar weeks the course occupies once holidays have pushed it. */
+/** Calendar weeks the course occupies. Eighteen, for sixteen instructional weeks. */
 export const KC_CALENDAR_WEEKS = CLASS_PLAN.reduce((n, s) => Math.max(n, s.calendarWeek), 0)
 
-/** Last dated session, for the course end date. */
+/** Last dated session. Thursday 4 February 2027. */
 export const KC_END_DATE = CLASS_PLAN.reduce((d, s) => (s.date > d ? s.date : d), KC_START_DATE)
 
 /**
- * Weeks a holiday actually displaced.
+ * Sessions that fall on a listed holiday.
  *
- * Detected as a JUMP in calendar week, not as calendarWeek !== week. Once one
- * week is pushed every later week is offset too, and comparing the two numbers
- * directly reported all of them as displaced — four weeks, when only one had
- * collided with anything.
+ * Empty for the filed calendar — that is the whole design, and the check script
+ * asserts it. It stops being empty the moment someone re-dates the plan for a
+ * later cohort, which is exactly when somebody needs to be told.
  */
-export function holidayShifts(): { week: number; holiday: string; date: string }[] {
-  const out: { week: number; holiday: string; date: string }[] = []
-  const firstOf = new Map<number, PlannedSession>()
-  for (const s of CLASS_PLAN) if (!firstOf.has(s.week)) firstOf.set(s.week, s)
-
-  let previous = 0
-  for (let week = 1; week <= KC_COURSE_WEEKS; week++) {
-    const s = firstOf.get(week)
-    if (!s) continue
-    if (previous > 0 && s.calendarWeek - previous > 1) {
-      // The collision sits in the week this one skipped over.
-      const skipped = KC_CLASS_PATTERN.days
-        .map((d) => addDaysISO(s.date, -7 + (d - KC_CLASS_PATTERN.days[0])))
-        .map((iso) => HOLIDAY_BY_DATE.get(iso))
-        .find(Boolean)
-      out.push({ week, holiday: skipped ?? 'a holiday', date: s.date })
-    }
-    previous = s.calendarWeek
+export function holidayCollisions(
+  startISO: string = KC_START_DATE,
+): { date: string; holiday: string; label: string }[] {
+  const out: { date: string; holiday: string; label: string }[] = []
+  const seen = new Set<string>()
+  for (const s of buildClassPlan(startISO)) {
+    if (s.delivery === 'assignment') continue
+    const h = holidayOn(s.date)
+    if (!h || seen.has(s.date)) continue
+    seen.add(s.date)
+    out.push({ date: s.date, holiday: h, label: s.short })
   }
   return out
 }
@@ -1138,23 +1838,25 @@ export interface HourTarget {
 }
 
 /**
- * The hour totals Kansas City files, taken from the Wichita schedule table.
- *
- * Didactic is 116, the sum of the filing's own rows — NOT the 110 its summary
- * line states. Lab is 50, where the two agree. The decision and its reasoning
- * are recorded above KC_SCHEDULE.
+ * The hour totals the joint cohort files.
  *
  * Derived from the schedule rather than typed, so the filed target and the
- * schedule built from it cannot disagree. That is the failure this replaced:
- * the earlier KC proposal claimed ~110 didactic in one section while its own
- * table summed to 90.
+ * schedule built from it cannot disagree. That is the failure this guards
+ * against, and both source documents have shown it: Wichita's filing summed to
+ * 116 didactic under a summary line reading 110, and the joint plan's own rows
+ * sum to 72 face-to-face didactic under a summary line reading ~66. The rows
+ * win, in both cases, because the schedule is what KBEMS reviews against.
+ *
+ * The AHA provider courses are their own line. They are sixteen instructor-led
+ * hours, but they are AHA's curriculum on AHA's certificate, and the joint plan
+ * counts them apart from the 106 didactic and 52 lab — so this does too.
  */
 export const KC_HOUR_TARGETS: HourTarget[] = [
   {
     id: 'didactic',
     label: 'Didactic',
     hours: scheduleTotals().didactic,
-    note: `${scheduleTotals().f2f - scheduleTotals().lab} h face-to-face plus ${scheduleTotals().assignment} h of Navigate chapter materials, quizzes and AHA pre-course work.`,
+    note: `${scheduleTotals().f2fDidactic} h face-to-face plus ${scheduleTotals().assignment} h of Navigate modules, flashcards, practice activities and AHA pre-course work.`,
   },
   {
     id: 'lab',
@@ -1163,16 +1865,22 @@ export const KC_HOUR_TARGETS: HourTarget[] = [
     note: 'All face-to-face. Minimum 2 instructors required on lab days.',
   },
   {
+    id: 'aha',
+    label: 'AHA provider courses',
+    hours: scheduleTotals().aha,
+    note: 'ACLS Saturday 5 December and PALS Saturday 9 January, 8 h each. Pulled onto Saturdays so Thanksgiving week does not cost the class a session.',
+  },
+  {
     id: 'clinical',
     label: 'Hospital clinical',
     hours: 72,
-    note: '6 x 12-hour shifts — AdventHealth, Kansas City area.',
+    note: '6 x 12-hour shifts. AdventHealth Kansas City for the Kansas City students, Ascension Via Christi St Francis for the Wichita students.',
   },
   {
     id: 'field',
     label: 'Field internship',
     hours: 144,
-    note: 'AMR Independence and AMR Linn County, to cover both urban 911 and rural response.',
+    note: '12 x 12-hour shifts. AMR Independence and AMR Linn County for Kansas City; Sedgwick County EMS and Butler County EMS for Wichita. Urban and rural in both markets.',
   },
 ]
 
@@ -1183,12 +1891,12 @@ export const KC_CLINICAL_TARGET = 72
 export const KC_FIELD_TARGET = 144
 
 /**
- * Classroom time — didactic plus lab, as the filing counts it.
+ * Classroom time — didactic, lab and the AHA provider courses.
  *
- * Includes the assignment hours: the filing's "Didactic 110/116" figure counts
- * Navigate chapter work alongside classroom time, and Kansas City is filing the
- * same template. Instructor-led time is the smaller `scheduleTotals().f2f`, and
- * that is the number the eight-hour weekly cap applies to.
+ * Includes the assignment hours: the "~106 didactic" figure the joint plan
+ * quotes counts Navigate pre-class work alongside classroom time. Instructor-led
+ * Tuesday/Thursday time is the smaller `scheduleTotals().f2f`, and that is the
+ * number the eight-hour weekly cap applies to.
  *
  * A PROGRAM DESIGN TARGET, not a Kansas requirement. Kansas prescribes no
  * minimum clock, classroom or course-week total for an initial AEMT course
@@ -1202,10 +1910,33 @@ export const KC_CLASSROOM_TARGET = scheduleTotals().classroom
 export const KC_TOTAL_TARGET = KC_CLASSROOM_TARGET + KC_CLINICAL_TARGET + KC_FIELD_TARGET
 
 
-// ----- course policy (proposal §5, approval doc (b2)) ------------------------
+// ----- course policy ---------------------------------------------------------
 
 /** Missing more than this many hours of scheduled class time fails the course. */
 export const MAX_ABSENT_HOURS = 8
+
+/**
+ * The make-up mechanism that keeps the absence cap from being a trapdoor.
+ *
+ * §10 of the joint plan asks for this by name, and the reasoning is arithmetic:
+ * a six-student cohort running straight through respiratory season cannot
+ * absorb an absolute cap. One bout of influenza is two missed sessions, which
+ * is the whole eight hours, which ends a student's course — and with six
+ * students that is roughly seventeen points off the pass rate for something
+ * nobody chose.
+ *
+ * So the cap stands as the trigger, not the verdict. Past it, the student
+ * demonstrates equivalent competency on the missed material and the
+ * demonstration is documented. That is defensible to KBEMS in a way that
+ * "attended every hour" is not, because it is a claim about competence rather
+ * than attendance.
+ */
+export const ABSENCE_MAKEUP = {
+  triggerHours: MAX_ABSENT_HOURS,
+  requirement:
+    'Documented equivalent-competency demonstration on the missed material, scheduled within 14 days of the missed session and signed by the primary instructor.',
+  note: 'Recorded against the student, not waived. A make-up that is not documented is an absence.',
+}
 
 export const MIN_PASSING_PERCENT = 80
 
@@ -1217,12 +1948,95 @@ export const MIN_PASSING_PERCENT = 80
  */
 export const INSTRUCTOR_VERIFICATION_DAYS = 15
 
-export const GRADING = [
-  { label: 'Exams (online)', weight: '60%' },
-  { label: 'Quizzes / homework (online)', weight: '40%' },
-  { label: 'Lab skills demonstration', weight: 'Satisfactory / Unsatisfactory' },
-  { label: 'Clinical & field internship', weight: 'Satisfactory / Unsatisfactory' },
+/**
+ * The revised grading model, from §9 of the joint plan.
+ *
+ * WHAT CHANGED AND WHY. The model this replaces put the entire graded weight
+ * on untimed online work — 60% online exams, 40% online quizzes and homework.
+ * That measures a student's ability to search the eBook. The certification
+ * exam measures retrieval under time pressure with no way to go back, and
+ * nothing in the old model resembled it: zero percent of the grade was closed
+ * book.
+ *
+ * Weights sum to 100. Lab skills and the clinical/field internship stay
+ * satisfactory/unsatisfactory — K.A.R. 109-11-8 minimums are a floor to clear,
+ * not a score to average.
+ */
+export interface GradingComponent {
+  id: string
+  label: string
+  /**
+   * A few words, for prose. The full labels carry their dates and their form,
+   * which is right on a syllabus table and unreadable in a sentence — and
+   * deriving one from the other by chopping the label at its first punctuation
+   * produced "lab skills evaluations" for a line that also covers the clinical
+   * and field internship.
+   */
+  short: string
+  /** Percent of the course grade, or null for satisfactory/unsatisfactory. */
+  weight: number | null
+  rationale: string
+}
+
+export const GRADING_MODEL: GradingComponent[] = [
+  {
+    id: 'retrieval-quizzes',
+    short: 'Weekly closed-book retrieval quizzes',
+    label: 'In-class cumulative retrieval quizzes (closed book, proctored)',
+    weight: 20,
+    rationale:
+      'New. Converts spacing and retrieval from a suggestion into a graded structure. Under the prior model zero percent of the grade was closed book.',
+  },
+  {
+    id: 'gates',
+    short: 'Three proctored gate exams',
+    label: 'Gate exams — 3 (29 Oct, 1 Dec, 21 Jan), proctored, blueprint-weighted',
+    weight: 35,
+    rationale:
+      'Replaces the untimed online exams. Blueprint-weighted so the grade reflects the certification exam rather than chapter count.',
+  },
+  {
+    id: 'final',
+    short: 'Final comprehensive exam',
+    label: 'Final comprehensive exam, 2 February (135-item full-length mock)',
+    weight: 25,
+    rationale:
+      'Trains pacing and stamina under the no-backtracking rule — a distinct skill from content mastery.',
+  },
+  {
+    id: 'navigate',
+    short: 'Navigate pre-class work',
+    label: 'Navigate pre-class work: interactive lectures, practice activities, flashcards',
+    weight: 10,
+    rationale:
+      'Down from 40%. Open-book online work measures search ability, not retrieval. Kept for accountability, not for grade weight.',
+  },
+  {
+    id: 'scenario',
+    short: 'Scenario and clinical judgment rubric',
+    label: 'Scenario / clinical judgment rubric',
+    weight: 10,
+    rationale:
+      'New. Clinical Judgment is 31-35% of the certification exam and the largest single domain; it deserves a graded line. Scored against the six-step cycle.',
+  },
+  {
+    id: 'lab-clinical',
+    short: 'Lab skills, clinical and field internship',
+    label: 'Lab skills evaluations · clinical and field internship',
+    weight: null,
+    rationale:
+      'Unchanged. K.A.R. 109-11-8 minimums still apply and are a floor, not a score.',
+  },
 ]
+
+/** Sums to 100 across the weighted components. Asserted by check-course-plan.mjs. */
+export const GRADING_WEIGHT_TOTAL = GRADING_MODEL.reduce((n, c) => n + (c.weight ?? 0), 0)
+
+/** Legacy shape, kept so the printed syllabus table renders unchanged. */
+export const GRADING = GRADING_MODEL.map((c) => ({
+  label: c.label,
+  weight: c.weight === null ? 'Satisfactory / Unsatisfactory' : `${c.weight}%`,
+}))
 
 // ----- KBEMS submission deadlines (proposal §6, §8) --------------------------
 
@@ -1252,28 +2066,46 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
   {
     id: 'instructor-setup',
     label: 'Set up every instructor in the Licensure system',
-    offsetDays: -30,
+    offsetDays: -45,
     anchor: 'first-session',
     basis: 'program',
-    note: 'KBEMS sets no deadline for this — the date is a CES planning target, two weeks ahead of the approval filing. It is separate because none of it is same-day work: it depends on the instructors themselves and on whoever maintains the service roster, and the course cannot be submitted until all of it is done.',
+    note: 'KBEMS sets no deadline for this — the date is a CES planning target, two weeks ahead of the approval filing. It is separate because none of it is same-day work: it depends on the instructors themselves and on whoever maintains the service roster, and the course cannot be submitted until all of it is done. For the joint cohort it covers BOTH markets: the Wichita primary instructor and lab instructors have to be Instructional Staff on this course too, not just on Wichita’s own.',
     prerequisites: [
       'Every instructor has a Kansas Licensure system account of their own.',
       'Every instructor appears on the service roster.',
       'Every instructor is set up as Instructional Staff — a roster entry alone does not make them selectable on a course.',
+      'Both markets’ instructors are attached, not only the sponsoring operation’s.',
+    ],
+  },
+  {
+    id: 'clinical-prerequisites',
+    label: 'Close the prerequisites the approval application depends on',
+    offsetDays: -35,
+    anchor: 'first-session',
+    basis: 'program',
+    note: 'None of this is same-day work and all of it blocks the filing. A CES planning target set ahead of the approval deadline so the items that need another person to act have somewhere to fail early rather than on the day of filing.',
+    prerequisites: [
+      'Medical director signature.',
+      'Letters or contracts from the ambulance service directors and the clinical facility administrators — for both markets.',
+      'Instructor-of-record and lab-instructor roster, both markets.',
+      'Written KBEMS answer on whether lab-simulated intraosseous infusion satisfies K.A.R. 109-11-8(a)(4). The answer changes what the clinical section of the application says, so it has to come before the application, not after it.',
+      'Navigate Fourth Edition course shell built: modules assigned by week, practice activities released, TestPrep configured, gradebook weighted to the revised model.',
+      'Hospital student onboarding started — badging, EHR access, immunisation verification and background checks commonly run four to six weeks at a 504-bed teaching hospital. Waiting for the course start slips Phase 2 and everything downstream of it.',
     ],
   },
   {
     id: 'course-approval',
     label: 'Submit Request for Initial Course Approval',
-    offsetDays: -15,
+    offsetDays: -30,
     anchor: 'first-session',
     basis: 'kbems',
-    note: 'At least 15 days before the first session, through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Requires the full syllabus and signed clinical/field agreements. Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
+    note: 'THE SINGLE ITEM THAT CAN SINK THE COHORT. K.A.R. 109-11-1a(c) requires the application in the board office no later than 30 calendar days before the first session. For a 6 October start that is Sunday 6 September, and the Monday after it is Labor Day — so the practical deadline is Friday 4 September 2026. Filed through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
     prerequisites: [
       'Filed by an Instructor-Coordinator. No other role can create or finalize a course, so this cannot be delegated to whoever is free that day.',
       'Course schedule uploaded. Finalize is blocked without it.',
       'CV uploaded for every instructor who is not EMS-certified, including Allied Health instructors and the Medical Director. Finalize is blocked without it.',
       'Instructor setup complete (see above) — instructors who are not Instructional Staff cannot be attached to the course.',
+      'Every clinical and field site named, including the second AdventHealth campus and the Wichita sites, even where there is no intention of rotating through them. Adding a site mid-course means going back for a new approval.',
     ],
   },
   {

@@ -41,6 +41,30 @@ Hunter's head:
   `src/data/kcOperation.ts` (the reading), `scripts/neop-exam-bank.mjs` (the
   questions, deliberately outside `src/`), `src/data/neopSelection.ts` (the
   interview probes). Written up in `docs/neop-selection-exam.md`.
+- **Module G — AEMT program (`/aemt`):** the Kansas-approved Advanced EMT
+  initial course, end to end — candidate selection, roster, the dated class
+  schedule, psychomotor skill sheets, clinical and field placement, the
+  K.A.R. 109-11-8 minimums, and the completion record the primary instructor
+  signs. The **October 2026 cohort is run jointly by AMR Kansas City and AMR
+  Wichita**: one class, one schedule, one standard, with the didactic shared
+  and clinical placement local to each operation. That split is why students
+  and sites carry a `campus`, and why the placement board counts capacity per
+  campus rather than pooling it — Kansas City's four students cannot use
+  Wichita's slack, and averaging the two hides a shortfall on either side.
+  The agreed schedule is dated at source in `src/data/aemt.ts`: sixteen
+  instructional weeks over eighteen calendar weeks, Tuesdays and Thursdays
+  0900–1300, with Thanksgiving surrendered rather than fought (week 8 runs
+  Tuesday only, ACLS moves to a Saturday) and a deliberate two-week break that
+  is loaded with clinical shifts and dated retrieval work rather than left
+  idle. Graded structure — three blueprint-weighted mastery gates, twelve
+  cumulative closed-book retrieval quizzes, two full-length 135-item
+  simulations — lives in `src/data/aemtAssessments.ts`; the rotation cadence,
+  its phases and the five dated deficit checkpoints in
+  `src/data/aemtPhases.ts`. `npm run doc:application` generates the KBEMS
+  Initial Course Approval application as a **Word document** straight from
+  that data, so the schedule filed with the board and the schedule the
+  coordinator works to cannot drift apart. `npm run check:plan` asserts the
+  arithmetic and the calendar.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics
@@ -90,6 +114,7 @@ src/
     ce/           Module B — CE deadline tracker
     cqmp/         Module F — monthly KPI review + PowerPoint generator
     academy/      Module D — cohorts, curriculum checklist, FTO release
+    aemt/         Module G — the AEMT initial course, selection to completion
     sections/     the four section landings behind the bottom bar
     settings/     reviewer/sample defaults, data backup, about
 ```

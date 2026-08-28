@@ -2,9 +2,15 @@ import { useState } from 'react'
 import { Modal } from '../../components/ui'
 import { confirmAction } from '../../lib/dialog'
 import { formatDate, todayISO } from '../../lib/date'
-import { phasesFor, reseedPhases, updatePhase } from './aemtStore'
+import { checkpointStanding, phasesFor, reseedPhases, updatePhase } from './aemtStore'
+import type { RequirementProgress } from './aemtStore'
 import { PLANNED_SHIFTS } from '../../data/aemtPhases'
-import type { AemtClinicalPhase, AemtClinicalShift, AemtCourse } from '../../types'
+import type {
+  AemtClinicalPhase,
+  AemtClinicalShift,
+  AemtCourse,
+  AemtStudent,
+} from '../../types'
 
 // ---------------------------------------------------------------------------
 // The rotation plan, with this student's shifts laid against it.
@@ -84,10 +90,14 @@ function WindowModal({
 
 export default function PhasePanel({
   course,
+  student,
+  progress,
   shifts,
   canEdit,
 }: {
   course: AemtCourse
+  student: AemtStudent
+  progress: RequirementProgress[]
   shifts: AemtClinicalShift[]
   canEdit: boolean
 }) {
@@ -100,6 +110,7 @@ export default function PhasePanel({
   const placed = new Set(phases.flatMap((p) => inWindow(p).map((s) => s.id)))
   const unplaced = shifts.filter((s) => !placed.has(s.id))
   const done = shifts.length
+  const checkpoints = checkpointStanding(course, student, progress, shifts)
 
   return (
     <>
@@ -186,6 +197,76 @@ export default function PhasePanel({
           count toward the total; they just do not belong to a phase.
         </div>
       )}
+
+      {/*
+        The deficit checkpoints.
+ 
+        Separate from the phases above, and deliberately so. A phase says where
+        in the rotation a date falls; a checkpoint is a DATE ON WHICH SOMEONE
+        LOOKS, tied to a class the instructor is already standing in. That
+        pairing is what makes it happen — nobody remembers to read a tally on
+        24 November, but everybody is in the room that morning for the week 8
+        quiz.
+ 
+        Future checkpoints are shown too. "Four shifts short of the 17 December
+        floor" in November is the whole value of the mechanism; showing only
+        what has already gone wrong turns it back into a postmortem.
+      */}
+      <div className="section-title" style={{ marginTop: 16 }}>
+        Deficit checkpoints
+      </div>
+      <div className="help-text" style={{ marginTop: 0 }}>
+        Read the tally on these dates. A student below the floor gets an added shift assigned that
+        week — not a conversation in January. If the shortfall is site availability rather than the
+        student, that is an escalation to the site, and it has a long lead time.
+      </div>
+      <div className="list">
+        {checkpoints.map((c) => (
+          <div
+            key={c.checkpoint.id}
+            className={`row left-accent ${
+              c.clear ? 'acc-ok' : c.due ? 'acc-crit' : 'acc-warn'
+            }`}
+          >
+            <div className="grow">
+              <div className="title">
+                {formatDate(c.date)}
+                {c.due && !c.clear && (
+                  <span className="pill crit" style={{ marginLeft: 8 }}>
+                    action due
+                  </span>
+                )}
+              </div>
+              <div className="meta">{c.checkpoint.courseAnchor}</div>
+              <div className="meta">
+                {c.shiftsDone}/{c.checkpoint.shiftsFloor} shifts
+                {c.shortfalls.length > 0 && (
+                  <>
+                    {' · '}
+                    {c.shortfalls
+                      .map((f) => `${f.label} ${f.done}/${f.floor}`)
+                      .join(' · ')}
+                  </>
+                )}
+                {c.missingClearances.length > 0 && (
+                  <> · {c.missingClearances.join(', ')} check-off outstanding</>
+                )}
+              </div>
+              {!c.clear && (
+                <div
+                  className="meta"
+                  style={{ color: c.due ? 'var(--crit)' : 'var(--warn)' }}
+                >
+                  {c.checkpoint.actionIfBelow}
+                </div>
+              )}
+            </div>
+            <span className={`pill ${c.clear ? 'ok' : c.due ? 'crit' : 'warn'}`}>
+              {c.clear ? 'clear' : `${c.shiftsShort + c.shortfalls.length} short`}
+            </span>
+          </div>
+        ))}
+      </div>
       {editing && (
         <WindowModal course={course} phase={editing} onClose={() => setEditing(null)} />
       )}

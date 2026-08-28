@@ -97,9 +97,12 @@ const {
   progressFor,
   seedPhases,
   shiftIssues,
+  checkpointDates,
+  checkpointStanding,
   PLANNED_SHIFTS,
   SKILL_CLEARANCES,
   CLINICAL_REQUIREMENTS,
+  DEFICIT_CHECKPOINTS,
   KC_START_DATE,
 } = m
 
@@ -158,6 +161,87 @@ const req = (id) => CLINICAL_REQUIREMENTS.find((r) => r.id === id)
   ok(
     next.every((p, i) => p.name === phases[i].name && p.shiftsRequired === phases[i].shiftsRequired),
     'a re-seed keeps the shape',
+  )
+}
+
+// ---------------------------------------------------------------------------
+// The deficit checkpoints. Five dated reviews tied to the didactic gates — the
+// mechanism that turns "behind" in November into an assigned shift that week
+// rather than a conversation in January.
+
+{
+  const dated = checkpointDates(KC_START_DATE)
+  ok(dated.length === 5, `five checkpoints, got ${dated.length}`)
+  ok(
+    dated.map((c) => c.date).join(',') ===
+      '2026-11-24,2026-12-17,2027-01-07,2027-01-21,2027-02-04',
+    `the tracker's dates come back exactly, got ${dated.map((c) => c.date).join(', ')}`,
+  )
+  // Each one is a day the instructor is already standing in a classroom. A
+  // checkpoint on a day nobody is in the room is a checkpoint nobody reads.
+  ok(
+    dated.every((c) => !!c.courseAnchor),
+    'every checkpoint names the class it is tied to',
+  )
+  ok(
+    dated.every((c, i) => i === 0 || c.shiftsFloor > dated[i - 1].shiftsFloor),
+    'the shift floors only ever rise',
+  )
+  ok(
+    dated[dated.length - 1].shiftsFloor === PLANNED_SHIFTS,
+    `the last floor is the whole plan, ${PLANNED_SHIFTS}`,
+  )
+  ok(
+    checkpointDates('2027-03-02')[0].date === '2027-04-20',
+    'and a later cohort re-dates rather than needing a code change',
+  )
+
+  // A student with nothing logged is short on everything, and the shortfalls
+  // name what — "assign an added shift" needs somewhere to book it.
+  const bare = { id: 'cp-1', courseId: 'c1', name: 'Nobody', status: 'active' }
+  const zero = checkpointStanding(
+    { id: 'c1', startDate: KC_START_DATE, endDate: '2027-02-04' },
+    bare,
+    progressFor([], bare, []),
+    [],
+    '2026-12-01',
+  )
+  ok(zero.length === 5, 'every checkpoint is evaluated, not just the ones already past')
+  ok(zero[0].due && !zero[2].due, 'and each says whether its date has arrived')
+  ok(zero[0].shiftsShort === 3, `the first checkpoint reads 3 shifts short, got ${zero[0].shiftsShort}`)
+  ok(
+    zero[0].shortfalls.some((f) => f.key === 'venipuncture' && f.floor === 6),
+    'and names the venipuncture floor rather than just saying "behind"',
+  )
+  ok(
+    zero[0].missingClearances.includes('ecg'),
+    'the ECG check-off is one of the things the week 8 review is looking for',
+  )
+  ok(zero.every((c) => !c.clear), 'nothing logged is clear at no checkpoint')
+
+  // The last two checkpoints say "all minimums met" rather than listing floors.
+  // Expanding that has to produce the real K.A.R. numbers, or the final review
+  // passes a student who has not met them.
+  const last = zero[4]
+  const veni = last.shortfalls.find((f) => f.key === 'venipuncture')
+  ok(veni?.floor === req('venipuncture').minimum, `the course-end floor is the K.A.R. 20, got ${veni?.floor}`)
+  ok(
+    last.shortfalls.some((f) => f.key === 'infusion' && f.floor === 10),
+    'including the ten that must initiate an infusion',
+  )
+  ok(
+    last.shortfalls.some((f) => f.key === 'assessmentField' && f.floor === 10),
+    'and the ten assessments that must happen in the field',
+  )
+  // Gate 3 is the one that excludes the assessments, because they are still
+  // accumulating at that point and only hours remain.
+  ok(
+    !zero[3].shortfalls.some((f) => f.key === 'assessment' || f.key === 'assessmentField'),
+    'the Gate 3 review does not hold the assessments against a student yet',
+  )
+  ok(
+    zero[3].shortfalls.some((f) => f.key === 'io' && f.floor === req('io').minimum),
+    'but it does hold every other minimum against them',
   )
 }
 

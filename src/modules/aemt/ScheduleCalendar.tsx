@@ -22,6 +22,7 @@ const KIND_META: Record<AemtSessionKind, { label: string; cls: string }> = {
   lab: { label: 'Lab', cls: 'lab' },
   clinical: { label: 'Clinical', cls: 'clinical' },
   exam: { label: 'Exam', cls: 'exam' },
+  aha: { label: 'AHA', cls: 'aha' },
 }
 
 /** Shift a yyyy-mm key by n months. */

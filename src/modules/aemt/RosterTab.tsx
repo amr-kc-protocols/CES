@@ -14,6 +14,9 @@ import CompletionPanel from './CompletionPanel'
 import CourseSetupPanel from './CourseSetupPanel'
 import { useSheetsForCourse } from '../templates/resolve'
 import { useCan } from '../../lib/role'
+import { CAMPUS_LABEL } from '../../data/aemt'
+import { MARKETS } from '../../lib/market'
+import type { Market } from '../../lib/market'
 import type { AemtCourse, AemtStudent, AemtStudentStatus } from '../../types'
 
 const STATUS_PILL: Record<AemtStudentStatus, string> = {
@@ -40,6 +43,7 @@ function StudentForm({
   const [email, setEmail] = useState(existing?.email ?? '')
   const [phone, setPhone] = useState(existing?.phone ?? '')
   const [status, setStatus] = useState<AemtStudentStatus>(existing?.status ?? 'active')
+  const [campus, setCampus] = useState<Market>(existing?.campus ?? 'kc')
 
   const save = () => {
     const patch = {
@@ -48,6 +52,7 @@ function StudentForm({
       employeeNumber: employeeNumber.trim() || undefined,
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
+      campus,
       status,
     }
     if (existing) {
@@ -91,6 +96,26 @@ function StudentForm({
         <div className="field">
           <label htmlFor="as-phone">Phone</label>
           <input id="as-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="as-campus">Campus</label>
+        <select
+          id="as-campus"
+          value={campus}
+          onChange={(e) => setCampus(e.target.value as Market)}
+        >
+          {MARKETS.map((mk) => (
+            <option key={mk.id} value={mk.id}>
+              {mk.short}
+            </option>
+          ))}
+        </select>
+        <div className="help-text">
+          Which operation this student rotates through. The classroom is shared on a joint
+          cohort; clinical and field placement is not, so this decides which hospital and which
+          ambulance service they can be booked at. It does not change what they are taught or the
+          standard they are held to.
         </div>
       </div>
       {existing && (
@@ -166,12 +191,26 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const sheets = useSheetsForCourse(course.monitorSheetId)
   const readiness = useStudentReadiness(course.id, course.monitorSheetId, sheets)
   const completions = useCompletions(course.id)
+  // Campus is only worth showing on a cohort that actually has two. On a
+  // single-market course it is noise on every row.
+  const campuses = [...new Set(students.map((s) => s.campus ?? 'kc'))].sort()
 
   return (
     <div>
       <CourseSetupPanel course={course} canEdit={manageAcademy} />
 
       <div className="section-title">Roster</div>
+      {campuses.length > 1 && (
+        <div className="banner info">
+          <strong>Joint cohort.</strong>{' '}
+          {campuses
+            .map((c) => `${students.filter((s) => (s.campus ?? 'kc') === c).length} ${CAMPUS_LABEL[c]}`)
+            .join(' · ')}
+          . One class, one schedule, one standard — but clinical and field placement is local to
+          each operation, so every student's campus decides which sites the placement board will
+          book them at.
+        </div>
+      )}
       {manageAcademy && (
         <div className="toolbar">
           <div className="spacer" />
@@ -201,6 +240,7 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
                   )}
                 </div>
                 <div className="meta">
+                  {campuses.length > 1 && <>{CAMPUS_LABEL[s.campus ?? 'kc']} · </>}
                   {s.certNumber ? `Cert #${s.certNumber}` : 'No cert # on file'}
                   {s.employeeNumber && <> · Emp #{s.employeeNumber}</>}
                 </div>
