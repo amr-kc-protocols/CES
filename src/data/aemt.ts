@@ -424,8 +424,8 @@ export const COURSE_STAFF: CourseStaff[] = [
     name: 'Cassandra Powell',
     credential: 'Paramedic',
     role: 'co-instructor',
-    officeHours: 'To be confirmed with Wichita before the application is filed.',
-    note: 'Carried from the 2025 Wichita course approval, which is the only record of it this program holds. CONFIRM the name, credential and certificate number with Wichita before the 4 September submission — a wrong instructor of record on a KBEMS application is a rejection, not a correction.',
+    officeHours: '[WICHITA OFFICE HOURS — the one field still outstanding; it prints on the application.]',
+    note: 'Confirmed with Wichita, 28 August 2026: still the Wichita instructor of record. The certificate number is not held here and is entered on the course record rather than in source.',
   },
 ]
 
@@ -475,7 +475,7 @@ export const KC_SITES: {
     name: 'Ascension Via Christi St Francis',
     kind: 'clinical',
     campus: 'wichita',
-    note: 'Wichita clinical site, carried from the 2025 Wichita course approval. Six 12-hour shifts for the Wichita students. Confirm the affiliation agreement is current and covers this cohort before the application is filed.',
+    note: 'Wichita clinical site. Six 12-hour shifts for the Wichita students. Confirmed with Wichita, 28 August 2026.',
   },
   {
     name: 'AMR Independence',
@@ -493,13 +493,13 @@ export const KC_SITES: {
     name: 'Sedgwick County EMS',
     kind: 'field',
     campus: 'wichita',
-    note: 'Urban 911 response for the Wichita students. Carried from the 2025 Wichita course approval.',
+    note: 'Urban 911 response for the Wichita students. Confirmed with Wichita, 28 August 2026.',
   },
   {
     name: 'Butler County EMS',
     kind: 'field',
     campus: 'wichita',
-    note: 'Rural response for the Wichita students — the Wichita half of the urban/rural split. Carried from the 2025 Wichita course approval.',
+    note: 'Rural response for the Wichita students — the Wichita half of the urban/rural split. Confirmed with Wichita, 28 August 2026.',
   },
 ]
 
@@ -2069,12 +2069,12 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     offsetDays: -45,
     anchor: 'first-session',
     basis: 'program',
-    note: 'KBEMS sets no deadline for this — the date is a CES planning target, two weeks ahead of the approval filing. It is separate because none of it is same-day work: it depends on the instructors themselves and on whoever maintains the service roster, and the course cannot be submitted until all of it is done. For the joint cohort it covers BOTH markets: the Wichita primary instructor and lab instructors have to be Instructional Staff on this course too, not just on Wichita’s own.',
+    note: 'KBEMS sets no deadline for this — the date is a CES planning target, two weeks ahead of the approval filing. It is separate because none of it is same-day work: it depends on the instructors themselves and on whoever maintains the service roster, and the course cannot be submitted until all of it is done. For the joint cohort it covers BOTH markets: the Wichita instructor and lab instructors have to be Instructional Staff on this course too, not just on Wichita’s own. STATUS 28 August 2026: every instructor is on the personnel roster in the Kansas portal. The Instructional Staff assignment is a separate step in the portal and is the one still to confirm — see below.',
     prerequisites: [
+      'Every instructor is set up as INSTRUCTIONAL STAFF. This is the step people think the roster covers and it does not: a personnel-roster entry makes someone visible to the service, and only the Instructional Staff assignment makes them selectable on a course. Finalize is what surfaces the gap, on the day of filing.',
+      'Both markets’ instructors are attached to THIS course, not only to their own operation.',
       'Every instructor has a Kansas Licensure system account of their own.',
-      'Every instructor appears on the service roster.',
-      'Every instructor is set up as Instructional Staff — a roster entry alone does not make them selectable on a course.',
-      'Both markets’ instructors are attached, not only the sponsoring operation’s.',
+      'Every instructor appears on the service personnel roster — done, 28 August 2026.',
     ],
   },
   {

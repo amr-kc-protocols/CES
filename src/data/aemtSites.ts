@@ -158,10 +158,10 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
 
   // ----- Wichita -------------------------------------------------------------
   //
-  // Carried from the 2025 Wichita course approval, which is the only record of
-  // them this program holds. Every one needs confirming with Wichita before the
-  // application is filed: an affiliation agreement that lapsed, or a service
-  // that will not take students this cycle, is a Phase 2 that never starts.
+  // Confirmed with Wichita on 28 August 2026. The department list under
+  // Ascension is still the Kansas City one — it is seeded, not surveyed, so
+  // remove any department that campus does not actually have rather than
+  // leaving the board to offer a placement nobody can take.
   {
     name: 'Ascension Via Christi St Francis',
     kind: 'clinical',
