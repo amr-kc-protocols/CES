@@ -409,6 +409,15 @@ export function sessionProblems(
     const label = s.title || 'Untitled session'
     if (!s.date) {
       out.push({ sessionId: s.id, text: `${label} has no date` })
+    } else if (s.preCourse) {
+      // Prerequisite work is due before the first session; that is what makes
+      // it prerequisite. Only a date AFTER the course ends is wrong here.
+      if (s.date > course.endDate) {
+        out.push({
+          sessionId: s.id,
+          text: `${label} is prerequisite work but is dated after the course ends`,
+        })
+      }
     } else if (s.date < course.startDate || s.date > course.endDate) {
       out.push({
         sessionId: s.id,
@@ -418,7 +427,10 @@ export function sessionProblems(
     if (!s.title.trim()) {
       out.push({ sessionId: s.id, text: 'This session has no subject — K.A.R. 109-11-1a(b3) requires one' })
     }
-    if (s.hours <= 0) {
+    // An informational row — the winter break, the per-student remediation
+    // block — carries no hours on purpose. Everything else with none is a
+    // session somebody started and did not finish.
+    if (s.hours <= 0 && !s.informational) {
       out.push({ sessionId: s.id, text: `${label} is worth no hours` })
     }
     if (s.startTime && s.endTime) {
@@ -691,6 +703,12 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
     hours: s.hours,
     delivery: s.delivery,
     seeded: true,
+    // Week zero is the prerequisite block, dated before the course starts by
+    // design. Without this mark the date validator reports it as falling
+    // outside the course on every seeded course, and the calendar hatches the
+    // day red — a permanent false positive on something working as intended.
+    preCourse: s.week === 0 ? true : undefined,
+    informational: s.informational,
     startTime: s.startTime,
     endTime: s.endTime,
   }))

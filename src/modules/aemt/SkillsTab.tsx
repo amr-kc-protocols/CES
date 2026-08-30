@@ -536,10 +536,14 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
                   order makes the instructor hold the schedule in their head to
                   know which of them week 3 is meant to produce. */}
               {(() => {
-                const when = sessionForSheet(s.sheet.id, course.monitorSheetId)
+                const when = sessionForSheet(
+                  s.sheet.id,
+                  course.monitorSheetId,
+                  course.startDate,
+                )
                 return when ? (
                   <div className="meta subtle">
-                    {when.label} · {formatDate(when.date)}
+                    {when.label} · {formatDate(when.plannedDate)}
                   </div>
                 ) : null
               })()}

@@ -186,6 +186,57 @@ check(
   'and chapter 5 is its pre-class reading',
 )
 
+// The pre-course row is dated before the course opens, which every date
+// validator in the app would otherwise report as a filing error. `buildClassPlan`
+// marks it week 0 and the seeder carries that onto the session; these two pin
+// the mechanism, because the symptom is a permanent red flag on every seeded
+// course and the cause is one missing field.
+const preSessions = plan.filter((s) => s.rowOrder === m.PRE_COURSE.order)
+check(
+  preSessions.length === 1 && preSessions[0].week === 0,
+  'the pre-course block reaches the calendar as week 0, which is what exempts it from the date check',
+  preSessions.map((s) => `week ${s.week}`).join(', '),
+)
+check(
+  plan.filter((s) => s.date < m.KC_START_DATE).every((s) => s.week === 0),
+  'nothing but the pre-course block is dated before the course starts',
+  plan.filter((s) => s.date < m.KC_START_DATE && s.week !== 0).map((s) => `${s.date} ${s.short}`).join(', '),
+)
+
+// ----- rows that carry no hours ----------------------------------------------
+//
+// The winter break and the week 16 remediation block are on the calendar
+// deliberately with nothing on the clock. Everything else with no hours is a
+// row somebody started and did not finish, and the session validator reports
+// it — so the marker has to be on exactly the two rows that mean it.
+const zeroHour = m.KC_SCHEDULE.filter((r) => m.rowHours(r) === 0)
+check(
+  zeroHour.length === 2 && zeroHour.every((r) => r.informational),
+  'the only rows with no hours are the two marked informational',
+  zeroHour.map((r) => `${r.short}${r.informational ? '' : ' (UNMARKED)'}`).join(', '),
+)
+check(
+  m.KC_SCHEDULE.filter((r) => r.informational).every((r) => m.rowHours(r) === 0),
+  'and nothing marked informational is carrying hours it would not be counted for',
+)
+
+// Times and hours are filed together and a KBEMS reviewer reads both, so a row
+// whose clock span disagrees with its filed hours is a defect in the filing.
+// The AHA Saturdays were 08:00-17:00 against 8 filed hours — an hour of lunch
+// that the schedule claimed as instruction.
+const clockMismatch = m.KC_SCHEDULE.filter((r) => {
+  if (!r.startTime || !r.endTime) return false
+  const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  return Math.abs((mins(r.endTime) - mins(r.startTime)) / 60 - m.rowHours(r)) > 0.25
+})
+check(
+  clockMismatch.length === 0,
+  'every timed row runs for exactly the hours it files',
+  clockMismatch
+    .map((r) => `${r.short} ${r.startTime}-${r.endTime} vs ${m.rowHours(r)} h`)
+    .join(', '),
+)
+
 // ----- the four-hour day and the eight-hour week -----------------------------
 
 const byDate = new Map()
@@ -383,6 +434,31 @@ check(
   ),
   're-dating a later cohort keeps every session on its own weekday',
 )
+
+// A cohort seeded with a different start date re-dates the plan by whole weeks,
+// so anything that answers "when is this taught" has to move with it. This
+// returned the October-2026 date verbatim, which put a 2026 date beside a
+// correct week label on a 2027 cohort.
+{
+  const here = m.sessionForSheet('iv-start', 'lifepak-15')
+  const later = m.sessionForSheet('iv-start', 'lifepak-15', '2027-10-05')
+  check(
+    here.plannedDate === here.date && later.plannedDate !== here.date,
+    'sessionForSheet re-dates for a later cohort instead of returning the filed date',
+    `${here?.plannedDate} vs ${later?.plannedDate}`,
+  )
+  const laid = m.buildClassPlan('2027-10-05').find((s) => s.rowOrder === here.order).date
+  check(
+    later.plannedDate === laid,
+    'and agrees with buildClassPlan for the same cohort',
+    `${later.plannedDate} vs ${laid}`,
+  )
+  check(
+    m.sessionForSheet('@monitor') === undefined &&
+      m.sessionForSheet('lifepak-15', 'lifepak-15') !== undefined,
+    'the monitor placeholder resolves through the course’s own monitor, not by its literal name',
+  )
+}
 
 // ----- reported, never failed ------------------------------------------------
 //

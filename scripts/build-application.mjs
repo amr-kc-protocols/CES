@@ -542,7 +542,9 @@ const doc = new Document({
         P(
           `Class location (unless otherwise noted): AMR Kansas City headquarters, with AMR Wichita joining by Teams. Class dates ${longDate(
             m.KC_START_DATE,
-          )} to ${longDate(m.KC_END_DATE)}. F2F — 0900 to 1300, Tuesday and Thursday. The two American Heart Association provider courses are delivered on the Saturdays shown.`,
+          )} to ${longDate(m.KC_END_DATE)}. F2F — 0900 to 1300, Tuesday and Thursday. The two American Heart Association provider courses are delivered on the Saturdays shown. The first row of the table is prerequisite work assigned before the course opens and carries no classroom time; it is dated ${longDate(
+            m.PRE_COURSE.date,
+          )} because that is when it falls due, and it sits inside the table rather than outside it so the schedule accounts for every hour the student is assigned.`,
         ),
         P(
           `Total hours: ${

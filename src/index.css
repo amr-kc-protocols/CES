@@ -800,24 +800,6 @@ input[type='date']::-webkit-date-and-time-value {
 .field textarea::placeholder { color: var(--text-faint); }
 
 .field textarea {
-  width: 100%;
-  padding: 10px 12px;
-  min-height: 40px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
-  outline: 2px solid var(--navy-600);
-  outline-offset: -1px;
-  border-color: var(--navy-600);
-}
-
-.field textarea {
   min-height: 80px;
   resize: vertical;
 }

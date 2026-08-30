@@ -771,6 +771,17 @@ export interface ScheduleRow {
    * which is about the Tue/Thu pattern.
    */
   standalone?: boolean
+  /**
+   * On the calendar for information, not as scheduled contact time.
+   *
+   * The winter break and the week 16 remediation block both carry zero hours
+   * deliberately — one is a fortnight of clinical shifts and dated TestPrep,
+   * the other is per-student work with no common figure. Both are worth seeing
+   * on a schedule, and neither is a class. Marked rather than inferred from
+   * `hours === 0`, because a session that SHOULD carry hours and has none is a
+   * filing error the validator has to keep catching.
+   */
+  informational?: boolean
   /** Why this row is shaped the way it is, where that is not obvious. */
   note?: string
 }
@@ -1223,7 +1234,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     labHours: 0,
     date: '2026-12-05',
     startTime: '08:00',
-    endTime: '17:00',
+    endTime: '16:00',
     standalone: true,
     note: 'Pulled out of the Tue/Thu rhythm so that Thanksgiving week does not cost the class a session. Most agencies run the AHA courses on Saturdays anyway.',
   },
@@ -1332,6 +1343,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     labHours: 0,
     date: '2026-12-21',
     standalone: true,
+    informational: true,
     assessmentIds: ['testprep-1', 'testprep-2', 'testprep-3'],
     note: 'Carries no didactic hours: the retrieval sets are TestPrep, and the shifts are counted as clinical and field internship hours, not classroom. Phase 3 of the rotation plan is this fortnight — four 12-hour field shifts, the highest-yield block in the whole rotation.',
   },
@@ -1394,7 +1406,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     labHours: 0,
     date: '2027-01-09',
     startTime: '08:00',
-    endTime: '17:00',
+    endTime: '16:00',
     standalone: true,
   },
 
@@ -1565,6 +1577,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     didacticHours: 0,
     labHours: 0,
     date: '2027-02-02',
+    informational: true,
     note: 'Per-student, so it carries no common hour figure. What each student is assigned comes out of their own item analysis.',
   },
   {
@@ -1806,7 +1819,7 @@ export const WINTER_BREAK = {
 export interface PlannedSession {
   /** ISO date. */
   date: string
-  /** Instructional week, 1-16. */
+  /** Instructional week, 1-16. Zero for the pre-course block. */
   week: number
   /** Calendar week from the first class date, 1-based. */
   calendarWeek: number
@@ -1819,6 +1832,8 @@ export interface PlannedSession {
   /** Only rows sat in a room carry clock times. */
   startTime?: string
   endTime?: string
+  /** On the calendar for information; carries no contact hours by design. */
+  informational?: boolean
 }
 
 function addDaysISO(iso: string, days: number): string {
@@ -1866,6 +1881,7 @@ export function buildClassPlan(startISO: string = KC_START_DATE): PlannedSession
       short: r.short,
       startTime: r.startTime,
       endTime: r.endTime,
+      informational: r.informational,
     }
     // An AHA row's hours are AHA hours, whichever column they were written in.
     // Bucketing them as didactic is what made the seeded calendar report
@@ -1921,11 +1937,16 @@ export function holidayCollisions(
 }
 
 /**
- * The session a skill sheet is checked off in.
+ * The session a skill sheet is checked off in, dated for a given cohort.
  *
  * `@monitor` in a row's `sheetIds` stands for whichever cardiac monitor the
  * operation runs, because the joint cohort runs two and a student is checked
  * off on their own. Pass the course's monitor id to resolve it.
+ *
+ * `startISO` re-dates the answer the same way `buildClassPlan` does — by whole
+ * weeks. Without it this returned the October-2026 plan date verbatim, so a
+ * cohort seeded with a different start showed "Week 5 · Thu" beside a date from
+ * the wrong year, which is worse than showing no date at all.
  *
  * Used by the Skills tab so a sheet says WHEN it happens. Without it the list
  * is eleven check-offs in no order, and the instructor has to hold the schedule
@@ -1934,12 +1955,19 @@ export function holidayCollisions(
 export function sessionForSheet(
   sheetId: string,
   monitorSheetId?: string,
-): ScheduleRow | undefined {
-  return KC_SCHEDULE.find((r) =>
+  startISO: string = KC_START_DATE,
+): (ScheduleRow & { plannedDate: string }) | undefined {
+  const row = KC_SCHEDULE.find((r) =>
     (r.sheetIds ?? []).some(
       (id) => id === sheetId || (id === '@monitor' && sheetId === monitorSheetId),
     ),
   )
+  // `@monitor` is a placeholder, not a sheet. Without this guard, passing the
+  // literal string resolves to the row that contains it, which is the one way
+  // this function could confidently answer a question about nothing.
+  if (sheetId === '@monitor' || !row) return undefined
+  const shiftDays = Math.round(daysBetween(KC_START_DATE, startISO) / 7) * 7
+  return { ...row, plannedDate: shiftDays === 0 ? row.date : addDaysISO(row.date, shiftDays) }
 }
 
 /** Every skill sheet the schedule checks off, in the order it does. */
