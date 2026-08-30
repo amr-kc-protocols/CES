@@ -64,8 +64,8 @@ export default function FtoGuide() {
 
   if (!signedIn) {
     return (
-      <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: 'var(--navy-600)' }}>
-        <h2 style={{ fontSize: 17, margin: '0 0 2px' }}>👋 Welcome — Field Training Officers start here</h2>
+      <div className="card guide-card" style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: '0 0 2px' }}>Welcome — Field Training Officers start here</h2>
         <div className="subtle" style={{ marginBottom: 12 }}>
           Three things to know, then this app replaces the paper packet.
         </div>
@@ -77,7 +77,7 @@ export default function FtoGuide() {
   // Signed-in FTO (or new hire): keep the guide one tap away.
   return (
     <details className="card" style={{ padding: 14, marginBottom: 16 }}>
-      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>📖 FTO quick guide</summary>
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>FTO quick guide</summary>
       <div style={{ marginTop: 12 }}>
         <GuideBody />
       </div>
