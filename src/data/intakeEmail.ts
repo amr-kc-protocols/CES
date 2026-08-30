@@ -16,10 +16,12 @@
 // the plan ran 23, which is the exact kind of drift that turns a recruiting
 // email into a broken promise.
 //
-// KC_CALENDAR_WEEKS, not KC_COURSE_WEEKS. The filing numbers sixteen course
-// weeks, but holidays push the last of them into a seventeenth calendar week —
-// and a candidate working out whether they can commit is asking how long this
-// takes, not how the weeks are numbered.
+// KC_CALENDAR_WEEKS, not KC_COURSE_WEEKS. The schedule delivers sixteen
+// instructional weeks across eighteen calendar ones, because of the two-week
+// break over the holidays — and a candidate working out whether they can commit
+// is asking how long this takes, not how the weeks are numbered. Both are
+// quoted in the program shape below, since the difference is a fortnight they
+// need to plan around rather than a technicality.
 //
 // The policy figures that ARE quoted — the pass mark, the absence limit, the
 // K.A.R. clinical minimums — are imported from data/aemt.ts rather than
@@ -31,6 +33,7 @@ import {
   GRADING_MODEL,
   KC_CALENDAR_WEEKS,
   KC_COURSE_WEEKS,
+  PRE_COURSE_POLICY,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from './aemt'
@@ -374,6 +377,9 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       `  • Confirm your seat by replying to this email`,
       `  • Make sure your certification and required credentials are current in Ninth Brain`,
       `  • Talk to your supervisor about your schedule for the next ${KC_CALENDAR_WEEKS} weeks`,
+      `  • REQUIRED PRE-COURSE WORK: ${PRE_COURSE_POLICY.requirement}`,
+      ``,
+      `That pre-course block is chapters 1 to 4 — EMS systems, workforce safety, medical-legal and documentation. It is the material you already work inside every shift, so we are not spending a classroom day on it. Doing it before you arrive is what lets the first session open on medical terminology and the second get into anatomy and physiology. ${PRE_COURSE_POLICY.checkedAt} ${PRE_COURSE_POLICY.ifIncomplete}`,
       ``,
       `Congratulations again. Reply with any questions.`,
     ],

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Empty } from '../../components/ui'
+import Icon from '../../components/Icon'
 import type { NavItem, NavSection } from '../../lib/nav'
 
 // ---------------------------------------------------------------------------
@@ -18,12 +19,7 @@ export function HubHead({ section, children }: { section: NavSection; children?:
   return (
     <div className="page-head">
       <div>
-        <h1>
-          <span aria-hidden style={{ marginRight: 8 }}>
-            {section.icon}
-          </span>
-          {section.title}
-        </h1>
+        <h1>{section.title}</h1>
         <div className="subtle">{section.blurb}</div>
       </div>
       {children ? <div className="btn-row">{children}</div> : null}
@@ -40,16 +36,18 @@ export function HubHead({ section, children }: { section: NavSection; children?:
 export function HubRow({ item, meta, pill }: { item: NavItem; meta?: ReactNode; pill?: ReactNode }) {
   return (
     <Link to={item.to} className="row hub-row" style={{ color: 'inherit' }}>
-      <span className="hub-icon" aria-hidden>
-        {item.icon}
+      <span className="hub-icon">
+        <Icon name={item.icon} size={1.25} />
       </span>
       <div className="grow">
         <div className="title">{item.label}</div>
         <div className="meta">{meta ?? item.blurb}</div>
       </div>
       {pill}
-      <span className="subtle" aria-hidden>
-        ›
+      <span className="hub-chevron" aria-hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="m9 5 7 7-7 7" />
+        </svg>
       </span>
     </Link>
   )

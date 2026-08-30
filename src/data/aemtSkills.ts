@@ -30,6 +30,8 @@ export type SkillScope = 'bls' | 'advanced' | 'paramedic'
 
 export const SKILL_SCOPE: Record<string, SkillScope> = {
   // ----- the AEMT credential's own skills ----------------------------------
+  'patient-assessment': 'advanced',  // K.A.R. 109-11-8: 15 complete assessments
+  'childbirth-neonatal': 'advanced', // week 11 lab; Medical/OB is 25-29% of the exam
   'iv-start': 'advanced',            // K.A.R. 109-11-8: 20 venipunctures
   'ez-io': 'advanced',               // K.A.R. 109-11-8: 5 IO infusions
   'ekg-acquisition': 'advanced',     // K.A.R. 109-11-8: 8 ECG applications
@@ -99,6 +101,170 @@ export interface AemtSkillSheet {
 
 export const AEMT_SKILL_SHEETS: AemtSkillSheet[] = [
   // ----- authored here; no sheet existed in the AMR workbook -----------
+  {
+    // The week 3 lab grants the assessment clearance that opens Phase 1 of the
+    // rotation, and fifteen complete assessments are a K.A.R. 109-11-8 minimum
+    // — but there was no instrument to check anyone off against. A clearance
+    // granted at a lab with no sheet is a date somebody typed, not evidence.
+    //
+    // Structured around the six-step clinical judgment cycle rather than the
+    // classic assessment sequence, deliberately. Clinical Judgment is the
+    // largest domain on the certification exam, the scenario rubric is 10% of
+    // the course grade and scores against these steps, and the week 2 session
+    // teaches them by these names. Three places, one vocabulary.
+    id: 'patient-assessment',
+    title: 'Complete Patient Assessment',
+    levelLabel: 'AEMT & Paramedic',
+    levels: ['aemt', 'paramedic'],
+    draft: true,
+    sections: [
+      {
+        title: 'Scene Size-Up and Recognizing Cues',
+        criteria: [
+          { id: 'patient-assessment-0-0', label: 'Takes or verbalizes appropriate PPE precautions' },
+          { id: 'patient-assessment-0-1', label: 'Determines the scene is safe for the crew, the patient and bystanders' },
+          { id: 'patient-assessment-0-2', label: 'Determines the mechanism of injury or nature of illness' },
+          { id: 'patient-assessment-0-3', label: 'Determines the number of patients and requests additional resources if needed' },
+          { id: 'patient-assessment-0-4', label: 'Considers stabilization of the spine where the mechanism indicates it' },
+        ],
+      },
+      {
+        title: 'Primary Assessment',
+        criteria: [
+          { id: 'patient-assessment-1-0', label: 'Forms a general impression and determines level of consciousness' },
+          { id: 'patient-assessment-1-1', label: 'Assesses the airway and takes appropriate action' },
+          { id: 'patient-assessment-1-2', label: 'Assesses breathing — rate, effort and adequacy — and takes appropriate action' },
+          { id: 'patient-assessment-1-3', label: 'Assesses circulation: pulse, major haemorrhage, skin colour, temperature and condition' },
+          { id: 'patient-assessment-1-4', label: 'Identifies life threats and treats each before moving on' },
+          { id: 'patient-assessment-1-5', label: 'States a transport decision and its priority' },
+        ],
+      },
+      {
+        title: 'History and Analyzing Cues',
+        criteria: [
+          { id: 'patient-assessment-2-0', label: 'Obtains the history of the present illness or injury (OPQRST where applicable)' },
+          { id: 'patient-assessment-2-1', label: 'Obtains a SAMPLE history including allergies and current medications' },
+          { id: 'patient-assessment-2-2', label: 'Uses therapeutic communication appropriate to the patient’s age, condition and circumstances' },
+          { id: 'patient-assessment-2-3', label: 'Relates the findings to one another rather than reciting them — states what the pattern suggests' },
+        ],
+      },
+      {
+        title: 'Secondary Assessment and Monitoring',
+        criteria: [
+          { id: 'patient-assessment-3-0', label: 'Performs a focused or full-body examination appropriate to the presentation' },
+          { id: 'patient-assessment-3-1', label: 'Obtains a complete set of baseline vital signs' },
+          { id: 'patient-assessment-3-2', label: 'Applies monitoring devices indicated by the presentation (pulse oximetry, blood glucose, ECG, capnography)' },
+          { id: 'patient-assessment-3-3', label: 'Interprets the monitoring data rather than only recording it' },
+        ],
+      },
+      {
+        title: 'Hypothesis, Solutions and Action',
+        criteria: [
+          { id: 'patient-assessment-4-0', label: 'States a working field impression and at least one alternative worth excluding' },
+          { id: 'patient-assessment-4-1', label: 'States the interventions indicated and why, within AEMT scope' },
+          { id: 'patient-assessment-4-2', label: 'Performs or directs the indicated interventions in a defensible order' },
+          { id: 'patient-assessment-4-3', label: 'Recognises what is outside AEMT scope and states how it would be escalated' },
+        ],
+      },
+      {
+        title: 'Reassessment and Evaluating Outcomes',
+        criteria: [
+          { id: 'patient-assessment-5-0', label: 'Reassesses the patient at an interval appropriate to their acuity' },
+          { id: 'patient-assessment-5-1', label: 'Reassesses the effect of every intervention performed' },
+          { id: 'patient-assessment-5-2', label: 'Revises the field impression when the findings change, and says so' },
+          { id: 'patient-assessment-5-3', label: 'Gives a structured verbal report to the receiving clinician' },
+          { id: 'patient-assessment-5-4', label: 'Documents the assessment, the reasoning and the response to treatment' },
+        ],
+      },
+    ],
+    criticalFailures: [
+      'Failure to take or verbalize appropriate PPE precautions',
+      'Failure to determine scene safety before approaching the patient',
+      'Failure to identify or manage an immediate life threat before moving on',
+      'Failure to obtain a complete set of baseline vital signs',
+      'Failure to reassess the patient after an intervention',
+      'Performs or orders an intervention outside the AEMT scope of practice',
+      'Uses or orders a dangerous or inappropriate intervention',
+    ],
+  },
+  {
+    // The week 11 lab is delivery and neonatal resuscitation and had no sheet
+    // at all. Obstetrics and neonatal care is chapter 35, sits inside the
+    // Medical/OB/GYN domain that is 25-29% of the certification exam, and is
+    // the one AEMT psychomotor skill where the crew ends up with two patients.
+    id: 'childbirth-neonatal',
+    title: 'Normal Delivery and Neonatal Resuscitation',
+    levelLabel: 'AEMT & Paramedic',
+    levels: ['aemt', 'paramedic'],
+    draft: true,
+    sections: [
+      {
+        title: 'Assessment and Preparation',
+        criteria: [
+          { id: 'childbirth-neonatal-0-0', label: 'Takes or verbalizes appropriate PPE precautions, including eye protection' },
+          { id: 'childbirth-neonatal-0-1', label: 'Obtains the obstetric history: gravity, parity, due date, prenatal care, multiple gestation' },
+          { id: 'childbirth-neonatal-0-2', label: 'Determines whether delivery is imminent — contraction timing, urge to push, crowning' },
+          { id: 'childbirth-neonatal-0-3', label: 'Makes and states a transport-versus-deliver-on-scene decision, and why' },
+          { id: 'childbirth-neonatal-0-4', label: 'Prepares the OB kit and a separate warmed area for the neonate' },
+          { id: 'childbirth-neonatal-0-5', label: 'Requests additional resources — a second crew is two patients, not one' },
+        ],
+      },
+      {
+        title: 'Delivery',
+        criteria: [
+          { id: 'childbirth-neonatal-1-0', label: 'Positions and drapes the mother appropriately' },
+          { id: 'childbirth-neonatal-1-1', label: 'Supports the head as it delivers, applying gentle counter-pressure to control it' },
+          { id: 'childbirth-neonatal-1-2', label: 'Checks for a nuchal cord and manages it if present' },
+          { id: 'childbirth-neonatal-1-3', label: 'Guides the shoulders in turn without pulling on the head or neck' },
+          { id: 'childbirth-neonatal-1-4', label: 'Supports the body through delivery and notes the time of birth' },
+          { id: 'childbirth-neonatal-1-5', label: 'Clamps the cord in two places and cuts between the clamps at the appropriate time' },
+          { id: 'childbirth-neonatal-1-6', label: 'Delivers the placenta without traction on the cord, and retains it for the receiving facility' },
+          { id: 'childbirth-neonatal-1-7', label: 'Assesses the mother for postpartum haemorrhage and manages it' },
+        ],
+      },
+      {
+        title: 'Immediate Newborn Care',
+        criteria: [
+          { id: 'childbirth-neonatal-2-0', label: 'Dries the newborn thoroughly and removes the wet linen' },
+          { id: 'childbirth-neonatal-2-1', label: 'Provides warmth and prevents heat loss, including covering the head' },
+          { id: 'childbirth-neonatal-2-2', label: 'Positions the airway and clears secretions only where they obstruct' },
+          { id: 'childbirth-neonatal-2-3', label: 'Stimulates the newborn appropriately' },
+          { id: 'childbirth-neonatal-2-4', label: 'Assesses respiratory effort, heart rate and tone within the first minute' },
+          { id: 'childbirth-neonatal-2-5', label: 'Assigns an APGAR score at one and five minutes' },
+        ],
+      },
+      {
+        title: 'Neonatal Resuscitation',
+        criteria: [
+          { id: 'childbirth-neonatal-3-0', label: 'Recognises apnoea, gasping, or a heart rate below 100 as the trigger for positive-pressure ventilation' },
+          { id: 'childbirth-neonatal-3-1', label: 'Ventilates with an appropriately sized mask at 40 to 60 breaths per minute' },
+          { id: 'childbirth-neonatal-3-2', label: 'Confirms effectiveness by chest rise and a rising heart rate, and corrects the technique if absent' },
+          { id: 'childbirth-neonatal-3-3', label: 'Begins compressions at a heart rate below 60 despite 30 seconds of effective ventilation' },
+          { id: 'childbirth-neonatal-3-4', label: 'Delivers compressions at a 3:1 ratio with ventilation' },
+          { id: 'childbirth-neonatal-3-5', label: 'Reassesses at 30-second intervals and states what changed' },
+          { id: 'childbirth-neonatal-3-6', label: 'Checks blood glucose and manages hypoglycaemia within scope' },
+        ],
+      },
+      {
+        title: 'Transport and Documentation',
+        criteria: [
+          { id: 'childbirth-neonatal-4-0', label: 'Keeps mother and newborn together and warm during transport where both are stable' },
+          { id: 'childbirth-neonatal-4-1', label: 'Continues to monitor both patients en route' },
+          { id: 'childbirth-neonatal-4-2', label: 'Gives a structured report covering both patients' },
+          { id: 'childbirth-neonatal-4-3', label: 'Documents time of birth, APGAR scores, interventions and the response of each patient' },
+        ],
+      },
+    ],
+    criticalFailures: [
+      'Failure to take or verbalize appropriate PPE precautions',
+      'Pulls on the head, neck or cord during delivery',
+      'Failure to prevent heat loss in the newborn',
+      'Failure to begin positive-pressure ventilation in an apnoeic or bradycardic newborn',
+      'Failure to reassess either patient after an intervention',
+      'Fails to recognise or manage postpartum haemorrhage',
+      'Uses or orders a dangerous or inappropriate intervention',
+    ],
+  },
   {
     id: 'im-subq-injection',
     title: 'IM / SubQ Injection',

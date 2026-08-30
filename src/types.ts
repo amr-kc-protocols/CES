@@ -1014,6 +1014,15 @@ export interface AemtSession {
   startTime?: string
   endTime?: string
   /**
+   * Unpaid break inside the clock span, in minutes.
+   *
+   * The AHA provider courses run 08:00-17:00 and are eight instructional
+   * hours. Without this the clock span and the filed hours disagree by the
+   * lunch hour, and the only ways to reconcile them are to publish an end time
+   * that is not true or to file an hour of lunch as instruction.
+   */
+  breakMinutes?: number
+  /**
    * How the session reaches the student.
    *
    * 'f2f'        — instructor-led, in the room. Costs instructor and room time,
@@ -1039,6 +1048,24 @@ export interface AemtSession {
    * explicitly, since a plan change renames the very titles it would match on.
    */
   seeded?: boolean
+  /**
+   * Prerequisite work due BEFORE the first class session.
+   *
+   * Dated before the course start on purpose — chapters 1-4 are completed by
+   * the student ahead of week 1, which is the whole point of moving them out of
+   * the classroom. Marked rather than inferred from the date, so the validator
+   * and the calendar can tell "deliberately before the start" from "somebody
+   * typed the wrong year", which look identical otherwise.
+   */
+  preCourse?: boolean
+  /**
+   * On the calendar for information, not as scheduled contact time.
+   *
+   * The winter break and the week 16 remediation block carry zero hours by
+   * design. Marked rather than inferred from `hours === 0`, so a session that
+   * should carry hours and has none is still reported.
+   */
+  informational?: boolean
   instructor?: string
   /** Instructor's qualification for this subject, per K.A.R. 109-17-1. */
   instructorCredential?: PreceptorCredentialId

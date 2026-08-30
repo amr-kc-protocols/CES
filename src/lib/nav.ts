@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useCan } from './role'
 import { useSyncStatus } from './sync'
 import { QA_ENABLED, CE_ENABLED } from '../config/features'
+import type { IconName } from '../components/Icon'
 
 // ---------------------------------------------------------------------------
 // The navigation tree.
@@ -37,7 +38,7 @@ export type NavGate = 'always' | 'manageAcademy' | 'manageAemt' | 'reviewCharts'
 export interface NavItem {
   to: string
   label: string
-  icon: string
+  icon: IconName
   /** One line under the label on the landing screen, when there is no live count to show instead. */
   blurb: string
   gate: NavGate
@@ -56,27 +57,27 @@ export interface NavSection {
   to: string
   /** Tab label. Kept to one word: at five cells there is room, but not for two. */
   label: string
-  icon: string
+  icon: IconName
   /** Heading on the landing screen. */
   title: string
   blurb: string
   items: NavItem[]
 }
 
-export const HOME = { to: '/', label: 'Home', icon: '🏠' }
+export const HOME = { to: '/', label: 'Home', icon: 'home' as IconName }
 
 export const SECTIONS: NavSection[] = [
   {
     to: '/training',
     label: 'Training',
-    icon: '🎓',
+    icon: 'training',
     title: 'Training',
     blurb: 'The two programs that carry cohorts, students and records',
     items: [
       {
         to: '/academy',
         label: 'NEOP',
-        icon: '🎓',
+        icon: 'academy',
         blurb: 'New Employee Orientation — cohorts, checklists and FTO release',
         gate: 'always',
       },
@@ -86,7 +87,7 @@ export const SECTIONS: NavSection[] = [
       {
         to: '/aemt',
         label: 'AEMT',
-        icon: '💉',
+        icon: 'aemt',
         blurb: 'Kansas-approved certification course — roster, hours and records',
         gate: 'manageAemt',
       },
@@ -95,7 +96,7 @@ export const SECTIONS: NavSection[] = [
   {
     to: '/tools',
     label: 'Tools',
-    icon: '🧰',
+    icon: 'tools',
     title: 'Tools',
     blurb: 'Instruments you run against real charts and real crews',
     items: [
@@ -104,7 +105,7 @@ export const SECTIONS: NavSection[] = [
       {
         to: '/review',
         label: 'Chart review',
-        icon: '🔎',
+        icon: 'review',
         blurb: 'Emergent-transport justification and medical necessity',
         gate: 'reviewCharts',
         // A dense chart table the reading column would squeeze into uselessness.
@@ -116,7 +117,7 @@ export const SECTIONS: NavSection[] = [
       {
         to: '/simulator',
         label: 'Simulator',
-        icon: '🫀',
+        icon: 'simulator',
         blurb: 'Patient monitor and facilitator console for the quarterly scenarios',
         gate: 'manageAcademy',
         // Frames the facilitator console at whatever width the screen has.
@@ -124,8 +125,8 @@ export const SECTIONS: NavSection[] = [
       },
       ...(QA_ENABLED
         ? ([
-            { to: '/qa', label: 'QA review', icon: '🩺', blurb: 'Sampling queue and chart scoring', gate: 'always' },
-            { to: '/bot', label: 'QA Bot', icon: '🤖', blurb: 'Background chart folder sync', gate: 'always' },
+            { to: '/qa', label: 'QA review', icon: 'stethoscope', blurb: 'Sampling queue and chart scoring', gate: 'always' },
+            { to: '/bot', label: 'QA Bot', icon: 'bot', blurb: 'Background chart folder sync', gate: 'always' },
           ] as NavItem[])
         : []),
     ],
@@ -133,21 +134,21 @@ export const SECTIONS: NavSection[] = [
   {
     to: '/reference',
     label: 'Reference',
-    icon: '📚',
+    icon: 'reference',
     title: 'Reference',
     blurb: 'What to read, and what the regulators actually require',
     items: [
       {
         to: '/courses',
         label: 'Resources',
-        icon: '📚',
+        icon: 'book',
         blurb: 'Self-study modules, field guides and how-tos',
         gate: 'always',
       },
       {
         to: '/ems',
         label: 'Regulations',
-        icon: '⚖️',
+        icon: 'scales',
         blurb: 'Kansas and Missouri EMS rules, CE requirements and regulators',
         gate: 'always',
       },
@@ -156,7 +157,7 @@ export const SECTIONS: NavSection[] = [
   {
     to: '/more',
     label: 'More',
-    icon: '⋯',
+    icon: 'more',
     title: 'More',
     blurb: 'Reporting, past classes and this device',
     items: [
@@ -165,24 +166,24 @@ export const SECTIONS: NavSection[] = [
       {
         to: '/history',
         label: 'Class history',
-        icon: '📊',
+        icon: 'chart',
         blurb: 'Past classes, exit surveys and FTO feedback',
         gate: 'adminSignedIn',
       },
       {
         to: '/cqmp',
         label: 'CQMP',
-        icon: '📈',
+        icon: 'trend',
         blurb: 'Monthly KPI review deck for clinical leadership',
         gate: 'adminSignedIn',
       },
       ...(CE_ENABLED
-        ? ([{ to: '/ce', label: 'CE', icon: '📅', blurb: 'Kansas CE deadline tracker', gate: 'always' }] as NavItem[])
+        ? ([{ to: '/ce', label: 'CE', icon: 'calendar', blurb: 'Kansas CE deadline tracker', gate: 'always' }] as NavItem[])
         : []),
       {
         to: '/settings',
         label: 'Settings',
-        icon: '⚙️',
+        icon: 'settings',
         blurb: 'Account, market, sync and the instrument templates',
         // Templates has no tab of its own; it is opened from Settings, and the
         // More tab should stay lit while you are in it.

@@ -16,6 +16,7 @@ import {
   KBEMS_DEADLINES,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
+  PRE_COURSE_MAX_LEAD_DAYS,
 } from '../../data/aemt'
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
@@ -409,6 +410,23 @@ export function sessionProblems(
     const label = s.title || 'Untitled session'
     if (!s.date) {
       out.push({ sessionId: s.id, text: `${label} has no date` })
+    } else if (s.preCourse) {
+      // Prerequisite work is due before the first session; that is what makes
+      // it prerequisite. But the bound is narrowed, not dropped — a session
+      // typed with the wrong year is exactly what this flag has to stay able
+      // to catch, and session dates are freely editable.
+      const earliest = addDays(course.startDate, -PRE_COURSE_MAX_LEAD_DAYS)
+      if (s.date > course.endDate) {
+        out.push({
+          sessionId: s.id,
+          text: `${label} is prerequisite work but is dated after the course ends`,
+        })
+      } else if (s.date < earliest) {
+        out.push({
+          sessionId: s.id,
+          text: `${label} is prerequisite work dated more than ${PRE_COURSE_MAX_LEAD_DAYS} days before the course starts (${earliest} or later) — check the year`,
+        })
+      }
     } else if (s.date < course.startDate || s.date > course.endDate) {
       out.push({
         sessionId: s.id,
@@ -418,7 +436,10 @@ export function sessionProblems(
     if (!s.title.trim()) {
       out.push({ sessionId: s.id, text: 'This session has no subject — K.A.R. 109-11-1a(b3) requires one' })
     }
-    if (s.hours <= 0) {
+    // An informational row — the winter break, the per-student remediation
+    // block — carries no hours on purpose. Everything else with none is a
+    // session somebody started and did not finish.
+    if (s.hours <= 0 && !s.informational) {
       out.push({ sessionId: s.id, text: `${label} is worth no hours` })
     }
     if (s.startTime && s.endTime) {
@@ -434,7 +455,10 @@ export function sessionProblems(
       } else {
         // Times and hours are filed together, so they have to agree. A quarter
         // hour of slack absorbs rounding without waving through a real gap.
-        const span = (to - from) / 60
+        // A declared break comes off the span: an eight-hour AHA course that
+        // runs 08:00-17:00 with an hour for lunch is nine hours on the clock
+        // and eight of instruction, and both figures are true.
+        const span = (to - from - (s.breakMinutes ?? 0)) / 60
         if (Math.abs(span - s.hours) > 0.25) {
           out.push({
             sessionId: s.id,
@@ -465,10 +489,31 @@ export function addSession(
   return session
 }
 
+/**
+ * Edit a session.
+ *
+ * `informational` and `preCourse` are cleared the moment a coordinator edits
+ * the subject, the date or the hours. Both were written by the seeder to say
+ * "this row is the plan's, and the plan means it to look like this" — the
+ * winter break carries no hours on purpose, the prerequisite block sits before
+ * the course starts on purpose. Once someone repurposes the row, neither claim
+ * holds any more, and leaving the flags on would suppress the validator's
+ * zero-hours and date checks on a session that is now nobody's plan but the
+ * coordinator's.
+ */
+const SEEDER_CLAIMS: (keyof AemtSession)[] = ['informational', 'preCourse']
+
 export function updateSession(id: string, patch: Partial<AemtSession>): void {
+  const repurposed =
+    patch.title !== undefined || patch.hours !== undefined || patch.date !== undefined
   setState((db) => ({
     ...db,
-    aemtSessions: db.aemtSessions.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    aemtSessions: db.aemtSessions.map((s) => {
+      if (s.id !== id) return s
+      const next = { ...s, ...patch }
+      if (repurposed) for (const k of SEEDER_CLAIMS) delete next[k]
+      return next
+    }),
   }))
 }
 
@@ -691,6 +736,13 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
     hours: s.hours,
     delivery: s.delivery,
     seeded: true,
+    // Week zero is the prerequisite block, dated before the course starts by
+    // design. Without this mark the date validator reports it as falling
+    // outside the course on every seeded course, and the calendar hatches the
+    // day red — a permanent false positive on something working as intended.
+    preCourse: s.week === 0 ? true : undefined,
+    informational: s.informational,
+    breakMinutes: s.breakMinutes,
     startTime: s.startTime,
     endTime: s.endTime,
   }))

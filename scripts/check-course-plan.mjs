@@ -147,6 +147,107 @@ check(
   inBreak.map((r) => `${r.label} ${r.date}`).join(', '),
 )
 
+// ----- the pre-course block --------------------------------------------------
+
+check(
+  m.PRE_COURSE.date < m.KC_START_DATE,
+  'the pre-course block is due before the first session',
+  `${m.PRE_COURSE.date} vs ${m.KC_START_DATE}`,
+)
+check(
+  m.PRE_COURSE_CHAPTERS.join(',') === '1,2,3,4',
+  'chapters 1-4 are the pre-course block',
+  m.PRE_COURSE_CHAPTERS.join(', '),
+)
+check(
+  m.PRE_COURSE.week === 0 && t.weeks === 16,
+  'it is week zero and does not add an instructional week',
+  `week ${m.PRE_COURSE.week}, ${t.weeks} instructional weeks`,
+)
+// The point of moving it: no class day spends time re-covering this material.
+check(
+  !m.KC_SCHEDULE.some(
+    (r) => r.delivery === 'f2f' && (r.chapters ?? []).some((c) => c <= 4),
+  ),
+  'no class session re-covers a pre-course chapter',
+)
+// And the first session opens on medical terminology, which is what the block
+// was moved to make room for.
+const firstClass = m.KC_SCHEDULE.filter((r) => r.delivery === 'f2f').sort((a, b) =>
+  a.date < b.date ? -1 : 1,
+)[0]
+check(
+  /medical terminology/i.test(firstClass.title),
+  'the first session gets into medical terminology',
+  firstClass.short,
+)
+check(
+  (m.KC_SCHEDULE.find((r) => r.week === 1 && r.delivery === 'assignment').chapters ?? []).includes(5),
+  'and chapter 5 is its pre-class reading',
+)
+
+// The pre-course row is dated before the course opens, which every date
+// validator in the app would otherwise report as a filing error. `buildClassPlan`
+// marks it week 0 and the seeder carries that onto the session; these two pin
+// the mechanism, because the symptom is a permanent red flag on every seeded
+// course and the cause is one missing field.
+const preSessions = plan.filter((s) => s.rowOrder === m.PRE_COURSE.order)
+check(
+  preSessions.length === 1 && preSessions[0].week === 0,
+  'the pre-course block reaches the calendar as week 0, which is what exempts it from the date check',
+  preSessions.map((s) => `week ${s.week}`).join(', '),
+)
+check(
+  plan.filter((s) => s.date < m.KC_START_DATE).every((s) => s.week === 0),
+  'nothing but the pre-course block is dated before the course starts',
+  plan.filter((s) => s.date < m.KC_START_DATE && s.week !== 0).map((s) => `${s.date} ${s.short}`).join(', '),
+)
+
+// ----- rows that carry no hours ----------------------------------------------
+//
+// The winter break and the week 16 remediation block are on the calendar
+// deliberately with nothing on the clock. Everything else with no hours is a
+// row somebody started and did not finish, and the session validator reports
+// it — so the marker has to be on exactly the two rows that mean it.
+const zeroHour = m.KC_SCHEDULE.filter((r) => m.rowHours(r) === 0)
+check(
+  zeroHour.length === 2 && zeroHour.every((r) => r.informational),
+  'the only rows with no hours are the two marked informational',
+  zeroHour.map((r) => `${r.short}${r.informational ? '' : ' (UNMARKED)'}`).join(', '),
+)
+check(
+  m.KC_SCHEDULE.filter((r) => r.informational).every((r) => m.rowHours(r) === 0),
+  'and nothing marked informational is carrying hours it would not be counted for',
+)
+
+// Times and hours are filed together and a KBEMS reviewer reads both, so a row
+// whose clock span disagrees with its filed hours is a defect in the filing.
+// The AHA Saturdays were 08:00-17:00 against 8 filed hours — an hour of lunch
+// that the schedule claimed as instruction.
+const clockMismatch = m.KC_SCHEDULE.filter((r) => {
+  if (!r.startTime || !r.endTime) return false
+  const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  const span = mins(r.endTime) - mins(r.startTime) - (r.breakMinutes ?? 0)
+  return Math.abs(span / 60 - m.rowHours(r)) > 0.25
+})
+check(
+  clockMismatch.length === 0,
+  'every timed row runs for exactly the hours it files, once a declared break is taken off',
+  clockMismatch
+    .map((r) => `${r.short} ${r.startTime}-${r.endTime} vs ${m.rowHours(r)} h`)
+    .join(', '),
+)
+// The AHA Saturdays are the only rows with a break, and publishing the real
+// end time is the point: 16:00 would have reconciled the arithmetic by telling
+// students the course finishes an hour before it does.
+check(
+  m.KC_SCHEDULE.filter((r) => r.breakMinutes).every(
+    (r) => r.delivery === 'aha' && r.endTime === '17:00',
+  ),
+  'the AHA courses publish their real 17:00 end time and declare the lunch hour',
+  m.KC_SCHEDULE.filter((r) => r.breakMinutes).map((r) => `${r.short} ${r.endTime}`).join(', '),
+)
+
 // ----- the four-hour day and the eight-hour week -----------------------------
 
 const byDate = new Map()
@@ -344,6 +445,32 @@ check(
   ),
   're-dating a later cohort keeps every session on its own weekday',
 )
+
+// The monitor placeholder, and the one row that answers for it.
+//
+// `@monitor` appears on more than one row — week 3 introduces the device and
+// week 6 checks it off — so "the first row that names it" was the wrong
+// answer: it told instructors the monitor sheet, 12-lead section and all, was
+// due three weeks before ECG is taught and before the lab that grants the ECG
+// clearance.
+{
+  const monitorRows = m.KC_SCHEDULE.filter((r) => (r.sheetIds ?? []).includes('@monitor'))
+  check(
+    monitorRows.length === 1 && monitorRows[0].week === 6,
+    'exactly one row checks the cardiac monitor off, and it is the week 6 ECG lab',
+    monitorRows.map((r) => `${r.label} (week ${r.week})`).join(', '),
+  )
+  check(
+    m.sessionForSheet('lifepak-15', 'lifepak-15')?.week === 6 &&
+      m.sessionForSheet('ekg-acquisition')?.week === 6,
+    'the monitor and the ECG sheet resolve to the same lab',
+    `${m.sessionForSheet('lifepak-15', 'lifepak-15')?.short} / ${m.sessionForSheet('ekg-acquisition')?.short}`,
+  )
+  check(
+    m.sessionForSheet('@monitor') === undefined,
+    'and the placeholder itself resolves to nothing — it is not a sheet',
+  )
+}
 
 // ----- reported, never failed ------------------------------------------------
 //
