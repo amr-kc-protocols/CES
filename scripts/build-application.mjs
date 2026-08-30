@@ -17,11 +17,8 @@
 // amended where the joint plan changed the policy it describes.
 //
 // Run: npm run doc:application  [-- <output path>]
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { tmpdir } from 'node:os'
-import { build } from 'esbuild'
 import {
   AlignmentType,
   Document,
@@ -38,31 +35,20 @@ import {
   TextRun,
   WidthType,
 } from 'docx'
+import { loadCourse, longDate, provenance, ROOT, shortDate, weekdayOf } from './lib/doc-kit.mjs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = join(__dirname, '..')
-const OUT_MODULE = join(tmpdir(), `ces-application-${process.pid}.mjs`)
 const outPath = resolve(
   process.argv[2] ?? join(ROOT, 'build', 'KBEMS-AEMT-Course-Approval-Oct2026-Joint-Cohort.docx'),
 )
 
 // ----- load the course data --------------------------------------------------
+//
+// Through doc-kit, so this document and the other six are reading the same
+// modules at the same moment. A loader of its own here is how the filed
+// application and the working schedule drift apart without anyone touching
+// either.
 
-await build({
-  stdin: {
-    contents:
-      `export * from ${JSON.stringify(join(ROOT, 'src', 'data/aemt'))}\n` +
-      `export * as A from ${JSON.stringify(join(ROOT, 'src', 'data/aemtAssessments'))}\n`,
-    resolveDir: join(ROOT, 'src'),
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  outfile: OUT_MODULE,
-})
-const m = await import(pathToFileURL(OUT_MODULE).href)
-rmSync(OUT_MODULE, { force: true })
+const m = await loadCourse()
 
 const totals = m.scheduleTotals()
 const staff = m.PRIMARY_INSTRUCTOR
@@ -71,22 +57,6 @@ const clinicalSites = m.KC_SITES.filter((s) => s.kind === 'clinical')
 const fieldSites = m.KC_SITES.filter((s) => s.kind === 'field')
 const siteList = (sites) =>
   sites.map((s) => `${s.name} (${m.CAMPUS_LABEL[s.campus]})`).join(' and ')
-
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const longDate = (iso) => {
-  const [y, mo, d] = iso.split('-').map(Number)
-  return `${MONTHS[mo - 1]} ${d}, ${y}`
-}
-const shortDate = (iso) => {
-  const [y, mo, d] = iso.split('-').map(Number)
-  return `${mo}.${d}.${y}`
-}
-
-const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const weekdayOf = (iso) => {
-  const [y, mo, d] = iso.split('-').map(Number)
-  return WEEKDAY[new Date(y, mo - 1, d).getDay()]
-}
 
 // ----- document furniture ----------------------------------------------------
 
@@ -666,6 +636,8 @@ const doc = new Document({
           'Appendix D — CoAEMSP instructor evaluation',
           'Appendix E — CoAEMSP final course evaluation',
         ].map((t) => BULLET(t)),
+
+        provenance(m, 'npm run doc:application'),
       ],
     },
   ],

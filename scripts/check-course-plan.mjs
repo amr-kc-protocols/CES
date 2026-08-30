@@ -35,7 +35,8 @@ await build({
     contents:
       `export * from ${JSON.stringify(join(SRC, 'data/aemt'))}\n` +
       `export * as A from ${JSON.stringify(join(SRC, 'data/aemtAssessments'))}\n` +
-      `export * as N from ${JSON.stringify(join(SRC, 'data/navigateAssets'))}\n`,
+      `export * as N from ${JSON.stringify(join(SRC, 'data/navigateAssets'))}\n` +
+      `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n`,
     resolveDir: SRC,
     loader: 'ts',
   },
@@ -285,6 +286,30 @@ check(
   m.N.CHAPTER_ASSETS.length === m.TEXTBOOK_CHAPTERS.length,
   'the guide and the textbook chapter list are the same length',
   `${m.N.CHAPTER_ASSETS.length} vs ${m.TEXTBOOK_CHAPTERS.length}`,
+)
+
+// ----- the standards coverage argument ---------------------------------------
+//
+// K.A.R. 109-10-1c adopts the October 2014 Kansas AEMT Education Standards, and
+// approval turns partly on whether the schedule covers them. The curriculum
+// document prints that coverage as a map, so a code on a row with no entry —
+// or an entry no row uses — is a hole in the argument rather than a typo.
+const undefinedCodes = m.SCHEDULE_SECTIONS.filter((c) => !m.STD.standard(c))
+check(
+  undefinedCodes.length === 0,
+  'every standards code the schedule names has a definition',
+  undefinedCodes.join(', '),
+)
+const unusedCodes = m.STD.STANDARDS.filter((s) => !m.SCHEDULE_SECTIONS.includes(s.code))
+check(
+  unusedCodes.length === 0,
+  'every defined standard is taught in a session',
+  unusedCodes.map((s) => s.code).join(', '),
+)
+check(
+  m.STD.STANDARDS.every((s) => m.STD.STANDARD_GROUPS[s.group]),
+  'every standard belongs to a named instructional area',
+  m.STD.STANDARDS.filter((s) => !m.STD.STANDARD_GROUPS[s.group]).map((s) => s.code).join(', '),
 )
 
 // ----- the four-hour day and the eight-hour week -----------------------------

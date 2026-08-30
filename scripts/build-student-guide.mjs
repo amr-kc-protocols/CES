@@ -31,11 +31,8 @@
 //   page as the week's reading rather than in a separate document.
 //
 // Run: npm run doc:student  [-- <output path>]
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { tmpdir } from 'node:os'
-import { build } from 'esbuild'
 import {
   AlignmentType,
   Document,
@@ -52,40 +49,18 @@ import {
   TextRun,
   WidthType,
 } from 'docx'
+import { dayDate, loadCourse, longDate, provenance, ROOT, weekdayOf } from './lib/doc-kit.mjs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = join(__dirname, '..')
-const OUT_MODULE = join(tmpdir(), `ces-student-${process.pid}.mjs`)
 const outPath = resolve(
   process.argv[2] ?? join(ROOT, 'build', 'AEMT-Student-Guide-Oct2026.docx'),
 )
 
-await build({
-  stdin: {
-    contents:
-      `export * from ${JSON.stringify(join(ROOT, 'src', 'data/aemt'))}\n` +
-      `export * as A from ${JSON.stringify(join(ROOT, 'src', 'data/aemtAssessments'))}\n` +
-      `export * as N from ${JSON.stringify(join(ROOT, 'src', 'data/navigateAssets'))}\n` +
-      `export * as P from ${JSON.stringify(join(ROOT, 'src', 'data/aemtPhases'))}\n`,
-    resolveDir: join(ROOT, 'src'),
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  outfile: OUT_MODULE,
-})
-const m = await import(pathToFileURL(OUT_MODULE).href)
-rmSync(OUT_MODULE, { force: true })
+// Through doc-kit, so the guide, the syllabus and the lesson plans are reading
+// the same modules at the same moment — a student told one thing and an
+// instructor told another is the failure this document set exists to prevent.
+const m = await loadCourse()
 const { A, N, P } = m
 const totals = m.scheduleTotals()
-
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
-const parse = (iso) => iso.split('-').map(Number)
-const longDate = (iso) => { const [y, mo, d] = parse(iso); return `${MONTHS[mo - 1]} ${d}, ${y}` }
-const dayName = (iso) => { const [y, mo, d] = parse(iso); return DAYS[new Date(y, mo - 1, d).getDay()] }
-const dayDate = (iso) => { const [, mo, d] = parse(iso); return `${dayName(iso)} ${mo}/${d}` }
 
 // ----- document furniture ----------------------------------------------------
 
@@ -290,7 +265,7 @@ function standaloneSection(r) {
   ]
   if (r.startTime) {
     out.push(
-      P_(`${dayName(r.date)} ${longDate(r.date)}, ${r.startTime}–${r.endTime}.`, { bold: true }),
+      P_(`${weekdayOf(r.date)} ${longDate(r.date)}, ${r.startTime}–${r.endTime}.`, { bold: true }),
     )
     if (r.breakMinutes) {
       out.push(P_(`Includes a ${r.breakMinutes}-minute break. Eight instructional hours.`, { italics: true }))
@@ -472,6 +447,8 @@ const doc = new Document({
                 : '—',
           ]),
         ),
+
+        provenance(m, 'npm run doc:student'),
       ],
     },
   ],

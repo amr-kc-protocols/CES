@@ -64,13 +64,32 @@ Hunter's head:
   run times, Skill Drills with page numbers, the ride-along videos — is
   transcribed from the Jones & Bartlett instructor guide into
   `src/data/navigateAssets.ts`, and the schedule's pre-class hours are derived
-  from it rather than typed. Two **Word documents** generate straight from that
-  data: `npm run doc:application` builds the KBEMS Initial Course Approval
-  application, and `npm run doc:student` builds the student course guide —
-  sixteen dated weeks of readings, modules, drills and graded events, with the
-  rotation phase on the same page as the reading. Neither can drift from the
-  calendar the coordinator works to. `npm run check:plan` and `check:skills`
-  assert the arithmetic, the calendar and the coverage.
+  from it rather than typed. Seven **Word documents** generate straight from
+  that data, and `npm run doc:all` builds the set:
+
+  | Command | Document | Who reads it |
+  | --- | --- | --- |
+  | `doc:application` | KBEMS Initial Course Approval application | The board, under K.A.R. 109-11-4a |
+  | `doc:syllabus` | Course syllabus | Students, and filed with the application (K.A.R. 109-1-1(ss)) |
+  | `doc:curriculum` | Standards coverage map and per-session lesson plans | Whoever teaches the session; a reviewer checking coverage |
+  | `doc:objectives` | Clinical and field training objectives | The preceptor who has a student for twelve hours |
+  | `doc:policies` | Program policy manual | Retained under K.A.R. 109-17-3 |
+  | `doc:forms` | Patient encounter log and the five blank instruments | Students and preceptors, on paper |
+  | `doc:student` | Student course guide — sixteen dated weeks of readings, modules, drills and graded events | Students |
+
+  They are separate documents because they go to separate people, and separate
+  scripts because each has its own argument to make. What they cannot have is
+  separate ideas about what the course is: all seven load the same modules
+  through `scripts/lib/doc-kit.mjs`, so none of them can drift from the
+  calendar the coordinator works to. `src/data/aemtRecords.ts` records which
+  K.A.R. 109-17-3 record each command satisfies, and states for the four it
+  cannot produce — the Navigate gradebook, first-attempt exam outcomes, progress
+  conferences and outcome analysis — why no command ever will.
+
+  `npm run check:plan` and `check:skills` assert the arithmetic, the calendar
+  and the coverage; `check:documents` builds all seven and reads them back,
+  checking each carries the sections it owes and that no source path, unfilled
+  value or developer note reached the page.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

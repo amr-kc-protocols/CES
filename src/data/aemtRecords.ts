@@ -12,11 +12,43 @@
 
 export type RecordSource = 'ces' | 'external'
 
+/**
+ * The npm script that produces this record, where one does.
+ *
+ * A third state between "CES holds it" and "it lives somewhere else": the
+ * program GENERATES it from the course record. That distinction matters when
+ * somebody is assembling a submission — a generated document needs a command
+ * run, not a search of somebody's drive, and a stale copy in a folder is not
+ * the record.
+ *
+ * Absent means there is no generator, and for four of these there never will
+ * be: the Navigate gradebook and the first-attempt examination outcomes are
+ * live data in other systems, and the conference and outcome records are
+ * written after events that have not happened yet. Saying so is the point —
+ * "no generator" and "generator not written yet" are different problems.
+ */
+export type RecordGenerator =
+  | 'doc:syllabus'
+  | 'doc:curriculum'
+  | 'doc:objectives'
+  | 'doc:policies'
+  | 'doc:forms'
+  | 'doc:application'
+  | 'doc:student'
+
 export interface RequiredRecord {
   id: string
   label: string
   /** Where the record lives. */
   source: RecordSource
+  /** The command that produces it, where the program generates it. */
+  generator?: RecordGenerator
+  /**
+   * Why no generator exists, where none does. Only meaningful when `generator`
+   * is absent, and required in that case by check-documents.mjs — an external
+   * record with no explanation is one nobody has thought about.
+   */
+  noGenerator?: string
   /** For CES-held records, the tab that owns it. */
   tab?: 'roster' | 'sessions' | 'hours' | 'skills' | 'clinical' | 'forms'
   why: string
@@ -41,66 +73,77 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     id: 'syllabus',
     label: 'Course syllabus',
     source: 'external',
+    generator: 'doc:syllabus',
     why: 'K.A.R. 109-1-1(ss): goals and objectives, materials, attendance policy, completion requirements, clinical/field description, discipline policies, instructor contact, and the full schedule. Filed with the approval application.',
   },
   {
     id: 'curriculum',
     label: 'Curriculum and lesson plans',
     source: 'external',
+    generator: 'doc:curriculum',
     why: 'The Kansas AEMT Educational Standards (Oct 2014) adopted by K.A.R. 109-10-1c, mapped to your sessions.',
   },
   {
     id: 'objectives',
     label: 'Clinical and field training objectives',
     source: 'external',
+    generator: 'doc:objectives',
     why: 'What a student is expected to achieve on each rotation, given to the preceptor.',
   },
   {
     id: 'gradebook',
     label: 'Gradebook',
     source: 'external',
+    noGenerator: 'Live data in the Navigate LMS. Nothing here can produce it, and a snapshot of it would be a claim about grades rather than the grades.',
     why: 'The Navigate pre-class component lives in the LMS; the closed-book quizzes, the three gate exams and the final are scored by the instructor. The completion record stores the attested final percentage, not the working grades.',
   },
   {
     id: 'conferences',
     label: 'Student progress conferences',
     source: 'external',
+    noGenerator: 'A record of conversations that have happened, written by whoever held them. The policy manual states when one is triggered; the record itself is per-student and cannot be generated.',
     why: 'At least one documented private conference per student, plus any called for by an affective concern.',
   },
   {
     id: 'outcomes',
     label: 'Outcome assessment and analysis',
     source: 'external',
+    noGenerator: 'Written after the cohort completes, against results that do not exist yet. Generating a template now would put an empty analysis on file where a reviewer expects a finding.',
     why: 'Pass rates and programme review, analysed by the Program Manager and Medical Director for continuous improvement.',
   },
   {
     id: 'policies',
     label: 'Program policies',
     source: 'external',
+    generator: 'doc:policies',
     why: 'K.A.R. 109-17-3 — attendance, grading, discipline, remediation and dismissal policies as issued to students.',
   },
   {
     id: 'makeup',
     label: 'Late-enrolment and make-up schedules',
     source: 'external',
+    generator: 'doc:policies',
     why: 'K.A.R. 109-17-3 — how a late enrolee or an absent student made up required content, per student.',
   },
   {
     id: 'exam-outcomes',
     label: 'First-attempt examination outcomes',
     source: 'external',
+    noGenerator: 'Comes from the National Registry after candidates sit the examination. It does not exist until then and cannot be generated in advance.',
     why: 'K.A.R. 109-17-3 — first-attempt certification examination results, monitored for programme review.',
   },
   {
     id: 'preceptor-eval',
     label: 'Preceptor evaluations of students',
     source: 'external',
+    generator: 'doc:forms',
     why: 'K.A.R. 109-17-3 — the preceptor forms returned from each clinical and field rotation.',
   },
   {
     id: 'instructor-eval-record',
     label: 'Student evaluations of the course and every instructor',
     source: 'external',
+    generator: 'doc:forms',
     why: 'K.A.R. 109-17-3 — each student evaluates the course AND each instructor who taught them, not the course alone.',
   },
   {
