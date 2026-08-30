@@ -60,11 +60,17 @@ Hunter's head:
   cumulative closed-book retrieval quizzes, two full-length 135-item
   simulations — lives in `src/data/aemtAssessments.ts`; the rotation cadence,
   its phases and the five dated deficit checkpoints in
-  `src/data/aemtPhases.ts`. `npm run doc:application` generates the KBEMS
-  Initial Course Approval application as a **Word document** straight from
-  that data, so the schedule filed with the board and the schedule the
-  coordinator works to cannot drift apart. `npm run check:plan` asserts the
-  arithmetic and the calendar.
+  `src/data/aemtPhases.ts`. What Navigate actually ships per chapter — module
+  run times, Skill Drills with page numbers, the ride-along videos — is
+  transcribed from the Jones & Bartlett instructor guide into
+  `src/data/navigateAssets.ts`, and the schedule's pre-class hours are derived
+  from it rather than typed. Two **Word documents** generate straight from that
+  data: `npm run doc:application` builds the KBEMS Initial Course Approval
+  application, and `npm run doc:student` builds the student course guide —
+  sixteen dated weeks of readings, modules, drills and graded events, with the
+  rotation phase on the same page as the reading. Neither can drift from the
+  calendar the coordinator works to. `npm run check:plan` and `check:skills`
+  assert the arithmetic, the calendar and the coverage.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

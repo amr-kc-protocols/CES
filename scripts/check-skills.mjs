@@ -37,7 +37,8 @@ await build({
     contents:
       `export * from ${JSON.stringify(join(SRC, 'data/aemt'))}\n` +
       `export * as S from ${JSON.stringify(join(SRC, 'data/aemtSkills'))}\n` +
-      `export * as P from ${JSON.stringify(join(SRC, 'data/aemtPhases'))}\n`,
+      `export * as P from ${JSON.stringify(join(SRC, 'data/aemtPhases'))}\n` +
+      `export * as N from ${JSON.stringify(join(SRC, 'data/navigateAssets'))}\n`,
     resolveDir: SRC,
     loader: 'ts',
   },
@@ -49,7 +50,7 @@ await build({
 
 const m = await import(pathToFileURL(OUT).href)
 rmSync(OUT, { force: true })
-const { S, P } = m
+const { S, P, N } = m
 
 let failed = 0
 const check = (ok, label, detail) => {
@@ -264,13 +265,82 @@ check(
   outOfScope.join(', '),
 )
 
+// ----- what the student guide is built from ----------------------------------
+//
+// The guide (scripts/build-student-guide.mjs) turns each week's chapters into
+// a task list: read the chapter, run the module, do the flashcards and the
+// practice activity, work the Skill Drills. That only produces a usable sheet
+// if every chapter the schedule assigns actually resolves to publisher data —
+// a chapter with no entry silently yields a week with no reading on it.
+
+const assigned = [...new Set(m.KC_SCHEDULE.flatMap((r) => r.chapters ?? []))].sort((a, b) => a - b)
+const noAssets = assigned.filter((c) => !N.chapterAssets(c))
+check(
+  noAssets.length === 0,
+  'every assigned chapter resolves to a module, a title and a run time',
+  noAssets.join(', '),
+)
+check(
+  assigned.length === N.CHAPTER_ASSETS.length,
+  `all ${N.CHAPTER_ASSETS.length} chapters are assigned to a week`,
+  `${assigned.length} assigned`,
+)
+
+// A week that assigns Skill Drills normally has a lab that week to practise
+// them in. Two weeks legitimately do not, and both are named with the reason
+// rather than the rule being dropped — a third one appearing is worth knowing
+// about, because it means a student was told to study a psychomotor skill the
+// course never gave them a chance to perform.
+const DRILLS_WITHOUT_LAB = {
+  0: 'Pre-course chapter 2 carries handwashing, glove removal and exposure prevention. BLS carry-forward — standard precautions the student already uses on every shift, and there is no pre-course lab by design.',
+  8: 'Chapter 18 carries nitroglycerin, AED/CPR and cardiac monitoring. Week 8 is the Thanksgiving week and runs Tuesday only; monitoring was checked off in the week 6 ECG lab and the resuscitation drills belong to the ACLS Saturday that follows.',
+}
+const labWeeks = new Set(m.KC_SCHEDULE.filter((r) => r.labHours > 0).map((r) => r.week))
+const drillsWithoutLab = m.KC_SCHEDULE.filter(
+  (r) =>
+    r.delivery === 'assignment' &&
+    N.skillDrills(r.chapters ?? []).length > 0 &&
+    !labWeeks.has(r.week) &&
+    !(r.week in DRILLS_WITHOUT_LAB),
+)
+check(
+  drillsWithoutLab.length === 0,
+  'every week assigning Skill Drills has a lab that week, or a stated reason it does not',
+  drillsWithoutLab.map((r) => `week ${r.week} (${r.short})`).join(', '),
+)
+// And the stated reasons have to still apply.
+const staleReasons = Object.keys(DRILLS_WITHOUT_LAB)
+  .map(Number)
+  .filter((w) => labWeeks.has(w))
+check(
+  staleReasons.length === 0,
+  'no week is both excused from having a lab and holding one',
+  staleReasons.map((w) => `week ${w}`).join(', '),
+)
+
+// The three soft-skill simulations are debriefed as a group in week 15, and
+// the guide prints them from this list.
+check(
+  N.SOFT_SKILL_SIMULATIONS.length === 3,
+  'three soft-skill simulations, as the instructor guide ships them',
+  `${N.SOFT_SKILL_SIMULATIONS.length}`,
+)
+// Every ride-along names a chapter that exists, or it can never be assigned.
+const orphanRides = N.RIDE_ALONGS.filter((r) => r.chapters.some((c) => !N.chapterAssets(c)))
+check(
+  orphanRides.length === 0,
+  'every ride-along video points at a real chapter',
+  orphanRides.map((r) => r.name).join(', '),
+)
+
 const course = S.sheetsForCourse('lifepak-15')
 console.log(`
   ${S.AEMT_SKILL_SHEETS.length} sheets in the workbook · ${advanced.length} advanced · ${S.sheetsByScope('bls').length} BLS carry-forward · ${S.sheetsByScope('paramedic').length} above scope
   ${course.length} checked off in one course (${course.length - 1} common + 1 monitor)
   ${drafts.length} authored here rather than transcribed — these need Medical Director review before use:
 ${drafts.map((s) => `    ${s.title}`).join('\n')}
-  ${labs.length} lab sessions · ${labs.filter((r) => (r.sheetIds ?? []).length).length} carry check-offs · ${labs.filter((r) => (r.taughtNotChecked ?? []).length).length} state a carry-forward`)
+  ${labs.length} lab sessions · ${labs.filter((r) => (r.sheetIds ?? []).length).length} carry check-offs · ${labs.filter((r) => (r.taughtNotChecked ?? []).length).length} state a carry-forward
+  student guide: ${assigned.length} chapters · ${Object.values(N.SKILL_DRILLS).flat().length} skill drills · ${N.RIDE_ALONGS.length} ride-alongs · ${Math.round(N.moduleHours(assigned) * 10) / 10} h of module time`)
 
 console.log(
   failed === 0 ? '\ncheck-skills: schedule and skill sheets agree.' : `\n${failed} check(s) failed.`,

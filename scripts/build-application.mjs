@@ -425,7 +425,7 @@ const doc = new Document({
 
         H2('Prerequisite Work Required Before the First Session'),
         P(
-          `${m.PRE_COURSE_POLICY.requirement} This covers chapters ${m.PRE_COURSE_CHAPTERS[0]} to ${m.PRE_COURSE_CHAPTERS[m.PRE_COURSE_CHAPTERS.length - 1]} — EMS systems, workforce safety and wellness, medical-legal and ethical issues, and communications and documentation — which are delivered as assigned Navigate work rather than as classroom time. Every student enters the course holding a current EMT certification and works inside this material on every shift, so the classroom hours it would otherwise consume are re-allocated to the Clinical Judgment domain, which is 31-35% of the certification examination. ${m.PRE_COURSE_POLICY.checkedAt} ${m.PRE_COURSE_POLICY.ifIncomplete}`,
+          `${m.PRE_COURSE_POLICY.requirement} Due ${longDate(m.PRE_COURSE_POLICY.dueBy)}. This covers chapters ${m.PRE_COURSE_CHAPTERS[0]} to ${m.PRE_COURSE_CHAPTERS[m.PRE_COURSE_CHAPTERS.length - 1]} — EMS systems, workforce safety and wellness, medical-legal and ethical issues, and communications and documentation — which are delivered as assigned Navigate work rather than as classroom time. Every student enters the course holding a current EMT certification and works inside this material on every shift, so the classroom hours it would otherwise consume are re-allocated to the Clinical Judgment domain, which is 31-35% of the certification examination. ${m.PRE_COURSE_POLICY.checkedAt} ${m.PRE_COURSE_POLICY.ifIncomplete}`,
         ),
 
         H2('Student Requirements for Successful Course Completion'),

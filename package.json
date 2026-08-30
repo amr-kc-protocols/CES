@@ -29,7 +29,8 @@
     "check:placement": "node scripts/check-placement.mjs",
     "check:cqmp": "node scripts/check-cqmp.mjs",
     "check:kpiimport": "node scripts/check-kpi-import.mjs",
-    "check:skills": "node scripts/check-skills.mjs"
+    "check:skills": "node scripts/check-skills.mjs",
+    "doc:student": "node scripts/build-student-guide.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

@@ -34,7 +34,8 @@ await build({
   stdin: {
     contents:
       `export * from ${JSON.stringify(join(SRC, 'data/aemt'))}\n` +
-      `export * as A from ${JSON.stringify(join(SRC, 'data/aemtAssessments'))}\n`,
+      `export * as A from ${JSON.stringify(join(SRC, 'data/aemtAssessments'))}\n` +
+      `export * as N from ${JSON.stringify(join(SRC, 'data/navigateAssets'))}\n`,
     resolveDir: SRC,
     loader: 'ts',
   },
@@ -246,6 +247,44 @@ check(
   ),
   'the AHA courses publish their real 17:00 end time and declare the lunch hour',
   m.KC_SCHEDULE.filter((r) => r.breakMinutes).map((r) => `${r.short} ${r.endTime}`).join(', '),
+)
+
+// ----- pre-class hours come from the publisher -------------------------------
+//
+// Every assignment row's hours are the sum of its chapters' Navigate module
+// run times, from the instructor guide. They used to be typed from the
+// October 2026 plan's per-WEEK aggregates, which meant splitting "3.6 hours
+// for chapters 1-5" by a proportion invented here — and three of those splits
+// were out by a tenth. Asserting it means adding a chapter to a week without
+// moving its hours is caught rather than shipped.
+const wrongHours = m.KC_SCHEDULE.filter(
+  (r) =>
+    r.delivery === 'assignment' &&
+    (r.chapters ?? []).length > 0 &&
+    Math.abs(m.N.moduleHours(r.chapters) - r.didacticHours) > 0.05,
+)
+check(
+  wrongHours.length === 0,
+  'every pre-class row files the publisher’s own module run time for its chapters',
+  wrongHours
+    .map((r) => `${r.short}: files ${r.didacticHours} h, modules run ${m.N.moduleHours(r.chapters)} h`)
+    .join('; '),
+)
+
+// Every chapter the schedule assigns has to exist in the guide, or its hours
+// silently count as zero.
+const unknownChapters = [...new Set(m.KC_SCHEDULE.flatMap((r) => r.chapters ?? []))].filter(
+  (c) => !m.N.chapterAssets(c),
+)
+check(
+  unknownChapters.length === 0,
+  'every chapter the schedule assigns is in the instructor guide',
+  unknownChapters.join(', '),
+)
+check(
+  m.N.CHAPTER_ASSETS.length === m.TEXTBOOK_CHAPTERS.length,
+  'the guide and the textbook chapter list are the same length',
+  `${m.N.CHAPTER_ASSETS.length} vs ${m.TEXTBOOK_CHAPTERS.length}`,
 )
 
 // ----- the four-hour day and the eight-hour week -----------------------------
