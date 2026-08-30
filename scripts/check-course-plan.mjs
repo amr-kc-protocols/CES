@@ -227,14 +227,25 @@ check(
 const clockMismatch = m.KC_SCHEDULE.filter((r) => {
   if (!r.startTime || !r.endTime) return false
   const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
-  return Math.abs((mins(r.endTime) - mins(r.startTime)) / 60 - m.rowHours(r)) > 0.25
+  const span = mins(r.endTime) - mins(r.startTime) - (r.breakMinutes ?? 0)
+  return Math.abs(span / 60 - m.rowHours(r)) > 0.25
 })
 check(
   clockMismatch.length === 0,
-  'every timed row runs for exactly the hours it files',
+  'every timed row runs for exactly the hours it files, once a declared break is taken off',
   clockMismatch
     .map((r) => `${r.short} ${r.startTime}-${r.endTime} vs ${m.rowHours(r)} h`)
     .join(', '),
+)
+// The AHA Saturdays are the only rows with a break, and publishing the real
+// end time is the point: 16:00 would have reconciled the arithmetic by telling
+// students the course finishes an hour before it does.
+check(
+  m.KC_SCHEDULE.filter((r) => r.breakMinutes).every(
+    (r) => r.delivery === 'aha' && r.endTime === '17:00',
+  ),
+  'the AHA courses publish their real 17:00 end time and declare the lunch hour',
+  m.KC_SCHEDULE.filter((r) => r.breakMinutes).map((r) => `${r.short} ${r.endTime}`).join(', '),
 )
 
 // ----- the four-hour day and the eight-hour week -----------------------------
@@ -435,28 +446,29 @@ check(
   're-dating a later cohort keeps every session on its own weekday',
 )
 
-// A cohort seeded with a different start date re-dates the plan by whole weeks,
-// so anything that answers "when is this taught" has to move with it. This
-// returned the October-2026 date verbatim, which put a 2026 date beside a
-// correct week label on a 2027 cohort.
+// The monitor placeholder, and the one row that answers for it.
+//
+// `@monitor` appears on more than one row — week 3 introduces the device and
+// week 6 checks it off — so "the first row that names it" was the wrong
+// answer: it told instructors the monitor sheet, 12-lead section and all, was
+// due three weeks before ECG is taught and before the lab that grants the ECG
+// clearance.
 {
-  const here = m.sessionForSheet('iv-start', 'lifepak-15')
-  const later = m.sessionForSheet('iv-start', 'lifepak-15', '2027-10-05')
+  const monitorRows = m.KC_SCHEDULE.filter((r) => (r.sheetIds ?? []).includes('@monitor'))
   check(
-    here.plannedDate === here.date && later.plannedDate !== here.date,
-    'sessionForSheet re-dates for a later cohort instead of returning the filed date',
-    `${here?.plannedDate} vs ${later?.plannedDate}`,
-  )
-  const laid = m.buildClassPlan('2027-10-05').find((s) => s.rowOrder === here.order).date
-  check(
-    later.plannedDate === laid,
-    'and agrees with buildClassPlan for the same cohort',
-    `${later.plannedDate} vs ${laid}`,
+    monitorRows.length === 1 && monitorRows[0].week === 6,
+    'exactly one row checks the cardiac monitor off, and it is the week 6 ECG lab',
+    monitorRows.map((r) => `${r.label} (week ${r.week})`).join(', '),
   )
   check(
-    m.sessionForSheet('@monitor') === undefined &&
-      m.sessionForSheet('lifepak-15', 'lifepak-15') !== undefined,
-    'the monitor placeholder resolves through the course’s own monitor, not by its literal name',
+    m.sessionForSheet('lifepak-15', 'lifepak-15')?.week === 6 &&
+      m.sessionForSheet('ekg-acquisition')?.week === 6,
+    'the monitor and the ECG sheet resolve to the same lab',
+    `${m.sessionForSheet('lifepak-15', 'lifepak-15')?.short} / ${m.sessionForSheet('ekg-acquisition')?.short}`,
+  )
+  check(
+    m.sessionForSheet('@monitor') === undefined,
+    'and the placeholder itself resolves to nothing — it is not a sheet',
   )
 }
 

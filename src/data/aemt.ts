@@ -737,6 +737,16 @@ export interface ScheduleRow {
   /** Clock times for anything sat in a room. Assignments carry none. */
   startTime?: string
   endTime?: string
+  /**
+   * Unpaid break inside the clock span, in minutes.
+   *
+   * The AHA provider courses run 08:00-17:00 and are eight instructional
+   * hours: nine on the clock, one of them lunch. Filing 16:00 to make the
+   * arithmetic work would tell a student the course ends an hour before it
+   * does, on the schedule they plan their Saturday around — so the break is
+   * declared instead, and the validator subtracts it.
+   */
+  breakMinutes?: number
   /** Textbook chapters the row assigns. */
   chapters?: number[]
   /** Kansas AEMT Education Standards codes the row covers. */
@@ -944,9 +954,10 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     note: 'Patient-assessment check-off. Grants the assessment clearance that opens Phase 1 of the rotation.',
-    sheetIds: ['patient-assessment', 'glucometer', '@monitor'],
+    sheetIds: ['patient-assessment', 'glucometer'],
     taughtNotChecked: [
       'Lifting and moving — stair chair and power stretcher. BLS carry-forward: the student is credentialed on both and uses them every shift.',
+      'The cardiac monitor, introduced as a monitoring device. NOT checked off here — the sheet covers the whole unit including 12-lead acquisition, and ECG is not taught until week 6. Signing it off in week 3 would date the check-off three weeks before the lab that grants the ECG clearance.',
     ],
   },
 
@@ -1141,7 +1152,10 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     date: '2026-11-19',
     startTime: AM,
     endTime: PM,
-    sheetIds: ['cpap-bipap-mask-flow-safe-ii', '@monitor'],
+    sheetIds: ['cpap-bipap-mask-flow-safe-ii'],
+    taughtNotChecked: [
+      'Capnography on the cardiac monitor. Already checked off in week 6 as part of the whole-unit sheet — this session is where the waveform gets used against a patient rather than located on a screen.',
+    ],
   },
 
   // ----- week 8 — Thanksgiving week, Tuesday only ---------------------------
@@ -1234,7 +1248,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     labHours: 0,
     date: '2026-12-05',
     startTime: '08:00',
-    endTime: '16:00',
+    endTime: '17:00',
+    breakMinutes: 60,
     standalone: true,
     note: 'Pulled out of the Tue/Thu rhythm so that Thanksgiving week does not cost the class a session. Most agencies run the AHA courses on Saturdays anyway.',
   },
@@ -1406,7 +1421,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     labHours: 0,
     date: '2027-01-09',
     startTime: '08:00',
-    endTime: '16:00',
+    endTime: '17:00',
+    breakMinutes: 60,
     standalone: true,
   },
 
@@ -1635,12 +1651,30 @@ export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
  */
 export const PRE_COURSE_POLICY = {
   dueBy: PRE_COURSE.date,
-  requirement:
-    'Navigate Modules 1-4 complete, including the chapter quizzes, before the first session on 6 October.',
+  /**
+   * Built from the dates rather than written out. It carried both `dueBy` and
+   * a hard-coded "before the first session on 6 October", which is two due
+   * dates for one requirement and wrong for any re-dated cohort.
+   */
+  requirement: `Navigate Modules ${PRE_COURSE_CHAPTERS[0]}-${
+    PRE_COURSE_CHAPTERS[PRE_COURSE_CHAPTERS.length - 1]
+  } complete, including the chapter quizzes, by ${PRE_COURSE.date} — before the first session.`,
   checkedAt: 'Confirmed at orientation on day one, off the Navigate gradebook.',
   ifIncomplete:
     'The student attends, and completes the block inside the first week. It is recorded as a deficiency and reviewed at the week 8 checkpoint alongside their clinical tally — the cumulative retrieval quizzes start drawing on this material in week 1, so arriving without it compounds rather than staying still.',
 }
+
+/**
+ * How far before the first session prerequisite work may legitimately fall.
+ *
+ * The pre-course block is dated before the course starts on purpose, so the
+ * ordinary "outside the course dates" rule cannot apply to it — but dropping
+ * the lower bound entirely means a session typed with the wrong year passes
+ * silently, which is the exact case the flag was introduced to tell apart.
+ * Six weeks is roughly the point at which work assigned "before the course"
+ * stops being about this cohort.
+ */
+export const PRE_COURSE_MAX_LEAD_DAYS = 42
 
 /** Instructional weeks the joint plan delivers. Sixteen, over eighteen calendar weeks. */
 export const KC_COURSE_WEEKS = KC_SCHEDULE.reduce((n, r) => Math.max(n, r.week), 0)
@@ -1832,6 +1866,8 @@ export interface PlannedSession {
   /** Only rows sat in a room carry clock times. */
   startTime?: string
   endTime?: string
+  /** Unpaid break inside the clock span, in minutes. */
+  breakMinutes?: number
   /** On the calendar for information; carries no contact hours by design. */
   informational?: boolean
 }
@@ -1881,6 +1917,7 @@ export function buildClassPlan(startISO: string = KC_START_DATE): PlannedSession
       short: r.short,
       startTime: r.startTime,
       endTime: r.endTime,
+      breakMinutes: r.breakMinutes,
       informational: r.informational,
     }
     // An AHA row's hours are AHA hours, whichever column they were written in.
@@ -1937,50 +1974,33 @@ export function holidayCollisions(
 }
 
 /**
- * The session a skill sheet is checked off in, dated for a given cohort.
+ * The schedule row a skill sheet is checked off in.
+ *
+ * Returns the ROW, not a date. It used to re-date the plan for a given cohort
+ * and hand back a `plannedDate`, which was a second implementation of
+ * `buildClassPlan`'s arithmetic and a second thing to keep true — and it still
+ * lied to a course with a hand-built schedule, because the filed plan says
+ * "Week 5 · Thu" whether or not that course has one. The caller matches this
+ * row against the course's own sessions and shows nothing when there is no
+ * match, which is the honest answer.
  *
  * `@monitor` in a row's `sheetIds` stands for whichever cardiac monitor the
  * operation runs, because the joint cohort runs two and a student is checked
  * off on their own. Pass the course's monitor id to resolve it.
- *
- * `startISO` re-dates the answer the same way `buildClassPlan` does — by whole
- * weeks. Without it this returned the October-2026 plan date verbatim, so a
- * cohort seeded with a different start showed "Week 5 · Thu" beside a date from
- * the wrong year, which is worse than showing no date at all.
- *
- * Used by the Skills tab so a sheet says WHEN it happens. Without it the list
- * is eleven check-offs in no order, and the instructor has to hold the schedule
- * in their head to know which of them week 3 is supposed to produce.
  */
 export function sessionForSheet(
   sheetId: string,
   monitorSheetId?: string,
-  startISO: string = KC_START_DATE,
-): (ScheduleRow & { plannedDate: string }) | undefined {
-  const row = KC_SCHEDULE.find((r) =>
+): ScheduleRow | undefined {
+  // `@monitor` is a placeholder, not a sheet. Without this guard, passing the
+  // literal string resolves to the row that contains it, which is the one way
+  // this function could confidently answer a question about nothing.
+  if (sheetId === '@monitor') return undefined
+  return KC_SCHEDULE.find((r) =>
     (r.sheetIds ?? []).some(
       (id) => id === sheetId || (id === '@monitor' && sheetId === monitorSheetId),
     ),
   )
-  // `@monitor` is a placeholder, not a sheet. Without this guard, passing the
-  // literal string resolves to the row that contains it, which is the one way
-  // this function could confidently answer a question about nothing.
-  if (sheetId === '@monitor' || !row) return undefined
-  const shiftDays = Math.round(daysBetween(KC_START_DATE, startISO) / 7) * 7
-  return { ...row, plannedDate: shiftDays === 0 ? row.date : addDaysISO(row.date, shiftDays) }
-}
-
-/** Every skill sheet the schedule checks off, in the order it does. */
-export function scheduledSheetIds(monitorSheetId?: string): string[] {
-  return [
-    ...new Set(
-      [...KC_SCHEDULE]
-        .sort((a, b) => (a.date < b.date ? -1 : 1))
-        .flatMap((r) => r.sheetIds ?? [])
-        .map((id) => (id === '@monitor' ? monitorSheetId : id))
-        .filter((id): id is string => !!id),
-    ),
-  ]
 }
 
 /** Short calendar labels keyed by the title a seeded session carries. */

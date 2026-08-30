@@ -1014,6 +1014,15 @@ export interface AemtSession {
   startTime?: string
   endTime?: string
   /**
+   * Unpaid break inside the clock span, in minutes.
+   *
+   * The AHA provider courses run 08:00-17:00 and are eight instructional
+   * hours. Without this the clock span and the filed hours disagree by the
+   * lunch hour, and the only ways to reconcile them are to publish an end time
+   * that is not true or to file an hour of lunch as instruction.
+   */
+  breakMinutes?: number
+  /**
    * How the session reaches the student.
    *
    * 'f2f'        — instructor-led, in the room. Costs instructor and room time,
