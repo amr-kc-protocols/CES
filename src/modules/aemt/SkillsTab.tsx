@@ -24,7 +24,7 @@ import {
   liveSkillSheet,
   skillSheetAtVersion,
 } from '../templates/resolve'
-import { PRECEPTOR_LABELS } from '../../data/aemt'
+import { PRECEPTOR_LABELS, sessionForSheet } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, PreceptorCredentialId } from '../../types'
@@ -532,6 +532,17 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
                 {s.failed > 0 && ` · ${s.failed} needing practice`}
                 {s.sheet.levels.length < 3 && ` · ${s.sheet.levelLabel}`}
               </div>
+              {/* When this check-off happens. A list of eleven sheets in no
+                  order makes the instructor hold the schedule in their head to
+                  know which of them week 3 is meant to produce. */}
+              {(() => {
+                const when = sessionForSheet(s.sheet.id, course.monitorSheetId)
+                return when ? (
+                  <div className="meta subtle">
+                    {when.label} · {formatDate(when.date)}
+                  </div>
+                ) : null
+              })()}
             </div>
             {s.signedOff ? (
               <span className="pill ok">✓ Passed</span>

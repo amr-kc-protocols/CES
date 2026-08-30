@@ -147,6 +147,45 @@ check(
   inBreak.map((r) => `${r.label} ${r.date}`).join(', '),
 )
 
+// ----- the pre-course block --------------------------------------------------
+
+check(
+  m.PRE_COURSE.date < m.KC_START_DATE,
+  'the pre-course block is due before the first session',
+  `${m.PRE_COURSE.date} vs ${m.KC_START_DATE}`,
+)
+check(
+  m.PRE_COURSE_CHAPTERS.join(',') === '1,2,3,4',
+  'chapters 1-4 are the pre-course block',
+  m.PRE_COURSE_CHAPTERS.join(', '),
+)
+check(
+  m.PRE_COURSE.week === 0 && t.weeks === 16,
+  'it is week zero and does not add an instructional week',
+  `week ${m.PRE_COURSE.week}, ${t.weeks} instructional weeks`,
+)
+// The point of moving it: no class day spends time re-covering this material.
+check(
+  !m.KC_SCHEDULE.some(
+    (r) => r.delivery === 'f2f' && (r.chapters ?? []).some((c) => c <= 4),
+  ),
+  'no class session re-covers a pre-course chapter',
+)
+// And the first session opens on medical terminology, which is what the block
+// was moved to make room for.
+const firstClass = m.KC_SCHEDULE.filter((r) => r.delivery === 'f2f').sort((a, b) =>
+  a.date < b.date ? -1 : 1,
+)[0]
+check(
+  /medical terminology/i.test(firstClass.title),
+  'the first session gets into medical terminology',
+  firstClass.short,
+)
+check(
+  (m.KC_SCHEDULE.find((r) => r.week === 1 && r.delivery === 'assignment').chapters ?? []).includes(5),
+  'and chapter 5 is its pre-class reading',
+)
+
 // ----- the four-hour day and the eight-hour week -----------------------------
 
 const byDate = new Map()

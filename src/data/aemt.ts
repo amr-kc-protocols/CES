@@ -744,6 +744,28 @@ export interface ScheduleRow {
   /** Graded or gating event this row carries. See data/aemtAssessments.ts. */
   assessmentIds?: string[]
   /**
+   * Psychomotor skill sheets checked off in this session. Ids from
+   * data/aemtSkills.ts.
+   *
+   * This is what makes the skills record and the schedule the same object.
+   * Without it the two drift silently: a sheet the course carries but never
+   * teaches is a check-off nobody can do, and a lab that teaches something with
+   * no sheet is a competency with no evidence behind it. check-skills.mjs
+   * asserts both directions.
+   */
+  sheetIds?: string[]
+  /**
+   * Skills the session teaches that the course deliberately does NOT check off,
+   * each with the reason.
+   *
+   * Almost always BLS carry-forward: an incoming AEMT student holds a current
+   * EMT certification and uses these on every shift, so re-checking them is not
+   * what this course is for. Recorded rather than left implicit, because "no
+   * sheet for the bag-valve mask" reads as an oversight until someone writes
+   * down that it is a decision.
+   */
+  taughtNotChecked?: string[]
+  /**
    * Not one of the week's Tuesday/Thursday sessions — a Saturday AHA course or
    * the winter break block. Excluded from the eight-hour weekly cap check,
    * which is about the Tue/Thu pattern.
@@ -757,28 +779,46 @@ const AM = '09:00'
 const PM = '13:00'
 
 export const KC_SCHEDULE: ScheduleRow[] = [
+  // ----- before the course starts -------------------------------------------
+  {
+    order: 0,
+    week: 0,
+    label: 'Pre-course · due before 6 October',
+    short: 'Pre-course Ch 1-4',
+    title:
+      'REQUIRED BEFORE THE FIRST SESSION. Navigate Modules 1-4 (Ch 1-4): EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal & Ethical (PR7). Chapter flashcards and practice activities, plus the chapter quizzes.',
+    delivery: 'assignment',
+    didacticHours: 3.3,
+    labHours: 0,
+    date: '2026-09-29',
+    chapters: [1, 2, 3, 4],
+    sections: ['PR1', 'PR2', 'PR3', 'PR4', 'PR5', 'PR6', 'PR7'],
+    standalone: true,
+    note: 'Moved out of week 1 by decision. These four chapters are the ones an incoming EMT already works inside every shift — systems, safety, medical-legal, documentation and communication — so a classroom day spent re-covering them buys the least of any day in the course. Completing them before 6 October means the first session opens on medical terminology and the course is into A&P by its second day. The trade is that this is now a prerequisite with a completion gate, not a suggestion: a student who arrives having skipped it is behind on the week 1 quiz, which is cumulative from day one.',
+  },
+
   // ----- week 1 -------------------------------------------------------------
   {
     order: 1,
     week: 1,
     label: 'Week 1 pre-class',
-    short: 'Modules 1-5',
+    short: 'Modules 5, 7',
     title:
-      'Navigate Modules 1-5 (Ch 1-5): EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal & Ethical (PR7); Medical Terminology (PR9). Chapter flashcards and practice activities.',
+      'Navigate Module 5 (Ch 5) Medical Terminology (PR9); Module 7 (Ch 7) The Human Body / Anatomy & Physiology (PR8).',
     delivery: 'assignment',
-    didacticHours: 3.6,
+    didacticHours: 1.9,
     labHours: 0,
     date: '2026-10-06',
-    chapters: [1, 2, 3, 4, 5],
-    sections: ['PR1', 'PR2', 'PR3', 'PR4', 'PR5', 'PR6', 'PR7', 'PR9'],
+    chapters: [5, 7],
+    sections: ['PR9', 'PR8'],
   },
   {
     order: 2,
     week: 1,
     label: 'Week 1 · Tue',
-    short: 'Orientation',
+    short: 'Orientation & terminology',
     title:
-      'Orientation. How the AEMT cognitive exam actually works: 135 items, linear, no backtracking, all six item types. Baseline 50-item diagnostic. Study-methods brief: why re-reading fails.',
+      'Orientation, kept short. How the AEMT cognitive exam actually works: 135 items, linear, no backtracking, all six item types. Baseline 50-item diagnostic. Study-methods brief: why re-reading fails. Then straight into medical terminology — prefixes, suffixes and roots drilled as the vocabulary every later domain is written in.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
@@ -786,14 +826,15 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     assessmentIds: ['baseline'],
+    note: 'The pre-course block is confirmed complete here. A student who has not done it is identified on day one rather than at the first quiz.',
   },
   {
     order: 3,
     week: 1,
     label: 'Week 1 · Thu',
-    short: 'Preparatory',
+    short: 'A&P',
     title:
-      'EMS systems, medical-legal, documentation, therapeutic communication, medical terminology. First format drill: build-list and options-box.',
+      'A&P built on a perfusion and cellular-respiration spine — the oxygen delivery chain end to end. Pulled forward from week 2 by the pre-course block.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
@@ -807,23 +848,23 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     order: 4,
     week: 2,
     label: 'Week 2 pre-class',
-    short: 'Modules 7-9',
+    short: 'Modules 8-9',
     title:
-      'Navigate Modules 7-9 (Ch 7-9): The Human Body / Anatomy & Physiology (PR8); Pathophysiology (PR10); Life Span Development (PR11).',
+      'Navigate Modules 8-9 (Ch 8-9): Pathophysiology (PR10); Life Span Development (PR11).',
     delivery: 'assignment',
-    didacticHours: 2.7,
+    didacticHours: 1.1,
     labHours: 0,
     date: '2026-10-13',
-    chapters: [7, 8, 9],
-    sections: ['PR8', 'PR10', 'PR11'],
+    chapters: [8, 9],
+    sections: ['PR10', 'PR11'],
   },
   {
     order: 5,
     week: 2,
     label: 'Week 2 · Tue',
-    short: 'A&P',
+    short: 'Pathophysiology',
     title:
-      'A&P built on a perfusion and cellular-respiration spine — the oxygen delivery chain end to end.',
+      'Pathophysiology: shock states, acid-base, hypoxia vs. hypoxaemia. Life span development where it changes the assessment. Drag-and-drop drill: classify findings by shock type.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
@@ -836,15 +877,16 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     order: 6,
     week: 2,
     label: 'Week 2 · Thu',
-    short: 'Pathophysiology',
+    short: 'Clinical judgment',
     title:
-      'Pathophysiology: shock states, acid-base, hypoxia vs. hypoxaemia. Drag-and-drop drill: classify findings by shock type.',
+      'CLINICAL JUDGMENT FOUNDATION. The six-step cycle taught explicitly as its own content — recognize cues → analyze cues → define hypothesis → generate solutions → take action → evaluate — then drilled against worked cases. All six NREMT item formats introduced and practised: multiple-response, build-list, drag-and-drop, options box, capnography graphics.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
     date: '2026-10-15',
     startTime: AM,
     endTime: PM,
+    note: 'The session the pre-course block paid for. Clinical Judgment is 31-35% of the certification exam and the prior course gave it no dedicated instruction at all — it was absorbed into generic review days. This is where the recovered day went, rather than into compressing the course, because every gate date after it is a commitment to Wichita and to KBEMS.',
   },
 
   // ----- week 3 -------------------------------------------------------------
@@ -868,7 +910,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     label: 'Week 3 · Tue',
     short: 'Assessment',
     title:
-      'Assessment framework mapped explicitly onto the six-step clinical judgment cycle: recognize cues → analyze cues → define hypothesis → generate solutions → take action → evaluate.',
+      'The patient assessment framework laid onto the six-step clinical judgment cycle taught in week 2. Scene size-up, primary and secondary assessment, monitoring devices and reassessment, each named as the step of the cycle it belongs to.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
@@ -883,7 +925,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     label: 'Week 3 · Thu',
     short: 'Assessment lab',
     title:
-      'LAB: full patient assessments, monitoring devices, lifting and moving skill drills. Every debrief uses the six-step language.',
+      'LAB: full patient assessments checked off end to end, monitoring devices, lifting and moving skill drills. Every debrief uses the six-step language taught in week 2.',
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
@@ -891,6 +933,10 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     note: 'Patient-assessment check-off. Grants the assessment clearance that opens Phase 1 of the rotation.',
+    sheetIds: ['patient-assessment', 'glucometer', '@monitor'],
+    taughtNotChecked: [
+      'Lifting and moving — stair chair and power stretcher. BLS carry-forward: the student is credentialed on both and uses them every shift.',
+    ],
   },
 
   // ----- week 4 -------------------------------------------------------------
@@ -937,6 +983,11 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     assessmentIds: ['gate-1'],
+    sheetIds: ['supraglottic-airways-igel'],
+    taughtNotChecked: [
+      'Bag-valve mask and oxygen delivery. BLS carry-forward — the AEMT addition is the supraglottic airway, which is checked off.',
+      'Portable suction. BLS carry-forward; the sheet exists in the workbook and is available if a student needs remediation.',
+    ],
   },
 
   // ----- week 5 -------------------------------------------------------------
@@ -983,6 +1034,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     note: 'Vascular-access check-off. Venipuncture, IO and IM/SubQ reps dated before this are refused — see data/aemtPhases.ts.',
+    sheetIds: ['iv-start', 'ez-io', 'im-subq-injection', 'nebulized-treatment'],
   },
 
   // ----- week 6 -------------------------------------------------------------
@@ -1029,6 +1081,10 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     note: 'ECG application check-off sits in this week or the next, deliberately ahead of the week 8 cardiology block — see the ECG decoupling note in the rotation plan.',
+    sheetIds: ['ekg-acquisition', '@monitor'],
+    taughtNotChecked: [
+      'Mechanical CPR — LUCAS and AutoPulse. BLS carry-forward, and device familiarisation rather than an AEMT competency.',
+    ],
   },
 
   // ----- week 7 -------------------------------------------------------------
@@ -1066,13 +1122,15 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     week: 7,
     label: 'Week 7 · Thu',
     short: 'Respiratory lab',
-    title: 'LAB: respiratory scenarios with capnography. Clinical judgment debrief.',
+    title:
+      'LAB: respiratory scenarios with capnography. CPAP check-off on the Flow-Safe II — the AEMT respiratory intervention the scenarios are built around. Clinical judgment debrief.',
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
     date: '2026-11-19',
     startTime: AM,
     endTime: PM,
+    sheetIds: ['cpap-bipap-mask-flow-safe-ii', '@monitor'],
   },
 
   // ----- week 8 — Thanksgiving week, Tuesday only ---------------------------
@@ -1250,7 +1308,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     label: 'Week 11 · Thu',
     short: 'OB lab · Bridge quiz',
     title:
-      'LAB: delivery and neonatal resuscitation. Close with a 30-item cumulative bridge quiz and hand out the break assignment in writing.',
+      'LAB: normal delivery and neonatal resuscitation, checked off. Close with a 30-item cumulative bridge quiz and hand out the break assignment in writing.',
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
@@ -1258,6 +1316,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     assessmentIds: ['bridge'],
+    sheetIds: ['childbirth-neonatal'],
   },
 
   // ----- winter break -------------------------------------------------------
@@ -1381,6 +1440,10 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     date: '2027-01-14',
     startTime: AM,
     endTime: PM,
+    taughtNotChecked: [
+      'Haemorrhage control — tourniquet, junctional tourniquet, pelvic binder. BLS carry-forward; all three sheets are in the workbook for remediation.',
+      'Wound management and bandaging. BLS carry-forward.',
+    ],
   },
 
   // ----- week 14 ------------------------------------------------------------
@@ -1427,6 +1490,9 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     assessmentIds: ['gate-3'],
+    taughtNotChecked: [
+      'Splinting and spinal motion restriction. BLS carry-forward.',
+    ],
   },
 
   // ----- week 15 ------------------------------------------------------------
@@ -1531,6 +1597,37 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     endTime: PM,
   },
 ]
+
+/**
+ * The work a student must finish before the first session.
+ *
+ * Week 0. It is not a week of the course and does not raise KC_COURSE_WEEKS;
+ * it is the condition of turning up. Chapters 1-4 are the material an incoming
+ * EMT already works inside every shift, so the classroom day they used to cost
+ * bought less than any other day in the course. Spending it on clinical
+ * judgment instead is the single largest re-allocation in this schedule.
+ */
+export const PRE_COURSE = KC_SCHEDULE.find((r) => r.week === 0)!
+
+/** Chapters that must be complete before 6 October. */
+export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
+
+/**
+ * What the student is told, and what happens if they arrive without it.
+ *
+ * Written down because a prerequisite with no consequence is a suggestion, and
+ * the whole reason this block moved out of week 1 is that the classroom time
+ * was worth more elsewhere. If students can skip it, the time was not recovered
+ * — it was lost.
+ */
+export const PRE_COURSE_POLICY = {
+  dueBy: PRE_COURSE.date,
+  requirement:
+    'Navigate Modules 1-4 complete, including the chapter quizzes, before the first session on 6 October.',
+  checkedAt: 'Confirmed at orientation on day one, off the Navigate gradebook.',
+  ifIncomplete:
+    'The student attends, and completes the block inside the first week. It is recorded as a deficiency and reviewed at the week 8 checkpoint alongside their clinical tally — the cumulative retrieval quizzes start drawing on this material in week 1, so arriving without it compounds rather than staying still.',
+}
 
 /** Instructional weeks the joint plan delivers. Sixteen, over eighteen calendar weeks. */
 export const KC_COURSE_WEEKS = KC_SCHEDULE.reduce((n, r) => Math.max(n, r.week), 0)
@@ -1821,6 +1918,41 @@ export function holidayCollisions(
     out.push({ date: s.date, holiday: h, label: s.short })
   }
   return out
+}
+
+/**
+ * The session a skill sheet is checked off in.
+ *
+ * `@monitor` in a row's `sheetIds` stands for whichever cardiac monitor the
+ * operation runs, because the joint cohort runs two and a student is checked
+ * off on their own. Pass the course's monitor id to resolve it.
+ *
+ * Used by the Skills tab so a sheet says WHEN it happens. Without it the list
+ * is eleven check-offs in no order, and the instructor has to hold the schedule
+ * in their head to know which of them week 3 is supposed to produce.
+ */
+export function sessionForSheet(
+  sheetId: string,
+  monitorSheetId?: string,
+): ScheduleRow | undefined {
+  return KC_SCHEDULE.find((r) =>
+    (r.sheetIds ?? []).some(
+      (id) => id === sheetId || (id === '@monitor' && sheetId === monitorSheetId),
+    ),
+  )
+}
+
+/** Every skill sheet the schedule checks off, in the order it does. */
+export function scheduledSheetIds(monitorSheetId?: string): string[] {
+  return [
+    ...new Set(
+      [...KC_SCHEDULE]
+        .sort((a, b) => (a.date < b.date ? -1 : 1))
+        .flatMap((r) => r.sheetIds ?? [])
+        .map((id) => (id === '@monitor' ? monitorSheetId : id))
+        .filter((id): id is string => !!id),
+    ),
+  ]
 }
 
 /** Short calendar labels keyed by the title a seeded session carries. */

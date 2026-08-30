@@ -423,6 +423,11 @@ const doc = new Document({
           'Clinical absences should be avoided. If unavoidable, the student must e-mail and leave a voice mail for the instructor and EMS unit as soon as possible regarding their impending absence. The student is responsible for working with the instructor to schedule a makeup time. If the student is unable to reschedule missed clinical time the course will be considered incomplete and the student will not be eligible to attempt board certification.',
         ),
 
+        H2('Prerequisite Work Required Before the First Session'),
+        P(
+          `${m.PRE_COURSE_POLICY.requirement} This covers chapters ${m.PRE_COURSE_CHAPTERS[0]} to ${m.PRE_COURSE_CHAPTERS[m.PRE_COURSE_CHAPTERS.length - 1]} — EMS systems, workforce safety and wellness, medical-legal and ethical issues, and communications and documentation — which are delivered as assigned Navigate work rather than as classroom time. Every student enters the course holding a current EMT certification and works inside this material on every shift, so the classroom hours it would otherwise consume are re-allocated to the Clinical Judgment domain, which is 31-35% of the certification examination. ${m.PRE_COURSE_POLICY.checkedAt} ${m.PRE_COURSE_POLICY.ifIncomplete}`,
+        ),
+
         H2('Student Requirements for Successful Course Completion'),
         P(
           `Students must successfully complete the course with a final course grade of ${m.MIN_PASSING_PERCENT}% or higher to be eligible to take the National Registry Certification exam. Students are expected to take all exams during the time they are scheduled. Students may make prior arrangements with the instructor to make up missed exams. However, any missed exam without prior instructor approval will be given a grade of “0”. A zero on any exam results in the student’s inability to complete the course satisfactorily. In addition to exams, each student will be evaluated by instructors regarding attitude, participation, attendance, appearance, and overall performance. This evaluation will be based on observations by the instructors, clinical preceptors, and the EMS Lead Instructor during classroom/lab practice, skill demonstrations, and clinical experiences. Students must satisfactorily complete all methods of evaluation to successfully complete the course.`,
