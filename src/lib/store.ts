@@ -47,6 +47,8 @@ function emptyDB(): DBShape {
     aemtFormResponses: [],
     aemtCompletions: [],
     aemtRecordDocs: [],
+    aemtProgramDocs: [],
+    aemtConferences: [],
     aemtAudit: [],
     aemtCandidates: [],
     chartReviews: [],

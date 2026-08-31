@@ -48,6 +48,8 @@ import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   Attestation,
   AemtAttendanceRecord,
+  AemtConference,
+  AemtProgramDoc,
   AemtMakeUp,
   AemtCandidate,
   AemtClinicalPhase,
@@ -1176,6 +1178,163 @@ export function setRecordDoc(
     else list.push(next)
     return { ...db, aemtRecordDocs: list }
   })
+}
+
+// ----- documented progress conferences ---------------------------------------
+
+export const CONFERENCE_REASONS: { value: AemtConference['reason']; label: string }[] = [
+  { value: 'scheduled', label: 'Scheduled — the one every student gets' },
+  { value: 'academic', label: 'Academic progress' },
+  { value: 'affective', label: 'Affective / professional behaviour' },
+  { value: 'attendance', label: 'Attendance' },
+  { value: 'clinical', label: 'Clinical or field performance' },
+  { value: 'student-requested', label: 'Student asked for it' },
+]
+
+export function useConferences(courseId: string | undefined): AemtConference[] {
+  return useSelector((db) =>
+    db.aemtConferences.filter((c) => c.courseId === courseId).sort((a, b) => b.date.localeCompare(a.date)),
+  )
+}
+
+export function recordConference(
+  courseId: string,
+  studentId: string,
+  input: {
+    date: string
+    attendees: string
+    reason: AemtConference['reason']
+    discussed: string
+    agreed?: string
+    followUpBy?: string
+    actor: string
+  },
+): { ok: boolean; refused?: string } {
+  if (input.discussed.trim().length < 8) {
+    return { ok: false, refused: 'Say what was discussed. This is the record a reviewer reads.' }
+  }
+  if (!input.attendees.trim()) {
+    return { ok: false, refused: 'Name who was in the room besides the student.' }
+  }
+  // A conference note is written about a student, and PHI belongs nowhere in
+  // it — the same rule the shift reflection is held to.
+  const refused = phiRefusal(`${input.discussed} ${input.agreed ?? ''}`)
+  if (refused) return { ok: false, refused }
+
+  const conf: AemtConference = {
+    id: uid('aconf'),
+    courseId,
+    studentId,
+    date: input.date,
+    attendees: input.attendees.trim(),
+    reason: input.reason,
+    discussed: input.discussed.trim(),
+    agreed: input.agreed?.trim() || undefined,
+    followUpBy: input.followUpBy || undefined,
+    recordedBy: input.actor,
+    recordedAt: new Date().toISOString(),
+  }
+  setState((db) => ({ ...db, aemtConferences: [...db.aemtConferences, conf] }))
+  audit(courseId, studentId, input.actor, 'progress conference documented', `${input.reason} · ${input.date}`)
+  return { ok: true }
+}
+
+export function deleteConference(id: string): void {
+  setState((db) => ({ ...db, aemtConferences: db.aemtConferences.filter((c) => c.id !== id) }))
+}
+
+// ----- program documents built and kept here ---------------------------------
+//
+// A document the app produced, stored as the retained record. Append-only: a
+// rebuild adds a row rather than replacing one, so what was issued in October
+// is still readable in January after the schedule moved — which is the whole
+// reason a snapshot is worth keeping rather than regenerating on demand.
+
+export function useProgramDocs(courseId: string | undefined): AemtProgramDoc[] {
+  return useSelector((db) =>
+    db.aemtProgramDocs
+      .filter((d) => d.courseId === courseId)
+      .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt)),
+  )
+}
+
+/** The most recent issue of each document, which is what a screen shows. */
+export function latestProgramDocs(docs: AemtProgramDoc[]): Map<string, AemtProgramDoc> {
+  const out = new Map<string, AemtProgramDoc>()
+  for (const d of docs) {
+    const cur = out.get(d.recordId)
+    if (!cur || d.generatedAt > cur.generatedAt) out.set(d.recordId, d)
+  }
+  return out
+}
+
+export function recordProgramDoc(
+  courseId: string,
+  recordId: string,
+  input: { title: string; html: string; fingerprint?: string; actor: string },
+): AemtProgramDoc {
+  const now = new Date().toISOString()
+  const doc: AemtProgramDoc = {
+    id: uid('adoc'),
+    courseId,
+    recordId,
+    title: input.title,
+    html: input.html,
+    generatedOn: todayISO(),
+    generatedAt: now,
+    generatedBy: input.actor,
+    fingerprint: input.fingerprint,
+  }
+  setState((db) => ({ ...db, aemtProgramDocs: [...db.aemtProgramDocs, doc] }))
+  // The tracking row is what the Records tab and the audit package read for
+  // staleness, so building the document sets its date rather than asking
+  // somebody to type today's date next to what they just did.
+  setRecordDoc(courseId, recordId, { status: 'approved', generatedOn: doc.generatedOn })
+  audit(
+    courseId,
+    undefined,
+    input.actor,
+    'program document built',
+    `${input.title} · ${(input.html.length / 1024).toFixed(0)} KB${
+      input.fingerprint ? ` · fingerprint ${input.fingerprint.slice(0, 16)}` : ''
+    }`,
+  )
+  return doc
+}
+
+/** Record where an issued copy went — the board, a preceptor, the students. */
+export function setProgramDocFiledWith(id: string, filedWith: string): void {
+  setState((db) => ({
+    ...db,
+    aemtProgramDocs: db.aemtProgramDocs.map((d) =>
+      d.id === id ? { ...d, filedWith: filedWith.trim() || undefined } : d,
+    ),
+  }))
+}
+
+/**
+ * Delete an issued copy.
+ *
+ * Refuses the last remaining issue of a record: these are retained for three
+ * years under K.A.R. 109-17-3, and deleting the only copy is not a correction,
+ * it is the loss of the record. Superseded issues can go.
+ */
+export function deleteProgramDoc(id: string): { ok: boolean; refused?: string } {
+  const db = getState()
+  const doc = db.aemtProgramDocs.find((d) => d.id === id)
+  if (!doc) return { ok: false, refused: 'No such document.' }
+  const siblings = db.aemtProgramDocs.filter(
+    (d) => d.courseId === doc.courseId && d.recordId === doc.recordId,
+  )
+  if (siblings.length <= 1) {
+    return {
+      ok: false,
+      refused:
+        'This is the only issue of that document on file, and it is retained for three years under K.A.R. 109-17-3. Build a new one first — that supersedes it without losing the record of what was issued.',
+    }
+  }
+  setState((cur) => ({ ...cur, aemtProgramDocs: cur.aemtProgramDocs.filter((d) => d.id !== id) }))
+  return { ok: true }
 }
 
 // ----- KBEMS submission deadlines --------------------------------------------
@@ -3073,6 +3232,7 @@ export function useStudentReadiness(
   const responses = useFormResponses(courseId)
   const completions = useCompletions(courseId)
   const shifts = useShifts(courseId)
+  const conferences = useConferences(courseId)
   const course = useCourse(courseId)
   const targets = course?.targets
   const instructors = instructorsOfRecord(course)
@@ -3087,6 +3247,7 @@ export function useStudentReadiness(
       const mine = responses.filter((r) => r.studentId === student.id)
       const open = openConcerns(mine)
       const shiftCount = shifts.filter((x) => x.studentId === student.id).length
+      const mineConferences = conferences.filter((c) => c.studentId === student.id)
       // Every instrument, not the two the old list happened to name. An
       // instrument the program publishes and nobody ever fills in should hold
       // up a completion the same way a missing course evaluation does.
@@ -3147,6 +3308,20 @@ export function useStudentReadiness(
               : ' · no cardiac monitor selected for this course, so no monitor sheet is required of anyone'),
         },
         {
+          // The syllabus commits to at least one private conference per
+          // student. Until conferences were recorded here that promise was
+          // kept in whatever file the person who held them wrote, so nothing
+          // could tell you which students had had one — which on a six-student
+          // cohort is the difference between a commitment and a sentiment.
+          id: 'conference',
+          basis: 'program' as const,
+          label: 'Progress conference documented',
+          status: mineConferences.length > 0 ? 'met' : 'unmet',
+          detail: mineConferences.length
+            ? `${mineConferences.length} on file · most recent ${mineConferences[0].date}`
+            : 'None documented — the syllabus commits to at least one per student',
+        },
+        {
           id: 'concerns',
           basis: 'program' as const,
           label: 'Remediation and conferences closed',
@@ -3189,7 +3364,7 @@ export function useStudentReadiness(
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets, shifts, forms, instructors.join('|')])
+  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets, shifts, forms, conferences, instructors.join('|')])
 }
 
 /**

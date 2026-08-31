@@ -139,7 +139,23 @@ check(
   `${heldWithGenerator.map((r) => r.id).join(', ')} — a blank form is not the record collected on it; use blankForm`,
 )
 
-const evidenceKeys = new Set(['attendance', 'skillChecks', 'encounters', 'students', 'sessions', 'completions', 'makeUps'])
+// The stored collections a CES-held record can be evidenced by. Kept in step
+// with RecordEvidence in the registry and with the counting in RecordsTab and
+// the audit package — a key that resolves in one and not the others prints
+// "held in CES" over an empty collection.
+const uncited = R.REQUIRED_RECORDS.filter((r) => !r.citation?.trim())
+check(
+  uncited.length === 0,
+  'every record cites the regulation it exists because of',
+  `${uncited.map((r) => r.id).join(', ')} — the Records tab prints these as a requirement listing`,
+)
+const badCitation = R.REQUIRED_RECORDS.filter((r) => !/K\.A\.R\.|Program quality/.test(r.citation))
+check(badCitation.length === 0, 'every citation names a Kansas regulation or says it is not one', badCitation.map((r) => r.id).join(', '))
+
+const evidenceKeys = new Set([
+  'attendance', 'skillChecks', 'encounters', 'students', 'sessions',
+  'completions', 'makeUps', 'conferences',
+])
 const badEvidence = R.HELD_RECORDS.filter((r) => r.evidence && !evidenceKeys.has(r.evidence))
 check(badEvidence.length === 0, 'every evidence key names a collection that exists', badEvidence.map((r) => r.id).join(', '))
 

@@ -63,7 +63,16 @@ export async function loadCourse() {
         `export * as R from ${JSON.stringify(join(SRC, 'data/aemtRecords'))}\n` +
         `export * as K from ${JSON.stringify(join(SRC, 'data/aemtSkills'))}\n` +
         `export * as S from ${JSON.stringify(join(SRC, 'data/aemtSites'))}\n` +
-        `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n`,
+        `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n` +
+        // The document bodies themselves. Written in src/ because the app
+        // builds and retains the same documents; a generator here that held its
+        // own copy of the prose would be the drift this whole set prevents.
+        `export * as DOCS from ${JSON.stringify(join(SRC, 'data/programDocs'))}\n` +
+        // The app's own renderer and builder registry, so a check can render
+        // the same tree both ways and compare.
+        `export { docHtml } from ${JSON.stringify(join(SRC, 'lib/docHtml'))}\n` +
+        `export { longDate, shortDate, weekdayOf, dayDate } from ${JSON.stringify(join(SRC, 'lib/docBlocks'))}\n` +
+        `export { DOC_BUILDERS as BUILDERS } from ${JSON.stringify(join(SRC, 'modules/aemt/programDocBuild'))}\n`,
       resolveDir: SRC,
       loader: 'ts',
     },

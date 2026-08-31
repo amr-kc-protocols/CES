@@ -65,6 +65,7 @@ export type RecordEvidence =
   | 'sessions'
   | 'completions'
   | 'makeUps'
+  | 'conferences'
 
 export interface RequiredRecord {
   id: string
@@ -87,6 +88,14 @@ export interface RequiredRecord {
    * Not a generator: the blank form is paper, the record is what comes back.
    */
   blankForm?: RecordGenerator
+  /**
+   * The regulation this record exists because of.
+   *
+   * Held apart from `why` so the Records tab can print an actual requirement
+   * listing — a column of citations a reviewer can read down. Buried mid-
+   * sentence it is prose; in its own field it is the thing being complied with.
+   */
+  citation: string
   why: string
   /** For CES-held records, the collection that evidences it. */
   evidence?: RecordEvidence
@@ -107,6 +116,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Course syllabus',
     source: 'generated',
     generator: 'doc:syllabus',
+    citation: 'K.A.R. 109-1-1(ss); filed under 109-11-1a(b1)',
     why: 'K.A.R. 109-1-1(ss): goals and objectives, materials, attendance policy, completion requirements, clinical/field description, discipline policies, instructor contact, and the full schedule. Filed with the approval application.',
   },
   {
@@ -114,6 +124,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Curriculum and lesson plans',
     source: 'generated',
     generator: 'doc:curriculum',
+    citation: 'K.A.R. 109-17-3(a); standards adopted by 109-10-1c',
     why: 'The Kansas AEMT Educational Standards (Oct 2014) adopted by K.A.R. 109-10-1c, mapped to your sessions.',
   },
   {
@@ -121,6 +132,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Clinical and field training objectives',
     source: 'generated',
     generator: 'doc:objectives',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'What a student is expected to achieve on each rotation, given to the preceptor.',
   },
   {
@@ -128,20 +140,32 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Gradebook',
     source: 'external',
     noGenerator: 'Live data in the Navigate LMS. Nothing here can produce it, and a snapshot of it would be a claim about grades rather than the grades.',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'The Navigate pre-class component lives in the LMS; the closed-book quizzes, the three gate exams and the final are scored by the instructor. The completion record stores the attested final percentage, not the working grades.',
   },
   {
+    // Was listed as kept elsewhere, on the reasoning that a conference is a
+    // conversation somebody writes up afterwards. True of the writing-up, and
+    // not a reason the record lives in Word: it is a per-student event with a
+    // date, the people in the room, what was discussed and what was agreed —
+    // the same shape as every other thing this app already holds. Listing it
+    // as external meant nothing could say which students had had one, which on
+    // a six-student cohort is the difference between a commitment and a
+    // sentiment.
     id: 'conferences',
     label: 'Student progress conferences',
-    source: 'external',
-    noGenerator: 'A record of conversations that have happened, written by whoever held them. The policy manual states when one is triggered; the record itself is per-student and cannot be generated.',
-    why: 'At least one documented private conference per student, plus any called for by an affective concern.',
+    source: 'ces',
+    tab: 'roster',
+    evidence: 'conferences',
+    citation: 'K.A.R. 109-17-3(a)',
+    why: 'K.A.R. 109-17-3 — at least one documented private conference per student, plus any called for by an affective concern, two failed gate retests, or the student asking. Recorded against the student on the Roster tab.',
   },
   {
     id: 'outcomes',
     label: 'Outcome assessment and analysis',
     source: 'external',
     noGenerator: 'Written after the cohort completes, against results that do not exist yet. Generating a template now would put an empty analysis on file where a reviewer expects a finding.',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'Pass rates and programme review, analysed by the Program Manager and Medical Director for continuous improvement.',
   },
   {
@@ -149,6 +173,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Program policies',
     source: 'generated',
     generator: 'doc:policies',
+    citation: 'K.A.R. 109-17-3(a); 109-11-1a(b2)',
     why: 'K.A.R. 109-17-3 — attendance, grading, discipline, remediation and dismissal policies as issued to students.',
   },
   {
@@ -164,6 +189,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     source: 'ces',
     tab: 'hours',
     evidence: 'makeUps',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'K.A.R. 109-17-3 — how a late enrolee or an absent student made up required content, per student. Recorded against the missed session on the Hours tab; the policy it is judged against is in the program policy manual.',
   },
   {
@@ -171,6 +197,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'First-attempt examination outcomes',
     source: 'external',
     noGenerator: 'Comes from the National Registry after candidates sit the examination. It does not exist until then and cannot be generated in advance.',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'K.A.R. 109-17-3 — first-attempt certification examination results, monitored for programme review.',
   },
   {
@@ -190,6 +217,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     tab: 'forms',
     formEvidence: ['clinical-daily'],
     blankForm: 'doc:forms',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'K.A.R. 109-17-3 — the preceptor forms returned from each clinical and field rotation. One per shift; the Forms tab counts shifts without one.',
   },
   {
@@ -199,6 +227,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     tab: 'forms',
     formEvidence: ['instructor-eval', 'course-eval'],
     blankForm: 'doc:forms',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'K.A.R. 109-17-3 — each student evaluates the course AND each instructor who taught them, not the course alone. On a joint cohort that is one evaluation per instructor per student, not one per student.',
   },
   {
@@ -207,6 +236,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Attendance and contact hours',
     source: 'ces',
     tab: 'hours',
+    citation: 'K.A.R. 109-17-3(a); 109-11-4a',
     why: 'Held in CES — the hours grid and the 8-hour absence policy.',
   },
   {
@@ -215,6 +245,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Psychomotor skill evaluations',
     source: 'ces',
     tab: 'skills',
+    citation: 'K.A.R. 109-11-8(a)(2); retained under 109-17-3',
     why: 'Held in CES — per-criterion results, critical failures and sign-off.',
   },
   {
@@ -223,6 +254,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Patient encounter log',
     source: 'ces',
     tab: 'clinical',
+    citation: 'K.A.R. 109-11-8(a)(4); retained under 109-17-3',
     why: 'Held in CES — every rep against its shift, preceptor and K.A.R. 109-11-8 minimum.',
   },
   {
@@ -237,6 +269,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     tab: 'forms',
     formEvidence: ['preceptor-eval', 'affective'],
     blankForm: 'doc:forms',
+    citation: 'Program quality; retained with the course under 109-17-3',
     why: 'Program quality, not a K.A.R. 109-17-3 line item: the student’s view of each preceptor, and the affective behaviour record that triggers a documented conference.',
   },
   {
@@ -245,6 +278,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     source: 'ces',
     tab: 'sessions',
     evidence: 'sessions',
+    citation: 'K.A.R. 109-11-4a; 109-11-1a(b3)',
     why: 'K.A.R. 109-11-4a — date, time, subject, instructor and lab hours of every session.',
   },
   {
@@ -253,6 +287,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     source: 'ces',
     tab: 'roster',
     evidence: 'completions',
+    citation: 'K.A.R. 109-11-8(a); 109-11-8(b)',
     why: 'K.A.R. 109-11-8 — written verification by the primary instructor within 15 days of the final session.',
   },
   {
@@ -261,6 +296,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Student roster and completions',
     source: 'ces',
     tab: 'roster',
+    citation: 'K.A.R. 109-11-1a(e); 109-17-3(a)',
     why: 'Held in CES — enrolment, withdrawals, and verified completions with their overrides.',
   },
 ]
