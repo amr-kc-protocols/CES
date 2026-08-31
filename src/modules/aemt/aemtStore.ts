@@ -48,6 +48,7 @@ import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   Attestation,
   AemtAttendanceRecord,
+  AemtMakeUp,
   AemtCandidate,
   AemtClinicalPhase,
   AemtInterviewScore,
@@ -1297,15 +1298,78 @@ export function setAttendance(
   hours?: number,
 ): void {
   setState((db) => {
+    const prior = db.aemtAttendance.find(
+      (a) => a.studentId === studentId && a.sessionId === sessionId,
+    )
     const rest = db.aemtAttendance.filter(
       (a) => !(a.studentId === studentId && a.sessionId === sessionId),
     )
     if (!status) return { ...db, aemtAttendance: rest }
     return {
       ...db,
-      aemtAttendance: [...rest, { courseId, studentId, sessionId, status, hours }],
+      aemtAttendance: [
+        ...rest,
+        // A make-up survives a change of attendance status. It is a retained
+        // record of work somebody did and an instructor signed for, and
+        // correcting a mark from absent to present is not a reason to delete
+        // it silently. Clearing the attendance entirely still removes it,
+        // which is an explicit act with a confirmation in front of it.
+        { courseId, studentId, sessionId, status, hours, makeUp: prior?.makeUp },
+      ],
     }
   })
+}
+
+/**
+ * Record a documented make-up against a missed session.
+ *
+ * Deliberately does NOT touch the attendance status or the credited hours. The
+ * student was absent, the hours were lost, and both stay recorded — what a
+ * make-up establishes is equivalent competency on the missed material, which is
+ * a different claim from having been in the room. Overwriting the absence would
+ * turn the make-up record the regulation asks for into the erasure of the thing
+ * it is evidence about.
+ */
+export function recordMakeUp(
+  studentId: string,
+  sessionId: string,
+  input: { date: string; what: string; by: string },
+): { ok: boolean; refused?: string } {
+  if (!input.what.trim()) return { ok: false, refused: 'Say what the student actually did.' }
+  if (!input.by.trim()) return { ok: false, refused: 'A make-up is signed by whoever supervised it.' }
+  const existing = getState().aemtAttendance.find(
+    (a) => a.studentId === studentId && a.sessionId === sessionId,
+  )
+  if (!existing) {
+    return { ok: false, refused: 'No attendance is recorded for that session, so there is no absence to make up.' }
+  }
+  setState((db) => ({
+    ...db,
+    aemtAttendance: db.aemtAttendance.map((a) =>
+      a.studentId === studentId && a.sessionId === sessionId
+        ? {
+            ...a,
+            makeUp: {
+              date: input.date,
+              what: input.what.trim(),
+              by: input.by.trim(),
+              recordedAt: new Date().toISOString(),
+            },
+          }
+        : a,
+    ),
+  }))
+  return { ok: true }
+}
+
+/** Remove a make-up record — a correction, not a routine action. */
+export function clearMakeUp(studentId: string, sessionId: string): void {
+  setState((db) => ({
+    ...db,
+    aemtAttendance: db.aemtAttendance.map((a) =>
+      a.studentId === studentId && a.sessionId === sessionId ? { ...a, makeUp: undefined } : a,
+    ),
+  }))
 }
 
 /**
@@ -1411,6 +1475,14 @@ export interface StudentHours {
   /** Sessions missed (marked absent), for the make-up list. */
   missed: AemtSession[]
   /**
+   * Missed sessions with no documented make-up. This is the outstanding list:
+   * `missed` never shrinks, because the absence happened and stays recorded,
+   * so a list built on it can only grow for sixteen weeks.
+   */
+  makeUpOwed: AemtSession[]
+  /** Documented make-ups, with the session each one covers. */
+  makeUpsDone: { session: AemtSession; makeUp: AemtMakeUp }[]
+  /**
    * Absence against the course policy: more than MAX_ABSENT_HOURS of scheduled
    * CLASS time (didactic + lab) fails the course outright. Clinical shifts are
    * excluded — those are rescheduled rather than counted against the cap.
@@ -1433,6 +1505,8 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
     return students.map((student) => {
       let earned = 0
       const missed: AemtSession[] = []
+      const makeUpOwed: AemtSession[] = []
+      const makeUpsDone: { session: AemtSession; makeUp: AemtMakeUp }[] = []
       for (const s of sessions) {
         const rec = map.get(attKey(student.id, s.id))
         // Classroom time only. A session marked 'clinical' is rotation time,
@@ -1440,7 +1514,11 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
         // clinical total via its attested shift — the same hours reconciled
         // twice against two different filed commitments.
         if (isClassroomSession(s.kind)) earned += creditedHours(s, rec)
-        if (rec?.status === 'absent') missed.push(s)
+        if (rec?.status === 'absent') {
+          missed.push(s)
+          if (rec.makeUp) makeUpsDone.push({ session: s, makeUp: rec.makeUp })
+          else makeUpOwed.push(s)
+        }
       }
       const classAbsentHours = missed
         .filter((s) => isClassroomSession(s.kind))
@@ -1455,6 +1533,8 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
         totalHours: earned + totals.hospital + totals.field,
         missedHours: missed.reduce((sum, s) => sum + s.hours, 0),
         missed,
+        makeUpOwed,
+        makeUpsDone,
         classAbsentHours,
         absenceRemaining: Math.max(0, MAX_ABSENT_HOURS - classAbsentHours),
         overAbsenceCap: classAbsentHours > MAX_ABSENT_HOURS,
@@ -2855,6 +2935,114 @@ export function openConcerns(responses: AemtFormResponse[]): AemtFormResponse[] 
   return flaggedResponses(responses).filter((r) => !r.resolvedDate)
 }
 
+// ----- what each instrument still owes ---------------------------------------
+//
+// Three cadences, three different questions, and only one of them was being
+// asked. 'course' forms were counted one per student; 'shift' and 'ongoing'
+// forms were not counted at all, so a student could finish eighteen rotation
+// shifts with no daily evaluation on file and every screen read clean.
+//
+// The instructor evaluation was the sharp one. It counted FORMS — a student who
+// submitted one instructor evaluation satisfied "end-of-course evaluations
+// submitted" on a cohort taught by two instructors, and the co-instructor was
+// never evaluated by anyone. K.A.R. 109-17-3 asks for an evaluation of the
+// course AND of every instructor who taught them, and the joint Kansas City /
+// Wichita cohort is exactly the shape that makes the difference visible.
+
+/** Everyone who teaches this cohort. One primary, plus whoever else is filed. */
+export function instructorsOfRecord(course: AemtCourse | undefined): string[] {
+  const all = [course?.primaryInstructor, ...(course?.coInstructors ?? [])]
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const n of all) {
+    const name = n?.trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(name)
+  }
+  return out
+}
+
+export interface FormOwed {
+  formId: string
+  /** How many of this instrument this student should have on file by the end. */
+  expected: number
+  /** How many they do have. */
+  have: number
+  /** expected - have, floored at zero. */
+  owed: number
+  /** What the expectation is counted against, for the screen to say plainly. */
+  basis: string
+}
+
+/**
+ * What one student still owes on one instrument.
+ *
+ * `shiftsFor` is the student's logged shifts and `instructors` the course's
+ * roster, both passed in so this stays a pure function the readiness gate and
+ * the Forms tab can share — the two disagreeing about what is outstanding is
+ * how the gate ends up passing a student the tab is still chasing.
+ */
+export function formOwedFor(
+  def: { id: string; cadence: 'shift' | 'ongoing' | 'course' },
+  mine: AemtFormResponse[],
+  shiftCount: number,
+  instructors: string[],
+): FormOwed {
+  const have = mine.filter((r) => r.formId === def.id).length
+
+  // One per instructor who taught them, counted by DISTINCT instructor named on
+  // the form rather than by number of forms. Two evaluations of the same
+  // instructor are two evaluations of the same instructor.
+  if (def.id === 'instructor-eval') {
+    const named = new Set(
+      mine
+        .filter((r) => r.formId === def.id)
+        .map((r) => String(r.values?.instructor ?? '').trim().toLowerCase())
+        .filter(Boolean),
+    )
+    const expected = Math.max(1, instructors.length)
+    return {
+      formId: def.id,
+      expected,
+      have: named.size,
+      owed: Math.max(0, expected - named.size),
+      basis:
+        instructors.length > 1
+          ? `one per instructor of record (${instructors.join(', ')})`
+          : 'one per instructor of record',
+    }
+  }
+
+  if (def.cadence === 'course') {
+    return { formId: def.id, expected: 1, have, owed: Math.max(0, 1 - have), basis: 'one per student' }
+  }
+
+  // One per shift. The preceptor signs it at the end of the shift, so a shift
+  // without one is a shift nobody wrote down what happened on.
+  if (def.cadence === 'shift') {
+    return {
+      formId: def.id,
+      expected: shiftCount,
+      have,
+      owed: Math.max(0, shiftCount - have),
+      basis: `one per logged shift (${shiftCount})`,
+    }
+  }
+
+  // 'ongoing' — the instrument's own subtitle says at least once per student,
+  // and the affective record is what triggers a documented conference.
+  return {
+    formId: def.id,
+    expected: 1,
+    have,
+    owed: Math.max(0, 1 - have),
+    basis: 'at least one per student',
+  }
+}
+
 /**
  * Readiness for every student. Checks that the app cannot evidence — the final
  * course grade lives in the Navigate LMS — are reported as 'attest' so they are
@@ -2870,6 +3058,13 @@ export function useStudentReadiness(
    * hid, which a bundled lookup would miss.
    */
   sheets: AemtSkillSheet[],
+  /**
+   * The instruments in force for this course, already resolved to the version
+   * an operation may have published. Passed in for the same reason `sheets` is:
+   * the gate has to count what the Forms tab shows, including an instrument
+   * whose cadence somebody changed.
+   */
+  forms: { id: string; cadence: 'shift' | 'ongoing' | 'course' }[],
 ): StudentReadiness[] {
   const students = useStudents(courseId)
   const hours = useStudentHours(courseId)
@@ -2877,7 +3072,10 @@ export function useStudentReadiness(
   const checks = useSkillChecks(courseId)
   const responses = useFormResponses(courseId)
   const completions = useCompletions(courseId)
-  const targets = useCourse(courseId)?.targets
+  const shifts = useShifts(courseId)
+  const course = useCourse(courseId)
+  const targets = course?.targets
+  const instructors = instructorsOfRecord(course)
 
   return useMemo(() => {
     return students.map((student) => {
@@ -2888,8 +3086,13 @@ export function useStudentReadiness(
       const contradicted = skills.filter((s) => s.contradicted).length
       const mine = responses.filter((r) => r.studentId === student.id)
       const open = openConcerns(mine)
-      const courseForms = ['instructor-eval', 'course-eval']
-      const submitted = courseForms.filter((f) => mine.some((r) => r.formId === f))
+      const shiftCount = shifts.filter((x) => x.studentId === student.id).length
+      // Every instrument, not the two the old list happened to name. An
+      // instrument the program publishes and nobody ever fills in should hold
+      // up a completion the same way a missing course evaluation does.
+      const owed = forms
+        .map((f) => formOwedFor(f, mine, shiftCount, instructors))
+        .filter((o) => o.owed > 0)
 
       const list: ReadinessCheck[] = [
         {
@@ -2953,9 +3156,18 @@ export function useStudentReadiness(
         {
           id: 'evaluations',
           basis: 'program' as const,
-          label: 'End-of-course evaluations submitted',
-          status: submitted.length === courseForms.length ? 'met' : 'unmet',
-          detail: `${submitted.length} of ${courseForms.length} submitted`,
+          label: 'Evaluations on file',
+          status: owed.length === 0 ? 'met' : 'unmet',
+          detail: owed.length
+            ? owed
+                .map((o) => {
+                  const def = forms.find((f) => f.id === o.formId)
+                  return `${def?.id ?? o.formId}: ${o.have} of ${o.expected} — ${o.basis}`
+                })
+                .join(' · ')
+            : forms.length
+              ? `All ${forms.length} instruments accounted for`
+              : 'No instruments are in force for this course',
         },
         {
           id: 'grade',
@@ -2976,7 +3188,8 @@ export function useStudentReadiness(
         completion: completions.find((x) => x.studentId === student.id),
       }
     })
-  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets, shifts, forms, instructors.join('|')])
 }
 
 /**

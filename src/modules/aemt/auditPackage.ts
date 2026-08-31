@@ -9,6 +9,7 @@ import {
 import type { PreceptorCredential } from '../../data/aemt'
 import {
   REQUIRED_RECORDS,
+  filedStatus,
   retentionUntil,
   RETENTION_YEARS,
   agreementStatus,
@@ -34,6 +35,7 @@ import type {
   AemtRecordDoc,
   AemtSession,
   AemtSkillCheck,
+  AemtMakeUp,
   AemtStudent,
 } from '../../types'
 
@@ -93,7 +95,7 @@ export interface AuditPackageInput {
   course: AemtCourse
   students: AemtStudent[]
   sessions: AemtSession[]
-  attendance: { studentId: string; sessionId: string; status: string; hours?: number }[]
+  attendance: { studentId: string; sessionId: string; status: string; hours?: number; makeUp?: AemtMakeUp }[]
   shifts: AemtClinicalShift[]
   encounters: AemtEncounter[]
   skillChecks: AemtSkillCheck[]
@@ -348,21 +350,38 @@ export function auditPackageHTML(
     attendance: d.attendance.length,
     skillChecks: d.skillChecks.length,
     encounters: d.encounters.length,
-    formResponses: d.forms.length,
     students: d.students.length,
     sessions: d.sessions.length,
     completions: d.completions.length,
+    makeUps: d.attendance.filter((a) => a.makeUp).length,
   }
   const records = REQUIRED_RECORDS.map((r) => {
     const doc = d.recordDocs.find((x) => x.typeId === r.id)
     if (r.source === 'ces') {
-      const n = r.evidence ? evidenceCount[r.evidence] : undefined
+      // Form-backed records count only their own instruments; a wholesale count
+      // of every response said preceptor evaluations were on file because
+      // somebody had filled in a course evaluation.
+      const n = r.formEvidence
+        ? d.forms.filter((f) => r.formEvidence!.includes(f.formId)).length
+        : r.evidence
+          ? evidenceCount[r.evidence]
+          : undefined
       const empty = n === 0
       return `<tr><td>${esc(r.label)}</td>
         <td class="${empty ? 'warn' : 'ok'}">${
           n === undefined ? 'held in CES' : empty ? 'EMPTY — nothing recorded' : `held in CES (${n} records)`
         }</td>
         <td>${esc(`CES — ${r.tab} tab`)}</td><td>—</td></tr>`
+    }
+    // A generated document is judged on whether the FILED copy predates a
+    // change to the course, not on whether five fields were typed.
+    if (r.source === 'generated') {
+      const fs = filedStatus(doc, course)
+      return `<tr><td>${esc(r.label)}</td>
+        <td class="${fs.pill === 'ok' ? 'ok' : fs.pill === 'crit' ? 'crit' : 'warn'}">${esc(fs.label)}
+          <div>${esc(fs.detail)}</div></td>
+        <td>${esc(doc?.location ?? '—')}</td>
+        <td>${esc(`npm run ${r.generator}`)}</td></tr>`
     }
     const st = docStatus(doc)
     return `<tr><td>${esc(r.label)}</td>

@@ -212,20 +212,28 @@ for (const d of built) {
 }
 
 // ----- the registry ----------------------------------------------------------
+//
+// Which records this document set satisfies. The registry itself is checked by
+// check-records.mjs; what belongs here is the half that is about the DOCUMENTS —
+// that every command a record names exists and runs, and that no command in
+// package.json produces a document nobody has accounted for.
 
-const external = R.REQUIRED_RECORDS.filter((r) => r.source === 'external')
-const unexplained = external.filter((r) => !r.generator && !r.noGenerator?.trim())
+const external = R.EXTERNAL_RECORDS
+const unexplained = external.filter((r) => !r.noGenerator?.trim())
 check(
   unexplained.length === 0,
-  'every record held outside CES either has a generator or says why it cannot',
+  'every record kept outside CES says why no command can produce it',
   unexplained.map((r) => r.label).join('\n'),
 )
 
-const both = external.filter((r) => r.generator && r.noGenerator)
-check(both.length === 0, 'no record claims a generator and an absence of one', both.map((r) => r.label).join('\n'))
-
-const badScript = [...new Set(external.map((r) => r.generator).filter(Boolean))].filter((g) => !pkg.scripts[g])
-check(badScript.length === 0, 'every named generator is a real npm script', badScript.join(', '))
+// Both kinds of claim on a command: the generator that produces a record, and
+// the blankForm that prints the paper a CES-held record is collected on.
+const namedCommands = [
+  ...R.REQUIRED_RECORDS.map((r) => r.generator),
+  ...R.REQUIRED_RECORDS.map((r) => r.blankForm),
+].filter(Boolean)
+const badScript = [...new Set(namedCommands)].filter((g) => !pkg.scripts[g])
+check(badScript.length === 0, 'every command a record names is a real npm script', badScript.join(', '))
 
 // A doc script nobody claims is either an unrecorded record or a document that
 // is not one. Both are fine; being unable to tell them apart is not.
@@ -233,7 +241,7 @@ const NOT_A_RETAINED_RECORD = {
   'doc:application': 'Filed with KBEMS under K.A.R. 109-11-4a. It is a submission, not one of the records 109-17-3 retains.',
   'doc:student': 'Issued to students. The policies it restates are retained under the `policies` record; the guide itself is not a required record.',
 }
-const claimed = new Set(external.map((r) => r.generator).filter(Boolean))
+const claimed = new Set(namedCommands)
 const docScripts = Object.keys(pkg.scripts).filter((s) => s.startsWith('doc:') && s !== 'doc:all')
 const unclaimed = docScripts.filter((s) => !claimed.has(s) && !NOT_A_RETAINED_RECORD[s])
 check(unclaimed.length === 0, 'every document either satisfies a required record or says it is not one', unclaimed.join(', '))
@@ -249,7 +257,7 @@ rmSync(dir, { recursive: true, force: true })
 
 console.log(`
   ${built.length} documents built and read back
-  ${external.length} records outside CES · ${claimed.size} generated here · ${external.length - external.filter((r) => r.generator).length} explained as ungeneratable
+  ${R.GENERATED_RECORDS.length} records generated here · ${R.HELD_RECORDS.filter((r) => r.blankForm).length} collected on a generated blank form · ${external.length} explained as ungeneratable
   ${scheduleDates.length} schedule dates and ${STD.STANDARDS.length} standards traced onto the page`)
 
 console.log(

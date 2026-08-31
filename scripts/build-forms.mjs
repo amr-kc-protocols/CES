@@ -170,7 +170,11 @@ const policyDoc = () =>
             ['Record', 'Held', 'Why it is required'],
             m.R.REQUIRED_RECORDS.map((r) => [
               r.label,
-              r.source === 'ces' ? 'In CES' : 'Externally',
+              r.source === 'ces'
+                ? 'In CES'
+                : r.source === 'generated'
+                  ? 'Generated from the course record'
+                  : 'In another system',
               printable(r.why),
             ]),
           ),
@@ -199,7 +203,9 @@ function formPages(def) {
     P(`Completed by: ${def.completedBy}.   Cadence: ${def.cadence === 'shift' ? 'one per shift' : def.cadence === 'course' ? 'once per student, end of course' : 'ongoing'}.`, { size: 20 }),
     ...(def.draft
       ? [P('DRAFT INSTRUMENT — pending Program Manager and Medical Director review before use as a competency record.', { bold: true, size: 19 })]
-      : []),
+      : def.reviewedBy
+        ? [P(`Reviewed and approved by ${def.reviewedBy}${def.reviewedOn ? ` on ${longDate(def.reviewedOn)}` : ''}.`, { italics: true, size: 19 })]
+        : []),
     SPACER(80),
     ...RULE('Student'),
     ...RULE('Date'),

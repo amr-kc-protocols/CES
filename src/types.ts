@@ -686,6 +686,18 @@ export interface AemtCourse {
   primaryInstructor?: string
   primaryInstructorCredential?: PreceptorCredentialId
   primaryInstructorCertNumber?: string
+  /**
+   * Other instructors of record who teach this cohort.
+   *
+   * A joint course has one primary instructor — K.A.R. 109-11-8 puts the
+   * completion verification on exactly one person — but more than one
+   * instructor teaching. The course record could not say so, which made a
+   * two-market cohort indistinguishable from a one-instructor one, and
+   * K.A.R. 109-17-3 asks each student to evaluate the course AND every
+   * instructor who taught them. With no roster the evaluation check counted
+   * forms instead of instructors and called one enough.
+   */
+  coInstructors?: string[]
   /** Clinical and field sites named on the application. */
   sites?: AemtSite[]
   /** Kansas BEMS course approval number, printed on course records. */
@@ -823,6 +835,16 @@ export interface AemtRecordDoc {
   approvedDate?: string
   /** Where the document actually lives — a path, a link, or a description. */
   location?: string
+  /**
+   * For a GENERATED document: the date the filed copy was produced.
+   *
+   * This is the whole status for those records. A generated document has no
+   * version anybody types and no master copy to locate — the source of truth is
+   * the course record, and the only thing that can be wrong is that the copy
+   * somebody filed predates a change to it. Compared against the course's
+   * updatedAt by filedStatus().
+   */
+  generatedOn?: string
   notes?: string
 }
 
@@ -1082,6 +1104,36 @@ export interface AemtAttendanceRecord {
    * a late arrival or a partial make-up. Absent = the session's hours.
    */
   hours?: number
+  /**
+   * A documented make-up for this missed session.
+   *
+   * K.A.R. 109-17-3 retains "late-enrolment and make-up schedules", and the
+   * program's own policy says a make-up is recorded against the student rather
+   * than waived — "a make-up that is not documented is an absence". Until this
+   * existed the Hours tab listed what every absent student owed and offered no
+   * way to say any of it had been done, so the list only ever grew and the
+   * record the regulation asks for was kept nowhere at all.
+   *
+   * Recording one does NOT restore the missed hours. The attendance status
+   * stays 'absent' and the hours stay lost, because that is what happened; the
+   * make-up is the evidence of equivalent competency, which is a separate claim
+   * and the one the policy actually requires.
+   */
+  makeUp?: AemtMakeUp
+}
+
+/** Equivalent-competency work completed for a missed session. */
+export interface AemtMakeUp {
+  /** When the make-up was completed, not when it was assigned. */
+  date: string
+  /** What was actually done — the substance an auditor reads. */
+  what: string
+  /**
+   * Who supervised it. The program's policy puts the signature on the primary
+   * instructor, so this is a name, not a checkbox.
+   */
+  by: string
+  recordedAt: string
 }
 
 /**

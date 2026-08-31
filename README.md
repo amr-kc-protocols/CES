@@ -81,15 +81,29 @@ Hunter's head:
   scripts because each has its own argument to make. What they cannot have is
   separate ideas about what the course is: all seven load the same modules
   through `scripts/lib/doc-kit.mjs`, so none of them can drift from the
-  calendar the coordinator works to. `src/data/aemtRecords.ts` records which
-  K.A.R. 109-17-3 record each command satisfies, and states for the four it
-  cannot produce — the Navigate gradebook, first-attempt exam outcomes, progress
-  conferences and outcome analysis — why no command ever will.
+  calendar the coordinator works to. `src/data/aemtRecords.ts` answers, for
+  every record K.A.R. 109-17-3 retains, the only question that matters about
+  one — where it actually is. Three answers, because there are three: **held in
+  CES**, where the tab that owns it is the record and the status is how much is
+  in it; **generated**, where a named command produces it from the course
+  record and what is tracked is whether the copy somebody FILED predates a
+  change to the course; and **kept elsewhere**, which is four records, each
+  saying why nothing here can produce it — the Navigate gradebook,
+  first-attempt exam outcomes, progress conferences and outcome analysis. The
+  distinction the list is built to hold is between the document that *states* a
+  rule and the record that *proves* it was followed: the policy manual states
+  the make-up policy and is not a record of what any student made up;
+  `doc:forms` prints a blank preceptor evaluation and is not the returned
+  evaluations.
 
   `npm run check:plan` and `check:skills` assert the arithmetic, the calendar
-  and the coverage; `check:documents` builds all seven and reads them back,
-  checking each carries the sections it owes and that no source path, unfilled
-  value or developer note reached the page.
+  and the coverage; `check:documents` builds all seven documents and reads them
+  back, checking each carries the sections it owes and that no source path,
+  unfilled value or developer note reached the page; `check:records` drives the
+  store to assert the registry's claims hold — every instrument belongs to
+  exactly one record, every command a record names is real, a make-up documents
+  competency without erasing the absence, and a student who evaluated one of
+  two instructors is not finished.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

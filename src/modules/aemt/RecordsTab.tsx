@@ -16,10 +16,13 @@ import {
   useRecordSafety,
 } from './aemtStore'
 import {
-  REQUIRED_RECORDS,
+  EXTERNAL_RECORDS,
+  GENERATED_RECORDS,
+  HELD_RECORDS,
   RETENTION_YEARS,
   retentionUntil,
   docStatus,
+  filedStatus,
 } from '../../data/aemtRecords'
 import type { RequiredRecord } from '../../data/aemtRecords'
 import { auditPackageHTML } from './auditPackage'
@@ -28,6 +31,7 @@ import { recordAuditEvent } from './aemtStore'
 import { notifyUser } from '../../lib/dialog'
 import { printDoc, downloadDoc, safeFilename } from '../academy/docGen'
 import { useSheetsForCourse } from '../templates/resolve'
+import { todayISO } from '../../lib/date'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, AemtRecordDoc } from '../../types'
 
@@ -140,6 +144,100 @@ function RecordModal({
   )
 }
 
+/**
+ * Track the FILED copy of a document this program generates.
+ *
+ * Deliberately not the same five fields as a record kept elsewhere. There is no
+ * master copy to locate and no version anybody types: the source of truth is the
+ * course record, and the only thing that can be wrong is that the copy somebody
+ * filed with the board predates a change to the course it describes. A syllabus
+ * row pointing at `syllabus_FINAL_v2.docx`, approved January 2025, scored a
+ * clean green under the old five-field check — for a cohort that did not exist
+ * when that file was approved.
+ */
+function GeneratedModal({
+  course,
+  record,
+  doc,
+  onClose,
+}: {
+  course: AemtCourse
+  record: RequiredRecord
+  doc?: AemtRecordDoc
+  onClose: () => void
+}) {
+  const [generatedOn, setGeneratedOn] = useState(doc?.generatedOn ?? todayISO())
+  const [location, setLocation] = useState(doc?.location ?? '')
+  const [notes, setNotes] = useState(doc?.notes ?? '')
+  const live = filedStatus({ generatedOn, location }, course)
+
+  return (
+    <Modal title={record.label} onClose={onClose}>
+      <div className="help-text" style={{ marginTop: 0, marginBottom: 10 }}>
+        {record.why}
+      </div>
+      <div className="banner info" style={{ marginTop: 0 }}>
+        Produced by <code>npm run {record.generator}</code>. Regenerate it rather than editing a
+        copy — the document says so on its own last page.
+      </div>
+
+      <div className="field">
+        <label htmlFor="gd-on">Filed copy generated on</label>
+        <input
+          id="gd-on"
+          type="date"
+          value={generatedOn}
+          onChange={(e) => setGeneratedOn(e.target.value)}
+        />
+        <div className="help-text">
+          The date the copy in somebody&rsquo;s hands was produced — not today, unless that is when
+          you ran it.
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="gd-loc">Filed where</label>
+        <input
+          id="gd-loc"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="Submitted to KBEMS 4 Sep 2026 · SharePoint /AEMT/Fall2026/"
+        />
+        <div className="help-text">
+          Who has the copy, so it can be replaced when this goes stale.
+        </div>
+      </div>
+
+      <div className={`banner ${live.pill === 'ok' ? 'ok' : live.pill === 'crit' ? 'crit' : 'warn'}`}>
+        <strong>{live.label}.</strong> {live.detail}
+      </div>
+
+      <div className="field">
+        <label htmlFor="gd-notes">Notes</label>
+        <textarea id="gd-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          onClick={() => {
+            setRecordDoc(course.id, record.id, {
+              status: live.value === 'filed' ? 'approved' : 'draft',
+              generatedOn: generatedOn || undefined,
+              location: location.trim() || undefined,
+              notes: notes.trim() || undefined,
+            })
+            onClose()
+          }}
+        >
+          Save
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function RecordsTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
   const sessions = useSessions(course.id)
@@ -197,11 +295,11 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
     }
   }
 
-  const external = REQUIRED_RECORDS.filter((r) => r.source === 'external')
-  const held = REQUIRED_RECORDS.filter((r) => r.source === 'ces')
-  const outstanding = external.filter(
-    (r) => docStatus(docs.find((d) => d.typeId === r.id)).value !== 'approved',
-  )
+  const docFor = (id: string) => docs.find((d) => d.typeId === id)
+  const outstanding = [
+    ...EXTERNAL_RECORDS.filter((r) => docStatus(docFor(r.id)).value !== 'approved'),
+    ...GENERATED_RECORDS.filter((r) => filedStatus(docFor(r.id), course).value !== 'filed'),
+  ]
 
   // "Held in CES" has to mean something is actually in it. Counting the
   // underlying records is the only honest way to say so — the previous list
@@ -210,10 +308,21 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
     attendance: attendance.length,
     skillChecks: skillChecks.length,
     encounters: encounters.length,
-    formResponses: forms.length,
     students: students.length,
     sessions: sessions.length,
     completions: completions.length,
+    makeUps: attendance.filter((a) => a.makeUp).length,
+  }
+
+  /**
+   * How much evidence a CES-held record has. Form-backed records count only the
+   * instruments that belong to them — a wholesale count of every form response
+   * reported preceptor evaluations on file because somebody had filled in a
+   * course evaluation.
+   */
+  const countFor = (r: RequiredRecord): number | undefined => {
+    if (r.formEvidence) return forms.filter((f) => r.formEvidence!.includes(f.formId)).length
+    return r.evidence ? evidenceCounts[r.evidence] : undefined
   }
 
   return (
@@ -233,8 +342,10 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
       <div className="toolbar" style={{ marginTop: 12 }}>
         <span className="subtle">
           {outstanding.length === 0
-            ? 'All external records approved'
-            : `${outstanding.length} external record${outstanding.length === 1 ? '' : 's'} outstanding`}
+            ? 'Every record outside CES is filed and current'
+            : `${outstanding.length} record${outstanding.length === 1 ? '' : 's'} outstanding: ${outstanding
+                .map((r) => r.label.toLowerCase())
+                .join(', ')}`}
         </span>
         <div className="spacer" />
         <button
@@ -264,15 +375,24 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
       </div>
 
       <div className="section-title">Held in CES</div>
+      <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+        The tab that owns one of these is the record. The count is what is actually in it — an empty
+        course has no records, whatever the list says.
+      </div>
       <div className="list">
-        {held.map((r) => {
-          const n = r.evidence ? evidenceCounts[r.evidence] : undefined
+        {HELD_RECORDS.map((r) => {
+          const n = countFor(r)
           const empty = n === 0
           return (
             <div key={r.id} className={`row left-accent ${empty ? 'acc-warn' : 'acc-ok'}`}>
               <div className="grow">
                 <div className="title">{r.label}</div>
                 <div className="meta">{r.why}</div>
+                {r.blankForm && (
+                  <div className="meta">
+                    Blank instrument: <code>npm run {r.blankForm}</code>
+                  </div>
+                )}
                 {empty && (
                   <div className="meta" style={{ color: 'var(--warn)' }}>
                     Nothing recorded yet — this record does not exist for this course.
@@ -287,10 +407,57 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
         })}
       </div>
 
-      <div className="section-title">Kept elsewhere — tracked here</div>
+      {/* Generated, not "kept elsewhere". These used to sit in the list below
+          asking for a location, an owner and a version — none of which a
+          document produced on demand from the course record has. What can be
+          wrong about one is only ever that the FILED copy predates a change to
+          the course, and that is a comparison rather than five fields. */}
+      <div className="section-title">Generated from the course record</div>
+      <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+        Run the command and the document is current by construction. What is tracked here is the
+        copy somebody else is holding — the board, the students, a preceptor — and whether it still
+        describes this course.
+      </div>
       <div className="list">
-        {external.map((r) => {
-          const doc = docs.find((d) => d.typeId === r.id)
+        {GENERATED_RECORDS.map((r) => {
+          const doc = docFor(r.id)
+          const st = filedStatus(doc, course)
+          return (
+            <div
+              key={r.id}
+              className={`row left-accent ${st.value === 'filed' ? 'acc-ok' : st.value === 'not-filed' ? 'acc-crit' : 'acc-warn'}`}
+            >
+              <div className="grow">
+                <div className="title">{r.label}</div>
+                <div className="meta">
+                  <code>npm run {r.generator}</code>
+                  {doc?.location ? ` · ${doc.location}` : ''}
+                </div>
+                <div className="meta" style={{ color: st.value === 'filed' ? undefined : 'var(--warn)' }}>
+                  {st.detail}
+                </div>
+                <div className="help-text">{r.why}</div>
+              </div>
+              <span className={`pill ${st.pill}`}>{st.label}</span>
+              {manageAcademy && (
+                <button className="btn sm" onClick={() => setEditing(r)}>
+                  Edit
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="section-title">Kept elsewhere — tracked here</div>
+      <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+        The {EXTERNAL_RECORDS.length} records nothing here can produce. Each says why, because
+        &ldquo;no generator&rdquo; and &ldquo;generator not written yet&rdquo; look identical in a
+        list and are different problems.
+      </div>
+      <div className="list">
+        {EXTERNAL_RECORDS.map((r) => {
+          const doc = docFor(r.id)
           const st = docStatus(doc)
           return (
             <div
@@ -311,6 +478,11 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
                   </div>
                 )}
                 <div className="help-text">{r.why}</div>
+                {r.noGenerator && (
+                  <div className="help-text" style={{ fontStyle: 'italic' }}>
+                    Why it cannot be generated: {r.noGenerator}
+                  </div>
+                )}
               </div>
               <span className={`pill ${st.pill}`}>{st.label}</span>
               {manageAcademy && (
@@ -355,14 +527,22 @@ export default function RecordsTab({ course }: { course: AemtCourse }) {
         </div>
       )}
 
-      {editing && (
-        <RecordModal
-          course={course}
-          record={editing}
-          doc={docs.find((d) => d.typeId === editing.id)}
-          onClose={() => setEditing(null)}
-        />
-      )}
+      {editing &&
+        (editing.source === 'generated' ? (
+          <GeneratedModal
+            course={course}
+            record={editing}
+            doc={docFor(editing.id)}
+            onClose={() => setEditing(null)}
+          />
+        ) : (
+          <RecordModal
+            course={course}
+            record={editing}
+            doc={docFor(editing.id)}
+            onClose={() => setEditing(null)}
+          />
+        ))}
     </div>
   )
 }

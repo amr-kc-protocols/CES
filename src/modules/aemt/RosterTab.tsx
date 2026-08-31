@@ -12,7 +12,7 @@ import {
 } from './aemtStore'
 import CompletionPanel from './CompletionPanel'
 import CourseSetupPanel from './CourseSetupPanel'
-import { useSheetsForCourse } from '../templates/resolve'
+import { useAemtForms, useSheetsForCourse } from '../templates/resolve'
 import { useCan } from '../../lib/role'
 import { CAMPUS_LABEL } from '../../data/aemt'
 import { MARKETS } from '../../lib/market'
@@ -189,7 +189,8 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
   const sheets = useSheetsForCourse(course.monitorSheetId)
-  const readiness = useStudentReadiness(course.id, course.monitorSheetId, sheets)
+  const forms = useAemtForms()
+  const readiness = useStudentReadiness(course.id, course.monitorSheetId, sheets, forms)
   const completions = useCompletions(course.id)
   // Campus is only worth showing on a cohort that actually has two. On a
   // single-market course it is noise on every row.
