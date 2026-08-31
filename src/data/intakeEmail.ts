@@ -377,7 +377,7 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       `  • Confirm your seat by replying to this email`,
       `  • Make sure your certification and required credentials are current in Ninth Brain`,
       `  • Talk to your supervisor about your schedule for the next ${KC_CALENDAR_WEEKS} weeks`,
-      `  • REQUIRED PRE-COURSE WORK: ${PRE_COURSE_POLICY.requirement}`,
+      `  • REQUIRED PRE-COURSE WORK: ${PRE_COURSE_POLICY.requirement} Due ${PRE_COURSE_POLICY.dueBy}.`,
       ``,
       `That pre-course block is chapters 1 to 4 — EMS systems, workforce safety, medical-legal and documentation. It is the material you already work inside every shift, so we are not spending a classroom day on it. Doing it before you arrive is what lets the first session open on medical terminology and the second get into anatomy and physiology. ${PRE_COURSE_POLICY.checkedAt} ${PRE_COURSE_POLICY.ifIncomplete}`,
       ``,

@@ -747,7 +747,15 @@ export interface ScheduleRow {
    * declared instead, and the validator subtracts it.
    */
   breakMinutes?: number
-  /** Textbook chapters the row assigns. */
+  /**
+   * Textbook chapters the row assigns.
+   *
+   * On an `assignment` row these also DETERMINE its hours: the figure is the
+   * sum of the chapters' Navigate module run times from the publisher's
+   * instructor guide (data/navigateAssets.ts), not a number typed here.
+   * check-course-plan.mjs asserts the two agree, so adding a chapter to a week
+   * without moving its hours is caught.
+   */
   chapters?: number[]
   /** Kansas AEMT Education Standards codes the row covers. */
   sections?: string[]
@@ -809,7 +817,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     title:
       'REQUIRED BEFORE THE FIRST SESSION. Navigate Modules 1-4 (Ch 1-4): EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal & Ethical (PR7). Chapter flashcards and practice activities, plus the chapter quizzes.',
     delivery: 'assignment',
-    didacticHours: 3.3,
+    didacticHours: 3.4,
     labHours: 0,
     date: '2026-09-29',
     chapters: [1, 2, 3, 4],
@@ -827,7 +835,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     title:
       'Navigate Module 5 (Ch 5) Medical Terminology (PR9); Module 7 (Ch 7) The Human Body / Anatomy & Physiology (PR8).',
     delivery: 'assignment',
-    didacticHours: 1.9,
+    didacticHours: 1.8,
     labHours: 0,
     date: '2026-10-06',
     chapters: [5, 7],
@@ -1167,7 +1175,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     title:
       'Navigate Module 18 (Ch 18) Cardiovascular Emergencies (MT8). AHA ACLS pre-course work, assigned over the holiday — low-cognitive-load work that survives a break.',
     delivery: 'assignment',
-    didacticHours: 1,
+    didacticHours: 0.9,
     labHours: 0,
     date: '2026-11-24',
     chapters: [18],
@@ -1652,13 +1660,15 @@ export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
 export const PRE_COURSE_POLICY = {
   dueBy: PRE_COURSE.date,
   /**
-   * Built from the dates rather than written out. It carried both `dueBy` and
-   * a hard-coded "before the first session on 6 October", which is two due
-   * dates for one requirement and wrong for any re-dated cohort.
+   * No date in the sentence. It carried a hard-coded "before the first session
+   * on 6 October" beside `dueBy`, which is two due dates for one requirement
+   * and wrong for a re-dated cohort — and interpolating the ISO date instead
+   * put "by 2026-09-29" in front of students. Callers format `dueBy` for
+   * whoever is reading.
    */
   requirement: `Navigate Modules ${PRE_COURSE_CHAPTERS[0]}-${
     PRE_COURSE_CHAPTERS[PRE_COURSE_CHAPTERS.length - 1]
-  } complete, including the chapter quizzes, by ${PRE_COURSE.date} — before the first session.`,
+  } complete, including the chapter quizzes, before the first session.`,
   checkedAt: 'Confirmed at orientation on day one, off the Navigate gradebook.',
   ifIncomplete:
     'The student attends, and completes the block inside the first week. It is recorded as a deficiency and reviewed at the week 8 checkpoint alongside their clinical tally — the cumulative retrieval quizzes start drawing on this material in week 1, so arriving without it compounds rather than staying still.',
