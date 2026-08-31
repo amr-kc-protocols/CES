@@ -686,6 +686,18 @@ export interface AemtCourse {
   primaryInstructor?: string
   primaryInstructorCredential?: PreceptorCredentialId
   primaryInstructorCertNumber?: string
+  /**
+   * Other instructors of record who teach this cohort.
+   *
+   * A joint course has one primary instructor — K.A.R. 109-11-8 puts the
+   * completion verification on exactly one person — but more than one
+   * instructor teaching. The course record could not say so, which made a
+   * two-market cohort indistinguishable from a one-instructor one, and
+   * K.A.R. 109-17-3 asks each student to evaluate the course AND every
+   * instructor who taught them. With no roster the evaluation check counted
+   * forms instead of instructors and called one enough.
+   */
+  coInstructors?: string[]
   /** Clinical and field sites named on the application. */
   sites?: AemtSite[]
   /** Kansas BEMS course approval number, printed on course records. */
@@ -812,6 +824,81 @@ export interface AemtCompletion {
  * lesson plans, the gradebook. CES-held records need no entry; the tab that
  * owns them is the record.
  */
+/**
+ * A documented private progress conference with a student.
+ *
+ * K.A.R. 109-17-3 retains these, and the syllabus commits to at least one per
+ * student plus any an affective concern calls for. The registry listed it as
+ * "kept elsewhere — a record of conversations, written by whoever held them",
+ * which was true only because nothing here recorded one. It is the same shape
+ * as the make-up record: a per-student event with a date, the people in the
+ * room, what was said and what was agreed — none of which is a document
+ * anybody needs to write in Word.
+ *
+ * Retained for three years, so it is deliberately hard to delete and the notes
+ * are the substance rather than a checkbox.
+ */
+export interface AemtConference {
+  id: string
+  courseId: string
+  studentId: string
+  date: string
+  /** Who was in the room besides the student. */
+  attendees: string
+  /**
+   * What triggered it. A scheduled conference is the one every student gets;
+   * the others exist because something happened, and which one matters when a
+   * reviewer is reading a student's file in sequence.
+   */
+  reason: 'scheduled' | 'academic' | 'affective' | 'attendance' | 'clinical' | 'student-requested'
+  /** What was discussed. The record an auditor actually reads. */
+  discussed: string
+  /** What was agreed, and by when. */
+  agreed?: string
+  /** Follow-up date where one was set. */
+  followUpBy?: string
+  recordedBy: string
+  recordedAt: string
+}
+
+/**
+ * A program document as issued — built in the app, kept in the app.
+ *
+ * The four documents K.A.R. 109-17-3 retains as documents are generated from
+ * the course record, which used to mean the only copy anybody had was whatever
+ * somebody last exported. Building one here stores it: the exact HTML that was
+ * produced, when, by whom, and a fingerprint of it.
+ *
+ * That stored copy is the retained record for the three years the regulation
+ * asks for, and it is deliberately a SNAPSHOT rather than a live view. Three
+ * years from now the question an auditor asks is "what did you issue", not
+ * "what would you issue today from data that has moved on" — and the difference
+ * between those two is exactly what filedStatus() surfaces by comparing this
+ * row's date against the course's own.
+ *
+ * Rows are append-only: a rebuild writes a new one rather than editing this, so
+ * the history of what was issued when survives. The sync layer relies on that
+ * immutability to avoid stringifying the body on every state change.
+ */
+export interface AemtProgramDoc {
+  id: string
+  courseId: string
+  /** The REQUIRED_RECORDS id this document satisfies. */
+  recordId: string
+  title: string
+  /** The document as issued: standalone, print-ready HTML. */
+  html: string
+  /** Date the document was built, which is what staleness is measured from. */
+  generatedOn: string
+  generatedAt: string
+  /** Who pressed Build. 'local' where the device is not signed in. */
+  generatedBy: string
+  /** SHA-256 of the html, or absent where the browser offered no crypto. */
+  fingerprint?: string
+  /** Where the copy went, if it was filed with anybody. */
+  filedWith?: string
+}
+
 export interface AemtRecordDoc {
   courseId: string
   /** Matches a REQUIRED_RECORDS id in data/aemtRecords.ts. */
@@ -823,6 +910,16 @@ export interface AemtRecordDoc {
   approvedDate?: string
   /** Where the document actually lives — a path, a link, or a description. */
   location?: string
+  /**
+   * For a GENERATED document: the date the filed copy was produced.
+   *
+   * This is the whole status for those records. A generated document has no
+   * version anybody types and no master copy to locate — the source of truth is
+   * the course record, and the only thing that can be wrong is that the copy
+   * somebody filed predates a change to it. Compared against the course's
+   * updatedAt by filedStatus().
+   */
+  generatedOn?: string
   notes?: string
 }
 
@@ -1082,6 +1179,36 @@ export interface AemtAttendanceRecord {
    * a late arrival or a partial make-up. Absent = the session's hours.
    */
   hours?: number
+  /**
+   * A documented make-up for this missed session.
+   *
+   * K.A.R. 109-17-3 retains "late-enrolment and make-up schedules", and the
+   * program's own policy says a make-up is recorded against the student rather
+   * than waived — "a make-up that is not documented is an absence". Until this
+   * existed the Hours tab listed what every absent student owed and offered no
+   * way to say any of it had been done, so the list only ever grew and the
+   * record the regulation asks for was kept nowhere at all.
+   *
+   * Recording one does NOT restore the missed hours. The attendance status
+   * stays 'absent' and the hours stay lost, because that is what happened; the
+   * make-up is the evidence of equivalent competency, which is a separate claim
+   * and the one the policy actually requires.
+   */
+  makeUp?: AemtMakeUp
+}
+
+/** Equivalent-competency work completed for a missed session. */
+export interface AemtMakeUp {
+  /** When the make-up was completed, not when it was assigned. */
+  date: string
+  /** What was actually done — the substance an auditor reads. */
+  what: string
+  /**
+   * Who supervised it. The program's policy puts the signature on the primary
+   * instructor, so this is a name, not a checkbox.
+   */
+  by: string
+  recordedAt: string
 }
 
 /**
@@ -1667,6 +1794,8 @@ export interface DBShape {
   aemtFormResponses: AemtFormResponse[]
   aemtCompletions: AemtCompletion[]
   aemtRecordDocs: AemtRecordDoc[]
+  aemtProgramDocs: AemtProgramDoc[]
+  aemtConferences: AemtConference[]
   aemtAudit: AemtAuditEvent[]
   aemtCandidates: AemtCandidate[]
   chartReviews: ChartReviewEntry[]

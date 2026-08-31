@@ -12,7 +12,9 @@ import {
 } from './aemtStore'
 import CompletionPanel from './CompletionPanel'
 import CourseSetupPanel from './CourseSetupPanel'
-import { useSheetsForCourse } from '../templates/resolve'
+import { useAemtForms, useSheetsForCourse } from '../templates/resolve'
+import ConferencePanel from './ConferencePanel'
+import { useConferences } from './aemtStore'
 import { useCan } from '../../lib/role'
 import { CAMPUS_LABEL } from '../../data/aemt'
 import { MARKETS } from '../../lib/market'
@@ -189,7 +191,9 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<AemtStudent | null>(null)
   const sheets = useSheetsForCourse(course.monitorSheetId)
-  const readiness = useStudentReadiness(course.id, course.monitorSheetId, sheets)
+  const forms = useAemtForms()
+  const conferences = useConferences(course.id)
+  const readiness = useStudentReadiness(course.id, course.monitorSheetId, sheets, forms)
   const completions = useCompletions(course.id)
   // Campus is only worth showing on a cohort that actually has two. On a
   // single-market course it is noise on every row.
@@ -244,6 +248,16 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
                   {s.certNumber ? `Cert #${s.certNumber}` : 'No cert # on file'}
                   {s.employeeNumber && <> · Emp #{s.employeeNumber}</>}
                 </div>
+                {(() => {
+                  const n = conferences.filter((c) => c.studentId === s.id).length
+                  return (
+                    <div className="meta" style={{ color: n ? undefined : 'var(--warn)' }}>
+                      {n
+                        ? `${n} progress conference${n === 1 ? '' : 's'} documented`
+                        : 'No progress conference documented'}
+                    </div>
+                  )
+                })()}
               </div>
               {manageAcademy && (
                 <button className="btn sm" onClick={() => setEditing(s)}>
@@ -253,6 +267,10 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
             </div>
           ))}
         </div>
+      )}
+
+      {students.length > 0 && (
+        <ConferencePanel course={course} students={students} canEdit={manageAcademy} />
       )}
 
       {students.length > 0 && (

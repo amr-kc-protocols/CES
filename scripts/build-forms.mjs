@@ -24,9 +24,10 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { Document, Packer } from 'docx'
 import {
-  BULLET, H1, H2, H3, P, PAGE, NUMBERING, ROOT, RULE, SPACER, PAGE_BREAK,
-  coverBlock, footer, loadCourse, longDate, printable, provenance, table,
+  BULLET, H1, H2, P, ROOT, RULE, SPACER, PAGE_BREAK,
+  coverBlock, loadCourse, longDate, provenance, table,
 } from './lib/doc-kit.mjs'
+import { footer, NUMBERING, PAGE, renderBlocks } from './lib/doc-render.mjs'
 
 const which = process.argv[2] === 'forms' ? 'forms' : 'policies'
 const outPath = resolve(
@@ -42,141 +43,22 @@ const { A, F, P: PH } = m
 const cohort = `AMR Kansas City with AMR Wichita  ·  ${longDate(m.KC_START_DATE)} to ${longDate(m.KC_END_DATE)}`
 
 // ----- the policy manual -----------------------------------------------------
+//
+// The manual itself is src/data/programDocs/policies.ts. The app builds and
+// retains the same document, so there is one copy of the policies and this is
+// the half that renders it to a .docx.
 
 const policyDoc = () =>
   new Document({
     creator: 'AMR Kansas City — Clinical Education',
-    title: 'AEMT Program Policies — October 2026 Cohort',
+    title: m.DOCS.POLICIES_TITLE,
     description: 'Program policies retained under K.A.R. 109-17-3',
     numbering: NUMBERING,
     sections: [
       {
         properties: { page: PAGE },
         footers: { default: footer('AEMT Program Policies — October 2026 cohort') },
-        children: [
-          ...coverBlock('Program Policies', 'Advanced Emergency Medical Technician', cohort),
-          P(
-            'These are the policies the syllabus states, held here as a record in their own right. Where this document and the syllabus differ, they have been generated from the same course record and cannot — but the syllabus is the document issued to students and governs.',
-            { italics: true },
-          ),
-
-          H1('Admission and prerequisite work'),
-          P(
-            `Every student holds a current EMT certification on entry. ${m.PRE_COURSE_POLICY.requirement} Due ${longDate(m.PRE_COURSE_POLICY.dueBy)}. ${m.PRE_COURSE_POLICY.checkedAt}`,
-          ),
-          P(`Where the prerequisite work is incomplete on day one: ${m.PRE_COURSE_POLICY.ifIncomplete}`),
-
-          H1('Attendance'),
-          P(
-            `Sessions run Tuesdays and Thursdays 0900–1300, plus two Saturday American Heart Association provider courses. Attendance at all scheduled meeting times is required.`,
-          ),
-          H2('Absence and make-up'),
-          P(
-            `Missing more than ${m.ABSENCE_MAKEUP.triggerHours} hours of scheduled class time triggers a make-up requirement rather than an automatic failure. ${m.ABSENCE_MAKEUP.requirement}`,
-          ),
-          P(m.ABSENCE_MAKEUP.note),
-          P(
-            'The trigger is a threshold, not a verdict. A cohort of this size running through respiratory season cannot absorb an absolute cap — one bout of influenza is two missed sessions — and a documented demonstration of equivalent competency is a claim about competence, which is what the certification is actually about.',
-            { italics: true },
-          ),
-          H2('Clinical and field absence'),
-          P(
-            'Clinical absences are to be avoided. Where unavoidable, the student emails and telephones both the instructor and the site as early as possible, and the student is responsible for rescheduling. Hours not made up mean an incomplete course and no eligibility for the Authorization to Test.',
-          ),
-          H2('Late enrolment'),
-          P(
-            `A student admitted after the first session completes the prerequisite block and every missed session's pre-class work before attending, and completes the missed classroom content under the make-up policy above. Because the retrieval quizzes are cumulative from week one, a student joining after the second week is at a disadvantage the schedule cannot recover; admission after that point is at the primary instructor's discretion and is documented.`,
-          ),
-
-          H1('Grading and completion'),
-          P(
-            `A final course grade of ${m.MIN_PASSING_PERCENT}% or higher, all psychomotor skill evaluations completed to the satisfaction of the primary instructor, and all K.A.R. 109-11-8 clinical and field minimums documented.`,
-          ),
-          SPACER(120),
-          table(
-            [6280, 1400, 2400],
-            ['Component', 'Weight', 'Why it is weighted this way'],
-            m.GRADING_MODEL.map((c) => [c.label, c.weight === null ? 'S/U' : `${c.weight}%`, c.rationale]),
-          ),
-          SPACER(),
-          H2('Mastery gates and remediation'),
-          P(
-            `Three gate examinations, blueprint-weighted, scored against a minimum passing standard of ${m.MIN_PASSING_PERCENT}%.`,
-          ),
-          BULLET(`Below standard: ${A.GATE_REMEDIATION.belowStandard}`),
-          BULLET(A.GATE_REMEDIATION.whatContinues),
-          BULLET(A.GATE_REMEDIATION.twoFailedRetests),
-          SPACER(120),
-          table(
-            [4880, 2600, 2600],
-            ['Gate', 'Date', 'Retest window closes'],
-            A.MASTERY_GATES.map((g) => [g.label, longDate(g.date), longDate(g.retestBy)]),
-          ),
-          SPACER(),
-          H2('Missed examinations'),
-          P(
-            'Examinations are sat at the scheduled time. Prior arrangements may be made with the instructor; a missed examination without prior approval is graded zero, and a zero on any examination means the course cannot be completed satisfactorily.',
-          ),
-          H2('Completion verification'),
-          P(
-            `K.A.R. 109-11-8 requires the PRIMARY instructor to verify in writing that the student completed the course, within ${m.INSTRUCTOR_VERIFICATION_DAYS} days of the final class session and before the student sits the certification examination. A program manager signing in their place does not satisfy it.`,
-          ),
-
-          H1('Progress conferences'),
-          P(
-            'Conferences occur as needed, and every student is scheduled for at least one private conference during the course. Two failed gate retests trigger one, early, while there is still course left to act on it. Conferences are documented and retained.',
-          ),
-          SPACER(120),
-          table(
-            [3400, 6680],
-            ['Trigger', 'What happens'],
-            [
-              ['Two failed gate retests', 'Documented private conference with the primary instructor.'],
-              ['Below a deficit checkpoint floor', 'An added clinical or field shift is assigned that week. If the shortfall is site availability rather than the student, it is escalated to the site immediately.'],
-              ['Affective or professionalism concern', 'Documented conference, with the behaviour and the expected change both written down.'],
-              ['Student request', 'Any time; students are encouraged not to wait for a scheduled conference.'],
-            ],
-          ),
-
-          H1('Conduct'),
-          H2('Academic honesty'),
-          P(
-            'Violations include but are not limited to plagiarism, cheating, trafficking, copyright infringement, and interfering with the learning of other students.',
-          ),
-          H2('Protected health information'),
-          P(
-            'THERE IS NO CIRCUMSTANCE IN WHICH PROTECTED HEALTH INFORMATION MAY BE CAPTURED ON AN ELECTRONIC DEVICE DURING A CLINICAL OR FIELD ROTATION. A student found to have done so is dismissed from the program.',
-            { bold: true },
-          ),
-          P(
-            'Patient information is not discussed outside the clinical facility and patient records are not copied for program documentation. On social media, students must not post photographs, video, patient information or any other data regarding patients or affiliations. Federal confidentiality law, HIPAA and GMR privacy policy apply in full.',
-          ),
-          H2('Safety'),
-          P(
-            'No student performs any action they or the instructional staff judge unsafe. Concerns are raised immediately with the instructor, preceptor or any AMR representative present. A student with an infectious disease is encouraged to report it; participation is at the discretion of the instructional staff.',
-          ),
-          H2('Dress'),
-          P(
-            'Black shoes, the issued uniform shirt with name tag, navy-blue pocket pants, for every clinical and field shift. The name tag identifies the wearer as a student at all times.',
-          ),
-
-          H1('Records and retention'),
-          P(
-            `Program records are retained for at least ${m.RECORDS_RETENTION_YEARS} calendar years by the sponsoring agency, in hard copy and electronically, per K.A.R. 109-17-3.`,
-          ),
-          SPACER(120),
-          table(
-            [3800, 1500, 4780],
-            ['Record', 'Held', 'Why it is required'],
-            m.R.REQUIRED_RECORDS.map((r) => [
-              r.label,
-              r.source === 'ces' ? 'In CES' : 'Externally',
-              printable(r.why),
-            ]),
-          ),
-
-          provenance(m, 'npm run doc:policies'),
-        ],
+        children: renderBlocks(m.DOCS.policiesBlocks()),
       },
     ],
   })
@@ -199,7 +81,9 @@ function formPages(def) {
     P(`Completed by: ${def.completedBy}.   Cadence: ${def.cadence === 'shift' ? 'one per shift' : def.cadence === 'course' ? 'once per student, end of course' : 'ongoing'}.`, { size: 20 }),
     ...(def.draft
       ? [P('DRAFT INSTRUMENT — pending Program Manager and Medical Director review before use as a competency record.', { bold: true, size: 19 })]
-      : []),
+      : def.reviewedBy
+        ? [P(`Reviewed and approved by ${def.reviewedBy}${def.reviewedOn ? ` on ${longDate(def.reviewedOn)}` : ''}.`, { italics: true, size: 19 })]
+        : []),
     SPACER(80),
     ...RULE('Student'),
     ...RULE('Date'),

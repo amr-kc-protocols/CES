@@ -81,15 +81,47 @@ Hunter's head:
   scripts because each has its own argument to make. What they cannot have is
   separate ideas about what the course is: all seven load the same modules
   through `scripts/lib/doc-kit.mjs`, so none of them can drift from the
-  calendar the coordinator works to. `src/data/aemtRecords.ts` records which
-  K.A.R. 109-17-3 record each command satisfies, and states for the four it
-  cannot produce — the Navigate gradebook, first-attempt exam outcomes, progress
-  conferences and outcome analysis — why no command ever will.
+  calendar the coordinator works to.
+
+  **The four the program retains as documents are also built inside the app**,
+  because "run `npm run doc:syllabus`" is not a thing a Program Manager can do
+  — so in practice the only copy of the syllabus was whatever somebody had last
+  exported. Each is a `Block[]` in `src/data/programDocs/`, rendered twice: to
+  .docx by `scripts/lib/doc-render.mjs` for the copy a reviewer is sent, and to
+  standalone HTML by `src/lib/docHtml.ts` for the copy the Records tab builds.
+  One source, two renderers, so the two cannot say different things. Pressing
+  Build stores what it produced, dated and fingerprinted: that stored copy is
+  the retained record, deliberately a snapshot, because three years from now
+  the question is what was issued and not what today's data would produce.
+  Rebuilding supersedes without erasing what went out in September.
+
+  `src/data/aemtRecords.ts` answers, for
+  every record K.A.R. 109-17-3 retains, the only question that matters about
+  one — where it actually is. Three answers, because there are three: **held in
+  CES**, where the tab that owns it is the record and the status is how much is
+  in it; **generated**, where the app builds the document from the course
+  record and keeps what it built, flagging it stale when the course moves on;
+  and **kept elsewhere**, which is three records, each saying why nothing here
+  can produce it — the Navigate gradebook, first-attempt exam outcomes and the
+  end-of-cohort outcome analysis. The Records tab prints a **requirement
+  listing**: every record, the regulation behind it, where it is, and what is
+  actually in it. The distinction the list is built to hold is between the document that *states* a
+  rule and the record that *proves* it was followed: the policy manual states
+  the make-up policy and is not a record of what any student made up;
+  `doc:forms` prints a blank preceptor evaluation and is not the returned
+  evaluations.
 
   `npm run check:plan` and `check:skills` assert the arithmetic, the calendar
-  and the coverage; `check:documents` builds all seven and reads them back,
-  checking each carries the sections it owes and that no source path, unfilled
-  value or developer note reached the page.
+  and the coverage; `check:documents` builds all seven documents and reads them
+  back — and re-runs every one of those assertions against the app's own
+  rendering, then compares the two documents' headings rather than taking
+  "cannot drift by construction" on trust — checking each carries the sections
+  it owes and that no source path, unfilled value or developer note reached the
+  page; `check:records` drives the
+  store to assert the registry's claims hold — every instrument belongs to
+  exactly one record, every command a record names is real, a make-up documents
+  competency without erasing the absence, and a student who evaluated one of
+  two instructors is not finished.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

@@ -2,30 +2,45 @@
 // Program records a Kansas-approved course must keep and retain for at least
 // three years (K.A.R. 109-17-3; proposal §6).
 //
-// The app holds some of these outright — attendance, psychomotor evaluations,
-// the encounter log, the evaluation forms — and cannot hold others: the
-// syllabus, lesson plans, the Navigate gradebook. Rather than pretend to be a
-// document store, the registry says which is which. Records held here are
-// satisfied by the tab that owns them; everything else is tracked with an
-// owner, a status and where the document actually lives.
+// This list was written when CES held almost nothing, so it had two states:
+// the app holds it, or it lives in somebody's drive. Both of those are now
+// wrong for most of it, and the wrongness is not cosmetic — a row that says
+// "kept elsewhere" is an instruction to go and find a file, and half of these
+// have no file to find.
+//
+// Three states, because there are three genuinely different answers to "where
+// is this record":
+//
+//   'ces'        The app holds the record itself. The tab that owns it IS the
+//                record, and the only honest status is how much is in it.
+//
+//   'generated'  CES produces the document from the course record, on demand,
+//                by a named command. There is no master copy to locate — a copy
+//                in a folder is a snapshot, and the thing worth tracking is
+//                whether the copy somebody FILED still matches the course.
+//
+//   'external'   It genuinely lives in another system and nothing here can
+//                produce it. Four of these, each of which says why.
+//
+// THE DISTINCTION THAT KEPT GETTING LOST is between the document that STATES a
+// rule and the record that PROVES it was followed. The policy manual states the
+// make-up policy; it is not a record of what any student made up. `doc:forms`
+// prints a blank preceptor evaluation; it is not the returned evaluations. Three
+// rows here were tagged with the generator that prints their blank form or
+// states their policy, which read as "this record is produced by running a
+// command" — and it is not. Those rows are now where their evidence actually
+// is, and `blankForm` names the command that prints the paper.
 // ---------------------------------------------------------------------------
 
-export type RecordSource = 'ces' | 'external'
+export type RecordSource = 'ces' | 'generated' | 'external'
 
 /**
- * The npm script that produces this record, where one does.
+ * The npm script that produces a document, where one does.
  *
- * A third state between "CES holds it" and "it lives somewhere else": the
- * program GENERATES it from the course record. That distinction matters when
- * somebody is assembling a submission — a generated document needs a command
- * run, not a search of somebody's drive, and a stale copy in a folder is not
- * the record.
- *
- * Absent means there is no generator, and for four of these there never will
- * be: the Navigate gradebook and the first-attempt examination outcomes are
- * live data in other systems, and the conference and outcome records are
- * written after events that have not happened yet. Saying so is the point —
- * "no generator" and "generator not written yet" are different problems.
+ * Used two ways, and they are not the same claim. On a 'generated' record it is
+ * the command that produces THE RECORD. On a CES-held record, `blankForm` is
+ * the command that prints the blank instrument the record gets collected on —
+ * useful to know, and not a way of producing the record.
  */
 export type RecordGenerator =
   | 'doc:syllabus'
@@ -36,58 +51,88 @@ export type RecordGenerator =
   | 'doc:application'
   | 'doc:student'
 
+/**
+ * Which stored collection has to be non-empty before a CES-held record can
+ * honestly be called held. "Held in CES" was previously a label on a list,
+ * printed whether or not anything had been entered — which told an auditor the
+ * opposite of the truth for an empty course.
+ */
+export type RecordEvidence =
+  | 'attendance'
+  | 'skillChecks'
+  | 'encounters'
+  | 'students'
+  | 'sessions'
+  | 'completions'
+  | 'makeUps'
+  | 'conferences'
+
 export interface RequiredRecord {
   id: string
   label: string
   /** Where the record lives. */
   source: RecordSource
-  /** The command that produces it, where the program generates it. */
+  /** For 'generated' records, the command that produces it. */
   generator?: RecordGenerator
   /**
-   * Why no generator exists, where none does. Only meaningful when `generator`
-   * is absent, and required in that case by check-documents.mjs — an external
-   * record with no explanation is one nobody has thought about.
+   * Why no command can produce it. Required on every 'external' record by
+   * check-records.mjs — one with no explanation is one nobody has thought
+   * about, and "no generator" and "generator not written yet" look identical
+   * in a list.
    */
   noGenerator?: string
   /** For CES-held records, the tab that owns it. */
   tab?: 'roster' | 'sessions' | 'hours' | 'skills' | 'clinical' | 'forms'
-  why: string
   /**
-   * For CES-held records: which stored collection has to be non-empty before
-   * the record can honestly be called held. "Held in CES" was previously a
-   * label on a list, printed whether or not anything had been entered — which
-   * told an auditor the opposite of the truth for an empty course.
+   * The command that prints the blank instrument this record is collected on.
+   * Not a generator: the blank form is paper, the record is what comes back.
    */
-  evidence?:
-    | 'attendance'
-    | 'skillChecks'
-    | 'encounters'
-    | 'formResponses'
-    | 'students'
-    | 'sessions'
-    | 'completions'
+  blankForm?: RecordGenerator
+  /**
+   * The regulation this record exists because of.
+   *
+   * Held apart from `why` so the Records tab can print an actual requirement
+   * listing — a column of citations a reviewer can read down. Buried mid-
+   * sentence it is prose; in its own field it is the thing being complied with.
+   */
+  citation: string
+  why: string
+  /** For CES-held records, the collection that evidences it. */
+  evidence?: RecordEvidence
+  /**
+   * For form-backed CES records, the instrument ids that satisfy THIS record.
+   *
+   * Counting `formResponses` wholesale said a course had preceptor evaluations
+   * on file because somebody had filled in a course evaluation. Every one of
+   * the five instruments belongs to exactly one row below, which is what
+   * check-records.mjs asserts.
+   */
+  formEvidence?: string[]
 }
 
 export const REQUIRED_RECORDS: RequiredRecord[] = [
   {
     id: 'syllabus',
     label: 'Course syllabus',
-    source: 'external',
+    source: 'generated',
     generator: 'doc:syllabus',
+    citation: 'K.A.R. 109-1-1(ss); filed under 109-11-1a(b1)',
     why: 'K.A.R. 109-1-1(ss): goals and objectives, materials, attendance policy, completion requirements, clinical/field description, discipline policies, instructor contact, and the full schedule. Filed with the approval application.',
   },
   {
     id: 'curriculum',
     label: 'Curriculum and lesson plans',
-    source: 'external',
+    source: 'generated',
     generator: 'doc:curriculum',
+    citation: 'K.A.R. 109-17-3(a); standards adopted by 109-10-1c',
     why: 'The Kansas AEMT Educational Standards (Oct 2014) adopted by K.A.R. 109-10-1c, mapped to your sessions.',
   },
   {
     id: 'objectives',
     label: 'Clinical and field training objectives',
-    source: 'external',
+    source: 'generated',
     generator: 'doc:objectives',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'What a student is expected to achieve on each rotation, given to the preceptor.',
   },
   {
@@ -95,56 +140,95 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Gradebook',
     source: 'external',
     noGenerator: 'Live data in the Navigate LMS. Nothing here can produce it, and a snapshot of it would be a claim about grades rather than the grades.',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'The Navigate pre-class component lives in the LMS; the closed-book quizzes, the three gate exams and the final are scored by the instructor. The completion record stores the attested final percentage, not the working grades.',
   },
   {
+    // Was listed as kept elsewhere, on the reasoning that a conference is a
+    // conversation somebody writes up afterwards. True of the writing-up, and
+    // not a reason the record lives in Word: it is a per-student event with a
+    // date, the people in the room, what was discussed and what was agreed —
+    // the same shape as every other thing this app already holds. Listing it
+    // as external meant nothing could say which students had had one, which on
+    // a six-student cohort is the difference between a commitment and a
+    // sentiment.
     id: 'conferences',
     label: 'Student progress conferences',
-    source: 'external',
-    noGenerator: 'A record of conversations that have happened, written by whoever held them. The policy manual states when one is triggered; the record itself is per-student and cannot be generated.',
-    why: 'At least one documented private conference per student, plus any called for by an affective concern.',
+    source: 'ces',
+    tab: 'roster',
+    evidence: 'conferences',
+    citation: 'K.A.R. 109-17-3(a)',
+    why: 'K.A.R. 109-17-3 — at least one documented private conference per student, plus any called for by an affective concern, two failed gate retests, or the student asking. Recorded against the student on the Roster tab.',
   },
   {
     id: 'outcomes',
     label: 'Outcome assessment and analysis',
     source: 'external',
     noGenerator: 'Written after the cohort completes, against results that do not exist yet. Generating a template now would put an empty analysis on file where a reviewer expects a finding.',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'Pass rates and programme review, analysed by the Program Manager and Medical Director for continuous improvement.',
   },
   {
     id: 'policies',
     label: 'Program policies',
-    source: 'external',
+    source: 'generated',
     generator: 'doc:policies',
+    citation: 'K.A.R. 109-17-3(a); 109-11-1a(b2)',
     why: 'K.A.R. 109-17-3 — attendance, grading, discipline, remediation and dismissal policies as issued to students.',
   },
   {
+    // NOT the make-up POLICY, which the policy manual states and doc:policies
+    // generates. This is the per-student record of what each absent student
+    // actually made up, which is a different document with a different author,
+    // and tagging it with doc:policies said the program could produce it by
+    // running a command. It could not: the Hours tab listed what every student
+    // owed and offered no way to record that any of it had been done, so the
+    // list only ever grew.
     id: 'makeup',
-    label: 'Late-enrolment and make-up schedules',
-    source: 'external',
-    generator: 'doc:policies',
-    why: 'K.A.R. 109-17-3 — how a late enrolee or an absent student made up required content, per student.',
+    label: 'Late-enrolment and make-up records',
+    source: 'ces',
+    tab: 'hours',
+    evidence: 'makeUps',
+    citation: 'K.A.R. 109-17-3(a)',
+    why: 'K.A.R. 109-17-3 — how a late enrolee or an absent student made up required content, per student. Recorded against the missed session on the Hours tab; the policy it is judged against is in the program policy manual.',
   },
   {
     id: 'exam-outcomes',
     label: 'First-attempt examination outcomes',
     source: 'external',
     noGenerator: 'Comes from the National Registry after candidates sit the examination. It does not exist until then and cannot be generated in advance.',
+    citation: 'K.A.R. 109-17-3(a)',
     why: 'K.A.R. 109-17-3 — first-attempt certification examination results, monitored for programme review.',
   },
   {
+    // The BLANK form is generated; the returned evaluations are held here. The
+    // old row said this record lived outside CES and was produced by running
+    // doc:forms — which described the empty paper, not the evidence. An auditor
+    // sent to a shared drive for these would have found nothing, because they
+    // are in the Forms tab.
+    //
+    // NOTE ON THE NAME: this record is the PRECEPTOR evaluating the STUDENT,
+    // and the instrument that collects it is `clinical-daily`. The instrument
+    // called `preceptor-eval` is the reverse — the student's view of the
+    // preceptor — and belongs to the `evaluations` record below.
     id: 'preceptor-eval',
     label: 'Preceptor evaluations of students',
-    source: 'external',
-    generator: 'doc:forms',
-    why: 'K.A.R. 109-17-3 — the preceptor forms returned from each clinical and field rotation.',
+    source: 'ces',
+    tab: 'forms',
+    formEvidence: ['clinical-daily'],
+    blankForm: 'doc:forms',
+    citation: 'K.A.R. 109-17-3(a)',
+    why: 'K.A.R. 109-17-3 — the preceptor forms returned from each clinical and field rotation. One per shift; the Forms tab counts shifts without one.',
   },
   {
     id: 'instructor-eval-record',
     label: 'Student evaluations of the course and every instructor',
-    source: 'external',
-    generator: 'doc:forms',
-    why: 'K.A.R. 109-17-3 — each student evaluates the course AND each instructor who taught them, not the course alone.',
+    source: 'ces',
+    tab: 'forms',
+    formEvidence: ['instructor-eval', 'course-eval'],
+    blankForm: 'doc:forms',
+    citation: 'K.A.R. 109-17-3(a)',
+    why: 'K.A.R. 109-17-3 — each student evaluates the course AND each instructor who taught them, not the course alone. On a joint cohort that is one evaluation per instructor per student, not one per student.',
   },
   {
     id: 'attendance',
@@ -152,6 +236,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Attendance and contact hours',
     source: 'ces',
     tab: 'hours',
+    citation: 'K.A.R. 109-17-3(a); 109-11-4a',
     why: 'Held in CES — the hours grid and the 8-hour absence policy.',
   },
   {
@@ -160,6 +245,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Psychomotor skill evaluations',
     source: 'ces',
     tab: 'skills',
+    citation: 'K.A.R. 109-11-8(a)(2); retained under 109-17-3',
     why: 'Held in CES — per-criterion results, critical failures and sign-off.',
   },
   {
@@ -168,15 +254,23 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Patient encounter log',
     source: 'ces',
     tab: 'clinical',
+    citation: 'K.A.R. 109-11-8(a)(4); retained under 109-17-3',
     why: 'Held in CES — every rep against its shift, preceptor and K.A.R. 109-11-8 minimum.',
   },
   {
+    // The two instruments the K.A.R.-named rows above do not claim. Every one
+    // of the five belongs to exactly one row, which is what makes the counts
+    // mean anything — the old wholesale count of formResponses reported
+    // preceptor evaluations on file because somebody had filled in a course
+    // evaluation.
     id: 'evaluations',
-    evidence: 'formResponses',
-    label: 'Preceptor, instructor and course evaluations',
+    label: 'Student evaluations of preceptors, and affective behaviour records',
     source: 'ces',
     tab: 'forms',
-    why: 'Held in CES — the five evaluation instruments.',
+    formEvidence: ['preceptor-eval', 'affective'],
+    blankForm: 'doc:forms',
+    citation: 'Program quality; retained with the course under 109-17-3',
+    why: 'Program quality, not a K.A.R. 109-17-3 line item: the student’s view of each preceptor, and the affective behaviour record that triggers a documented conference.',
   },
   {
     id: 'schedule-record',
@@ -184,6 +278,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     source: 'ces',
     tab: 'sessions',
     evidence: 'sessions',
+    citation: 'K.A.R. 109-11-4a; 109-11-1a(b3)',
     why: 'K.A.R. 109-11-4a — date, time, subject, instructor and lab hours of every session.',
   },
   {
@@ -192,6 +287,7 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     source: 'ces',
     tab: 'roster',
     evidence: 'completions',
+    citation: 'K.A.R. 109-11-8(a); 109-11-8(b)',
     why: 'K.A.R. 109-11-8 — written verification by the primary instructor within 15 days of the final session.',
   },
   {
@@ -200,12 +296,30 @@ export const REQUIRED_RECORDS: RequiredRecord[] = [
     label: 'Student roster and completions',
     source: 'ces',
     tab: 'roster',
+    citation: 'K.A.R. 109-11-1a(e); 109-17-3(a)',
     why: 'Held in CES — enrolment, withdrawals, and verified completions with their overrides.',
   },
 ]
 
-/** Records the app does not hold, which have to be produced and tracked. */
+/** Records CES holds outright. The tab that owns one is the record. */
+export const HELD_RECORDS = REQUIRED_RECORDS.filter((r) => r.source === 'ces')
+
+/** Documents this repository produces from the course record. */
+export const GENERATED_RECORDS = REQUIRED_RECORDS.filter((r) => r.source === 'generated')
+
+/**
+ * Records that genuinely live in another system.
+ *
+ * Four, down from eleven. The other seven were either already here or already
+ * generated, and calling them "kept elsewhere" sent whoever was assembling a
+ * submission to look for files that do not exist.
+ */
 export const EXTERNAL_RECORDS = REQUIRED_RECORDS.filter((r) => r.source === 'external')
+
+/** Every instrument id claimed by a record, mapped to the record claiming it. */
+export const RECORD_FOR_FORM: Record<string, RequiredRecord> = Object.fromEntries(
+  REQUIRED_RECORDS.flatMap((r) => (r.formEvidence ?? []).map((f) => [f, r])),
+)
 
 export type RecordStatus = 'missing' | 'draft' | 'in-review' | 'approved'
 
@@ -312,6 +426,60 @@ export function docStatus(doc?: {
   return missing.length <= 2
     ? { value: 'in-review', label: 'In review', pill: 'info', missing }
     : { value: 'draft', label: 'Draft', pill: 'warn', missing }
+}
+
+/**
+ * What a FILED copy of a generated document supports.
+ *
+ * The question docStatus() asks — is there a location, an owner, a version, an
+ * approver — is the right question about a document somebody wrote, and the
+ * wrong one about a document this program prints on demand. A syllabus record
+ * pointing at `syllabus_FINAL_v2.docx` with an approval date of January 2025
+ * scored a clean green under docStatus(), for a cohort that did not exist when
+ * that file was approved. Every field was filled in; the document was a year
+ * stale and did not describe the course.
+ *
+ * So the only question worth asking about a generated document is whether the
+ * copy that was filed was produced AFTER the last change to the course it
+ * describes. CES knows both halves of that, so nobody has to remember.
+ */
+export interface FiledStatus {
+  value: 'not-filed' | 'stale' | 'filed'
+  label: string
+  pill: string
+  detail: string
+}
+
+export function filedStatus(
+  doc: { generatedOn?: string; location?: string } | undefined,
+  course: { updatedAt?: string } | undefined,
+): FiledStatus {
+  if (!doc?.generatedOn) {
+    return {
+      value: 'not-filed',
+      label: 'Not filed',
+      pill: 'crit',
+      detail: 'Run the command and record where the copy was filed.',
+    }
+  }
+  // updatedAt is a timestamp, generatedOn a date. Comparing the date halves
+  // keeps a copy generated the same day the course was last touched from
+  // reading stale, which would be technically arguable and practically noise.
+  const courseDay = (course?.updatedAt ?? '').slice(0, 10)
+  if (courseDay && courseDay > doc.generatedOn) {
+    return {
+      value: 'stale',
+      label: 'Stale',
+      pill: 'warn',
+      detail: `Filed copy generated ${doc.generatedOn}; the course record changed on ${courseDay}. Regenerate and re-file.`,
+    }
+  }
+  return {
+    value: 'filed',
+    label: 'Filed',
+    pill: 'ok',
+    detail: `Generated ${doc.generatedOn}${doc.location ? ` · filed at ${doc.location}` : ''}.`,
+  }
 }
 
 /** K.A.R. 109-17-3 — program records retained at least this long. */

@@ -364,6 +364,16 @@ export default function TemplateEditor({
     setDirty(true)
   }
 
+  // Fields the editor does not model as rows live in passthrough, which is
+  // carried through verbatim so an edit never drops what this screen does not
+  // show. The instrument review is three of them.
+  const pass = doc.passthrough as { draft?: boolean; reviewedBy?: string; reviewedOn?: string }
+  const isDraftForm = !!pass.draft
+  const reviewedBy = pass.reviewedBy ?? ''
+  const reviewedOn = pass.reviewedOn ?? ''
+  const setPass = (patch: Record<string, unknown>) =>
+    edit({ ...doc, passthrough: { ...doc.passthrough, ...patch } })
+
   const setGroup = (i: number, g: EditorGroup) =>
     edit({ ...doc, groups: doc.groups.map((x, j) => (j === i ? g : x)) })
 
@@ -523,6 +533,73 @@ export default function TemplateEditor({
               })
             }
           />
+        </div>
+      )}
+
+      {/* The instrument review.
+          Every AEMT evaluation form ships marked draft, and until now nothing
+          could clear it: `passthrough` carries the flag through this editor
+          untouched, so publishing a reviewed version produced a published
+          draft. The blank form printed "DRAFT INSTRUMENT — pending review
+          before use as a competency record" on every copy, and a cohort's worth
+          of preceptor evaluations would have been collected on it. */}
+      {kind === 'aemt-form' && (
+        <div className="card" style={{ padding: 12, marginTop: 14 }}>
+          <div className="section-title" style={{ marginTop: 0 }}>
+            Instrument review
+          </div>
+          {isDraftForm ? (
+            <>
+              <div className="help-text" style={{ marginTop: 0 }}>
+                This instrument is marked <strong>draft</strong>. It can be filled in, and every
+                copy — on screen and on the printed form — says the wording has not been reviewed.
+                Name who signed it off to clear that, and publish a version to put it in force.
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="te-revby">Reviewed and approved by</label>
+                  <input
+                    id="te-revby"
+                    value={reviewedBy}
+                    onChange={(e) => setPass({ reviewedBy: e.target.value || undefined })}
+                    placeholder="Program Manager and Medical Director"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="te-revon">Date</label>
+                  <input
+                    id="te-revon"
+                    type="date"
+                    value={reviewedOn}
+                    onChange={(e) => setPass({ reviewedOn: e.target.value || undefined })}
+                  />
+                </div>
+              </div>
+              <button
+                className="btn"
+                disabled={!reviewedBy.trim() || !reviewedOn}
+                onClick={() => setPass({ draft: undefined })}
+              >
+                Clear the draft mark
+              </button>
+              {(!reviewedBy.trim() || !reviewedOn) && (
+                <div className="help-text">
+                  Both are needed. An instrument that stops saying draft without recording who
+                  decided that is worse than one that still says it.
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="banner ok" style={{ marginTop: 0 }}>
+                Reviewed{reviewedBy ? ` by ${reviewedBy}` : ''}
+                {reviewedOn ? ` on ${reviewedOn}` : ''}. In force once published.
+              </div>
+              <button className="btn" onClick={() => setPass({ draft: true })}>
+                Mark it draft again
+              </button>
+            </>
+          )}
         </div>
       )}
 

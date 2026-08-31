@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Empty } from '../../components/ui'
+import { useMemo, useState } from 'react'
+import { Empty, Modal } from '../../components/ui'
 import { confirmAction, notifyUser } from '../../lib/dialog'
 import { formatDate } from '../../lib/date'
 import { weekdayLabel } from '../academy/calendar'
@@ -16,11 +16,15 @@ import {
   creditedHours,
   studentHourGaps,
   targetCoverage,
+  recordMakeUp,
+  clearMakeUp,
+  useRecordSafety,
 } from './aemtStore'
-import { MAX_ABSENT_HOURS } from '../../data/aemt'
+import { ABSENCE_MAKEUP, MAX_ABSENT_HOURS } from '../../data/aemt'
+import { todayISO } from '../../lib/date'
 import { AttendanceCell, attendanceGridKeys } from '../../components/AttendanceCell'
 import { useCan } from '../../lib/role'
-import type { AemtCourse, AttendanceStatus } from '../../types'
+import type { AemtCourse, AemtSession, AemtStudent, AttendanceStatus } from '../../types'
 
 /** "a", "a and b", "a, b and c" — a bare join reads as a run-on. */
 function listOf(items: string[]): string {
@@ -35,6 +39,101 @@ function nextStatus(cur: AttendanceStatus | undefined): AttendanceStatus | null 
   return null
 }
 
+/**
+ * Record what a student actually did to make up a missed session.
+ *
+ * The program's policy is that a make-up is documented rather than waived — "a
+ * make-up that is not documented is an absence" — and K.A.R. 109-17-3 retains
+ * the resulting record for three years. Until this existed the make-up list was
+ * a list of grievances with nothing that could close one, so the record the
+ * regulation asks for was kept nowhere and the screen implied otherwise.
+ */
+function MakeUpModal({
+  student,
+  session,
+  actor,
+  onClose,
+}: {
+  student: AemtStudent
+  session: AemtSession
+  actor: string
+  onClose: () => void
+}) {
+  const [date, setDate] = useState(todayISO())
+  const [what, setWhat] = useState('')
+  const [by, setBy] = useState(actor === 'local' ? '' : actor)
+  const [refused, setRefused] = useState<string | null>(null)
+  const valid = what.trim().length >= 4 && by.trim() !== ''
+
+  return (
+    <Modal title={`Make-up — ${student.name}`} onClose={onClose}>
+      <div className="banner info" style={{ marginTop: 0 }}>
+        <strong>{session.title || 'Session'}</strong>
+        {session.date ? ` · ${formatDate(session.date)}` : ''} · {session.hours} h missed
+      </div>
+      <div className="help-text" style={{ marginTop: 0 }}>
+        {ABSENCE_MAKEUP.requirement}
+      </div>
+
+      <div className="field-row" style={{ marginTop: 10 }}>
+        <div className="field">
+          <label htmlFor="mu-date">Completed on</label>
+          <input id="mu-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="mu-by">Supervised by</label>
+          <input
+            id="mu-by"
+            value={by}
+            onChange={(e) => setBy(e.target.value)}
+            placeholder="Primary instructor"
+          />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="mu-what">What the student did</label>
+        <textarea
+          id="mu-what"
+          value={what}
+          onChange={(e) => setWhat(e.target.value)}
+          placeholder="Completed the Navigate module and the chapter quiz, then demonstrated glucometry and IM injection to the lab checklist. Both to standard on the first attempt."
+        />
+        <div className="help-text">
+          This is the record an auditor reads. &ldquo;Made up&rdquo; is not a description of
+          equivalent competency.
+        </div>
+      </div>
+
+      <div className="banner warn">
+        The absence stays on the attendance record and the {session.hours} h stay lost — that is what
+        happened. This documents the equivalent competency, which is the separate thing the policy
+        requires.
+      </div>
+      {refused && <div className="banner crit">{refused}</div>}
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!valid}
+          onClick={() => {
+            const res = recordMakeUp(student.id, session.id, { date, what, by })
+            if (!res.ok) {
+              setRefused(res.refused ?? 'Could not record it.')
+              return
+            }
+            onClose()
+          }}
+        >
+          Record the make-up
+        </button>
+        <button className="btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function HoursTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
   const sessions = useSessions(course.id)
@@ -44,7 +143,20 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
   // manageAemt, not editRideWork: the latter is true for FTOs, who must not
   // write to certification records.
   const { manageAemt: canEdit } = useCan()
+  const safety = useRecordSafety()
+  const [makingUp, setMakingUp] = useState<{ student: AemtStudent; session: AemtSession } | null>(null)
   const cover = targetCoverage(course.targets)
+
+  // Flattened to one entry per missed session so a make-up has something
+  // specific to attach to, and sorted by date so the oldest debt is at the top.
+  const bySession = (a: { session: AemtSession }, b: { session: AemtSession }) =>
+    (a.session.date ?? '').localeCompare(b.session.date ?? '')
+  const owed = hours
+    .flatMap((h) => h.makeUpOwed.map((session) => ({ student: h.student, session })))
+    .sort(bySession)
+  const done = hours
+    .flatMap((h) => h.makeUpsDone.map((d) => ({ student: h.student, ...d })))
+    .sort(bySession)
   // Every student shares the course's target set, so one row defines the
   // columns. Falls back to an empty student so the header renders on a course
   // with a roster of nobody.
@@ -314,28 +426,86 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
         </>
       )}
 
-      <div className="section-title">Make-up needed</div>
+      {/* One row per missed SESSION, not per student. A student with four
+          absences used to be one row listing all four, so a make-up for one of
+          them had nowhere to attach and the row stayed red until every one was
+          done — which is why nothing was ever recorded against it. */}
+      <div className="section-title">Make-up</div>
       {hours.every((h) => h.missed.length === 0) ? (
         <div className="banner ok">✓ No missed sessions recorded.</div>
       ) : (
-        <div className="list">
-          {hours
-            .filter((h) => h.missed.length > 0)
-            .map(({ student, missed, earned, missedHours }) => (
-              <div key={student.id} className="row left-accent acc-crit">
+        <>
+          {owed.length === 0 ? (
+            <div className="banner ok">
+              ✓ Every missed session has a documented make-up on file.
+            </div>
+          ) : (
+            <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+              {ABSENCE_MAKEUP.note} {ABSENCE_MAKEUP.requirement}
+            </div>
+          )}
+          <div className="list">
+            {owed.map(({ student, session }) => (
+              <div key={`${student.id}|${session.id}`} className="row left-accent acc-crit">
                 <div className="grow">
                   <div className="title">{student.name}</div>
                   <div className="meta">
-                    {earned.toFixed(2)} h earned · missed:{' '}
-                    {missed
-                      .map((s) => `${s.title || 'session'}${s.date ? ` (${formatDate(s.date)})` : ''}`)
-                      .join(' · ')}
+                    {session.title || 'Session'}
+                    {session.date ? ` · ${formatDate(session.date)}` : ''} · {session.hours} h
                   </div>
                 </div>
-                <span className="pill crit">{missedHours} h to make up</span>
+                <span className="pill crit">no make-up recorded</span>
+                {canEdit && (
+                  <button className="btn sm primary" onClick={() => setMakingUp({ student, session })}>
+                    Record
+                  </button>
+                )}
               </div>
             ))}
-        </div>
+            {done.map(({ student, session, makeUp }) => (
+              <div key={`${student.id}|${session.id}`} className="row left-accent acc-ok">
+                <div className="grow">
+                  <div className="title">{student.name}</div>
+                  <div className="meta">
+                    {session.title || 'Session'}
+                    {session.date ? ` · ${formatDate(session.date)}` : ''} · made up{' '}
+                    {formatDate(makeUp.date)} with {makeUp.by}
+                  </div>
+                  <div className="help-text">{makeUp.what}</div>
+                </div>
+                <span className="pill ok">documented</span>
+                {canEdit && (
+                  <button
+                    className="btn sm danger"
+                    aria-label={`Remove the make-up record for ${student.name}`}
+                    onClick={async () => {
+                      const ok = await confirmAction({
+                        title: 'Remove this make-up record?',
+                        body:
+                          'It is a program record retained for three years under K.A.R. 109-17-3. ' +
+                          'Remove it only if it was entered against the wrong session or the wrong ' +
+                          'student — the session goes back to owing a make-up.',
+                        confirmLabel: 'Remove it',
+                      })
+                      if (ok) clearMakeUp(student.id, session.id)
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {makingUp && (
+        <MakeUpModal
+          student={makingUp.student}
+          session={makingUp.session}
+          actor={safety.actor}
+          onClose={() => setMakingUp(null)}
+        />
       )}
     </div>
   )
