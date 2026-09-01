@@ -361,6 +361,51 @@ Three LEDs are stated rather than simulated: **AC** and **BATTERY** are held
 illuminated (a trainer on mains with full batteries), and **SERVICE** stays
 dark because there is no fault model to light it.
 
+### A second pass over the keys
+
+Every key was driven again, this time by exercising it rather than reading it:
+720 single presses across twelve device states, 400 random presses, the three
+press-and-hold gestures, both menus and every item in them, the speed dial on
+the home screen and inside a menu, keyboard access, and the 12-lead window's
+whole open/toggle/close lifecycle. **Nothing threw, and no press left the
+device in an illegal state** — energy, pacing rate and current all stay inside
+their ladders under random hammering, and powering off clears the pacer, the
+printer, the menu, the cuff and any charge.
+
+Two things that were not bugs but were not right either:
+
+**Five of the six OPTIONS rows did nothing.** They were mapped to
+`run:()=>closeMenu()`, so Patient Mode, Alarms, Date / Time, Print Settings and
+Transmit Sites highlighted, selected and closed — indistinguishable from
+working rows until a crew presses one. Every other read-only menu in the file
+says why it is read-only; these just quietly weren't. Each row now either acts
+or says why it cannot: alarms are real, patient mode and the clock read out
+their values, and the last two say they are not simulated, the way the three
+LEDs above do.
+
+**`ALARMS` had two states where the unit has three.** `D.alarms` is initialised
+`true`, `resetDevice()` puts it back to `true`, and nothing anywhere set it
+`false` — so the `if(!D.alarms)` branch in the handler was dead code, and
+`limitsMenu` had been reading out an "Alarms off" that nothing could produce.
+The description above — enables, then silences — was of a first press that
+could not happen. `OPTIONS → Alarms → Off` is the way in, and the key now walks
+off → enabled → silenced → enabled as it always claimed to.
+
+Making that state reachable then exposed a real defect: `setPower(false)` drops
+the pacer, the printer, the menu and the cuff, but nothing was restoring the
+alarms, so "off" survived a power cycle and left a silent monitor with nothing
+on screen having asked for it. It comes back on with the unit now.
+
+**Not verified: the pacing increments.** `RATE` moves in 10 ppm steps over
+40–170 and `CURRENT` in 10 mA steps over 0–200. The ranges are right; the step
+size is not something this repo has a source for, and every copy of the
+operating instructions is blocked by this session's network egress policy, so
+it was left alone rather than changed from memory. The energy ladder *is*
+confirmed against the manual-mode table, and the AED advisories are clinically
+correct: VF and pulseless VT advise a shock, sinus and asystole do not, and no
+electrodes says `CONNECT ELECTRODES` rather than advising against a shock it
+cannot see.
+
 ### What the keys do
 
 `ON` (hold to switch off) · `CPR` metronome at 110/min · `ANALYZE` runs an
@@ -372,7 +417,8 @@ ladder and throws away any charge when it moves · `CHARGE` takes 5.2s with a
 rising tone and disarms itself after 60s · `SHOCK` only fires armed · `PACER`
 with `RATE`, `CURRENT` and hold-to-`PAUSE` · `NIBP` takes the reading away for
 25s while the cuff cycles · `ALARMS` enables, then silences for two minutes ·
-`OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects ·
+`OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects, and
+every row in both leads somewhere ·
 `HOME SCREEN` clears any selection and closes menus · the display-mode key toggles **SunVue**, the unit's
 high-contrast outdoor mode, which repaints the canvases on a light ground with
 dark traces rather than recolouring the chrome.

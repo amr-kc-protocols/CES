@@ -3466,10 +3466,48 @@ function menuSelect(){
 }
 const exitItem={label:'Exit',run:()=>closeMenu()};
 
+/* OPTIONS. Every row here used to close the menu and do nothing: five labels
+   that highlighted and selected like working items and led nowhere, which
+   teaches a workflow the unit does not have. Each one now either acts or says
+   why it cannot.
+
+   Alarms is the one that acts, because enabling them is device state this
+   window owns. It was also the only way to reach ALARMS' own first press:
+   D.alarms is initialised true and resetDevice puts it back to true, so
+   `if(!D.alarms)` in that handler could never run, and the key had two states
+   where the unit has three. limitsMenu has been reading out "Alarms off" for a
+   condition nothing could produce.
+
+   Patient mode and the clock read out rather than offer to edit — the first is
+   the facilitator's and arrives on the panel's broadcast, so a monitor-side
+   edit would be overwritten a second later, which is the same reason the alarm
+   limits read rather than edit. The last two have no model behind them and say
+   so, the way the three stated LEDs do. */
+const infoMenu=(title,text)=>({title,items:[
+  {label:text,info:true},
+  {label:'Exit',run:()=>openMenu(optionsMenu())},
+]});
+const alarmsMenu=()=>({title:'ALARMS',items:[
+  {label:(D.alarms?'&bull; ':'&nbsp;&nbsp;')+'On',run:()=>{
+    if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }
+    openMenu(optionsMenu()); }},
+  {label:(!D.alarms?'&bull; ':'&nbsp;&nbsp;')+'Off',run:()=>{
+    if(D.alarms){ D.alarms=false; D.silenceUntil=0; logEvent('alarms','ALARMS OFF',''); }
+    openMenu(optionsMenu()); }},
+  {label:'Exit',run:()=>openMenu(optionsMenu())},
+]});
 const optionsMenu=()=>({title:'OPTIONS',items:[
-  {label:'Patient Mode'},{label:'Alarms'},{label:'Date / Time'},
-  {label:'Print Settings'},{label:'Transmit Sites'},exitItem,
-].map(i=>i.run?i:{label:i.label,run:()=>closeMenu()})});
+  {label:'Patient Mode',run:()=>openMenu(infoMenu('PATIENT MODE',
+    (S.patientType||'Adult')+' &mdash; set from the control panel'))},
+  {label:'Alarms',run:()=>openMenu(alarmsMenu())},
+  {label:'Date / Time',run:()=>openMenu(infoMenu('DATE / TIME',
+    new Date().toLocaleString()))},
+  {label:'Print Settings',run:()=>openMenu(infoMenu('PRINT SETTINGS',
+    'Not simulated on this trainer'))},
+  {label:'Transmit Sites',run:()=>openMenu(infoMenu('TRANSMIT SITES',
+    'Not simulated on this trainer'))},
+  exitItem,
+]});
 
 const eventMenu=()=>({title:'EVENT',items:
   ['IV Access','Medication','Intubation','ROSC','Handover','Other'].map(t=>
@@ -3625,6 +3663,11 @@ function setPower(on){
   if(!on){
     disarm(); cprMetronome(false); D.cpr=false; D.pacer=false; D.analyzing=false;
     printerRun(false); closeMenu(); clearHomeSel(); banner(null);
+    // Alarms come back on with the unit. They are switchable from OPTIONS now,
+    // and everything else switched on here is dropped when the unit goes down;
+    // carrying "alarms off" across a power cycle would leave a crew with a
+    // silent monitor and nothing on screen having asked for it.
+    D.alarms=true; D.silenceUntil=0;
     // A cuff cycle does not survive the unit being switched off.
     if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
     D.nibpUntil=0;

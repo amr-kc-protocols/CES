@@ -999,6 +999,67 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   const missing = uniq.filter((t) => !icons.has(t))
   ok('every event the monitor sends has an icon on the panel', missing.length === 0, missing.join(','))
 
+  // ── Every OPTIONS row leads somewhere ──────────────────────────────────────
+  // They used to be five labels mapped to run:()=>closeMenu(). A row that
+  // highlights, selects and closes is indistinguishable from a working one
+  // until a crew presses it, and then it teaches a workflow the unit does not
+  // have. Each row now either acts or says why it cannot.
+  {
+    const { w } = loadMonitor()
+    w.eval('openMenu(optionsMenu())')
+    const rows = w.eval('D.menu.items.map(i=>i.label)')
+    ok('OPTIONS still lists the rows Table 3-4 shows', rows.length === 6, rows.join(' | '))
+    const inert = []
+    for (let i = 0; i < rows.length - 1; i++) {      // the last row is Exit
+      w.eval('openMenu(optionsMenu())')
+      w.eval(`D.menuIx=${i}; menuSelect()`)
+      if (!w.eval('D.menu')) inert.push(rows[i])
+    }
+    ok('no OPTIONS row selects to nothing', inert.length === 0,
+      `${inert.join(', ')} — closes the menu and does nothing`)
+    w.close()
+  }
+
+  // ── ALARMS is a three-state key ────────────────────────────────────────────
+  // Off -> enabled -> silenced -> enabled, which is what the key does on the
+  // unit and what this README has always described. The first of those was
+  // unreachable: D.alarms was initialised true, resetDevice put it back to
+  // true, and nothing anywhere set it false, so `if(!D.alarms)` in the handler
+  // was dead code and limitsMenu had been reading out an "Alarms off" that
+  // nothing could produce. OPTIONS -> Alarms -> Off is the way in.
+  {
+    const { w } = loadMonitor()
+    const alarmsOff = () => {
+      w.eval('openMenu(alarmsMenu())')
+      const ix = w.eval("D.menu.items.findIndex(i=>/Off/.test(i.label))")
+      w.eval(`D.menuIx=${ix}; menuSelect()`)
+    }
+    alarmsOff()
+    ok('the unit\'s alarms can be switched off', w.eval('D.alarms') === false)
+    w.document.getElementById('kALARMS').click()
+    ok('ALARMS then enables them', w.eval('D.alarms') === true && !w.eval('Date.now()<D.silenceUntil'))
+    w.document.getElementById('kALARMS').click()
+    ok('ALARMS again silences for two minutes', w.eval('Date.now()<D.silenceUntil'))
+    ok('and silencing leaves them enabled', w.eval('D.alarms') === true,
+      'a crew reading the LED would be told the alarms are off')
+    w.document.getElementById('kALARMS').click()
+    ok('ALARMS again unsilences', !w.eval('Date.now()<D.silenceUntil'))
+    w.close()
+  }
+
+  // Everything else switched on is dropped when the unit goes down, so alarms
+  // are too: carrying "off" across a power cycle leaves a silent monitor with
+  // nothing on screen having asked for it.
+  {
+    const { w } = loadMonitor()
+    w.eval('openMenu(alarmsMenu())')
+    const ix = w.eval("D.menu.items.findIndex(i=>/Off/.test(i.label))")
+    w.eval(`D.menuIx=${ix}; menuSelect()`)
+    w.eval('setPower(false)'); w.eval('setPower(true)')
+    ok('alarms come back on with the unit', w.eval('D.alarms') === true)
+    w.close()
+  }
+
   const patterns = [...panelSrc.matchAll(/match:\/(.+?)\/i/g)].map((m) => m[1])
   ok('the panel auto-ticks from the device', patterns.length >= 3, `${patterns.length} rules`)
   const steps = [...panelSrc.matchAll(/^\s+'([^']{12,})',$/gm)].map((m) => m[1])
