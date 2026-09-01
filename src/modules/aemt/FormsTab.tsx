@@ -11,6 +11,10 @@ import {
   openConcerns,
   resolveFormResponse,
   useRecordSafety,
+  useShifts,
+  useCourse,
+  formOwedFor,
+  instructorsOfRecord,
 } from './aemtStore'
 import type { AemtFormResponse } from '../../types'
 import { useAemtForms, liveAemtForm, aemtFormAtVersion } from '../templates/resolve'
@@ -24,10 +28,19 @@ function Field({
   field,
   value,
   onChange,
+  options,
 }: {
   field: FormField
   value: string | number | boolean | undefined
   onChange: (v: string | number | boolean | undefined) => void
+  /**
+   * A closed answer set, where the course knows one. Only the instructor name
+   * has one today, and it matters: the record of which instructors a student
+   * evaluated is counted by distinct name, so "J. Jones" typed once and
+   * "Jordan Jones" typed again is two instructors evaluated and a co-instructor
+   * still not evaluated by anybody.
+   */
+  options?: string[]
 }) {
   if (field.kind === 'scale' && field.scale) {
     const { min, max, minLabel, maxLabel } = field.scale
@@ -79,6 +92,27 @@ function Field({
             </button>
           ))}
         </div>
+        {field.help && <div className="help-text">{field.help}</div>}
+      </div>
+    )
+  }
+
+  if (options?.length) {
+    return (
+      <div className="field">
+        <label htmlFor={`f-${field.id}`}>{field.label}</label>
+        <select
+          id={`f-${field.id}`}
+          value={(value as string) ?? ''}
+          onChange={(e) => onChange(e.target.value || undefined)}
+        >
+          <option value="">— select —</option>
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
         {field.help && <div className="help-text">{field.help}</div>}
       </div>
     )
@@ -198,9 +232,25 @@ function FillForm({
   onDone: () => void
 }) {
   const students = useStudents(course.id)
+  const responses = useFormResponses(course.id)
+  const instructors = instructorsOfRecord(useCourse(course.id))
   const [studentId, setStudentId] = useState(students[0]?.id ?? '')
   const [date, setDate] = useState(todayISO())
   const [values, setValues] = useState<Values>({})
+
+  // Which instructors this student has already evaluated, so the person filling
+  // it in is not guessing. The gap between this and the roster is exactly what
+  // the completion gate is counting.
+  const alreadyEvaluated =
+    def.id === 'instructor-eval'
+      ? new Set(
+          responses
+            .filter((r) => r.formId === def.id && r.studentId === studentId)
+            .map((r) => String(r.values?.instructor ?? '').trim().toLowerCase())
+            .filter(Boolean),
+        )
+      : new Set<string>()
+  const stillOwed = instructors.filter((n) => !alreadyEvaluated.has(n.toLowerCase()))
 
   const set = (id: string, v: string | number | boolean | undefined) =>
     setValues((prev) => {
@@ -225,10 +275,38 @@ function FillForm({
         </div>
       </div>
 
-      {def.draft && (
+      {def.draft ? (
         <div className="banner warn" style={{ marginTop: 10 }}>
           <strong>Draft form.</strong> Drafted from the program's own description of it. Have the
-          Program Manager and Medical Director review the wording before it becomes a record.
+          Program Manager and Medical Director review the wording, then record the review under
+          <strong> Instruments</strong> — what comes back on this form is retained for three years.
+        </div>
+      ) : (
+        def.reviewedBy && (
+          <div className="banner ok" style={{ marginTop: 10 }}>
+            Reviewed and approved by {def.reviewedBy}
+            {def.reviewedOn ? ` on ${formatDate(def.reviewedOn)}` : ''}.
+          </div>
+        )
+      )}
+
+      {def.id === 'instructor-eval' && instructors.length > 0 && (
+        <div className={`banner ${stillOwed.length ? 'warn' : 'ok'}`} style={{ marginTop: 10 }}>
+          {stillOwed.length ? (
+            <>
+              This student still owes an evaluation of{' '}
+              <strong>{stillOwed.join(' and ')}</strong>. K.A.R. 109-17-3 asks for one per
+              instructor who taught them, not one for the course.
+            </>
+          ) : (
+            <>✓ This student has evaluated every instructor of record.</>
+          )}
+        </div>
+      )}
+      {def.id === 'instructor-eval' && instructors.length === 0 && (
+        <div className="banner warn" style={{ marginTop: 10 }}>
+          No instructors are filed on this course, so there is nothing to count these against. Add
+          them in <strong>Course setup</strong>.
         </div>
       )}
 
@@ -260,7 +338,17 @@ function FillForm({
             </div>
           )}
           {section.fields.map((f) => (
-            <Field key={f.id} field={f} value={values[f.id]} onChange={(v) => set(f.id, v)} />
+            <Field
+              key={f.id}
+              field={f}
+              value={values[f.id]}
+              onChange={(v) => set(f.id, v)}
+              options={
+                def.id === 'instructor-eval' && f.id === 'instructor' && instructors.length
+                  ? instructors
+                  : undefined
+              }
+            />
           ))}
         </div>
       ))}
@@ -287,6 +375,8 @@ function FillForm({
 export default function FormsTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
   const responses = useFormResponses(course.id)
+  const shifts = useShifts(course.id)
+  const instructors = instructorsOfRecord(useCourse(course.id))
   // manageAemt, not editRideWork: the latter is true for FTOs, who must not
   // write to certification records.
   const { manageAemt: canEdit } = useCan()
@@ -384,8 +474,22 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
       <div className="list">
         {FORMS.map((f) => {
           const count = responses.filter((r) => r.formId === f.id).length
+          // Per student, then summed — a course total cannot say which student
+          // is short, and "18 of 24" across six students hides the one who has
+          // filed nothing. Counted the same way the completion gate counts it.
+          const perStudent = students.map((st) =>
+            formOwedFor(
+              f,
+              responses.filter((r) => r.studentId === st.id),
+              shifts.filter((sh) => sh.studentId === st.id).length,
+              instructors,
+            ),
+          )
+          const owed = perStudent.reduce((n, o) => n + o.owed, 0)
+          const behind = perStudent.filter((o) => o.owed > 0).length
+          const basis = perStudent[0]?.basis
           return (
-            <div key={f.id} className="row">
+            <div key={f.id} className={`row left-accent ${owed > 0 ? 'acc-warn' : 'acc-ok'}`}>
               <div className="grow">
                 <div className="title">
                   {f.title}
@@ -400,11 +504,17 @@ export default function FormsTab({ course }: { course: AemtCourse }) {
                 </div>
                 <div className="meta">
                   {count} recorded
-                  {f.cadence === 'course' && count < students.length && (
-                    <> · {students.length - count} student(s) outstanding</>
-                  )}
+                  {basis ? ` · ${basis}` : ''}
                 </div>
+                {owed > 0 && (
+                  <div className="meta" style={{ color: 'var(--warn)' }}>
+                    {owed} outstanding across {behind} student{behind === 1 ? '' : 's'}
+                  </div>
+                )}
               </div>
+              <span className={`pill ${owed > 0 ? 'warn' : 'ok'}`}>
+                {owed > 0 ? `${owed} owed` : '✓ complete'}
+              </span>
               {canEdit && (
                 <button className="btn sm primary" onClick={() => setFilling(f.id)}>
                   Fill in

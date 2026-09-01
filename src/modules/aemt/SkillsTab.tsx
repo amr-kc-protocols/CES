@@ -6,6 +6,7 @@ import { formatDate } from '../../lib/date'
 import ReasonModal from './ReasonModal'
 import {
   useStudents,
+  useSessions,
   useSkillChecks,
   standingFor,
   setSkillResult,
@@ -24,7 +25,7 @@ import {
   liveSkillSheet,
   skillSheetAtVersion,
 } from '../templates/resolve'
-import { PRECEPTOR_LABELS } from '../../data/aemt'
+import { PRECEPTOR_LABELS, sessionForSheet } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import { useCan } from '../../lib/role'
 import type { AemtCourse, PreceptorCredentialId } from '../../types'
@@ -420,6 +421,7 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
   const [selectedId, setSelected] = useState<string | null>(null)
   const [openSheet, setOpenSheet] = useState<string | null>(null)
   const [showExcluded, setShowExcluded] = useState(false)
+  const sessions = useSessions(course.id)
   const SHEETS = useSheetsForCourse(course.monitorSheetId)
   const BLS_SHEETS = useSheetsByScope('bls')
   const MEDIC_SHEETS = useSheetsByScope('paramedic')
@@ -532,6 +534,25 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
                 {s.failed > 0 && ` · ${s.failed} needing practice`}
                 {s.sheet.levels.length < 3 && ` · ${s.sheet.levelLabel}`}
               </div>
+              {/* When this check-off happens. A list of eleven sheets in no
+                  order makes the instructor hold the schedule in their head to
+                  know which of them week 3 is meant to produce.
+
+                  Read off THIS COURSE'S OWN SESSIONS, not the filed plan. A
+                  course with a hand-built schedule does not have a "Week 5 ·
+                  Thu", and telling its instructor a date for a session that
+                  does not exist is worse than telling them nothing. */}
+              {(() => {
+                const row = sessionForSheet(s.sheet.id, course.monitorSheetId)
+                if (!row) return null
+                const session = sessions.find((x) => x.title === row.title)
+                if (!session?.date) return null
+                return (
+                  <div className="meta subtle">
+                    {row.label} · {formatDate(session.date)}
+                  </div>
+                )
+              })()}
             </div>
             {s.signedOff ? (
               <span className="pill ok">✓ Passed</span>

@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import Icon from './Icon'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { UndoToast } from './ui'
 import ErrorBoundary from './ErrorBoundary'
@@ -70,7 +71,7 @@ export default function Layout() {
 
       <nav className="tabbar">
         <NavLink to={HOME.to} end className={({ isActive }) => (isActive ? 'active' : '')}>
-          <span className="icon">{HOME.icon}</span>
+          <Icon name={HOME.icon} size={1.55} />
           {HOME.label}
         </NavLink>
         {sections.map((s) => {
@@ -83,8 +84,8 @@ export default function Layout() {
           const badge = s.items.some((i) => i.to === '/ce') ? ceBadge : 0
           return (
             <Link key={s.to} to={s.to} className={active ? 'active' : ''}>
-              <span className="icon" style={{ position: 'relative' }}>
-                {s.icon}
+              <span className="icon-wrap">
+                <Icon name={s.icon} size={1.55} />
                 {badge > 0 && <span className="badge">{badge}</span>}
               </span>
               {s.label}

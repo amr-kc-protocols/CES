@@ -1,21 +1,24 @@
 // Build the KBEMS "Initial Instruction Course Approval" application as a .docx.
 //
-// The schedule table, hour totals, dates, sites and instructor are read from
-// src/data/aemt.ts — the same module the app builds its calendar from. That is
-// the whole point of generating this rather than typing it: the schedule filed
-// with the board and the schedule the coordinator works to are the same object,
-// so they cannot drift the way Wichita's summary line drifted from its own
-// table.
+// The schedule table, hour totals, dates, sites, staff and grading model are
+// read from src/data/aemt.ts — the same module the app builds its calendar
+// from. That is the whole point of generating this rather than typing it: the
+// schedule filed with the board and the schedule the coordinator works to are
+// the same object, so they cannot drift the way each source document's summary
+// line drifted from its own table.
 //
-// Everything else is the Wichita template's prose, which Kansas City adopts
-// unchanged apart from the operation and hospital named in it.
+// THIS IS A JOINT APPLICATION. AMR Kansas City and AMR Wichita are running one
+// AEMT class for the October 2026 cohort. Kansas City is the sponsoring
+// organization and files it; both markets' instructors and both markets' sites
+// are named, because a site not on the application cannot be rotated through
+// without going back to the board for a new approval.
+//
+// The surrounding prose is the syllabus text both programs had already adopted,
+// amended where the joint plan changed the policy it describes.
 //
 // Run: npm run doc:application  [-- <output path>]
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { tmpdir } from 'node:os'
-import { build } from 'esbuild'
 import {
   AlignmentType,
   Document,
@@ -32,50 +35,28 @@ import {
   TextRun,
   WidthType,
 } from 'docx'
+import { loadCourse, longDate, provenance, ROOT, shortDate, weekdayOf } from './lib/doc-kit.mjs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = join(__dirname, '..')
-const OUT_MODULE = join(tmpdir(), `ces-application-${process.pid}.mjs`)
 const outPath = resolve(
-  process.argv[2] ?? join(ROOT, 'build', 'KBEMS-AEMT-Course-Approval-AMR-Kansas-City.docx'),
+  process.argv[2] ?? join(ROOT, 'build', 'KBEMS-AEMT-Course-Approval-Oct2026-Joint-Cohort.docx'),
 )
 
 // ----- load the course data --------------------------------------------------
+//
+// Through doc-kit, so this document and the other six are reading the same
+// modules at the same moment. A loader of its own here is how the filed
+// application and the working schedule drift apart without anyone touching
+// either.
 
-await build({
-  stdin: {
-    contents: `export * from ${JSON.stringify(join(ROOT, 'src', 'data/aemt'))}`,
-    resolveDir: join(ROOT, 'src'),
-    loader: 'ts',
-  },
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  outfile: OUT_MODULE,
-})
-const m = await import(pathToFileURL(OUT_MODULE).href)
-rmSync(OUT_MODULE, { force: true })
+const m = await loadCourse()
 
 const totals = m.scheduleTotals()
-const plan = m.buildClassPlan()
-const staff = m.KC_COURSE_STAFF
+const staff = m.PRIMARY_INSTRUCTOR
+const A = m.A
 const clinicalSites = m.KC_SITES.filter((s) => s.kind === 'clinical')
 const fieldSites = m.KC_SITES.filter((s) => s.kind === 'field')
-
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const longDate = (iso) => {
-  const [y, mo, d] = iso.split('-').map(Number)
-  return `${MONTHS[mo - 1]} ${d}, ${y}`
-}
-const shortDate = (iso) => {
-  const [y, mo, d] = iso.split('-').map(Number)
-  return `${mo}.${d}.${y}`
-}
-
-/** The dates each filed row is delivered on, in order. */
-const datesForRow = (order) => [
-  ...new Set(plan.filter((s) => s.rowOrder === order).map((s) => s.date)),
-]
+const siteList = (sites) =>
+  sites.map((s) => `${s.name} (${m.CAMPUS_LABEL[s.campus]})`).join(' and ')
 
 // ----- document furniture ----------------------------------------------------
 
@@ -143,9 +124,18 @@ const headerRow = new TableRow({
   ),
 })
 
-const scheduleRows = m.KC_SCHEDULE.map((r) => {
-  const dates = datesForRow(r.order)
-  const dateLines = [r.label, ...dates.map(shortDate)]
+// Rows in date order. K.A.R. 109-11-1a(b3) wants the date AND time of each
+// session, so the time goes in the date cell rather than being implied by a
+// note under the table — the two Saturday AHA courses do not run 0900-1300 and
+// a reviewer reading down the column should not have to know that.
+const scheduleRows = [...m.KC_SCHEDULE]
+  .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))
+  .map((r) => {
+  const dateLines = [
+    r.label,
+    `${weekdayOf(r.date)} ${shortDate(r.date)}`,
+    ...(r.startTime ? [`${r.startTime}–${r.endTime}`] : []),
+  ]
   const num = (v) =>
     new Paragraph({
       spacing: { after: 0 },
@@ -177,7 +167,7 @@ const scheduleRows = m.KC_SCHEDULE.map((r) => {
                   spacing: { before: 40, after: 0 },
                   children: [
                     new TextRun({
-                      text: 'Completed by the student through Navigate; not classroom contact time.',
+                      text: 'Completed by the student through Navigate before the session; not classroom contact time.',
                       size: 17,
                       italics: true,
                     }),
@@ -194,7 +184,15 @@ const scheduleRows = m.KC_SCHEDULE.map((r) => {
         [
           new Paragraph({
             spacing: { after: 0 },
-            children: [new TextRun({ text: staff.primaryInstructor, size: 20 })],
+            children: [
+              new TextRun({
+                text:
+                  r.delivery === 'aha'
+                    ? 'AHA-certified instructor'
+                    : `${staff.name}, ${staff.credential}`,
+                size: 20,
+              }),
+            ],
           }),
         ],
         { width: COLS[4] },
@@ -220,8 +218,22 @@ const totalRow = new TableRow({
           spacing: { after: 0 },
           children: [
             new TextRun({
-              text: `${m.KC_SCHEDULE.length} scheduled rows across ${totals.weeks} course weeks`,
+              text: `${m.KC_SCHEDULE.length} scheduled rows across ${totals.weeks} instructional weeks`,
               size: 20,
+            }),
+          ],
+        }),
+        // The didactic column sums to more than the didactic total quoted
+        // below it, because the two AHA provider courses are counted in their
+        // own bucket. Said here rather than left for a reviewer to find: a
+        // column that does not add up is the first thing anyone checks.
+        new Paragraph({
+          spacing: { before: 40, after: 0 },
+          children: [
+            new TextRun({
+              text: `Of the didactic total, ${totals.aha} h are the two AHA provider courses and are reported separately below; the remaining ${totals.didactic} h are ${totals.f2fDidactic} h face-to-face and ${totals.assignment} h pre-class.`,
+              size: 17,
+              italics: true,
             }),
           ],
         }),
@@ -233,7 +245,13 @@ const totalRow = new TableRow({
         new Paragraph({
           spacing: { after: 0 },
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: String(totals.didactic), bold: true, size: 20 })],
+          children: [
+            new TextRun({
+              text: String(Math.round((totals.didactic + totals.aha) * 10) / 10),
+              bold: true,
+              size: 20,
+            }),
+          ],
         }),
       ],
       { width: COLS[2], shaded: true },
@@ -270,7 +288,8 @@ const karMinimums = m.CLINICAL_REQUIREMENTS.filter((r) => r.basis === 'kar')
 const doc = new Document({
   creator: 'AMR Kansas City — Clinical Education',
   title: 'Initial Instruction Course Approval — Advanced Emergency Medical Technician',
-  description: 'Kansas BEMS AEMT initial course approval application, AMR Kansas City',
+  description:
+    'Kansas BEMS AEMT initial course approval application — joint AMR Kansas City / AMR Wichita cohort, October 2026',
   numbering: {
     config: [
       {
@@ -295,7 +314,10 @@ const doc = new Document({
             new Paragraph({
               alignment: AlignmentType.CENTER,
               children: [
-                new TextRun({ text: 'AMR Kansas City — AEMT Initial Course Approval    ', size: 18 }),
+                new TextRun({
+                  text: 'AMR Kansas City & AMR Wichita — AEMT Initial Course Approval    ',
+                  size: 18,
+                }),
                 new TextRun({ children: ['Page ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES], size: 18 }),
               ],
             }),
@@ -321,7 +343,9 @@ const doc = new Document({
           border: { bottom: { style: 'single', size: 6, color: '888888', space: 8 } },
           children: [
             new TextRun({
-              text: `AMR Kansas City  ·  ${longDate(m.KC_START_DATE)} to ${longDate(m.KC_END_DATE)}`,
+              text: `AMR Kansas City (sponsoring organization) with AMR Wichita  ·  ${longDate(
+                m.KC_START_DATE,
+              )} to ${longDate(m.KC_END_DATE)}`,
               size: 22,
             }),
           ],
@@ -360,10 +384,18 @@ const doc = new Document({
 
         H2('Student Attendance Policies'),
         P(
-          `Classroom, lecture, and lab skill performance are scheduled every Tuesday and Thursday from 9am to 1pm. Students are required to attend all scheduled meeting times to successfully meet the course objectives. In the event of an unavoidable absence, it is the student’s responsibility to contact the instructor to obtain the missed information. Missing more than ${m.MAX_ABSENT_HOURS} hours of the scheduled meeting time results in the student’s inability to meet the course objectives and subsequent failure of the course.`,
+          `Classroom, lecture, and lab skill performance are scheduled every Tuesday and Thursday from 9am to 1pm, with two American Heart Association provider courses delivered on Saturdays as shown in the schedule. Students are required to attend all scheduled meeting times to successfully meet the course objectives. In the event of an unavoidable absence, it is the student’s responsibility to contact the instructor to obtain the missed information.`,
+        ),
+        P(
+          `Missing more than ${m.MAX_ABSENT_HOURS} hours of the scheduled meeting time triggers a documented make-up requirement: ${m.ABSENCE_MAKEUP.requirement} A student who does not complete the make-up has not met the course objectives and does not complete the course. ${m.ABSENCE_MAKEUP.note}`,
         ),
         P(
           'Clinical absences should be avoided. If unavoidable, the student must e-mail and leave a voice mail for the instructor and EMS unit as soon as possible regarding their impending absence. The student is responsible for working with the instructor to schedule a makeup time. If the student is unable to reschedule missed clinical time the course will be considered incomplete and the student will not be eligible to attempt board certification.',
+        ),
+
+        H2('Prerequisite Work Required Before the First Session'),
+        P(
+          `${m.PRE_COURSE_POLICY.requirement} Due ${longDate(m.PRE_COURSE_POLICY.dueBy)}. This covers chapters ${m.PRE_COURSE_CHAPTERS[0]} to ${m.PRE_COURSE_CHAPTERS[m.PRE_COURSE_CHAPTERS.length - 1]} — EMS systems, workforce safety and wellness, medical-legal and ethical issues, and communications and documentation — which are delivered as assigned Navigate work rather than as classroom time. Every student enters the course holding a current EMT certification and works inside this material on every shift, so the classroom hours it would otherwise consume are re-allocated to the Clinical Judgment domain, which is 31-35% of the certification examination. ${m.PRE_COURSE_POLICY.checkedAt} ${m.PRE_COURSE_POLICY.ifIncomplete}`,
         ),
 
         H2('Student Requirements for Successful Course Completion'),
@@ -373,11 +405,14 @@ const doc = new Document({
 
         H2('Description of the Clinical and Field Training Requirements'),
         P(
-          `All students will be required to complete a total of ${m.KC_FIELD_TARGET} hours with an ambulance service. These hours will be completed at ${fieldSites
-            .map((s) => s.name)
-            .join(' and ')}, to allow the student to respond to 911 calls in both the urban and the rural setting. The student is also responsible for scheduling six 12-hour shifts (${m.KC_CLINICAL_TARGET} hours) at ${clinicalSites
-            .map((s) => s.name)
-            .join(' and ')} to participate in supervised patient skills.`,
+          `All students will be required to complete a total of ${m.KC_FIELD_TARGET} hours with an ambulance service — twelve 12-hour shifts — and six 12-hour shifts (${m.KC_CLINICAL_TARGET} hours) at a clinical facility, to participate in supervised patient skills. Each student rotates through the sites of their own operation, so that every student responds to 911 calls in both the urban and the rural setting within reasonable travelling distance of where they live and work. The didactic programme is delivered jointly and is identical for every student.`,
+        ),
+        BULLET('Field internship:'),
+        ...fieldSites.map((s) => BULLET(`${s.name} — ${m.CAMPUS_LABEL[s.campus]}`, 1)),
+        BULLET('Clinical:'),
+        ...clinicalSites.map((s) => BULLET(`${s.name} — ${m.CAMPUS_LABEL[s.campus]}`, 1)),
+        P(
+          'Clinical and field placement is scheduled by phase against what the student is cleared to perform, weighted toward the settings where each required skill actually occurs, with reserve shifts held back for any student who falls behind. Deficit checkpoints tied to the didactic gates are reviewed on fixed dates; a student below the cumulative floor is assigned an added shift in that week.',
         ),
         P(
           'Uniform attire of black shoes, the uniform shirt with provided name tag and navy-blue pocket pants for both clinical and ambulance experiences is required during clinical and field internship experiences.',
@@ -389,17 +424,31 @@ const doc = new Document({
         ),
 
         H2('Instructor Information'),
-        BULLET(`Instructor Name: ${staff.primaryInstructor}, ${staff.credential}`),
-        BULLET(`Office Hours or Hours Available for Consultation: ${staff.officeHours}`),
-        BULLET(`Instructor Electronic-Mail Address: ${staff.email}`),
+        ...m.COURSE_STAFF.flatMap((st) => [
+          BULLET(
+            `${st.role === 'primary' ? 'Primary instructor' : 'Co-instructor of record'}: ${st.name}, ${st.credential} — ${st.operation}`,
+          ),
+          BULLET(`Office hours or hours available for consultation: ${st.officeHours}`, 1),
+          ...(st.email ? [BULLET(`Electronic-mail address: ${st.email}`, 1)] : []),
+        ]),
+        P(
+          `Written verification of course completion under K.A.R. 109-11-8 is provided by the primary instructor, ${staff.name}. The co-instructor of record teaches to the same schedule and the same standard but does not sign completions.`,
+        ),
 
         H1('(b2) Course Policies'),
 
         H2('Student Evaluation of Program Policies'),
-        BULLET('Exams — 60% (Online)'),
-        BULLET('Quizzes / Homework — 40% (Online)'),
-        BULLET('Lab skills demonstration — Satisfactory / Unsatisfactory'),
-        BULLET('Clinical — Satisfactory / Unsatisfactory'),
+        ...m.GRADING_MODEL.map((c) =>
+          BULLET(
+            `${c.label} — ${c.weight === null ? 'Satisfactory / Unsatisfactory' : `${c.weight}%`}`,
+          ),
+        ),
+        P(
+          `Graded components total ${m.GRADING_WEIGHT_TOTAL}%. Every closed-book component is proctored and administered under examination conditions. Three mastery gate examinations are blueprint-weighted to the National Registry AEMT examination specifications and are scored against a minimum passing standard of ${m.MIN_PASSING_PERCENT}%; a student below the standard completes a targeted deliberate-practice session within seven days and retests on a parallel form. Didactic instruction continues throughout; what is gated is the following unit’s psychomotor laboratory. Two failed retests trigger the private progress conference described below.`,
+        ),
+        ...A.MASTERY_GATES.map((g) =>
+          BULLET(`${g.label} — ${longDate(g.date)}; retest window closes ${longDate(g.retestBy)}`),
+        ),
         P(
           'Course evaluations will be used for each educational offering. Evaluations will be reviewed and analyzed by the Instructor, Preceptors, Training Program Manager and/or EMS Service Director to ensure that quality education is being delivered. If need be, the EMS Training Program Manager and EMS Service Director will act upon evaluations as they see fit or the need arises.',
         ),
@@ -433,7 +482,7 @@ const doc = new Document({
 
         H2('Kansas Requirements for Certification'),
         P(
-          'After successfully completing this course, the participant will be eligible to challenge the National Registry psychomotor and written exams. This will award certification at a national level as well as through the Kansas Board of EMS. Facilitation of scheduling this will be provided during the course.',
+          `After successfully completing this course, the participant will be eligible to sit the National Registry cognitive examination, which awards certification at a national level and through the Kansas Board of EMS. The National Registry discontinued the Advanced EMT psychomotor examination on 30 June 2024; its content was absorbed into the cognitive examination as the Clinical Judgment domain, and since 1 July 2024 the Program Director verifies through the National Registry that each candidate has met the state minimum competency requirements before the candidate sits the examination. Facilitation of application, Authorization to Test and Pearson VUE scheduling is provided during the final week of the course. Students are advised to sit the examination within ${A.NREMT_SIT_WITHIN_DAYS} days of course completion; the Authorization to Test is valid for 90 days, but retention decays and there is no advantage in waiting.`,
         ),
 
         H2('Student Dress and Hygiene Policies'),
@@ -461,37 +510,52 @@ const doc = new Document({
         scheduleTable,
         new Paragraph({ spacing: { before: 160 }, children: [] }),
         P(
-          `Class location (unless otherwise noted): AMR Kansas City headquarters. Class dates ${longDate(
+          `Class location (unless otherwise noted): AMR Kansas City headquarters, with AMR Wichita joining by Teams. Class dates ${longDate(
             m.KC_START_DATE,
-          )} to ${longDate(m.KC_END_DATE)}. F2F — 0900 to 1300, Tuesday and Thursday.`,
+          )} to ${longDate(m.KC_END_DATE)}. F2F — 0900 to 1300, Tuesday and Thursday. The two American Heart Association provider courses are delivered on the Saturdays shown. The first row of the table is prerequisite work assigned before the course opens and carries no classroom time; it is dated ${longDate(
+            m.PRE_COURSE.date,
+          )} because that is when it falls due, and it sits inside the table rather than outside it so the schedule accounts for every hour the student is assigned.`,
         ),
         P(
           `Total hours: ${
             m.KC_TOTAL_TARGET
-          } (Didactic ${totals.didactic}; Lab ${totals.lab}; Clinicals ${m.KC_CLINICAL_TARGET}; Field Internship ${m.KC_FIELD_TARGET}).`,
+          } (Didactic ${totals.didactic}; Lab ${totals.lab}; AHA provider courses ${totals.aha}; Clinicals ${m.KC_CLINICAL_TARGET}; Field Internship ${m.KC_FIELD_TARGET}).`,
           { bold: true },
         ),
         P(
-          `Of the ${totals.classroom} classroom hours, ${totals.f2f} are face-to-face across ${totals.f2fWeeks} class weeks and ${totals.assignment} are completed by the student through the Navigate online course materials, quizzes and AHA pre-course work.`,
+          `Of the ${totals.classroom} classroom hours, ${totals.f2f} are face-to-face across ${totals.f2fWeeks} class weeks, ${totals.aha} are the two AHA provider courses, and ${totals.assignment} are completed by the student through the Navigate online course materials before the session they belong to.`,
         ),
         P(
-          `The course runs ${totals.weeks} course weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks. Class weeks falling on a holiday are moved to the next available week; the holidays observed are listed below.`,
+          `The course delivers ${totals.weeks} instructional weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks. No class session falls on a holiday. Rather than moving class weeks around the holidays and extending the course, the calendar absorbs them: week 8 runs on the Tuesday only and the ACLS provider course moves to Saturday ${shortDate(
+            '2026-12-05',
+          )}, and a two-week break runs ${longDate(m.WINTER_BREAK.start)} to ${longDate(
+            m.WINTER_BREAK.end,
+          )}. The break is not a pause — students complete concentrated clinical and field shifts across it, together with three dated retrieval assignments. The holidays observed are:`,
         ),
-        ...m.KC_HOLIDAYS.map((h) => BULLET(`${longDate(h.date)} — ${h.name}`)),
+        ...m.KC_HOLIDAYS.map((h) => BULLET(`${longDate(h.date)} — ${h.name}. ${h.absorbedBy}`)),
         P(
           'Didactic hours are believed to be the minimum time the student should dedicate to the material. Depending on the subject and the level of experience of each student, it will generally be the case that most of these subjects will take longer to master than is represented by the course schedule.',
           { italics: true },
         ),
 
         H1('(b4) Letters or Contracts From'),
-        BULLET('Ambulance Service Director providing field training to the students:'),
-        ...fieldSites.map((s) => BULLET(s.name, 1)),
-        BULLET('Administrator of the medical facility where clinical rotation is provided:'),
-        ...clinicalSites.map((s) => BULLET(s.name, 1)),
+        BULLET('Ambulance Service Directors providing field training to the students:'),
+        ...fieldSites.map((s) => BULLET(`${s.name} — ${m.CAMPUS_LABEL[s.campus]}`, 1)),
+        BULLET('Administrators of the medical facilities where clinical rotation is provided:'),
+        ...clinicalSites.map((s) => BULLET(`${s.name} — ${m.CAMPUS_LABEL[s.campus]}`, 1)),
+        P(
+          'Every site above is named on this application, including those held for overflow capacity and not currently intended for rotation, so that a student may be placed at any of them without a further approval.',
+        ),
 
         H1('(c) Application Submission'),
         BULLET(
-          'Received in the board office not later than 30 calendar days before the first scheduled course session.',
+          `The first scheduled course session is ${longDate(
+            m.KC_START_DATE,
+          )}. K.A.R. 109-11-1a(c) requires this application in the board office not later than 30 calendar days before it — ${longDate(
+            '2026-09-06',
+          )}. That is a Sunday and the following Monday is Labor Day, so the application is submitted by ${longDate(
+            '2026-09-04',
+          )}.`,
         ),
 
         H1('(d) Approved Initial Course Shall Meet the Following Conditions'),
@@ -551,7 +615,7 @@ const doc = new Document({
           'Administer one nebulized breathing treatment during clinical training — tracked as a program competency (see note below).',
         ),
         P(
-          'Note on the nebulized breathing treatment: the Wichita filing lists this among the K.A.R. 109-11-4a(c) minimums. It is retained here because the program tracks it, but it is not a statutory AEMT minimum — nebulized treatment appears under the EMT requirement at K.A.R. 109-11-8(a)(3)(B), not in the AEMT list at (a)(4), and is absent from (a)(4) in the 2021, 2023 and current (6 March 2026) regulation text. It is therefore carried under (a)(2), which requires practical skills be completed to the satisfaction of the primary instructor, and it does not gate course completion.',
+          'Note on the nebulized breathing treatment: the previously filed Wichita syllabus, which this course descends from, listed this among the K.A.R. 109-11-4a(c) minimums. It is retained here because the program tracks it, but it is not a statutory AEMT minimum — nebulized treatment appears under the EMT requirement at K.A.R. 109-11-8(a)(3)(B), not in the AEMT list at (a)(4), and is absent from (a)(4) in the 2021, 2023 and current (6 March 2026) regulation text. It is therefore carried under (a)(2), which requires practical skills be completed to the satisfaction of the primary instructor, and it does not gate course completion.',
           { italics: true },
         ),
 
@@ -572,6 +636,8 @@ const doc = new Document({
           'Appendix D — CoAEMSP instructor evaluation',
           'Appendix E — CoAEMSP final course evaluation',
         ].map((t) => BULLET(t)),
+
+        provenance(m, 'npm run doc:application'),
       ],
     },
   ],
@@ -583,9 +649,10 @@ writeFileSync(outPath, await Packer.toBuffer(doc))
 console.log(`Wrote ${outPath}`)
 console.log(
   `  ${m.KC_SCHEDULE.length} schedule rows · didactic ${totals.didactic} · lab ${totals.lab} · ` +
-    `f2f ${totals.f2f} h · assignments ${totals.assignment} h`,
+    `AHA ${totals.aha} h · f2f ${totals.f2f} h · pre-class ${totals.assignment} h`,
 )
 console.log(
   `  ${longDate(m.KC_START_DATE)} to ${longDate(m.KC_END_DATE)} · ` +
-    `${totals.weeks} course weeks over ${m.KC_CALENDAR_WEEKS} calendar weeks`,
+    `${totals.weeks} instructional weeks over ${m.KC_CALENDAR_WEEKS} calendar weeks · ` +
+    `${m.COURSE_STAFF.length} instructors, ${m.KC_SITES.length} sites across both markets`,
 )

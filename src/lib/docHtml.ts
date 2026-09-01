@@ -1,0 +1,152 @@
+// ---------------------------------------------------------------------------
+// Render a document's Block[] to standalone, print-ready HTML.
+//
+// This is the copy the app produces: a Program Manager presses Build on the
+// Records tab and gets the same document a KBEMS reviewer receives as .docx,
+// because both are rendered from the same tree. It prints to paper or PDF
+// through the browser, downloads as a .doc that Word opens editable, and is
+// what gets STORED as the retained record — so it has to be self-contained.
+// No external stylesheet, no font fetch, nothing that stops resolving in 2029.
+// ---------------------------------------------------------------------------
+
+import { CONTENT_WIDTH, longDate, type Block, type DocCell } from './docBlocks'
+
+export const esc = (s: string | undefined): string =>
+  (s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+
+/**
+ * Letter paper at the same margins as the .docx, so a page of one lands close
+ * to a page of the other. `@page` is what makes browser print match.
+ */
+const CSS = `
+  @page { size: letter; margin: 0.75in; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Calibri, Arial, Helvetica, sans-serif; color: #111;
+         font-size: 11pt; line-height: 1.42; margin: 0.75in; max-width: 7in; }
+  h1 { font-size: 15pt; margin: 17pt 0 7pt; color: #0b2e4f; page-break-after: avoid; }
+  h2 { font-size: 12pt; margin: 12pt 0 5pt; page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 9pt 0 4pt; page-break-after: avoid; }
+  p { margin: 0 0 6.5pt; }
+  p.sm { font-size: 10pt; }
+  ul { margin: 0 0 6pt; padding-left: 20pt; }
+  li { margin: 0 0 3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt; font-size: 10pt; }
+  th, td { border: 1px solid #9aa4b4; padding: 3pt 5pt; text-align: left; vertical-align: top; }
+  th { background: #e8edf5; font-weight: 700; }
+  tr { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  .cover { text-align: center; border-bottom: 1px solid #888; padding-bottom: 8pt; margin-bottom: 16pt; }
+  .cover .t { font-size: 18pt; font-weight: 700; }
+  .cover .s { font-size: 13pt; font-weight: 700; margin-top: 3pt; }
+  .cover .c { font-size: 11pt; margin-top: 5pt; }
+  .rule { border-bottom: 1px solid #9aa4b4; margin: 0 0 6pt; }
+  .rule.tall { height: 26pt; }
+  .rule.short { height: 13pt; }
+  .rule-label { font-size: 10pt; font-weight: 700; margin: 7pt 0 2pt; }
+  .task { margin: 0 0 3pt 18pt; text-indent: -18pt; }
+  .prov { font-size: 8.5pt; font-style: italic; color: #5b6472; margin-top: 14pt;
+          border-top: 1px solid #ccc; padding-top: 5pt; }
+  .pb { page-break-before: always; }
+  @media print { .pb { page-break-before: always; } }
+`
+
+const cellHtml = (c: DocCell, tag: 'td' | 'th', width: string): string => {
+  const lines = Array.isArray(c) ? c : [c]
+  const body = lines.map((l) => `<div>${esc(String(l))}</div>`).join('')
+  return `<${tag} style="width:${width}">${body}</${tag}>`
+}
+
+/** One block. Bullets are merged into lists by the caller, which sees runs. */
+function blockHtml(b: Block): string {
+  switch (b.k) {
+    case 'cover':
+      return `<div class="cover"><div class="t">${esc(b.title)}</div>${
+        b.subtitle ? `<div class="s">${esc(b.subtitle)}</div>` : ''
+      }<div class="c">${esc(b.cohort)}</div></div>`
+    case 'h1':
+      return `<h1>${esc(b.text)}</h1>`
+    case 'h2':
+      return `<h2>${esc(b.text)}</h2>`
+    case 'h3':
+      return `<h3>${esc(b.text)}</h3>`
+    case 'p': {
+      let t = esc(b.text)
+      if (b.bold) t = `<strong>${t}</strong>`
+      if (b.italics) t = `<em>${t}</em>`
+      return `<p${b.small ? ' class="sm"' : ''}>${t}</p>`
+    }
+    case 'task':
+      return `<div class="task">&#9744;&nbsp; ${esc(b.text)}</div>`
+    case 'rule':
+      return `${b.label ? `<div class="rule-label">${esc(b.label)}</div>` : ''}<div class="rule ${
+        b.tall ? 'tall' : 'short'
+      }"></div>`
+    case 'spacer':
+      return `<div style="height:${Math.round((b.after ?? 200) / 20)}pt"></div>`
+    case 'pageBreak':
+      return `<div class="pb"></div>`
+    case 'table': {
+      const pct = b.cols.map((c) => `${((c / CONTENT_WIDTH) * 100).toFixed(2)}%`)
+      const head = b.header
+        ? `<thead><tr>${b.header.map((h, i) => cellHtml(h, 'th', pct[i])).join('')}</tr></thead>`
+        : ''
+      const body = b.rows
+        .map((r) => `<tr>${r.map((c, i) => cellHtml(c, 'td', pct[i] ?? 'auto')).join('')}</tr>`)
+        .join('')
+      return `<table>${head}<tbody>${body}</tbody></table>`
+    }
+    case 'provenance':
+      return `<div class="prov">Generated from the course record in CES by pressing Build on the Records tab (the same document the <code>${esc(
+        b.command,
+      )}</code> command produces). Course dates ${esc(longDate(b.startDate))} to ${esc(
+        longDate(b.endDate),
+      )}; ${b.weeks} instructional weeks. Do not edit this file by hand — edit the course data and rebuild, or the next build will overwrite the change.</div>`
+    // Handled by the run-merging in docBody.
+    case 'bullet':
+      return `<ul><li>${esc(b.text)}</li></ul>`
+  }
+}
+
+/** The blocks as a body fragment — consecutive bullets merged into one list. */
+export function docBody(blocks: Block[]): string {
+  const out: string[] = []
+  let i = 0
+  while (i < blocks.length) {
+    const b = blocks[i]
+    if (b.k !== 'bullet') {
+      out.push(blockHtml(b))
+      i++
+      continue
+    }
+    // A run of bullets is one <ul>; nested levels get their own nested list,
+    // which is what a reader expects and what Word produces from the .docx.
+    const items: string[] = []
+    let level = 0
+    while (i < blocks.length && blocks[i].k === 'bullet') {
+      const bb = blocks[i] as Extract<Block, { k: 'bullet' }>
+      const lv = bb.level ?? 0
+      let t = esc(bb.text)
+      if (bb.bold) t = `<strong>${t}</strong>`
+      if (bb.italics) t = `<em>${t}</em>`
+      if (lv > level) items.push('<ul>')
+      if (lv < level) items.push('</ul>')
+      level = lv
+      items.push(`<li>${t}</li>`)
+      i++
+    }
+    while (level-- > 0) items.push('</ul>')
+    out.push(`<ul>${items.join('')}</ul>`)
+  }
+  return out.join('\n')
+}
+
+/** A complete, standalone HTML document. This is what gets stored and printed. */
+export function docHtml(title: string, blocks: Block[]): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(
+    title,
+  )}</title><style>${CSS}</style></head><body>${docBody(blocks)}</body></html>`
+}

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import Icon from '../../components/Icon'
 import { Stat } from '../../components/ui'
 import { HubHead, HubLocked, HubRow, itemAt } from './SectionHub'
 import { useSection } from '../../lib/nav'
@@ -52,11 +53,11 @@ export default function TrainingHub() {
         {/* The one screen an FTO opens daily that is not a program root —
             worth keeping a single tap from here rather than three. */}
         <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
-          🚑 FTO shifts
+          <Icon name="ambulance" /> FTO shifts
         </Link>
         {manageAcademy && (
           <Link to="/academy/exam-results" className="btn" title="New-hire selection exam results">
-            📝 Selection exam
+            <Icon name="clipboard" /> Selection exam
           </Link>
         )}
       </HubHead>

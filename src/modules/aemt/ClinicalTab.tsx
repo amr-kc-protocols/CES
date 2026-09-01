@@ -9,6 +9,7 @@ import {
   useClinicalStanding,
   useRecordSafety,
   supervisorEligible,
+  clearanceGate,
   duplicateEncounter,
   voidEncounter,
   addEncounter,
@@ -22,8 +23,54 @@ import {
 } from '../../data/aemt'
 import type { PreceptorCredential } from '../../data/aemt'
 import ShiftPanel, { shiftLabel } from './ShiftPanel'
+import ClearancePanel from './ClearancePanel'
+import SkillClearancePanel from './SkillClearancePanel'
+import PhasePanel from './PhasePanel'
 import { useCan } from '../../lib/role'
-import type { AemtClinicalShift, AemtCourse, AemtEncounter, AemtSiteKind } from '../../types'
+import type {
+  AemtClinicalShift,
+  AemtCourse,
+  AemtEncounter,
+  AemtSiteKind,
+  AemtStudent,
+} from '../../types'
+
+/**
+ * Encounters that share a shift and a requirement, in the order they were
+ * logged. Everything the rows have in common — date, setting, site, preceptor —
+ * belongs to the group; only the reference and its outcome differ.
+ */
+interface EncounterGroup {
+  key: string
+  requirementId: string
+  date: string
+  siteKind: AemtSiteKind
+  site?: string
+  preceptor?: string
+  entries: AemtEncounter[]
+}
+
+function groupEncounters(encounters: AemtEncounter[]): EncounterGroup[] {
+  const byKey = new Map<string, EncounterGroup>()
+  for (const e of encounters) {
+    // Shift first: two venipunctures on the same date at different sites are
+    // not the same block of work, and a rep with no shift stands on its own.
+    const key = `${e.shiftId ?? `noshift-${e.id}`}:${e.requirementId}`
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        key,
+        requirementId: e.requirementId,
+        date: e.date,
+        siteKind: e.siteKind,
+        site: e.site,
+        preceptor: e.preceptor,
+        entries: [],
+      })
+    }
+    byKey.get(key)!.entries.push(e)
+  }
+  return [...byKey.values()].sort((a, b) => b.date.localeCompare(a.date))
+}
 
 const SITE_LABEL: Record<AemtSiteKind, string> = {
   field: 'Field',
@@ -33,18 +80,19 @@ const SITE_LABEL: Record<AemtSiteKind, string> = {
 
 function LogForm({
   course,
-  studentId,
+  student,
   shifts,
   existing,
   onClose,
 }: {
   course: AemtCourse
-  studentId: string
+  student: AemtStudent
   shifts: AemtClinicalShift[]
   /** Already-logged encounters for this student, for duplicate detection. */
   existing: AemtEncounter[]
   onClose: () => void
 }) {
+  const studentId = student.id
   const [shiftId, setShiftId] = useState(shifts[0]?.id ?? '')
   const [requirementId, setReq] = useState(KAR_109_11_8[0].id)
   const [outcome, setOutcome] = useState<'success' | 'attempt'>('success')
@@ -64,7 +112,14 @@ function LogForm({
     requirementId,
     sourceRef,
   })
-  const canLog = !!shift && (!refRequired || sourceRef.trim() !== '') && !dupe
+  // Scope of practice. Unlike the setting and supervisor rules above — which
+  // log the rep and exclude it — this one refuses the entry outright. Those
+  // record something that happened under conditions that do not count; this
+  // one would record a procedure the program never cleared the student to
+  // perform, which is a different kind of claim and not one to put on file.
+  const gate = clearanceGate(student, requirementId, shift?.date ?? '')
+  const canLog =
+    !!shift && (!refRequired || sourceRef.trim() !== '') && !dupe && !gate.blocked
 
   return (
     <Modal title="Log encounter" onClose={onClose}>
@@ -142,6 +197,19 @@ function LogForm({
           {req.label.toLowerCase()} — K.A.R. names{' '}
           {(req.eligibleSupervisors ?? []).map((c) => PRECEPTOR_LABELS[c]).join(', ')}. This entry
           will be logged but will not count.
+        </div>
+      )}
+      {/* Sits directly under the requirement select, because that is the input
+          it is about — picking a different requirement clears it. */}
+      {shift && gate.blocked && (
+        <div className="banner crit">
+          <strong>Not cleared for this yet.</strong> {gate.message} Assessments, ambulance calls and
+          patient care reports on this shift can still be logged.
+        </div>
+      )}
+      {shift && gate.gated && !gate.blocked && (
+        <div className="meta" style={{ marginTop: 4 }}>
+          ✓ {gate.label} check-off on file from {gate.grantedOn}
         </div>
       )}
       {shift && settingOk && supOk && !shift.attestedAt && (
@@ -231,6 +299,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const [selectedId, setSelected] = useState<string | null>(null)
   const [logging, setLogging] = useState(false)
   const [voiding, setVoiding] = useState<AemtEncounter | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const safety = useRecordSafety()
 
   if (students.length === 0) {
@@ -244,62 +313,72 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   const studentId = selectedId ?? students[0].id
   const student = students.find((s) => s.id === studentId) ?? students[0]
   const shifts = allShifts.filter((s) => s.studentId === student.id)
-  const progress = progressFor(encounters, student.id, shifts)
+  const progress = progressFor(encounters, student, shifts)
   const mine = encounters.filter((e) => e.studentId === student.id)
   // Only the seven K.A.R. 109-11-8(a)(4) minimums count toward standing.
   const statutory = progress.filter((p) => p.requirement.basis === 'kar')
   const program = progress.filter((p) => p.requirement.basis === 'program')
-  const metCount = statutory.filter((p) => p.met).length
 
   return (
     <div>
-      <div className="banner info">
-        Progress toward the <strong>seven K.A.R. 109-11-8(a)(4)</strong> clinical minimums. A rep
-        counts only when the setting is allowed for that requirement, the preceptor holds a
-        credential the regulation accepts for it, and the shift has been attested. Anything short
-        of that is kept and shown, never folded into the total.
-      </div>
+      {/* Before any of the below: what the facility requires of the student to
+          let them through the door at all. */}
+      <ClearancePanel course={course} />
 
-      {/* Class overview — who is short, at a glance. */}
+      {/* The counting rules, as a footnote rather than a banner. They do not
+          change, they are read once, and three lines of policy above the work
+          on every visit is three lines nobody reads by the second week. */}
+      <details className="rules-note">
+        <summary>How a rep counts toward the seven K.A.R. 109-11-8(a)(4) minimums</summary>
+        A rep counts only when the setting is allowed for that requirement, the preceptor holds a
+        credential the regulation accepts for it, the student was checked off on the skill by the
+        date of the shift, and the shift has been attested. Anything short of that is kept and
+        shown, never folded into the total.
+      </details>
+
+      {/* Who to look at, and a way to switch. This was a stack of five full
+          rows each carrying a progress bar — and early in a course every one of
+          them reads "0 of 7 complete" with an empty bar, which is five rows of
+          nothing. It is a chip row now: the name, the count, and how far along
+          the reps themselves are, which moves from week one rather than only
+          when a whole minimum tips over. The selected student's name was then
+          repeated as a heading directly underneath; that heading is gone. */}
       <div className="section-title">Class standing</div>
-      <div className="list">
-        {standing.map((s) => (
-          <button
-            key={s.student.id}
-            className="row"
-            style={{
-              width: '100%',
-              textAlign: 'left',
-              background: s.student.id === student.id ? 'var(--muted-bg)' : undefined,
-              border: 'none',
-              font: 'inherit',
-            }}
-            onClick={() => setSelected(s.student.id)}
-          >
-            <div className="grow">
-              <div className="title">{s.student.name}</div>
-              <div className="meta">
-                {s.metCount} of {s.statutory.length} K.A.R. minimums complete
-              </div>
-              <div style={{ marginTop: 6 }}>
-                <ProgressBar
-                  pct={
-                    s.statutory.length === 0
-                      ? 0
-                      : Math.round((s.metCount / s.statutory.length) * 100)
-                  }
-                  complete={s.complete}
-                />
-              </div>
-            </div>
-            {s.complete && <span className="pill ok">✓ All met</span>}
-          </button>
-        ))}
+      <div className="student-chips">
+        {standing.map((s) => {
+          const reps = s.statutory.reduce((n, p) => n + Math.min(p.total, p.requirement.minimum), 0)
+          const need = s.statutory.reduce((n, p) => n + p.requirement.minimum, 0)
+          return (
+            <button
+              key={s.student.id}
+              className={`student-chip${s.student.id === student.id ? ' is-on' : ''}`}
+              aria-pressed={s.student.id === student.id}
+              onClick={() => setSelected(s.student.id)}
+            >
+              <span className="title">{s.student.name}</span>
+              <span className="meta">
+                {s.complete ? '✓ all seven met' : `${s.metCount}/${s.statutory.length} minimums · ${reps}/${need} reps`}
+              </span>
+              <ProgressBar
+                pct={need === 0 ? 0 : Math.round((reps / need) * 100)}
+                complete={s.complete}
+              />
+            </button>
+          )
+        })}
       </div>
 
-      <div className="section-title">
-        {student.name} · {metCount} of {statutory.length} met
-      </div>
+      {/* What this student is cleared to do, before the shifts that depend on
+          it — a rep refused downstream is nearly always a date missing here. */}
+      <SkillClearancePanel student={student} canEdit={canEdit} />
+
+      <PhasePanel
+        course={course}
+        student={student}
+        progress={progress}
+        shifts={shifts}
+        canEdit={canEdit}
+      />
 
       <ShiftPanel course={course} studentId={student.id} shifts={shifts} canEdit={canEdit} />
 
@@ -396,6 +475,11 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
                     <div className="subtle" style={{ fontSize: 12, color: 'var(--warn)' }}>
                       {p.ineligible} logged but not counting
                       {p.unverified > 0 && ` (${p.unverified} on an unattested shift)`}
+                      {/* Named separately because it is the one reason with a
+                          two-second fix: the check-off happened, the date has
+                          not been entered, or was entered as today. */}
+                      {p.uncleared > 0 &&
+                        ` (${p.uncleared} before the student's check-off for this skill)`}
                     </div>
                   ) : null}
                   {p.requirement.subRequirement ? (
@@ -421,70 +505,106 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
         </table>
       </div>
 
-      <div className="section-title">Log · {mine.length} entries</div>
+      {/* The log, grouped.
+          One row per performance is deliberate in the data — a row claiming
+          "12" is one assertion standing in for twelve procedures — but
+          RENDERING one card per row meant twenty-five near-identical blocks
+          sharing a date, a site and a preceptor, and two thousand pixels of
+          scrolling to read seven facts. Grouped by shift and requirement, the
+          repetition collapses and the references are one tap away. */}
+      <div className="section-title">
+        Log · {mine.length} {mine.length === 1 ? 'entry' : 'entries'}
+      </div>
       {mine.length === 0 ? (
         <div className="banner info">Nothing logged for {student.name} yet.</div>
       ) : (
         <div className="list">
-          {mine.map((e) => {
-            const req = CLINICAL_REQUIREMENTS.find((r) => r.id === e.requirementId)
+          {groupEncounters(mine).map((g) => {
+            const req = CLINICAL_REQUIREMENTS.find((r) => r.id === g.requirementId)
+            const label = req?.label ?? g.requirementId
+            const open = expanded.has(g.key)
+            const reps = g.entries.reduce((n, e) => n + e.count, 0)
+            const infusions = g.entries.filter((e) => e.initiatedInfusion).length
+            const attempts = g.entries.filter((e) => e.outcome === 'attempt').length
+            const voided = g.entries.filter((e) => e.voidedAt).length
+            const unstated = g.entries.filter((e) => !e.outcome && !e.voidedAt).length
             return (
-              <div
-                key={e.id}
-                className={`row left-accent ${e.voidedAt ? 'acc-crit' : e.outcome === 'attempt' ? 'acc-warn' : ''}`}
-                style={e.voidedAt ? { opacity: 0.65 } : undefined}
-              >
-                <div className="grow">
-                  <div className="title">
-                    {req?.label ?? e.requirementId}
-                    {e.count > 1 && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        ×{e.count} unitemized
-                      </span>
-                    )}
-                    {e.outcome === 'attempt' && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        attempt — not counted
-                      </span>
-                    )}
-                    {e.outcome === undefined && !e.voidedAt && (
-                      <span className="pill warn" style={{ marginLeft: 8 }}>
-                        outcome not stated
-                      </span>
-                    )}
-                    {e.initiatedInfusion && (
-                      <span className="pill info" style={{ marginLeft: 8 }}>
-                        infusion
-                      </span>
-                    )}
-                    {e.voidedAt && (
-                      <span className="pill crit" style={{ marginLeft: 8 }}>
-                        voided
-                      </span>
-                    )}
+              <div key={g.key} className="enc-group">
+                <button
+                  className="enc-head"
+                  aria-expanded={open}
+                  onClick={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev)
+                      next.has(g.key) ? next.delete(g.key) : next.add(g.key)
+                      return next
+                    })
+                  }
+                >
+                  <span className="op-caret" aria-hidden="true">
+                    {open ? '▾' : '▸'}
+                  </span>
+                  <span className="grow">
+                    <span className="title">
+                      {label} <span className="enc-count">×{reps}</span>
+                    </span>
+                    <span className="meta">
+                      {formatDate(g.date)} · {SITE_LABEL[g.siteKind]}
+                      {g.site && ` · ${g.site}`}
+                      {g.preceptor && ` · ${g.preceptor}`}
+                    </span>
+                  </span>
+                  {infusions > 0 && <span className="pill info">{infusions} infusion</span>}
+                  {unstated > 0 && <span className="pill warn">{unstated} outcome not stated</span>}
+                  {attempts > 0 && <span className="pill warn">{attempts} attempt</span>}
+                  {voided > 0 && <span className="pill crit">{voided} voided</span>}
+                </button>
+                {open && (
+                  <div className="enc-rows">
+                    {g.entries.map((e) => (
+                      <div key={e.id} className="enc-row" style={e.voidedAt ? { opacity: 0.6 } : undefined}>
+                        <span className="grow">
+                          {e.sourceRef ? `ref ${e.sourceRef}` : 'no reference'}
+                          {e.count > 1 && (
+                            <span className="pill warn" style={{ marginLeft: 8 }}>
+                              ×{e.count} unitemized
+                            </span>
+                          )}
+                          {e.initiatedInfusion && (
+                            <span className="pill info" style={{ marginLeft: 8 }}>
+                              infusion
+                            </span>
+                          )}
+                          {e.outcome === 'attempt' && (
+                            <span className="pill warn" style={{ marginLeft: 8 }}>
+                              attempt — not counted
+                            </span>
+                          )}
+                          {e.outcome === undefined && !e.voidedAt && (
+                            <span className="pill warn" style={{ marginLeft: 8 }}>
+                              outcome not stated
+                            </span>
+                          )}
+                          {e.voidedAt && (
+                            <span className="meta" style={{ color: 'var(--crit)' }}>
+                              Voided by {e.voidedBy} — {e.voidReason}
+                            </span>
+                          )}
+                        </span>
+                        {canEdit && !e.voidedAt && (
+                          <button
+                            className="btn sm"
+                            aria-label={`Void this ${label} entry`}
+                            disabled={!safety.canRecordOfficial}
+                            title={safety.reason}
+                            onClick={() => setVoiding(e)}
+                          >
+                            Void
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div className="meta">
-                    {formatDate(e.date)} · {SITE_LABEL[e.siteKind]}
-                    {e.site && ` · ${e.site}`}
-                    {e.preceptor && ` · ${e.preceptor}`}
-                    {e.sourceRef ? ` · ref ${e.sourceRef}` : ' · no reference'}
-                  </div>
-                  {e.voidedAt && (
-                    <div className="meta" style={{ color: 'var(--crit)' }}>
-                      Voided by {e.voidedBy} — {e.voidReason}
-                    </div>
-                  )}
-                </div>
-                {canEdit && !e.voidedAt && (
-                  <button
-                    className="btn sm danger"
-                    aria-label={`Void this ${req?.label ?? e.requirementId} entry`}
-                    disabled={!safety.canRecordOfficial}
-                    title={safety.reason}
-                    onClick={() => setVoiding(e)}
-                  >
-                    Void
-                  </button>
                 )}
               </div>
             )
@@ -495,7 +615,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
       {logging && (
         <LogForm
           course={course}
-          studentId={student.id}
+          student={student}
           shifts={shifts}
           existing={mine}
           onClose={() => setLogging(false)}

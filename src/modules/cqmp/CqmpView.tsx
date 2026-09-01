@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Empty } from '../../components/ui'
 import { monthLabel } from '../../lib/date'
-import { CQMP_KPIS, CQMP_OPERATIONS } from '../../data/cqmp'
+import { AIR_OPERATIONS, CQMP_OPERATIONS, GROUND_OPERATIONS } from '../../data/cqmp'
 import {
   createReport,
   currentMonth,
@@ -74,10 +74,15 @@ export default function CqmpView() {
             </button>
           </div>
         </div>
+        {/* What a month costs, in one line. The full operation-by-measure
+            breakdown used to be spelled out here — six lines of dense text on
+            the landing screen, restating a catalogue that is already on the
+            month's own page, and asserting two things that are no longer true:
+            that this is a market list, and that targets carry forward. */}
         <div className="subtle" style={{ fontSize: 12 }}>
-          {measures} measure{measures === 1 ? '' : 's'} this market:{' '}
-          {CQMP_OPERATIONS.map((op) => `${op.name} (${op.kpis.map((k) => CQMP_KPIS[k].short).join(', ')})`).join(' · ')}
-          . Targets carry forward from the previous month.
+          {measures} measures across {CQMP_OPERATIONS.length} operations in Region 41 —{' '}
+          {GROUND_OPERATIONS.length} ground, {AIR_OPERATIONS.length} air. Targets are fixed per
+          measure.
         </div>
       </div>
 
@@ -97,13 +102,13 @@ export default function CqmpView() {
                 to={`/cqmp/${r.id}`}
                 className={`row left-accent ${complete ? 'acc-ok' : 'acc-warn'}`}
               >
-                <span className="grow">
-                  <span className="title">{monthLabel(r.month)}</span>
-                  <span className="meta">
-                    {p.reported} of {p.expected} measures reported · {p.withScreenshot} with a
-                    screenshot
-                  </span>
-                </span>
+                {/* A div, not a span: `.title` and `.meta` are block styles, so
+                    as spans they laid out inline and the month ran straight
+                    into its own count — "April 202611 of 26 measures". */}
+                <div className="grow">
+                  <div className="title">{monthLabel(r.month)}</div>
+                  <div className="meta">{p.reported} of {p.expected} measures reported</div>
+                </div>
                 <span className={`pill ${complete ? 'ok' : 'muted'}`}>
                   {complete ? 'Ready' : 'In progress'}
                 </span>

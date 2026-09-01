@@ -22,6 +22,7 @@ const KIND_META: Record<AemtSessionKind, { label: string; cls: string }> = {
   lab: { label: 'Lab', cls: 'lab' },
   clinical: { label: 'Clinical', cls: 'clinical' },
   exam: { label: 'Exam', cls: 'exam' },
+  aha: { label: 'AHA', cls: 'aha' },
 }
 
 /** Shift a yyyy-mm key by n months. */
@@ -177,8 +178,13 @@ export default function ScheduleCalendar({
           // A session outside the recorded course dates is already flagged in
           // the list view; shading the day makes the pattern visible — a whole
           // block hanging off the end reads very differently from one stray day.
+          // Prerequisite work is dated before the course start on purpose, so a
+          // day holding only pre-course sessions is not outside anything.
           const outside =
-            !!course.startDate && !!course.endDate && (iso < course.startDate || iso > course.endDate)
+            !!course.startDate &&
+            !!course.endDate &&
+            (iso < course.startDate || iso > course.endDate) &&
+            !day.every((s) => s.preCourse)
           const holiday = inMonth ? holidayOn(iso) : undefined
           // The day badge counts class time only — an assignment logged against
           // this date is not four more hours in the room.

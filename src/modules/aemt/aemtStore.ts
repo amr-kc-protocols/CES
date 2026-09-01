@@ -9,7 +9,6 @@ import {
   buildClassPlan,
   KC_SCHEDULE,
   scheduleTotals,
-  KC_CLASS_PATTERN,
   KC_CLINICAL_TARGET,
   KC_FIELD_TARGET,
   CLINICAL_REQUIREMENTS,
@@ -17,9 +16,23 @@ import {
   KBEMS_DEADLINES,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
+  PRE_COURSE_MAX_LEAD_DAYS,
 } from '../../data/aemt'
 import { SETTING_PRECEPTORS } from '../../data/aemt'
 import type { KarMinimum } from '../../data/aemt'
+import {
+  checkpointDates,
+  checkpointFloors,
+  clearanceGating,
+  PHASE_TARGET_LABELS,
+  seedPhases,
+  skillClearance,
+} from '../../data/aemtPhases'
+import type { DeficitCheckpoint, PhaseTargetKey } from '../../data/aemtPhases'
+import { SITE_TEMPLATES, seedUnits } from '../../data/aemtSites'
+import { blocking, placementIssues } from './placement'
+import type { PlacementInput } from './placement'
+import { checkPhi, phiMessage } from '../../lib/phi'
 import { versionToPin } from '../templates/resolve'
 import {
   SELECTION_WEIGHTS,
@@ -35,9 +48,21 @@ import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type {
   Attestation,
   AemtAttendanceRecord,
+  AemtConference,
+  AemtProgramDoc,
+  AemtMakeUp,
   AemtCandidate,
+  AemtClinicalPhase,
   AemtInterviewScore,
   AemtClinicalShift,
+  AemtPlacement,
+  AemtPreceptor,
+  AemtSite,
+  AemtSiteKind,
+  AemtSiteUnit,
+  AemtSkillClearance,
+  PreceptorCredentialId,
+  SkillClearanceCode,
   AemtAuditEvent,
   AemtCompletion,
   AemtEncounter,
@@ -339,7 +364,7 @@ export function useSessions(courseId: string | undefined): AemtSession[] {
  * — identical across today's four kinds and divergent the moment a fifth is
  * added, with the divergent copy being the one that prints for KBEMS.
  */
-export const CLASSROOM_KINDS: readonly AemtSessionKind[] = ['didactic', 'lab', 'exam']
+export const CLASSROOM_KINDS: readonly AemtSessionKind[] = ['didactic', 'lab', 'exam', 'aha']
 
 /**
  * 'HH:MM' to minutes past midnight, or undefined when it is not a clock time.
@@ -388,6 +413,23 @@ export function sessionProblems(
     const label = s.title || 'Untitled session'
     if (!s.date) {
       out.push({ sessionId: s.id, text: `${label} has no date` })
+    } else if (s.preCourse) {
+      // Prerequisite work is due before the first session; that is what makes
+      // it prerequisite. But the bound is narrowed, not dropped — a session
+      // typed with the wrong year is exactly what this flag has to stay able
+      // to catch, and session dates are freely editable.
+      const earliest = addDays(course.startDate, -PRE_COURSE_MAX_LEAD_DAYS)
+      if (s.date > course.endDate) {
+        out.push({
+          sessionId: s.id,
+          text: `${label} is prerequisite work but is dated after the course ends`,
+        })
+      } else if (s.date < earliest) {
+        out.push({
+          sessionId: s.id,
+          text: `${label} is prerequisite work dated more than ${PRE_COURSE_MAX_LEAD_DAYS} days before the course starts (${earliest} or later) — check the year`,
+        })
+      }
     } else if (s.date < course.startDate || s.date > course.endDate) {
       out.push({
         sessionId: s.id,
@@ -397,7 +439,10 @@ export function sessionProblems(
     if (!s.title.trim()) {
       out.push({ sessionId: s.id, text: 'This session has no subject — K.A.R. 109-11-1a(b3) requires one' })
     }
-    if (s.hours <= 0) {
+    // An informational row — the winter break, the per-student remediation
+    // block — carries no hours on purpose. Everything else with none is a
+    // session somebody started and did not finish.
+    if (s.hours <= 0 && !s.informational) {
       out.push({ sessionId: s.id, text: `${label} is worth no hours` })
     }
     if (s.startTime && s.endTime) {
@@ -413,7 +458,10 @@ export function sessionProblems(
       } else {
         // Times and hours are filed together, so they have to agree. A quarter
         // hour of slack absorbs rounding without waving through a real gap.
-        const span = (to - from) / 60
+        // A declared break comes off the span: an eight-hour AHA course that
+        // runs 08:00-17:00 with an hour for lunch is nine hours on the clock
+        // and eight of instruction, and both figures are true.
+        const span = (to - from - (s.breakMinutes ?? 0)) / 60
         if (Math.abs(span - s.hours) > 0.25) {
           out.push({
             sessionId: s.id,
@@ -444,10 +492,31 @@ export function addSession(
   return session
 }
 
+/**
+ * Edit a session.
+ *
+ * `informational` and `preCourse` are cleared the moment a coordinator edits
+ * the subject, the date or the hours. Both were written by the seeder to say
+ * "this row is the plan's, and the plan means it to look like this" — the
+ * winter break carries no hours on purpose, the prerequisite block sits before
+ * the course starts on purpose. Once someone repurposes the row, neither claim
+ * holds any more, and leaving the flags on would suppress the validator's
+ * zero-hours and date checks on a session that is now nobody's plan but the
+ * coordinator's.
+ */
+const SEEDER_CLAIMS: (keyof AemtSession)[] = ['informational', 'preCourse']
+
 export function updateSession(id: string, patch: Partial<AemtSession>): void {
+  const repurposed =
+    patch.title !== undefined || patch.hours !== undefined || patch.date !== undefined
   setState((db) => ({
     ...db,
-    aemtSessions: db.aemtSessions.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    aemtSessions: db.aemtSessions.map((s) => {
+      if (s.id !== id) return s
+      const next = { ...s, ...patch }
+      if (repurposed) for (const k of SEEDER_CLAIMS) delete next[k]
+      return next
+    }),
   }))
 }
 
@@ -505,13 +574,15 @@ export interface SeedOutcome {
 export function seedShortfall(targets: AemtHourTargets | undefined): {
   didactic: number
   lab: number
+  aha: number
   total: number
 } {
   const plan = scheduleTotals()
-  if (!targets) return { didactic: 0, lab: 0, total: 0 }
+  if (!targets) return { didactic: 0, lab: 0, aha: 0, total: 0 }
   const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
   const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
-  return { didactic, lab, total: didactic + lab }
+  const aha = Math.max(0, (targets.aha ?? plan.aha) - plan.aha)
+  return { didactic, lab, aha, total: didactic + lab + aha }
 }
 
 /**
@@ -565,8 +636,8 @@ export interface RebuildPreview {
  * Reseeding used to be impossible once a course had any sessions: the build
  * button is hidden when the list is non-empty, and the only way to clear it was
  * to delete every session by hand. So a course seeded under an older plan kept
- * that plan forever, which is exactly what happened when the schedule moved to
- * the Wichita template.
+ * that plan forever, which is exactly what happened when the Kansas City and
+ * Wichita schedules were merged into the joint October 2026 plan.
  *
  * Two things are never removed. A session with attendance recorded against it
  * is a record of who was in a room, not a plan — deleting it destroys evidence.
@@ -648,13 +719,18 @@ export function rebuildKcSchedule(
 /**
  * Write the filed schedule out as dated sessions.
  *
- * buildClassPlan does the calendar work — the pattern's weekdays, the clock
- * times, and pushing a face-to-face week clear of a holiday. This only turns
- * what it returns into records, so the dates a coordinator sees in the app are
- * the same ones the KBEMS application was built from.
+ * buildClassPlan reads the agreed calendar — every row of the joint plan
+ * carries its own date and clock time. This only turns what it returns into
+ * records, so the dates a coordinator sees in the app are the same ones the
+ * KBEMS application was built from.
+ *
+ * `startISO` re-dates a LATER cohort running the same shape, by whole weeks.
+ * For the October 2026 cohort it is the plan's own start date and nothing
+ * moves. A shifted plan has to be re-checked against its own year's holidays —
+ * `holidayCollisions` in data/aemt.ts is what answers that.
  */
 export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome {
-  const created: AemtSession[] = buildClassPlan(startISO, KC_CLASS_PATTERN).map((s) => ({
+  const created: AemtSession[] = buildClassPlan(startISO).map((s) => ({
     id: uid('asess'),
     courseId,
     date: s.date,
@@ -663,6 +739,13 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
     hours: s.hours,
     delivery: s.delivery,
     seeded: true,
+    // Week zero is the prerequisite block, dated before the course starts by
+    // design. Without this mark the date validator reports it as falling
+    // outside the course on every seeded course, and the calendar hatches the
+    // day red — a permanent false positive on something working as intended.
+    preCourse: s.week === 0 ? true : undefined,
+    informational: s.informational,
+    breakMinutes: s.breakMinutes,
     startTime: s.startTime,
     endTime: s.endTime,
   }))
@@ -705,6 +788,7 @@ export function reconcileHours(
   return [
     { id: 'didactic', label: 'Didactic', target: targets.didactic, scheduled: byKind.didactic },
     { id: 'lab', label: 'Lab / psychomotor', target: targets.lab, scheduled: byKind.lab },
+    { id: 'aha', label: 'AHA provider courses', target: targets.aha, scheduled: byKind.aha },
   ]
     .filter((r): r is HourReconciliation & { target: number } => typeof r.target === 'number')
     .map((r) => ({ ...r, delta: r.scheduled - r.target }))
@@ -718,6 +802,7 @@ export const KC_DEFAULT_TARGETS: AemtHourTargets = {
   // course: the defaults said 110 didactic and the plan laid out 90.
   didactic: scheduleTotals().didactic,
   lab: scheduleTotals().lab,
+  aha: scheduleTotals().aha,
   clinical: KC_CLINICAL_TARGET,
   field: KC_FIELD_TARGET,
 }
@@ -1095,6 +1180,163 @@ export function setRecordDoc(
   })
 }
 
+// ----- documented progress conferences ---------------------------------------
+
+export const CONFERENCE_REASONS: { value: AemtConference['reason']; label: string }[] = [
+  { value: 'scheduled', label: 'Scheduled — the one every student gets' },
+  { value: 'academic', label: 'Academic progress' },
+  { value: 'affective', label: 'Affective / professional behaviour' },
+  { value: 'attendance', label: 'Attendance' },
+  { value: 'clinical', label: 'Clinical or field performance' },
+  { value: 'student-requested', label: 'Student asked for it' },
+]
+
+export function useConferences(courseId: string | undefined): AemtConference[] {
+  return useSelector((db) =>
+    db.aemtConferences.filter((c) => c.courseId === courseId).sort((a, b) => b.date.localeCompare(a.date)),
+  )
+}
+
+export function recordConference(
+  courseId: string,
+  studentId: string,
+  input: {
+    date: string
+    attendees: string
+    reason: AemtConference['reason']
+    discussed: string
+    agreed?: string
+    followUpBy?: string
+    actor: string
+  },
+): { ok: boolean; refused?: string } {
+  if (input.discussed.trim().length < 8) {
+    return { ok: false, refused: 'Say what was discussed. This is the record a reviewer reads.' }
+  }
+  if (!input.attendees.trim()) {
+    return { ok: false, refused: 'Name who was in the room besides the student.' }
+  }
+  // A conference note is written about a student, and PHI belongs nowhere in
+  // it — the same rule the shift reflection is held to.
+  const refused = phiRefusal(`${input.discussed} ${input.agreed ?? ''}`)
+  if (refused) return { ok: false, refused }
+
+  const conf: AemtConference = {
+    id: uid('aconf'),
+    courseId,
+    studentId,
+    date: input.date,
+    attendees: input.attendees.trim(),
+    reason: input.reason,
+    discussed: input.discussed.trim(),
+    agreed: input.agreed?.trim() || undefined,
+    followUpBy: input.followUpBy || undefined,
+    recordedBy: input.actor,
+    recordedAt: new Date().toISOString(),
+  }
+  setState((db) => ({ ...db, aemtConferences: [...db.aemtConferences, conf] }))
+  audit(courseId, studentId, input.actor, 'progress conference documented', `${input.reason} · ${input.date}`)
+  return { ok: true }
+}
+
+export function deleteConference(id: string): void {
+  setState((db) => ({ ...db, aemtConferences: db.aemtConferences.filter((c) => c.id !== id) }))
+}
+
+// ----- program documents built and kept here ---------------------------------
+//
+// A document the app produced, stored as the retained record. Append-only: a
+// rebuild adds a row rather than replacing one, so what was issued in October
+// is still readable in January after the schedule moved — which is the whole
+// reason a snapshot is worth keeping rather than regenerating on demand.
+
+export function useProgramDocs(courseId: string | undefined): AemtProgramDoc[] {
+  return useSelector((db) =>
+    db.aemtProgramDocs
+      .filter((d) => d.courseId === courseId)
+      .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt)),
+  )
+}
+
+/** The most recent issue of each document, which is what a screen shows. */
+export function latestProgramDocs(docs: AemtProgramDoc[]): Map<string, AemtProgramDoc> {
+  const out = new Map<string, AemtProgramDoc>()
+  for (const d of docs) {
+    const cur = out.get(d.recordId)
+    if (!cur || d.generatedAt > cur.generatedAt) out.set(d.recordId, d)
+  }
+  return out
+}
+
+export function recordProgramDoc(
+  courseId: string,
+  recordId: string,
+  input: { title: string; html: string; fingerprint?: string; actor: string },
+): AemtProgramDoc {
+  const now = new Date().toISOString()
+  const doc: AemtProgramDoc = {
+    id: uid('adoc'),
+    courseId,
+    recordId,
+    title: input.title,
+    html: input.html,
+    generatedOn: todayISO(),
+    generatedAt: now,
+    generatedBy: input.actor,
+    fingerprint: input.fingerprint,
+  }
+  setState((db) => ({ ...db, aemtProgramDocs: [...db.aemtProgramDocs, doc] }))
+  // The tracking row is what the Records tab and the audit package read for
+  // staleness, so building the document sets its date rather than asking
+  // somebody to type today's date next to what they just did.
+  setRecordDoc(courseId, recordId, { status: 'approved', generatedOn: doc.generatedOn })
+  audit(
+    courseId,
+    undefined,
+    input.actor,
+    'program document built',
+    `${input.title} · ${(input.html.length / 1024).toFixed(0)} KB${
+      input.fingerprint ? ` · fingerprint ${input.fingerprint.slice(0, 16)}` : ''
+    }`,
+  )
+  return doc
+}
+
+/** Record where an issued copy went — the board, a preceptor, the students. */
+export function setProgramDocFiledWith(id: string, filedWith: string): void {
+  setState((db) => ({
+    ...db,
+    aemtProgramDocs: db.aemtProgramDocs.map((d) =>
+      d.id === id ? { ...d, filedWith: filedWith.trim() || undefined } : d,
+    ),
+  }))
+}
+
+/**
+ * Delete an issued copy.
+ *
+ * Refuses the last remaining issue of a record: these are retained for three
+ * years under K.A.R. 109-17-3, and deleting the only copy is not a correction,
+ * it is the loss of the record. Superseded issues can go.
+ */
+export function deleteProgramDoc(id: string): { ok: boolean; refused?: string } {
+  const db = getState()
+  const doc = db.aemtProgramDocs.find((d) => d.id === id)
+  if (!doc) return { ok: false, refused: 'No such document.' }
+  const siblings = db.aemtProgramDocs.filter(
+    (d) => d.courseId === doc.courseId && d.recordId === doc.recordId,
+  )
+  if (siblings.length <= 1) {
+    return {
+      ok: false,
+      refused:
+        'This is the only issue of that document on file, and it is retained for three years under K.A.R. 109-17-3. Build a new one first — that supersedes it without losing the record of what was issued.',
+    }
+  }
+  setState((cur) => ({ ...cur, aemtProgramDocs: cur.aemtProgramDocs.filter((d) => d.id !== id) }))
+  return { ok: true }
+}
+
 // ----- KBEMS submission deadlines --------------------------------------------
 
 export function useDeadlineRecords(): AemtDeadlineRecord[] {
@@ -1215,15 +1457,78 @@ export function setAttendance(
   hours?: number,
 ): void {
   setState((db) => {
+    const prior = db.aemtAttendance.find(
+      (a) => a.studentId === studentId && a.sessionId === sessionId,
+    )
     const rest = db.aemtAttendance.filter(
       (a) => !(a.studentId === studentId && a.sessionId === sessionId),
     )
     if (!status) return { ...db, aemtAttendance: rest }
     return {
       ...db,
-      aemtAttendance: [...rest, { courseId, studentId, sessionId, status, hours }],
+      aemtAttendance: [
+        ...rest,
+        // A make-up survives a change of attendance status. It is a retained
+        // record of work somebody did and an instructor signed for, and
+        // correcting a mark from absent to present is not a reason to delete
+        // it silently. Clearing the attendance entirely still removes it,
+        // which is an explicit act with a confirmation in front of it.
+        { courseId, studentId, sessionId, status, hours, makeUp: prior?.makeUp },
+      ],
     }
   })
+}
+
+/**
+ * Record a documented make-up against a missed session.
+ *
+ * Deliberately does NOT touch the attendance status or the credited hours. The
+ * student was absent, the hours were lost, and both stay recorded — what a
+ * make-up establishes is equivalent competency on the missed material, which is
+ * a different claim from having been in the room. Overwriting the absence would
+ * turn the make-up record the regulation asks for into the erasure of the thing
+ * it is evidence about.
+ */
+export function recordMakeUp(
+  studentId: string,
+  sessionId: string,
+  input: { date: string; what: string; by: string },
+): { ok: boolean; refused?: string } {
+  if (!input.what.trim()) return { ok: false, refused: 'Say what the student actually did.' }
+  if (!input.by.trim()) return { ok: false, refused: 'A make-up is signed by whoever supervised it.' }
+  const existing = getState().aemtAttendance.find(
+    (a) => a.studentId === studentId && a.sessionId === sessionId,
+  )
+  if (!existing) {
+    return { ok: false, refused: 'No attendance is recorded for that session, so there is no absence to make up.' }
+  }
+  setState((db) => ({
+    ...db,
+    aemtAttendance: db.aemtAttendance.map((a) =>
+      a.studentId === studentId && a.sessionId === sessionId
+        ? {
+            ...a,
+            makeUp: {
+              date: input.date,
+              what: input.what.trim(),
+              by: input.by.trim(),
+              recordedAt: new Date().toISOString(),
+            },
+          }
+        : a,
+    ),
+  }))
+  return { ok: true }
+}
+
+/** Remove a make-up record — a correction, not a routine action. */
+export function clearMakeUp(studentId: string, sessionId: string): void {
+  setState((db) => ({
+    ...db,
+    aemtAttendance: db.aemtAttendance.map((a) =>
+      a.studentId === studentId && a.sessionId === sessionId ? { ...a, makeUp: undefined } : a,
+    ),
+  }))
 }
 
 /**
@@ -1329,6 +1634,14 @@ export interface StudentHours {
   /** Sessions missed (marked absent), for the make-up list. */
   missed: AemtSession[]
   /**
+   * Missed sessions with no documented make-up. This is the outstanding list:
+   * `missed` never shrinks, because the absence happened and stays recorded,
+   * so a list built on it can only grow for sixteen weeks.
+   */
+  makeUpOwed: AemtSession[]
+  /** Documented make-ups, with the session each one covers. */
+  makeUpsDone: { session: AemtSession; makeUp: AemtMakeUp }[]
+  /**
    * Absence against the course policy: more than MAX_ABSENT_HOURS of scheduled
    * CLASS time (didactic + lab) fails the course outright. Clinical shifts are
    * excluded — those are rescheduled rather than counted against the cap.
@@ -1351,6 +1664,8 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
     return students.map((student) => {
       let earned = 0
       const missed: AemtSession[] = []
+      const makeUpOwed: AemtSession[] = []
+      const makeUpsDone: { session: AemtSession; makeUp: AemtMakeUp }[] = []
       for (const s of sessions) {
         const rec = map.get(attKey(student.id, s.id))
         // Classroom time only. A session marked 'clinical' is rotation time,
@@ -1358,7 +1673,11 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
         // clinical total via its attested shift — the same hours reconciled
         // twice against two different filed commitments.
         if (isClassroomSession(s.kind)) earned += creditedHours(s, rec)
-        if (rec?.status === 'absent') missed.push(s)
+        if (rec?.status === 'absent') {
+          missed.push(s)
+          if (rec.makeUp) makeUpsDone.push({ session: s, makeUp: rec.makeUp })
+          else makeUpOwed.push(s)
+        }
       }
       const classAbsentHours = missed
         .filter((s) => isClassroomSession(s.kind))
@@ -1373,6 +1692,8 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
         totalHours: earned + totals.hospital + totals.field,
         missedHours: missed.reduce((sum, s) => sum + s.hours, 0),
         missed,
+        makeUpOwed,
+        makeUpsDone,
         classAbsentHours,
         absenceRemaining: Math.max(0, MAX_ABSENT_HOURS - classAbsentHours),
         overAbsenceCap: classAbsentHours > MAX_ABSENT_HOURS,
@@ -1531,14 +1852,29 @@ export function useShifts(courseId: string | undefined): AemtClinicalShift[] {
   )
 }
 
+/**
+ * Refuse a write whose reflection carries what looks like patient information.
+ *
+ * The screen checks this too, on blur and again on the button — but the screen
+ * is one caller, and the rule is not "warn the person who happens to be
+ * looking". It is enforced at the write so no future caller can route around
+ * it. Nothing about the rejected text is stored, audited or logged.
+ */
+function phiRefusal(reflection: string | undefined): string | undefined {
+  const result = checkPhi(reflection)
+  return result.ok ? undefined : phiMessage(result)
+}
+
 export function addShift(
   courseId: string,
   studentId: string,
   input: Omit<AemtClinicalShift, 'id' | 'courseId' | 'studentId'>,
-): AemtClinicalShift {
+): { ok: boolean; refused?: string; shift?: AemtClinicalShift } {
+  const refused = phiRefusal(input.reflection)
+  if (refused) return { ok: false, refused }
   const shift: AemtClinicalShift = { id: uid('ashift'), courseId, studentId, ...input }
   setState((db) => ({ ...db, aemtShifts: [...db.aemtShifts, shift] }))
-  return shift
+  return { ok: true, shift }
 }
 
 /**
@@ -1586,9 +1922,13 @@ export function updateShift(
   id: string,
   patch: Partial<AemtClinicalShift>,
   opts: { actor?: string; reason?: string } = {},
-): { invalidated: boolean } {
+): { invalidated: boolean; ok: boolean; refused?: string } {
   const before = getState().aemtShifts.find((s) => s.id === id)
-  if (!before) return { invalidated: false }
+  if (!before) return { invalidated: false, ok: false, refused: 'That shift no longer exists.' }
+  if ('reflection' in patch) {
+    const refused = phiRefusal(patch.reflection)
+    if (refused) return { invalidated: false, ok: false, refused }
+  }
 
   const changed = materialShiftChanges(before, patch)
   const wasAttested = !!before.attestedAt
@@ -1628,7 +1968,7 @@ export function updateShift(
         (invalidate ? ` · reason: ${opts.reason?.trim() || 'not stated'}` : ''),
     )
   }
-  return { invalidated: invalidate }
+  return { invalidated: invalidate, ok: true }
 }
 
 /**
@@ -1786,6 +2126,13 @@ export function encounterCounts(
   e: AemtEncounter,
   requirement: KarMinimum,
   shift: AemtClinicalShift | undefined,
+  /**
+   * The student whose clearances gate this requirement. Required rather than
+   * optional: an omitted student reads as "cleared for nothing", and a default
+   * that silently zeroes every tally in the audit package is not a default
+   * anyone should be able to reach by forgetting an argument.
+   */
+  student: AemtStudent | undefined,
 ): boolean {
   // Voided rows stay visible and stop counting. A correction has to be
   // traceable, so nothing is deleted to make a number move.
@@ -1802,6 +2149,11 @@ export function encounterCounts(
   if (!e.shiftId) return false
   if (!shift) return false
   if (!attestationIsEvidence(shift)) return false
+  // A rep performed before the student was checked off on the skill is not a
+  // supervised performance, whatever the preceptor later signed. Judged on the
+  // shift's own date, so withdrawing a clearance retroactively stops the reps
+  // that depended on it rather than leaving them counted.
+  if (clearanceGate(student, requirement.id, shift.date).blocked) return false
   return supervisorEligible(requirement, shift)
 }
 
@@ -1816,6 +2168,544 @@ export function supervisorEligible(
   if (!shift) return false
   const allowed = requirement.eligibleSupervisors ?? SETTING_PRECEPTORS[shift.setting]
   return allowed.includes(shift.preceptorCredential)
+}
+
+// ----- scope-of-practice clearances ------------------------------------------
+//
+// The dated lab check-offs that decide whether a logged rep is evidence. See
+// data/aemtPhases.ts for which requirements each clearance gates and why the
+// assessment clearance is recorded without being enforced.
+
+/** The date a student was cleared for a code, or undefined if never. */
+export function clearedOn(
+  student: AemtStudent | undefined,
+  code: SkillClearanceCode,
+): string | undefined {
+  return student?.skillClearances?.find((c) => c.code === code)?.grantedOn
+}
+
+/**
+ * Record a lab check-off.
+ *
+ * Audited, because the grant date is what decides whether a month of
+ * venipunctures counts. Re-granting overwrites the date rather than stacking a
+ * second row — one check-off, one date — and the audit trail carries the move.
+ */
+export function grantSkillClearance(
+  studentId: string,
+  code: SkillClearanceCode,
+  grantedOn: string,
+  opts: { actor?: string; grantedBy?: string; note?: string } = {},
+): void {
+  const student = getState().aemtStudents.find((s) => s.id === studentId)
+  if (!student) return
+  const previous = clearedOn(student, code)
+  const entry: AemtSkillClearance = {
+    code,
+    grantedOn,
+    grantedBy: opts.grantedBy?.trim() || opts.actor || 'not stated',
+    recordedAt: new Date().toISOString(),
+    note: opts.note?.trim() || undefined,
+  }
+  setState((db) => ({
+    ...db,
+    aemtStudents: db.aemtStudents.map((s) =>
+      s.id !== studentId
+        ? s
+        : {
+            ...s,
+            skillClearances: [...(s.skillClearances ?? []).filter((c) => c.code !== code), entry],
+          },
+    ),
+  }))
+  const label = skillClearance(code)?.label ?? code
+  audit(
+    student.courseId,
+    studentId,
+    opts.actor ?? 'local',
+    previous ? 'skill clearance date changed' : 'skill clearance granted',
+    `${student.name} · ${label} · ${previous ? `${previous} → ${grantedOn}` : grantedOn}` +
+      (opts.grantedBy ? ` · signed ${opts.grantedBy}` : ''),
+  )
+}
+
+/**
+ * Withdraw a check-off.
+ *
+ * Reps already logged against it stop counting from the moment this lands, so
+ * it takes a reason the same way withdrawing an attestation does.
+ */
+export function revokeSkillClearance(
+  studentId: string,
+  code: SkillClearanceCode,
+  actor: string,
+  reason: string,
+): void {
+  const student = getState().aemtStudents.find((s) => s.id === studentId)
+  if (!student) return
+  const previous = clearedOn(student, code)
+  if (!previous) return
+  setState((db) => ({
+    ...db,
+    aemtStudents: db.aemtStudents.map((s) =>
+      s.id !== studentId
+        ? s
+        : { ...s, skillClearances: (s.skillClearances ?? []).filter((c) => c.code !== code) },
+    ),
+  }))
+  audit(
+    student.courseId,
+    studentId,
+    actor,
+    'skill clearance WITHDRAWN',
+    `${student.name} · ${skillClearance(code)?.label ?? code} · was ${previous} · reason: ${
+      reason.trim() || 'not stated'
+    }`,
+  )
+}
+
+export interface ClearanceGate {
+  /** Whether this requirement sits behind a check-off at all. */
+  gated: boolean
+  code?: SkillClearanceCode
+  label?: string
+  /** The check-off date on file, if any. */
+  grantedOn?: string
+  /** True when the rep must be refused. */
+  blocked: boolean
+  /** Why, in the words the instructor needs to act on. */
+  message?: string
+}
+
+/**
+ * Whether a rep against `requirementId`, performed on `date`, may be logged.
+ *
+ * The test is against the date of the shift, not today. A clearance granted
+ * this morning does not make last month's stick supervised, and the app must
+ * not let a late data-entry session quietly turn an unsupported claim into a
+ * regulated count.
+ */
+export function clearanceGate(
+  student: AemtStudent | undefined,
+  requirementId: string,
+  date: string,
+): ClearanceGate {
+  const gating = clearanceGating(requirementId)
+  if (!gating) return { gated: false, blocked: false }
+  const grantedOn = clearedOn(student, gating.code)
+  const base = { gated: true, code: gating.code, label: gating.label, grantedOn }
+  if (!grantedOn) {
+    return {
+      ...base,
+      blocked: true,
+      message: `${student?.name ?? 'This student'} has no ${gating.label.toLowerCase()} check-off on file. Record the ${gating.grantedAt.toLowerCase()} first — a rep logged before one is a claim the program cannot support.`,
+    }
+  }
+  if (date && date < grantedOn) {
+    return {
+      ...base,
+      blocked: true,
+      message: `This shift is dated ${date}, before the ${gating.label.toLowerCase()} check-off on ${grantedOn}. Reps performed before the check-off do not count.`,
+    }
+  }
+  return { ...base, blocked: false }
+}
+
+// ----- clinical phases -------------------------------------------------------
+
+/**
+ * The course's rotation plan, seeding it from the template if it has none.
+ *
+ * Seeding on read rather than on course creation means a course recorded
+ * before phases existed gets a plan the first time anyone looks at one,
+ * without a migration pass over the store.
+ */
+export function phasesFor(course: AemtCourse | undefined): AemtClinicalPhase[] {
+  if (!course) return []
+  return course.phases?.length ? course.phases : seedPhases(course.startDate)
+}
+
+/**
+ * Put the plan back to what the template says for this course's start date.
+ * The way out of a window that was dragged somewhere unhelpful.
+ */
+export function reseedPhases(courseId: string): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, { phases: seedPhases(course.startDate) })
+}
+
+/**
+ * Move one phase window.
+ *
+ * Site availability moves, and when it does the plan is wrong rather than the
+ * site. Writing through `phasesFor` means the first edit also materialises the
+ * seeded plan onto the course, so a course that had only a template now has a
+ * record of what was actually planned.
+ */
+export function updatePhase(
+  courseId: string,
+  ordinal: number,
+  patch: Partial<AemtClinicalPhase>,
+): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, {
+    phases: phasesFor(course).map((p) => (p.ordinal === ordinal ? { ...p, ...patch } : p)),
+  })
+}
+
+/**
+ * Which phase a date falls in, or undefined.
+ *
+ * Undefined is a real answer, not a failure: the plan has a gap over the
+ * weekend before the break block, and a shift picked up outside every window
+ * still happened. Callers report it, they do not refuse it.
+ */
+export function phaseOn(
+  course: AemtCourse | undefined,
+  date: string,
+): AemtClinicalPhase | undefined {
+  return phasesFor(course).find((p) => date >= p.windowStart && date <= p.windowEnd)
+}
+
+// ----- sites, preceptors and placements --------------------------------------
+//
+// Scheduling. See modules/aemt/placement.ts for the rules and for why these
+// records stay on the device rather than syncing.
+
+/**
+ * Put the seeded site list onto the course, keeping anything already there.
+ *
+ * Matched by name, because a site the instructor typed in during setup and the
+ * same site in the template are the same hospital — and re-seeding must not
+ * leave two of it with one carrying the executed agreement.
+ */
+export function seedSites(courseId: string): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  const existing = course.sites ?? []
+  const next: AemtSite[] = [...existing]
+  for (const t of SITE_TEMPLATES) {
+    const found = next.findIndex((s) => s.name.toLowerCase() === t.name.toLowerCase())
+    if (found >= 0) {
+      const site = next[found]
+      // Units and the active flag come from the template; the agreement
+      // evidence on the existing record is the instructor's and is left alone.
+      next[found] = {
+        ...site,
+        kind: t.kind,
+        // Campus comes from the template even on an existing record. A site
+        // predating the joint cohort has no campus and would default to
+        // Kansas City — which is right for the AdventHealth rows and wrong for
+        // a Wichita one somebody typed in by hand before the merge.
+        campus: t.campus,
+        active: site.active ?? t.active,
+        units: site.units?.length ? site.units : seedUnits(site.id, t.units),
+      }
+    } else {
+      const id = uid('asite')
+      next.push({
+        id,
+        name: t.name,
+        kind: t.kind,
+        campus: t.campus,
+        agreement: 'none',
+        active: t.active,
+        notes: t.note,
+        units: seedUnits(id, t.units),
+      })
+    }
+  }
+  updateCourse(courseId, { sites: next })
+}
+
+/** Sites with somewhere to place someone, in the order they were seeded. */
+export function placeableSites(course: AemtCourse | undefined): AemtSite[] {
+  return (course?.sites ?? []).filter((s) => (s.units?.length ?? 0) > 0)
+}
+
+export function updateSite(courseId: string, siteId: string, patch: Partial<AemtSite>): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, {
+    sites: (course.sites ?? []).map((s) => (s.id === siteId ? { ...s, ...patch } : s)),
+  })
+}
+
+/**
+ * Change one department's weekly cap.
+ *
+ * The one number in this module most likely to be wrong today — every hospital
+ * department is seeded at one student a week because neither hospital has
+ * answered on capacity — so it is a one-field edit rather than a re-seed.
+ */
+export function updateUnit(
+  courseId: string,
+  siteId: string,
+  unitId: string,
+  patch: Partial<AemtSiteUnit>,
+): void {
+  const course = getState().aemtCourses.find((c) => c.id === courseId)
+  if (!course) return
+  updateCourse(courseId, {
+    sites: (course.sites ?? []).map((s) =>
+      s.id !== siteId
+        ? s
+        : { ...s, units: (s.units ?? []).map((u) => (u.id === unitId ? { ...u, ...patch } : u)) },
+    ),
+  })
+}
+
+export function usePreceptors(courseId: string | undefined): AemtPreceptor[] {
+  return useSelector((db) =>
+    db.aemtPreceptors
+      .filter((p) => p.courseId === courseId)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  )
+}
+
+export function addPreceptor(
+  courseId: string,
+  input: Omit<AemtPreceptor, 'id' | 'courseId'>,
+): AemtPreceptor {
+  const preceptor: AemtPreceptor = { id: uid('aprec'), courseId, ...input }
+  setState((db) => ({ ...db, aemtPreceptors: [...db.aemtPreceptors, preceptor] }))
+  return preceptor
+}
+
+export function updatePreceptor(id: string, patch: Partial<AemtPreceptor>): void {
+  setState((db) => ({
+    ...db,
+    aemtPreceptors: db.aemtPreceptors.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+  }))
+}
+
+/**
+ * Remove a preceptor from the roster.
+ *
+ * Placements pointing at them lose the pointer rather than the placement — the
+ * shift still needs to happen, it just needs a name again. Shifts already
+ * worked are untouched: they carry the name and credential they were signed
+ * under, and that is the evidence.
+ */
+export function deletePreceptor(id: string): void {
+  setState((db) => {
+    const preceptor = db.aemtPreceptors.find((p) => p.id === id)
+    const affected = db.aemtPlacements.filter((p) => p.preceptorId === id)
+    if (preceptor) {
+      pushUndo(`Removed ${preceptor.name}`, () =>
+        setState((cur) => ({
+          ...cur,
+          aemtPreceptors: [...cur.aemtPreceptors, preceptor],
+          aemtPlacements: cur.aemtPlacements.map((p) =>
+            affected.some((a) => a.id === p.id) ? { ...p, preceptorId: id } : p,
+          ),
+        })),
+      )
+    }
+    return {
+      ...db,
+      aemtPreceptors: db.aemtPreceptors.filter((p) => p.id !== id),
+      aemtPlacements: db.aemtPlacements.map((p) =>
+        p.preceptorId === id ? { ...p, preceptorId: undefined } : p,
+      ),
+    }
+  })
+}
+
+export function usePlacements(courseId: string | undefined): AemtPlacement[] {
+  return useSelector((db) =>
+    db.aemtPlacements
+      .filter((p) => p.courseId === courseId)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+  )
+}
+
+/**
+ * Create a placement.
+ *
+ * Refuses on a blocking issue rather than writing and letting the board
+ * complain afterwards — a capacity cap that can be exceeded by a caller that
+ * forgot to check is not a cap.
+ */
+export function addPlacement(
+  courseId: string,
+  input: PlacementInput & { preceptorId?: string; notes?: string },
+): { ok: boolean; refused?: string; placement?: AemtPlacement } {
+  const db = getState()
+  const course = db.aemtCourses.find((c) => c.id === courseId)
+  const issues = blocking(
+    placementIssues(input, {
+      placements: db.aemtPlacements.filter((p) => p.courseId === courseId),
+      sites: course?.sites ?? [],
+      students: db.aemtStudents.filter((st) => st.courseId === courseId),
+      phases: phasesFor(course),
+      courseStart: course?.startDate,
+      courseEnd: course?.endDate,
+    }),
+  )
+  if (issues.length) return { ok: false, refused: issues[0].message }
+  const placement: AemtPlacement = { id: uid('aplace'), courseId, ...input }
+  setState((cur) => ({ ...cur, aemtPlacements: [...cur.aemtPlacements, placement] }))
+  return { ok: true, placement }
+}
+
+export function updatePlacement(
+  id: string,
+  patch: Partial<AemtPlacement>,
+): { ok: boolean; refused?: string } {
+  const db = getState()
+  const before = db.aemtPlacements.find((p) => p.id === id)
+  if (!before) return { ok: false, refused: 'That placement no longer exists.' }
+  const next = { ...before, ...patch }
+  const course = db.aemtCourses.find((c) => c.id === before.courseId)
+  // A cancellation is always allowed — it frees capacity rather than consuming
+  // it, and refusing to cancel an over-capacity placement would be a trap.
+  if (next.status !== 'cancelled') {
+    const issues = blocking(
+      placementIssues(next, {
+        placements: db.aemtPlacements.filter((p) => p.courseId === before.courseId),
+        sites: course?.sites ?? [],
+        students: db.aemtStudents.filter((st) => st.courseId === before.courseId),
+        phases: phasesFor(course),
+        ignoreId: id,
+        courseStart: course?.startDate,
+        courseEnd: course?.endDate,
+      }),
+    )
+    if (issues.length) return { ok: false, refused: issues[0].message }
+  }
+  setState((cur) => ({
+    ...cur,
+    aemtPlacements: cur.aemtPlacements.map((p) => (p.id === id ? next : p)),
+  }))
+  return { ok: true }
+}
+
+/**
+ * Turn a placement into a worked shift.
+ *
+ * This is the join between the plan and the record. The shift is what carries
+ * the preceptor's signature and the encounters, so it is created here with the
+ * placement's date, site and hours — and from then on the two are linked but
+ * independent: editing the shift does not move the plan, and cancelling the
+ * plan does not touch the evidence.
+ */
+export function workPlacement(
+  id: string,
+  input: {
+    preceptorName: string
+    preceptorCredential: PreceptorCredentialId
+    preceptorCertNumber?: string
+    hours?: number
+  },
+): { ok: boolean; refused?: string; shiftId?: string } {
+  const db = getState()
+  const placement = db.aemtPlacements.find((p) => p.id === id)
+  if (!placement) return { ok: false, refused: 'That placement no longer exists.' }
+  if (!placement.studentId) {
+    return { ok: false, refused: 'Assign a student to the slot before recording it as worked.' }
+  }
+  if (placement.shiftId) {
+    return { ok: false, refused: 'This placement already has a shift on the record.' }
+  }
+  const course = db.aemtCourses.find((c) => c.id === placement.courseId)
+  const site = course?.sites?.find((s) => s.id === placement.siteId)
+  const unit = site?.units?.find((u) => u.id === placement.unitId)
+  const setting: AemtSiteKind = site?.kind === 'field' ? 'field' : 'hospital'
+  const result = addShift(placement.courseId, placement.studentId, {
+    date: placement.date,
+    setting,
+    // The unit is the part that matters when reading a log back — "AdventHealth
+    // Shawnee Mission" says nothing about whether the sticks were available.
+    site: [site?.name, unit?.name].filter(Boolean).join(' — '),
+    hours: input.hours ?? placement.hours,
+    preceptorName: input.preceptorName.trim(),
+    preceptorCredential: input.preceptorCredential,
+    preceptorCertNumber: input.preceptorCertNumber?.trim() || undefined,
+  })
+  if (!result.ok || !result.shift) return { ok: false, refused: result.refused }
+  setState((cur) => ({
+    ...cur,
+    aemtPlacements: cur.aemtPlacements.map((p) =>
+      p.id === id ? { ...p, status: 'worked', shiftId: result.shift!.id } : p,
+    ),
+  }))
+  return { ok: true, shiftId: result.shift.id }
+}
+
+/**
+ * Delete a placement outright.
+ *
+ * Only for slots that never happened — a worked placement keeps its link to the
+ * shift, so cancelling is the right verb there and the shift is untouched.
+ */
+export function deletePlacement(id: string): void {
+  setState((db) => {
+    const placement = db.aemtPlacements.find((p) => p.id === id)
+    if (placement) {
+      pushUndo('Removed placement', () =>
+        setState((cur) => ({ ...cur, aemtPlacements: [...cur.aemtPlacements, placement] })),
+      )
+    }
+    return { ...db, aemtPlacements: db.aemtPlacements.filter((p) => p.id !== id) }
+  })
+}
+
+// ----- shift entry validation (spec §6.1, §6.4) ------------------------------
+
+export interface FieldIssue {
+  /** Which input is wrong, so the message can sit under it rather than atop the form. */
+  field: string
+  message: string
+}
+
+/** What a shift has to satisfy before it is written. */
+export type ShiftInput = Pick<
+  AemtClinicalShift,
+  'date' | 'setting' | 'site' | 'hours' | 'preceptorName' | 'preceptorCredential'
+> & { reflection?: string }
+
+/**
+ * Everything wrong with a proposed shift, field by field.
+ *
+ * Field-scoped rather than form-scoped on purpose: an instructor typing at the
+ * end of a shift needs to see that the hours are impossible AND that the
+ * reflection names a patient, not to fix one and be stopped again by the other.
+ */
+export function shiftIssues(
+  course: AemtCourse | undefined,
+  input: ShiftInput,
+): FieldIssue[] {
+  const issues: FieldIssue[] = []
+  if (!input.date) {
+    issues.push({ field: 'date', message: 'A shift needs a date.' })
+  } else if (course && (input.date < course.startDate || input.date > course.endDate)) {
+    issues.push({
+      field: 'date',
+      message: `Outside the course window (${course.startDate} to ${course.endDate}). Hours worked outside it are not course hours.`,
+    })
+  }
+  // One hour is the shortest thing anyone calls a shift; twenty-four is the
+  // longest a person can be on the floor and still be supervised for all of it.
+  if (!(input.hours >= 1 && input.hours <= 24)) {
+    issues.push({ field: 'hours', message: 'Hours must be between 1 and 24.' })
+  }
+  if (!input.site.trim()) issues.push({ field: 'site', message: 'Name the site and unit.' })
+  if (!input.preceptorName.trim()) {
+    issues.push({ field: 'preceptorName', message: 'A shift needs a named preceptor.' })
+  }
+  const allowed = SETTING_PRECEPTORS[input.setting]
+  if (!allowed.includes(input.preceptorCredential)) {
+    issues.push({
+      field: 'preceptorCredential',
+      message: `Not a permitted preceptor for this setting under K.A.R. 109-1-1. Allowed: ${allowed.join(', ')}.`,
+    })
+  }
+  const phi = checkPhi(input.reflection)
+  if (!phi.ok) issues.push({ field: 'reflection', message: phiMessage(phi) })
+  return issues
 }
 
 // ----- patient encounter log (K.A.R. 109-11-8) -------------------------------
@@ -1914,6 +2804,12 @@ export interface RequirementProgress {
   subMet: boolean
   /** Recorded but unsuccessful — not a rep, but evidence for remediation. */
   attempts: number
+  /**
+   * Live reps refused because the student was not checked off on the skill by
+   * the date of the shift. A subset of `ineligible`, named separately because
+   * it usually means a lab date has not been entered yet.
+   */
+  uncleared: number
   /** Voided reps, kept for the correction history. */
   voided: number
   /** Counting reps that came from a row representing more than one. */
@@ -1931,17 +2827,25 @@ export interface RequirementProgress {
  */
 export function progressFor(
   encounters: AemtEncounter[],
-  studentId: string,
+  /**
+   * The student, not their id — their skill clearances are one of the
+   * conditions on whether a rep counts, so the record has to be in hand.
+   */
+  student: AemtStudent,
   shifts: AemtClinicalShift[] = [],
 ): RequirementProgress[] {
+  const studentId = student.id
   const mine = encounters.filter((e) => e.studentId === studentId)
   const byId = new Map(shifts.map((s) => [s.id, s]))
   return CLINICAL_REQUIREMENTS.map((requirement) => {
     const rows = mine.filter((e) => e.requirementId === requirement.id)
-    // Three conditions, each of which the review found could be bypassed:
-    // the setting must count for this requirement, the shift's preceptor must
-    // be eligible to supervise it, and the preceptor must have attested.
-    const eligible = rows.filter((e) => encounterCounts(e, requirement, byId.get(e.shiftId ?? '')))
+    // Four conditions, each of which the review found could be bypassed: the
+    // setting must count for this requirement, the shift's preceptor must be
+    // eligible to supervise it, the preceptor must have attested, and the
+    // student must have been checked off on the skill by the date of the shift.
+    const eligible = rows.filter((e) =>
+      encounterCounts(e, requirement, byId.get(e.shiftId ?? ''), student),
+    )
     const total = eligible.reduce((s, e) => s + e.count, 0)
     const eligibleIds = new Set(eligible)
     // The four categories partition the log: counted, voided, attempted, and
@@ -1953,6 +2857,13 @@ export function progressFor(
     const ineligible = live.filter((e) => !eligibleIds.has(e)).reduce((s, e) => s + e.count, 0)
     const unverified = live
       .filter((e) => !e.shiftId || !attestationIsEvidence(byId.get(e.shiftId) ?? ({} as AemtClinicalShift)))
+      .reduce((s, e) => s + e.count, 0)
+    // Broken out of `ineligible` because it is the one reason with a remedy
+    // that is nobody's fault: the check-off happened and the date was entered
+    // late. Naming it separately turns "12 reps not counting" into "the week 5
+    // lab date is wrong", which is a two-second fix instead of an investigation.
+    const uncleared = live
+      .filter((e) => clearanceGate(student, requirement.id, byId.get(e.shiftId ?? '')?.date ?? e.date).blocked)
       .reduce((s, e) => s + e.count, 0)
     const field = eligible.filter((e) => e.siteKind === 'field').reduce((s, e) => s + e.count, 0)
     const sub = eligible.filter((e) => e.initiatedInfusion).reduce((s, e) => s + e.count, 0)
@@ -1966,9 +2877,80 @@ export function progressFor(
     const fieldMet = field >= (requirement.fieldMinimum ?? 0)
     const subMet = sub >= (requirement.subRequirement?.minimum ?? 0)
     return {
-      requirement, total, ineligible, unverified, field, sub,
+      requirement, total, ineligible, unverified, uncleared, field, sub,
       attempts, voided, unitemized, unstated,
       totalMet, fieldMet, subMet, met: totalMet && fieldMet && subMet,
+    }
+  })
+}
+
+/**
+ * One student against one dated deficit checkpoint.
+ *
+ * `shortfalls` is the whole point: not "behind", but behind on WHAT and by how
+ * much, because the action the tracker prescribes is "assign an added shift" and
+ * an added shift has to be booked somewhere in particular. A student six
+ * venipunctures short needs pre-op; one four calls short needs a truck.
+ */
+export interface CheckpointStanding {
+  checkpoint: DeficitCheckpoint
+  date: string
+  /** Passed, so this is history rather than a plan. */
+  due: boolean
+  shiftsDone: number
+  shiftsShort: number
+  shortfalls: { key: PhaseTargetKey; label: string; done: number; floor: number }[]
+  /** Clearances the checkpoint expects that are not signed off. */
+  missingClearances: SkillClearanceCode[]
+  clear: boolean
+}
+
+/**
+ * Read the tally against every checkpoint.
+ *
+ * Evaluated for all five regardless of today's date, and each one says whether
+ * it is due. A checkpoint that has not arrived yet is still worth showing — it
+ * is how far ahead of the floor a student is, which is the number that tells
+ * you in November whether January is going to be a problem.
+ */
+export function checkpointStanding(
+  course: AemtCourse | undefined,
+  student: AemtStudent,
+  progress: RequirementProgress[],
+  shifts: AemtClinicalShift[],
+  asOf: string = todayISO(),
+): CheckpointStanding[] {
+  if (!course) return []
+  const byId = new Map(progress.map((p) => [p.requirement.id, p]))
+  // The counted keys, including the two sub-counts that are not requirements in
+  // their own right. Reading these off `progress` rather than re-deriving them
+  // keeps one definition of what a rep is: the eligibility rules that decide
+  // whether a venipuncture counted are already applied here.
+  const done = (key: PhaseTargetKey): number => {
+    if (key === 'infusion') return byId.get('venipuncture')?.sub ?? 0
+    if (key === 'assessmentField') return byId.get('assessment')?.field ?? 0
+    return byId.get(key)?.total ?? 0
+  }
+  const granted = new Set((student.skillClearances ?? []).map((c) => c.code))
+
+  return checkpointDates(course.startDate).map((c) => {
+    const shiftsDone = shifts.filter((s) => s.date <= c.date).length
+    const floors = checkpointFloors(c, CLINICAL_REQUIREMENTS)
+    const shortfalls = (Object.entries(floors) as [PhaseTargetKey, number][])
+      .map(([key, floor]) => ({ key, label: PHASE_TARGET_LABELS[key], done: done(key), floor }))
+      .filter((f) => f.done < f.floor)
+      .sort((a, b) => b.floor - b.done - (a.floor - a.done))
+    const missingClearances = (c.clearances ?? []).filter((code) => !granted.has(code))
+    const shiftsShort = Math.max(0, c.shiftsFloor - shiftsDone)
+    return {
+      checkpoint: c,
+      date: c.date,
+      due: asOf >= c.date,
+      shiftsDone,
+      shiftsShort,
+      shortfalls,
+      missingClearances,
+      clear: shiftsShort === 0 && shortfalls.length === 0 && missingClearances.length === 0,
     }
   })
 }
@@ -1992,7 +2974,7 @@ export function useClinicalStanding(courseId: string | undefined): StudentClinic
   return useMemo(
     () =>
       students.map((student) => {
-        const progress = progressFor(encounters, student.id, shifts)
+        const progress = progressFor(encounters, student, shifts)
         // Completion is gated on the regulation, not on what the program
         // chooses to also track. A program competency short does not make a
         // student ineligible under K.A.R. 109-11-8.
@@ -2021,6 +3003,7 @@ export function courseHourTotals(sessions: AemtSession[]): {
     lab: 0,
     clinical: 0,
     exam: 0,
+    aha: 0,
   }
   let total = 0
   for (const s of sessions) {
@@ -2111,6 +3094,114 @@ export function openConcerns(responses: AemtFormResponse[]): AemtFormResponse[] 
   return flaggedResponses(responses).filter((r) => !r.resolvedDate)
 }
 
+// ----- what each instrument still owes ---------------------------------------
+//
+// Three cadences, three different questions, and only one of them was being
+// asked. 'course' forms were counted one per student; 'shift' and 'ongoing'
+// forms were not counted at all, so a student could finish eighteen rotation
+// shifts with no daily evaluation on file and every screen read clean.
+//
+// The instructor evaluation was the sharp one. It counted FORMS — a student who
+// submitted one instructor evaluation satisfied "end-of-course evaluations
+// submitted" on a cohort taught by two instructors, and the co-instructor was
+// never evaluated by anyone. K.A.R. 109-17-3 asks for an evaluation of the
+// course AND of every instructor who taught them, and the joint Kansas City /
+// Wichita cohort is exactly the shape that makes the difference visible.
+
+/** Everyone who teaches this cohort. One primary, plus whoever else is filed. */
+export function instructorsOfRecord(course: AemtCourse | undefined): string[] {
+  const all = [course?.primaryInstructor, ...(course?.coInstructors ?? [])]
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const n of all) {
+    const name = n?.trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(name)
+  }
+  return out
+}
+
+export interface FormOwed {
+  formId: string
+  /** How many of this instrument this student should have on file by the end. */
+  expected: number
+  /** How many they do have. */
+  have: number
+  /** expected - have, floored at zero. */
+  owed: number
+  /** What the expectation is counted against, for the screen to say plainly. */
+  basis: string
+}
+
+/**
+ * What one student still owes on one instrument.
+ *
+ * `shiftsFor` is the student's logged shifts and `instructors` the course's
+ * roster, both passed in so this stays a pure function the readiness gate and
+ * the Forms tab can share — the two disagreeing about what is outstanding is
+ * how the gate ends up passing a student the tab is still chasing.
+ */
+export function formOwedFor(
+  def: { id: string; cadence: 'shift' | 'ongoing' | 'course' },
+  mine: AemtFormResponse[],
+  shiftCount: number,
+  instructors: string[],
+): FormOwed {
+  const have = mine.filter((r) => r.formId === def.id).length
+
+  // One per instructor who taught them, counted by DISTINCT instructor named on
+  // the form rather than by number of forms. Two evaluations of the same
+  // instructor are two evaluations of the same instructor.
+  if (def.id === 'instructor-eval') {
+    const named = new Set(
+      mine
+        .filter((r) => r.formId === def.id)
+        .map((r) => String(r.values?.instructor ?? '').trim().toLowerCase())
+        .filter(Boolean),
+    )
+    const expected = Math.max(1, instructors.length)
+    return {
+      formId: def.id,
+      expected,
+      have: named.size,
+      owed: Math.max(0, expected - named.size),
+      basis:
+        instructors.length > 1
+          ? `one per instructor of record (${instructors.join(', ')})`
+          : 'one per instructor of record',
+    }
+  }
+
+  if (def.cadence === 'course') {
+    return { formId: def.id, expected: 1, have, owed: Math.max(0, 1 - have), basis: 'one per student' }
+  }
+
+  // One per shift. The preceptor signs it at the end of the shift, so a shift
+  // without one is a shift nobody wrote down what happened on.
+  if (def.cadence === 'shift') {
+    return {
+      formId: def.id,
+      expected: shiftCount,
+      have,
+      owed: Math.max(0, shiftCount - have),
+      basis: `one per logged shift (${shiftCount})`,
+    }
+  }
+
+  // 'ongoing' — the instrument's own subtitle says at least once per student,
+  // and the affective record is what triggers a documented conference.
+  return {
+    formId: def.id,
+    expected: 1,
+    have,
+    owed: Math.max(0, 1 - have),
+    basis: 'at least one per student',
+  }
+}
+
 /**
  * Readiness for every student. Checks that the app cannot evidence — the final
  * course grade lives in the Navigate LMS — are reported as 'attest' so they are
@@ -2126,6 +3217,13 @@ export function useStudentReadiness(
    * hid, which a bundled lookup would miss.
    */
   sheets: AemtSkillSheet[],
+  /**
+   * The instruments in force for this course, already resolved to the version
+   * an operation may have published. Passed in for the same reason `sheets` is:
+   * the gate has to count what the Forms tab shows, including an instrument
+   * whose cadence somebody changed.
+   */
+  forms: { id: string; cadence: 'shift' | 'ongoing' | 'course' }[],
 ): StudentReadiness[] {
   const students = useStudents(courseId)
   const hours = useStudentHours(courseId)
@@ -2133,7 +3231,11 @@ export function useStudentReadiness(
   const checks = useSkillChecks(courseId)
   const responses = useFormResponses(courseId)
   const completions = useCompletions(courseId)
-  const targets = useCourse(courseId)?.targets
+  const shifts = useShifts(courseId)
+  const conferences = useConferences(courseId)
+  const course = useCourse(courseId)
+  const targets = course?.targets
+  const instructors = instructorsOfRecord(course)
 
   return useMemo(() => {
     return students.map((student) => {
@@ -2144,8 +3246,14 @@ export function useStudentReadiness(
       const contradicted = skills.filter((s) => s.contradicted).length
       const mine = responses.filter((r) => r.studentId === student.id)
       const open = openConcerns(mine)
-      const courseForms = ['instructor-eval', 'course-eval']
-      const submitted = courseForms.filter((f) => mine.some((r) => r.formId === f))
+      const shiftCount = shifts.filter((x) => x.studentId === student.id).length
+      const mineConferences = conferences.filter((c) => c.studentId === student.id)
+      // Every instrument, not the two the old list happened to name. An
+      // instrument the program publishes and nobody ever fills in should hold
+      // up a completion the same way a missing course evaluation does.
+      const owed = forms
+        .map((f) => formOwedFor(f, mine, shiftCount, instructors))
+        .filter((o) => o.owed > 0)
 
       const list: ReadinessCheck[] = [
         {
@@ -2200,6 +3308,20 @@ export function useStudentReadiness(
               : ' · no cardiac monitor selected for this course, so no monitor sheet is required of anyone'),
         },
         {
+          // The syllabus commits to at least one private conference per
+          // student. Until conferences were recorded here that promise was
+          // kept in whatever file the person who held them wrote, so nothing
+          // could tell you which students had had one — which on a six-student
+          // cohort is the difference between a commitment and a sentiment.
+          id: 'conference',
+          basis: 'program' as const,
+          label: 'Progress conference documented',
+          status: mineConferences.length > 0 ? 'met' : 'unmet',
+          detail: mineConferences.length
+            ? `${mineConferences.length} on file · most recent ${mineConferences[0].date}`
+            : 'None documented — the syllabus commits to at least one per student',
+        },
+        {
           id: 'concerns',
           basis: 'program' as const,
           label: 'Remediation and conferences closed',
@@ -2209,9 +3331,18 @@ export function useStudentReadiness(
         {
           id: 'evaluations',
           basis: 'program' as const,
-          label: 'End-of-course evaluations submitted',
-          status: submitted.length === courseForms.length ? 'met' : 'unmet',
-          detail: `${submitted.length} of ${courseForms.length} submitted`,
+          label: 'Evaluations on file',
+          status: owed.length === 0 ? 'met' : 'unmet',
+          detail: owed.length
+            ? owed
+                .map((o) => {
+                  const def = forms.find((f) => f.id === o.formId)
+                  return `${def?.id ?? o.formId}: ${o.have} of ${o.expected} — ${o.basis}`
+                })
+                .join(' · ')
+            : forms.length
+              ? `All ${forms.length} instruments accounted for`
+              : 'No instruments are in force for this course',
         },
         {
           id: 'grade',
@@ -2232,7 +3363,8 @@ export function useStudentReadiness(
         completion: completions.find((x) => x.studentId === student.id),
       }
     })
-  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, hours, clinical, checks, responses, completions, monitorSheetId, targets, sheets, shifts, forms, conferences, instructors.join('|')])
 }
 
 /**

@@ -2,6 +2,8 @@
 // Shared domain types for the AMR Clinical Education Suite.
 // ---------------------------------------------------------------------------
 
+import type { Market } from './lib/market'
+
 export type OperationId = 'kc' | 'cass' | 'linn' | 'wichita'
 
 // ----- Module B: Kansas CE Submission Deadline Tracker ---------------------
@@ -493,7 +495,17 @@ export interface RideAssignment {
 export type AemtStudentStatus = 'active' | 'withdrawn' | 'completed'
 
 /** Didactic lecture, hands-on lab, or a written/practical exam sitting. */
-export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
+/**
+ * What kind of contact time a session is.
+ *
+ * 'aha' is its own kind rather than didactic-with-a-flag because it is counted
+ * separately everywhere it matters: it is eight hours on a Saturday rather than
+ * four on a Tuesday, it is AHA's curriculum on AHA's certificate, and the joint
+ * plan reports it apart from the 106 didactic and 52 lab. Folded into didactic
+ * it silently inflated the didactic total by sixteen hours against the filed
+ * target, which the hours reconciliation then reported as an over-run.
+ */
+export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam' | 'aha'
 
 /**
  * Hours a course commits to in its filed proposal. Per-course rather than
@@ -509,6 +521,8 @@ export type AemtSessionKind = 'didactic' | 'lab' | 'clinical' | 'exam'
 export interface AemtHourTargets {
   didactic?: number
   lab?: number
+  /** AHA provider-course hours (ACLS, PALS), counted apart from didactic. */
+  aha?: number
   /** Hospital clinical hours. */
   clinical?: number
   /** Field internship hours, all sites combined. */
@@ -524,6 +538,18 @@ export interface AemtSite {
   id: string
   name: string
   kind: 'clinical' | 'field'
+  /**
+   * Which operation's students rotate here.
+   *
+   * The October 2026 cohort is one class run jointly by AMR Kansas City and
+   * AMR Wichita. The didactic is shared; clinical and field placement is not,
+   * because a Wichita student is not driving to Merriam for six 12-hour
+   * shifts. Every site belongs to one campus and the placement board refuses
+   * to cross them.
+   *
+   * Absent means Kansas City — every site on file before the merge was one.
+   */
+  campus?: Market
   /**
    * DERIVED, never chosen. Retained so existing records keep loading, but the
    * status shown and the approval gate both come from agreementStatus(), which
@@ -550,7 +576,101 @@ export interface AemtSite {
    * does not cover them cannot support the minimums the course filed.
    */
   permits?: string
+  /**
+   * The departments a student can actually be placed in, with what each one
+   * produces and how many students it will take at once.
+   *
+   * Absent on a site nobody has scheduled against yet. A site with no units is
+   * a name on an agreement; a site with units is somewhere to send someone.
+   */
+  units?: AemtSiteUnit[]
+  /**
+   * Whether the site is in use this cohort. A campus covered by the same
+   * agreement but not being rotated through stays on file with this false, so
+   * turning it on later is a toggle rather than re-entering it.
+   */
+  active?: boolean
 }
+
+/**
+ * One department at a site.
+ *
+ * `produces` is what makes the placement board more than a calendar: a student
+ * projecting short on venipunctures needs pre-op, not "a shift". Keyed to the
+ * phase target keys in data/aemtPhases.ts.
+ */
+export interface AemtSiteUnit {
+  id: string
+  name: string
+  /**
+   * How many students the department will take in one week.
+   *
+   * One is the AdventHealth working assumption until they answer, and one is
+   * also the number that makes scheduling hard — five students and six
+   * departments means no two people in pre-op in the same week.
+   */
+  weeklySlotCap: number
+  /** Phase target keys this department realistically produces. */
+  produces: string[]
+  notes?: string
+}
+
+/**
+ * Someone who can supervise a shift, as a record rather than a name retyped
+ * on every shift.
+ *
+ * Kept separate from the shift so that a credential correction lands once. A
+ * shift still stores the name and credential it was signed under — that is the
+ * evidence, and it must not change because a roster record was edited later.
+ */
+export interface AemtPreceptor {
+  id: string
+  courseId: string
+  siteId: string
+  name: string
+  credential: PreceptorCredentialId
+  certNumber?: string
+  /** Which units at the site they cover. Empty means any. */
+  unitIds?: string[]
+  active: boolean
+  notes?: string
+}
+
+/**
+ * A planned shift — a student, a date, a department.
+ *
+ * Deliberately NOT the same record as AemtClinicalShift. A placement is an
+ * intention and changes freely; a shift is what happened and carries a
+ * preceptor's signature. Confirming a placement creates the shift and links
+ * the two, so the board can show what was planned against what was worked
+ * without one quietly rewriting the other.
+ */
+export interface AemtPlacement {
+  id: string
+  courseId: string
+  /** Null for an open slot nobody is assigned to yet. */
+  studentId?: string
+  date: string
+  siteId: string
+  unitId: string
+  /** Named when known; field placements often are not until the week of. */
+  preceptorId?: string
+  hours: number
+  status: AemtPlacementStatus
+  /** The logged shift this turned into, once it has been worked. */
+  shiftId?: string
+  notes?: string
+}
+
+/**
+ * open      — a slot exists, nobody is in it
+ * assigned  — a student is scheduled, the site has not confirmed
+ * confirmed — the site has agreed to it
+ * worked    — it happened, and there is a shift record
+ * cancelled — kept rather than deleted, so a pattern of cancellations at one
+ *             site is visible instead of silently disappearing
+ */
+export type AemtPlacementStatus = 'open' | 'assigned' | 'confirmed' | 'worked' | 'cancelled'
 
 export interface AemtCourse {
   id: string
@@ -566,6 +686,18 @@ export interface AemtCourse {
   primaryInstructor?: string
   primaryInstructorCredential?: PreceptorCredentialId
   primaryInstructorCertNumber?: string
+  /**
+   * Other instructors of record who teach this cohort.
+   *
+   * A joint course has one primary instructor — K.A.R. 109-11-8 puts the
+   * completion verification on exactly one person — but more than one
+   * instructor teaching. The course record could not say so, which made a
+   * two-market cohort indistinguishable from a one-instructor one, and
+   * K.A.R. 109-17-3 asks each student to evaluate the course AND every
+   * instructor who taught them. With no roster the evaluation check counted
+   * forms instead of instructors and called one enough.
+   */
+  coInstructors?: string[]
   /** Clinical and field sites named on the application. */
   sites?: AemtSite[]
   /** Kansas BEMS course approval number, printed on course records. */
@@ -583,6 +715,12 @@ export interface AemtCourse {
    * Wichita the Zoll X-Series.
    */
   monitorSheetId?: string
+  /**
+   * The clinical rotation plan, seeded from data/aemtPhases.ts on first use.
+   * Absent on courses created before phases existed — read it through
+   * `phasesFor(course)`, which seeds on demand rather than returning nothing.
+   */
+  phases?: AemtClinicalPhase[]
   notes?: string
   createdAt: string
   updatedAt: string
@@ -686,6 +824,81 @@ export interface AemtCompletion {
  * lesson plans, the gradebook. CES-held records need no entry; the tab that
  * owns them is the record.
  */
+/**
+ * A documented private progress conference with a student.
+ *
+ * K.A.R. 109-17-3 retains these, and the syllabus commits to at least one per
+ * student plus any an affective concern calls for. The registry listed it as
+ * "kept elsewhere — a record of conversations, written by whoever held them",
+ * which was true only because nothing here recorded one. It is the same shape
+ * as the make-up record: a per-student event with a date, the people in the
+ * room, what was said and what was agreed — none of which is a document
+ * anybody needs to write in Word.
+ *
+ * Retained for three years, so it is deliberately hard to delete and the notes
+ * are the substance rather than a checkbox.
+ */
+export interface AemtConference {
+  id: string
+  courseId: string
+  studentId: string
+  date: string
+  /** Who was in the room besides the student. */
+  attendees: string
+  /**
+   * What triggered it. A scheduled conference is the one every student gets;
+   * the others exist because something happened, and which one matters when a
+   * reviewer is reading a student's file in sequence.
+   */
+  reason: 'scheduled' | 'academic' | 'affective' | 'attendance' | 'clinical' | 'student-requested'
+  /** What was discussed. The record an auditor actually reads. */
+  discussed: string
+  /** What was agreed, and by when. */
+  agreed?: string
+  /** Follow-up date where one was set. */
+  followUpBy?: string
+  recordedBy: string
+  recordedAt: string
+}
+
+/**
+ * A program document as issued — built in the app, kept in the app.
+ *
+ * The four documents K.A.R. 109-17-3 retains as documents are generated from
+ * the course record, which used to mean the only copy anybody had was whatever
+ * somebody last exported. Building one here stores it: the exact HTML that was
+ * produced, when, by whom, and a fingerprint of it.
+ *
+ * That stored copy is the retained record for the three years the regulation
+ * asks for, and it is deliberately a SNAPSHOT rather than a live view. Three
+ * years from now the question an auditor asks is "what did you issue", not
+ * "what would you issue today from data that has moved on" — and the difference
+ * between those two is exactly what filedStatus() surfaces by comparing this
+ * row's date against the course's own.
+ *
+ * Rows are append-only: a rebuild writes a new one rather than editing this, so
+ * the history of what was issued when survives. The sync layer relies on that
+ * immutability to avoid stringifying the body on every state change.
+ */
+export interface AemtProgramDoc {
+  id: string
+  courseId: string
+  /** The REQUIRED_RECORDS id this document satisfies. */
+  recordId: string
+  title: string
+  /** The document as issued: standalone, print-ready HTML. */
+  html: string
+  /** Date the document was built, which is what staleness is measured from. */
+  generatedOn: string
+  generatedAt: string
+  /** Who pressed Build. 'local' where the device is not signed in. */
+  generatedBy: string
+  /** SHA-256 of the html, or absent where the browser offered no crypto. */
+  fingerprint?: string
+  /** Where the copy went, if it was filed with anybody. */
+  filedWith?: string
+}
+
 export interface AemtRecordDoc {
   courseId: string
   /** Matches a REQUIRED_RECORDS id in data/aemtRecords.ts. */
@@ -697,6 +910,16 @@ export interface AemtRecordDoc {
   approvedDate?: string
   /** Where the document actually lives — a path, a link, or a description. */
   location?: string
+  /**
+   * For a GENERATED document: the date the filed copy was produced.
+   *
+   * This is the whole status for those records. A generated document has no
+   * version anybody types and no master copy to locate — the source of truth is
+   * the course record, and the only thing that can be wrong is that the copy
+   * somebody filed predates a change to it. Compared against the course's
+   * updatedAt by filedStatus().
+   */
+  generatedOn?: string
   notes?: string
 }
 
@@ -737,6 +960,17 @@ export interface AemtStudent {
   id: string
   courseId: string
   name: string
+  /**
+   * Which operation this student belongs to, on a joint cohort.
+   *
+   * Not a market partition — the course record itself lives in one market (see
+   * data/aemt.ts). This is which set of clinical and field sites the student
+   * rotates through, and which instructor is theirs day to day.
+   *
+   * Absent means Kansas City, so every student enrolled before the merge keeps
+   * the placement they already have.
+   */
+  campus?: Market
   /** Kansas EMS certification number (the student's existing EMT cert). */
   certNumber?: string
   /** Employee number, for students who are also AMR staff. */
@@ -744,6 +978,120 @@ export interface AemtStudent {
   email?: string
   phone?: string
   status: AemtStudentStatus
+  /** What the hospital requires of this student before a rotation. */
+  clearance?: AemtClearance
+  /**
+   * What this student has been checked off to do, and when.
+   *
+   * Not the same thing as `clearance` above, which is the hospital's list of
+   * health and background records. This is scope of practice: the dated lab
+   * check-offs that decide whether a logged rep is a rep or a claim. See
+   * data/aemtPhases.ts for which requirements each one gates.
+   */
+  skillClearances?: AemtSkillClearance[]
+}
+
+/** Mirrors SKILL_CLEARANCES in data/aemtPhases.ts. */
+export type SkillClearanceCode = 'assessment' | 'vascular' | 'ecg'
+
+/**
+ * One dated lab check-off.
+ *
+ * A date, not a tick. The gate is "was this student cleared on the day the
+ * shift happened", which a boolean cannot answer — and a clearance granted
+ * today does not retroactively make last month's venipuncture supervised.
+ */
+export interface AemtSkillClearance {
+  code: SkillClearanceCode
+  /** ISO date of the check-off. Reps dated before this do not count. */
+  grantedOn: string
+  /** Instructor who signed the check-off off. */
+  grantedBy: string
+  /** ISO timestamp the grant was recorded, for the audit trail. */
+  recordedAt: string
+  note?: string
+}
+
+/**
+ * One window of the clinical rotation.
+ *
+ * Seeded onto the course from PHASE_TEMPLATE (data/aemtPhases.ts) so a
+ * different cohort re-seeds rather than needing a code change, and editable
+ * afterwards because site availability moves.
+ *
+ * Windows are advisory. A shift logged outside every phase is noted, not
+ * refused — the student who picked up an extra Tuesday still did the work.
+ */
+export interface AemtClinicalPhase {
+  ordinal: number
+  name: string
+  windowStart: string
+  windowEnd: string
+  /** Scope-of-practice check-off the phase assumes the student holds. */
+  requiresClearance: SkillClearanceCode | null
+  shiftsRequired: number
+  hospitalShifts: number
+  fieldShifts: number
+  /** Cumulative counts the phase aims to have produced, by target key. */
+  targets: Record<string, number>
+}
+
+/**
+ * A student's clinical clearance, as the affiliation agreement defines it.
+ *
+ * Every field here is a fact the program asserts in the letter of good standing
+ * it sends the facility before a rotation, so every field is a date or a
+ * result — never a "done" checkbox. A tick is a claim; a date is a record, and
+ * a record is what the facility can ask to see.
+ *
+ * Section numbers are the AdventHealth master affiliation agreement, which is
+ * the strictest of the program's agreements. A facility with lighter
+ * requirements is still covered by these; one with heavier requirements would
+ * need its own fields.
+ */
+export interface AemtClearance {
+  /** Physical examination (§4.4). */
+  physicalDate?: string
+  /** Immunisations (§4.4). Hepatitis B may be a signed declination instead. */
+  varicellaDate?: string
+  /** A negative titer means the student must be vaccinated before the rotation. */
+  varicellaTiter?: 'positive' | 'negative'
+  hepBDate?: string
+  hepBDeclined?: boolean
+  mmrDate?: string
+  tdapDate?: string
+  /** Influenza is seasonal, and the agreement allows masking instead. */
+  fluDate?: string
+  /** Tuberculosis screening — must be within one year of the rotation (§4.4). */
+  ppdDate?: string
+  ppdResult?: 'negative' | 'positive'
+  /** A positive PPD needs a clear chest film and no active symptoms. */
+  cxrDate?: string
+  cxrClear?: boolean
+  /** Criminal background check (§4.5). */
+  backgroundDate?: string
+  /** Every city, county and state lived or worked in for seven years. */
+  backgroundSevenYear?: boolean
+  /** Screened against the facility's disqualification list, not disqualified. */
+  backgroundCleared?: boolean
+  /** Drug screen (§4.6). */
+  drugScreenDate?: string
+  /** The agreement names nine specific analytes; a five-panel is not this. */
+  drugScreenNinePanel?: boolean
+  drugScreenNegative?: boolean
+  /** Personal health insurance, in force for the rotation (§4.8). */
+  insuranceCarrier?: string
+  insuranceThrough?: string
+  /**
+   * Employed by the facility and in good standing, which exempts the student
+   * from the physical, the background check and the drug screen (§4.21).
+   * Immunisations and TB screening are NOT exempt.
+   */
+  facilityEmployee?: boolean
+  notes?: string
+  /** Who last checked these records against the source documents, and when. */
+  verifiedBy?: string
+  verifiedAt?: string
 }
 
 /** One meeting of the class, carrying the hours it is worth. */
@@ -763,17 +1111,31 @@ export interface AemtSession {
   startTime?: string
   endTime?: string
   /**
+   * Unpaid break inside the clock span, in minutes.
+   *
+   * The AHA provider courses run 08:00-17:00 and are eight instructional
+   * hours. Without this the clock span and the filed hours disagree by the
+   * lunch hour, and the only ways to reconcile them are to publish an end time
+   * that is not true or to file an hour of lunch as instruction.
+   */
+  breakMinutes?: number
+  /**
    * How the session reaches the student.
    *
    * 'f2f'        — instructor-led, in the room. Costs instructor and room time,
    *                and is what the eight-hour weekly cap governs.
-   * 'assignment' — Navigate chapter materials, quizzes and AHA pre-course work
-   *                the student completes on their own.
+   * 'assignment' — Navigate modules, flashcards, practice activities, TestPrep
+   *                sets and AHA pre-course work the student completes on their
+   *                own.
+   * 'aha'        — an AHA provider course. Instructor-led and eight hours long,
+   *                so it is the one thing on the calendar that legitimately
+   *                breaks the four-hour class day; counted in its own bucket
+   *                because it is AHA's curriculum on AHA's certificate.
    *
    * Absent means face-to-face, so sessions written before this field existed
    * keep counting as class time rather than silently leaving the room.
    */
-  delivery?: 'f2f' | 'assignment'
+  delivery?: 'f2f' | 'assignment' | 'aha'
   /**
    * Written by the schedule seeder rather than by hand.
    *
@@ -783,6 +1145,24 @@ export interface AemtSession {
    * explicitly, since a plan change renames the very titles it would match on.
    */
   seeded?: boolean
+  /**
+   * Prerequisite work due BEFORE the first class session.
+   *
+   * Dated before the course start on purpose — chapters 1-4 are completed by
+   * the student ahead of week 1, which is the whole point of moving them out of
+   * the classroom. Marked rather than inferred from the date, so the validator
+   * and the calendar can tell "deliberately before the start" from "somebody
+   * typed the wrong year", which look identical otherwise.
+   */
+  preCourse?: boolean
+  /**
+   * On the calendar for information, not as scheduled contact time.
+   *
+   * The winter break and the week 16 remediation block carry zero hours by
+   * design. Marked rather than inferred from `hours === 0`, so a session that
+   * should carry hours and has none is still reported.
+   */
+  informational?: boolean
   instructor?: string
   /** Instructor's qualification for this subject, per K.A.R. 109-17-1. */
   instructorCredential?: PreceptorCredentialId
@@ -799,6 +1179,36 @@ export interface AemtAttendanceRecord {
    * a late arrival or a partial make-up. Absent = the session's hours.
    */
   hours?: number
+  /**
+   * A documented make-up for this missed session.
+   *
+   * K.A.R. 109-17-3 retains "late-enrolment and make-up schedules", and the
+   * program's own policy says a make-up is recorded against the student rather
+   * than waived — "a make-up that is not documented is an absence". Until this
+   * existed the Hours tab listed what every absent student owed and offered no
+   * way to say any of it had been done, so the list only ever grew and the
+   * record the regulation asks for was kept nowhere at all.
+   *
+   * Recording one does NOT restore the missed hours. The attendance status
+   * stays 'absent' and the hours stay lost, because that is what happened; the
+   * make-up is the evidence of equivalent competency, which is a separate claim
+   * and the one the policy actually requires.
+   */
+  makeUp?: AemtMakeUp
+}
+
+/** Equivalent-competency work completed for a missed session. */
+export interface AemtMakeUp {
+  /** When the make-up was completed, not when it was assigned. */
+  date: string
+  /** What was actually done — the substance an auditor reads. */
+  what: string
+  /**
+   * Who supervised it. The program's policy puts the signature on the primary
+   * instructor, so this is a name, not a checkbox.
+   */
+  by: string
+  recordedAt: string
 }
 
 /**
@@ -843,6 +1253,14 @@ export interface AemtClinicalShift {
    * not to overwrite what was signed.
    */
   revisions?: ShiftRevision[]
+  /**
+   * What the student took away from the shift, in their own words.
+   *
+   * The one free-text field in the clinical record, and the reason lib/phi.ts
+   * exists. It is checked before it is ever written to the store — a rejected
+   * reflection is not saved, not queued, and not logged anywhere.
+   */
+  reflection?: string
   notes?: string
 }
 
@@ -1171,15 +1589,65 @@ export interface CqmpMetric {
 
 export interface CqmpReport {
   id: string
-  /** The month being reported, 'YYYY-MM'. One report per month per market. */
+  /** The month being reported, 'YYYY-MM'. One report per month for the region. */
   month: string
   /** Who is presenting. Printed on the title slide. */
   presenter?: string
   /** Month-level narrative — printed on the closing slide of the deck. */
   summary?: string
   metrics: CqmpMetric[]
+  /** Everything the meeting minutes need that the numbers do not. */
+  meeting?: CqmpMeeting
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * The meeting the numbers were reviewed at.
+ *
+ * Separate from the metrics because it is a different kind of fact: the metrics
+ * are what the dashboards said, this is what happened in a room. A month can
+ * have numbers and no meeting yet, which is the normal state for most of it.
+ */
+export interface CqmpMeeting {
+  /** ISO date the meeting was held — often the month after the one reported. */
+  date?: string
+  /** 24-hour 'HH:MM', so the duration can be computed rather than typed. */
+  startTime?: string
+  endTime?: string
+  /**
+   * Who held each post that month, keyed by CqmpOfficerRole.
+   *
+   * Copied from the seed when the month is created rather than read live, so a
+   * meeting chaired by somebody acting still reads correctly a year later.
+   */
+  officers?: Record<string, string>
+  attendees?: CqmpAttendee[]
+  absent?: CqmpAttendee[]
+  agenda?: CqmpMinuteRow[]
+  /** Annual quality measure rows — the CQMP table on the minutes. */
+  aqms?: CqmpMinuteRow[]
+  /** Patient safety issues raised. */
+  safety?: CqmpMinuteRow[]
+}
+
+export interface CqmpAttendee {
+  name: string
+  title?: string
+}
+
+/**
+ * One row of any of the three tracking tables on the minutes. They have the
+ * same shape — a thing, what is wrong with it, what is being done, who has it,
+ * and whether it is closed — so they share a type rather than three that drift.
+ */
+export interface CqmpMinuteRow {
+  id: string
+  topic: string
+  notes?: string
+  action?: string
+  assignedTo?: string
+  status: 'open' | 'closed'
 }
 
 // ---------------------------------------------------------------------------
@@ -1201,6 +1669,12 @@ export interface SimRunState {
   id: string
   /** Label as it read at run time, so a reworded scenario still renders. */
   label: string
+  /**
+   * The AHA checklist section this phase is graded under — "VF Management",
+   * not the scenario's own name for the rhythm. Megacodes only, and absent on
+   * runs recorded before the printed sheet existed, which fall back to `label`.
+   */
+  section?: string
   /** Seconds the patient spent in this state. */
   seconds: number
   /** The state's expected actions, and whether the crew was seen to do each. */
@@ -1232,6 +1706,14 @@ export interface SimRunChecklist {
   }
   /** null when the instructor ended the run without circling one. */
   result: 'pass' | 'nr' | null
+  /**
+   * The instructor of record, as the printed sheet is signed. Initials and the
+   * AHA instructor number are what a training centre files with a card
+   * renewal; both are typed on the sheet in the control panel and carried
+   * forward between runs on that machine.
+   */
+  instructorInitials?: string
+  instructorNumber?: string
 }
 
 /**
@@ -1298,11 +1780,22 @@ export interface DBShape {
   aemtAttendance: AemtAttendanceRecord[]
   aemtEncounters: AemtEncounter[]
   aemtShifts: AemtClinicalShift[]
+  /**
+   * Scheduling, not records. These two are absent from lib/records.ts on
+   * purpose: a placement is a plan and a preceptor roster is a contact list,
+   * neither of which is a K.A.R. 109-17-3 course record. The regulated
+   * artifact is the shift, which already syncs. See the comment in
+   * modules/aemt/placement.ts.
+   */
+  aemtPlacements: AemtPlacement[]
+  aemtPreceptors: AemtPreceptor[]
   aemtDeadlines: AemtDeadlineRecord[]
   aemtSkillChecks: AemtSkillCheck[]
   aemtFormResponses: AemtFormResponse[]
   aemtCompletions: AemtCompletion[]
   aemtRecordDocs: AemtRecordDoc[]
+  aemtProgramDocs: AemtProgramDoc[]
+  aemtConferences: AemtConference[]
   aemtAudit: AemtAuditEvent[]
   aemtCandidates: AemtCandidate[]
   chartReviews: ChartReviewEntry[]

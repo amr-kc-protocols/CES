@@ -1,5 +1,3 @@
-import { activeMarket, type Market } from '../lib/market'
-
 // ---------------------------------------------------------------------------
 // CQMP — the monthly Clinical Quality Management Plan KPI review.
 //
@@ -13,15 +11,25 @@ import { activeMarket, type Market } from '../lib/market'
 // academy operation that does not appear on this deck. Folding the two lists
 // together would mean every future change to one silently moved the other.
 //
-// Which measures apply is a property of the service model, not the city:
+// REGIONAL, NOT PER-MARKET. This list used to be split by the market the
+// device was in, so a Kansas City device saw Kansas City and Linn County and a
+// Wichita device saw Wichita and Winfield. That was wrong for what this meeting
+// actually is: one Regional Clinical Manager Quality & Safety meeting covering
+// Region 41, whose minutes name every air base and every ground business unit
+// in one document and go to one regional director. Splitting the catalogue by
+// market meant no device could produce those minutes.
+//
+// Which measures apply is a property of the SERVICE MODEL, not the city or the
+// airframe:
 //
 //   Interfacility (Kansas City, Wichita, Winfield) — the two measures every
 //   operation reports: blood glucose verification and advanced airway
 //   verification.
 //
-//   Rule 901 ground 911 (Linn County) — the same two, plus the stroke and
-//   STEMI bundles, because Linn is the operation that meets those patients
-//   in the field rather than at a sending facility.
+//   911 and scene flight (Linn County, Independence, Health Star 1, both
+//   EagleMed bases) — the same two, plus the stroke and STEMI bundles, because
+//   these are the operations that meet those patients in the field rather than
+//   at a sending facility.
 // ---------------------------------------------------------------------------
 
 export type CqmpKpiId = 'glucose' | 'airway' | 'stroke' | 'stemi'
@@ -38,6 +46,21 @@ export interface CqmpKpi {
    * by the protocol, not by this app, so no element list is asserted here.
    */
   definition: string
+  /**
+   * The compliance target, as a percentage.
+   *
+   * Fixed, and the same for every operation — a rotor base and an interfacility
+   * unit are held to the same number on the measures they share. It lives here
+   * rather than on each month's metric because it does not vary by month, and a
+   * target that is re-typed twenty-six times a month is a target that will
+   * eventually be typed wrong on a slide in front of leadership.
+   *
+   * Change it here and every report, including the ones already filed, reads
+   * against the new number. That is the intended behaviour: these are the
+   * standards the programme is held to, not a historical record of what
+   * somebody believed the standard was.
+   */
+  target: number
   /** Where in Clinical Analytics the screenshot is taken from. */
   source: string
 }
@@ -49,6 +72,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'Blood glucose',
     definition:
       'Altered mental status patients with a blood glucose obtained and documented.',
+    target: 75,
     source: 'Clinical Analytics → Altered Mental Status → Blood Glucose Verification',
   },
   airway: {
@@ -57,6 +81,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'Advanced airway',
     definition:
       'Advanced airways with placement verification documented.',
+    target: 91,
     source: 'Clinical Analytics → Advanced Airway → Verification of Advanced Airway Placement',
   },
   stroke: {
@@ -65,6 +90,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'Stroke bundle',
     definition:
       'Suspected stroke patients with every element of the stroke bundle documented.',
+    target: 88,
     source: 'Clinical Analytics → Stroke → Stroke Details',
   },
   stemi: {
@@ -73,6 +99,7 @@ export const CQMP_KPIS: Record<CqmpKpiId, CqmpKpi> = {
     short: 'STEMI bundle',
     definition:
       'STEMI patients with every element of the STEMI bundle documented.',
+    target: 65,
     source: 'Clinical Analytics → STEMI → STEMI Bundle',
   },
 }
@@ -83,39 +110,102 @@ export interface CqmpOperation {
   name: string
   /** Service model, printed under the operation name on the deck. */
   model: string
+  /** Where it sits, so the minutes can list air bases and ground BUs the way
+   *  the meeting does. */
+  kind: 'ground' | 'air'
+  /** City and state, for the minutes header. */
+  location?: string
   /** Measures this operation reports, in presentation order. */
   kpis: CqmpKpiId[]
 }
 
+/** The two measures every operation reports, whatever its service model. */
 const INTERFACILITY: CqmpKpiId[] = ['glucose', 'airway']
 
-const KC_OPERATIONS: CqmpOperation[] = [
+/** Those two plus the bundles, for anyone meeting the patient in the field. */
+const SCENE: CqmpKpiId[] = ['glucose', 'airway', 'stroke', 'stemi']
+
+/**
+ * Region 41, in the order the meeting works through them: ground business
+ * units, then air bases.
+ *
+ * Ids are permanent. A report filed months ago stores whatever ids were current
+ * then, so renaming one in place would orphan its history — see
+ * cqmpOperationName for what happens to an id that leaves the catalogue.
+ */
+export const CQMP_OPERATIONS: CqmpOperation[] = [
   {
     id: 'kc',
     name: 'Kansas City',
     model: 'Urban interfacility',
+    kind: 'ground',
+    location: 'Kansas City, MO',
+    kpis: INTERFACILITY,
+  },
+  {
+    id: 'wichita',
+    name: 'Wichita',
+    model: 'Interfacility',
+    kind: 'ground',
+    location: 'Wichita, KS',
+    kpis: INTERFACILITY,
+  },
+  {
+    id: 'winfield',
+    name: 'Winfield',
+    model: 'Interfacility',
+    kind: 'ground',
+    location: 'Winfield, KS',
     kpis: INTERFACILITY,
   },
   {
     id: 'linn',
     name: 'Linn County',
-    model: 'Rule 901 ground operation',
-    kpis: ['glucose', 'airway', 'stroke', 'stemi'],
+    model: 'Rule 901 ground 911',
+    kind: 'ground',
+    location: 'Linn County, KS',
+    kpis: SCENE,
+  },
+  {
+    id: 'independence',
+    name: 'Independence',
+    model: 'Ground 911',
+    kind: 'ground',
+    location: 'Independence, MO',
+    kpis: SCENE,
+  },
+  {
+    id: 'healthstar1',
+    name: 'Health Star 1',
+    model: 'Scene flight — rotor',
+    kind: 'air',
+    location: 'Overland Park, KS',
+    kpis: SCENE,
+  },
+  {
+    id: 'eaglemed-chanute',
+    name: 'EagleMed Chanute',
+    model: 'Scene flight — rotor',
+    kind: 'air',
+    location: 'Chanute, KS',
+    kpis: SCENE,
+  },
+  {
+    // Fixed wing, and carrying the scene set on instruction. Worth a second
+    // look if the bundles turn out never to have a qualifying patient here —
+    // a measure that is structurally always empty is noise on the slide, not
+    // a compliance signal.
+    id: 'eaglemed-wichita',
+    name: 'EagleMed Wichita',
+    model: 'Fixed wing',
+    kind: 'air',
+    location: 'Wichita, KS',
+    kpis: SCENE,
   },
 ]
 
-const WICHITA_OPERATIONS: CqmpOperation[] = [
-  { id: 'wichita', name: 'Wichita', model: 'Interfacility', kpis: INTERFACILITY },
-  { id: 'winfield', name: 'Winfield', model: 'Interfacility', kpis: INTERFACILITY },
-]
-
-const BY_MARKET: Record<Market, CqmpOperation[]> = {
-  kc: KC_OPERATIONS,
-  wichita: WICHITA_OPERATIONS,
-}
-
-/** The operations this market presents, for the market the device is in. */
-export const CQMP_OPERATIONS: CqmpOperation[] = BY_MARKET[activeMarket()]
+export const GROUND_OPERATIONS = CQMP_OPERATIONS.filter((o) => o.kind === 'ground')
+export const AIR_OPERATIONS = CQMP_OPERATIONS.filter((o) => o.kind === 'air')
 
 export function cqmpOperation(id: string): CqmpOperation | undefined {
   return CQMP_OPERATIONS.find((o) => o.id === id)
@@ -136,7 +226,93 @@ export function cqmpKpiName(id: string): string {
   return CQMP_KPIS[id as CqmpKpiId]?.name ?? id
 }
 
-/** Every (operation, measure) pair this market reports, in deck order. */
+/**
+ * The target for a measure.
+ *
+ * Null only for an id that has left the catalogue — a report filed months ago
+ * can still hold one, and it renders without a met/not-met call rather than
+ * being judged against a number that no longer exists.
+ */
+export function cqmpTarget(id: string): number | null {
+  return CQMP_KPIS[id as CqmpKpiId]?.target ?? null
+}
+
+/** Every (operation, measure) pair the region reports, in deck order. */
 export function cqmpSlots(): { opId: string; kpiId: CqmpKpiId }[] {
   return CQMP_OPERATIONS.flatMap((op) => op.kpis.map((kpiId) => ({ opId: op.id, kpiId })))
 }
+
+// ----- who the minutes name ---------------------------------------------------
+//
+// The roster on the meeting minutes header. Seeded here and COPIED ONTO EACH
+// REPORT when a month is created, so a month chaired by somebody acting reads
+// correctly a year later instead of being retconned by whoever holds the post
+// today.
+//
+// The names below are the correct spellings, which the circulated template did
+// not have: it carried Kramer for Cramer, Maurice for Morris, and Crowley for
+// Dralle, and had no row for the vice president at all. Those are people's
+// names on a document going to a regional director — worth getting right.
+
+export type CqmpOfficerRole =
+  | 'rcm'
+  | 'rcd'
+  | 'rcqm'
+  | 'rpsm'
+  | 'vp'
+  | 'president'
+  | 'director'
+
+export interface CqmpOfficer {
+  role: CqmpOfficerRole
+  /** Abbreviation as the minutes header prints it. */
+  short: string
+  title: string
+  name: string
+}
+
+export const CQMP_OFFICERS: CqmpOfficer[] = [
+  { role: 'rcm', short: 'RCM', title: 'Regional Clinical Manager', name: 'Odie White' },
+  { role: 'rcd', short: 'RCD', title: 'Regional Clinical Director', name: 'Eric Divendorf' },
+  {
+    role: 'rcqm',
+    short: 'RCQM',
+    title: 'Regional Clinical Quality Manager',
+    name: 'Brad Cramer',
+  },
+  {
+    role: 'rpsm',
+    short: 'RPSM',
+    title: 'Regional Patient Safety Manager',
+    name: 'Kevin Morris',
+  },
+  { role: 'vp', short: 'VP', title: 'Vice President', name: 'Scott Lenn' },
+  { role: 'president', short: 'Reg. President', title: 'Regional President', name: 'Steve Dralle' },
+  {
+    role: 'director',
+    short: 'Reg. Director',
+    title: 'Regional Director, Region 41',
+    name: 'Craig Isom',
+  },
+]
+
+/** Who the finished minutes are submitted to. */
+export const CQMP_SUBMIT_TO: CqmpOfficerRole = 'director'
+
+/**
+ * Where the finished minutes are filed.
+ *
+ * A Smartsheet intake form that takes the PDF as an upload. The app does not
+ * post to it — there is no API here and no credential, and an offline-first
+ * PWA quietly failing to submit a compliance document would be worse than not
+ * offering to. The link opens the form; the person attaches the file they just
+ * generated and fills in whatever else the form asks for.
+ */
+export const CQMP_SUBMIT_URL =
+  'https://app.smartsheet.com/b/form/2a67f3482aeb40ec869d56f12ce8c2b8'
+
+export function officerSeed(): Record<string, string> {
+  return Object.fromEntries(CQMP_OFFICERS.map((o) => [o.role, o.name]))
+}
+
+export const MINUTES_TITLE = 'Regional Clinical Manager Quality & Safety Meeting Minutes'

@@ -11,129 +11,174 @@
    a lit classroom. These three all clear WCAG AA on both surfaces (6.3:1, 9.6:1
    and 14.7:1) and still give three steps of hierarchy.
    --t-faint is 4.0:1 — large or non-essential text only. */
+/* Public Sans — the app's typeface (USWDS / ems.gov). Self-hosted under
+   public/fonts, same origin as this page, so the console reads as part of the
+   app rather than a separate tool. */
+@font-face{
+  font-family:'Public Sans';font-style:normal;font-weight:100 900;font-display:swap;
+  src:url('/fonts/public-sans-var.woff2') format('woff2');
+}
 :root{
-  --t-strong:#e6edf5;
-  --t:#b6c2d1;
-  --t-dim:#8f9db0;
-  --t-faint:#6d7b8d;
+  /* Text tones (kept — all clear WCAG AA on the dark surfaces below). */
+  --t-strong:#eef2f8;
+  --t:#c2ccdb;
+  --t-dim:#93a1b5;
+  --t-faint:#6f7d90;
+  /* Surfaces — a darker, more polished key of the app's navy field. The page
+     sits deep; cards lift off it; inputs sink into it. Depth from tone, not
+     from the neon borders the console used to lean on. */
+  --bg:#0b1420;
+  --surface:#14202f;
+  --surface-2:#1b2838;
+  --inset:#0e1826;
+  --inset-deep:#0a121d;
+  --border:#243449;
+  --border-strong:#35475f;
+  /* Brand accent — the app's blue, brightened just enough to read on the dark
+     field. Replaces the console cyan. */
+  --accent:#5aa2f0;
+  --accent-dim:#2f6fb0;
+  --accent-tint:rgba(90,162,240,.12);
+  /* Semantic hues, refined off their fluorescent originals but still the
+     conventional parameter colours. */
+  --ok:#3fb984;
+  --ecg:#46c98a;
+  --spo2:#e6c34a;
+  --co2:#c877d6;
+  --danger:#f2686b;
+  --amber:#e0a13c;
+  --drug:#e07a4a;
+  /* The red the AHA Megacode Testing Checklist bands its sections with,
+     darkened for a screen that is mostly black. The printed sheet uses the
+     published #c9161d itself. */
+  --aha-band:#9e1219;
+  --radius:12px;
+  --radius-sm:8px;
+  --shadow:0 1px 2px rgba(0,0,0,.30);
+  --shadow-card:0 2px 10px rgba(0,0,0,.30);
+  --shadow-float:0 10px 30px rgba(0,0,0,.45);
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#0d1b2a;color:#e0e0e0;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;}
+body{background:var(--bg);color:var(--t);
+  font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;}
 /* Compact by design. Every pixel above the cards is a pixel of the scenario
    the facilitator cannot see while running it — the panel is 3.4 screens tall
    and the controls that matter mid-scenario are in the first two. */
-h1{color:#00e5ff;font-size:1rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;text-shadow:0 0 10px #00e5ff88;}
+h1{color:var(--t-strong);font-size:1.05rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
 .subtitle{color:var(--t-dim);font-size:.66rem;margin-bottom:10px;letter-spacing:1px;}
 /* Whether the crew's screen is actually up. The facilitator is usually not
    looking at it, and a monitor that was never opened or got closed is
    otherwise silent — the scenario just stops reaching anybody. */
 .mon-chip{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:20px;
   font-size:.6rem;font-weight:bold;letter-spacing:1px;cursor:pointer;border:1px solid;vertical-align:1px;}
-.mon-chip.on{color:#00ff88;border-color:#00ff8855;background:#00ff8814;}
-.mon-chip.off{color:#ff8844;border-color:#ff884455;background:#ff884414;}
+.mon-chip.on{color:var(--ok);border-color:rgba(63,185,132,.4);background:rgba(63,185,132,.10);}
+.mon-chip.off{color:var(--amber);border-color:rgba(224,161,60,.4);background:rgba(224,161,60,.10);}
 
 /* Second-device session. Off by default: most runs are two windows on one
    laptop and need no network at all. */
 .sess{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;max-width:960px;
-  margin:0 auto 10px;padding:7px 12px;border:1px solid #1e3a52;border-radius:8px;background:#0d1b2a;}
+  margin:0 auto 10px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
 .sess-lbl{font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);}
 .sess-note{font-size:.58rem;color:var(--t-faint);}
-.sess-code{font:bold 1.05rem/1 monospace;letter-spacing:4px;color:#00e5ff;
-  padding:4px 10px;border:1px solid #00c8e0;border-radius:5px;background:#04222b;}
-.sess.live{border-color:#00cc66;} .sess.live .sess-lbl{color:#7fe0a5;}
+.sess-code{font:bold 1.05rem/1 monospace;letter-spacing:4px;color:var(--accent);
+  padding:4px 10px;border:1px solid var(--accent);border-radius:5px;background:var(--inset-deep);}
+.sess.live{border-color:var(--ok);} .sess.live .sess-lbl{color:#7fe0a5;}
 .sess.error{border-color:#8a3a3a;} .sess.error .sess-lbl{color:#ff8844;}
 body.run-active .sess.off{display:none;}
 
 .scenario-row{width:100%;max-width:960px;display:flex;gap:12px;margin-bottom:12px;}
 .scenario-row .scenario-bar{flex:1;min-width:0;margin-bottom:0;}
-.scenario-bar{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.scenario-bar{width:100%;max-width:960px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 @media (max-width:820px){.scenario-row{flex-direction:column;}}
-.scenario-bar label{color:#00e5ff;font-size:.72rem;letter-spacing:1px;white-space:nowrap;}
+.scenario-bar label{color:var(--accent);font-size:.72rem;letter-spacing:1px;white-space:nowrap;}
 .scenario-bar select{flex:1;margin-bottom:0;}
 .apply-btn{
   padding:10px 22px;
-  background:linear-gradient(135deg,#003355,#005588);
-  border:2px solid #00e5ff;
-  border-radius:7px;
-  color:#00e5ff;
+  background:var(--accent-dim);
+  border:1px solid var(--accent);
+  border-radius:var(--radius-sm);
+  color:#fff;
   font-size:.82rem;
-  font-weight:bold;
-  letter-spacing:2px;
+  font-weight:700;
+  letter-spacing:1.5px;
   text-transform:uppercase;
   cursor:pointer;
   white-space:nowrap;
-  transition:all .2s;
-  box-shadow:0 0 10px #00e5ff22;
+  transition:all .15s;
+  box-shadow:var(--shadow);
   flex-shrink:0;
 }
 .apply-btn:hover{
-  background:linear-gradient(135deg,#004477,#0077bb);
-  box-shadow:0 0 18px #00e5ff55;
+  background:var(--accent);
   transform:translateY(-1px);
 }
 
 .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;width:100%;max-width:960px;}
-.card{background:#0d1b2a;border:1px solid #1e3a52;border-radius:10px;padding:16px;}
-.card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;}
-.card.ecg h2{color:#00ff00;}.card.bp h2{color:#ff4444;}.card.spo2 h2{color:#ffff00;}.card.etco2 h2{color:#ff00ff;}.card.temp h2{color:#00e5ff;}.card.alarms h2{color:#ff00ff;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-card);}
+.card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.card.ecg h2{color:var(--ecg);}.card.bp h2{color:var(--danger);}.card.spo2 h2{color:var(--spo2);}.card.etco2 h2{color:var(--co2);}.card.temp h2{color:var(--accent);}.card.alarms h2{color:var(--co2);}
 
 label{display:block;font-size:.7rem;color:var(--t);margin-bottom:4px;margin-top:8px;}
 label:first-of-type{margin-top:0;}
-input[type=range]{flex:1;accent-color:#00e5ff;cursor:pointer;}
-select{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:#fff;padding:5px 8px;font-size:.8rem;margin-bottom:4px;outline:none;}
-select:focus{border-color:#00e5ff;}
+input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer;}
+select{width:100%;background:var(--inset);border:1px solid var(--border);border-radius:5px;color:#fff;padding:5px 8px;font-size:.8rem;margin-bottom:4px;outline:none;}
+select:focus{border-color:var(--accent);}
 .row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.badge{background:#0a0f1a;border:1px solid #1e3a52;border-radius:4px;padding:2px 6px;font-size:.8rem;font-weight:bold;min-width:42px;text-align:center;}
+.badge{background:var(--inset);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:.8rem;font-weight:bold;min-width:42px;text-align:center;}
 
 /* Keyboard focus. Every control below is reachable by Tab — the clickable
    divs are given button semantics in script, and a focus ring is the only
    thing that tells a keyboard user where they are. */
-:focus-visible{outline:2px solid #00e5ff;outline-offset:2px;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
 /* Rhythm grid */
 .rcat{font-size:.58rem;color:var(--t-dim);letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px;}
 .rgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:4px;}
-.rbtn{background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;color:var(--t-strong);font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
-.rbtn:hover{border-color:#00ff00;color:#00ff00;}
-.rbtn.on{background:#003300;border-color:#00ff00;color:#00ff00;}
+.rbtn{background:var(--inset);border:1px solid var(--border);border-radius:5px;color:var(--t-strong);font-size:.65rem;padding:6px 3px;cursor:pointer;text-align:center;transition:all .15s;}
+.rbtn:hover{border-color:var(--ecg);color:var(--ecg);}
+.rbtn.on{background:#003300;border-color:var(--ecg);color:var(--ecg);}
 
 /* ART card */
 .card.art{grid-column:span 3;}
 .art-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:10px;}
-.art-toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #1e3a52;}
-.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:2px solid #333;background:#0a0f1a;color:var(--t-dim);font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
-.art-btn.on{border-color:#ff4444;background:#2a0000;color:#ff4444;box-shadow:0 0 10px #ff444433;}
-.art-btn .dot{width:9px;height:9px;border-radius:50%;background:#333;transition:all .2s;}
-.art-btn.on .dot{background:#ff4444;box-shadow:0 0 6px #ff4444;}
+.art-toggle{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.art-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--inset);color:var(--t-dim);font-size:.78rem;font-weight:bold;cursor:pointer;letter-spacing:1px;transition:all .2s;}
+.art-btn.on{border-color:var(--danger);background:#2a0000;color:var(--danger);box-shadow:var(--shadow);}
+.art-btn .dot{width:9px;height:9px;border-radius:50%;background:var(--border-strong);transition:all .2s;}
+.art-btn.on .dot{background:var(--danger);box-shadow:var(--shadow);}
 .art-readings{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.arbox{background:#0a0f1a;border:1px solid #1e3a52;border-radius:6px;padding:7px 10px;}
+.arbox{background:var(--inset);border:1px solid var(--border);border-radius:6px;padding:7px 10px;}
 .arbox.wide{grid-column:span 2;}
-.arbox.pulse{border-color:#ff4444;background:#1a0000;}
+.arbox.pulse{border-color:var(--danger);background:#1a0000;}
 .arbox .arl{font-size:.6rem;color:var(--t);text-transform:uppercase;letter-spacing:.5px;}
 .arbox .arv{font-size:1.1rem;font-weight:bold;color:#ff6666;line-height:1.2;}
 .arbox .aru{font-size:.58rem;color:var(--t-dim);}
 
 /* Alarm toggles */
 .alarm-row{display:flex;gap:6px;margin-bottom:8px;}
-.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid #1e3a52;background:#0a0f1a;color:var(--t);cursor:pointer;text-align:center;transition:all .15s;}
-.atog.on{background:#1a3300;border-color:#00ff00;color:#00ff00;}
-.atog.off{background:#330000;border-color:#ff4444;color:#ff4444;}
+.atog{flex:1;padding:5px;font-size:.68rem;border-radius:5px;border:1px solid var(--border);background:var(--inset);color:var(--t);cursor:pointer;text-align:center;transition:all .15s;}
+.atog.on{background:#1a3300;border-color:var(--ecg);color:var(--ecg);}
+.atog.off{background:#330000;border-color:var(--danger);color:var(--danger);}
 
 /* Alarms card span 3 */
 .card.alarms{grid-column:span 3;}
 .alarms-inner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 
 /* Simulation State card */
-.card.simstate h2{color:#ff9900;}
-.sim-scenario-name{font-size:.75rem;color:#ff9900;font-weight:bold;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1e3a52;line-height:1.3;}
+.card.simstate h2{color:var(--amber);}
+.sim-scenario-name{font-size:.75rem;color:var(--amber);font-weight:bold;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);line-height:1.3;}
 .sim-states{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
-.state-btn{padding:6px 9px;border-radius:6px;border:1px solid #1e3a52;background:#0a0f1a;color:var(--t);font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;min-height:44px;box-sizing:border-box;}
-.state-btn:hover{border-color:#ff9900;color:#ff9900;}
-.state-btn.active{background:#1a0e00;border-color:#ff9900;color:#ff9900;}
+.state-btn{padding:6px 9px;border-radius:6px;border:1px solid var(--border);background:var(--inset);color:var(--t);font-size:.7rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4;min-height:44px;box-sizing:border-box;}
+.state-btn:hover{border-color:var(--amber);color:var(--amber);}
+.state-btn.active{background:#1a0e00;border-color:var(--amber);color:var(--amber);}
 .state-btn .sname{font-weight:bold;font-size:.72rem;display:block;margin-bottom:2px;}
 .state-btn .svitals{font-size:.62rem;color:var(--t-dim);display:block;}
 .state-btn.active .svitals{color:#cc7700;}
-.sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid #1e3a52;}
+.sim-note{font-size:.62rem;color:var(--t-dim);line-height:1.4;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.sim-note.coach{color:#bfe3c8;border-top-color:#2c5e44;}
+.sim-note.coach b{color:#7fe0a5;}
 .no-sim{font-size:.72rem;color:var(--t-dim);text-align:center;padding:20px 0;line-height:1.6;}
 
 /* Expected Actions — the scenario's own gradeable list. Ticking one is the
@@ -156,13 +201,13 @@ select:focus{border-color:#00e5ff;}
    floor for two releases. */
 .act{display:flex;gap:8px;align-items:flex-start;padding:8px 7px;border-radius:6px;
   min-height:44px;box-sizing:border-box;
-  border:1px solid #1e3a52;background:#0a0f1a;cursor:pointer;margin-bottom:4px;
+  border:1px solid var(--border);background:var(--inset);cursor:pointer;margin-bottom:4px;
   font-size:.66rem;line-height:1.35;color:var(--t);transition:all .12s;}
-.act:hover{border-color:#00cc66;}
-.act.done{background:#04240f;border-color:#00cc66;color:#7fe0a5;}
-.act .box{flex:0 0 13px;height:13px;margin-top:1px;border:1px solid #3a5570;border-radius:3px;
+.act:hover{border-color:var(--ok);}
+.act.done{background:#04240f;border-color:var(--ok);color:#7fe0a5;}
+.act .box{flex:0 0 13px;height:13px;margin-top:1px;border:1px solid var(--border-strong);border-radius:3px;
   display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#04240f;}
-.act.done .box{background:#00cc66;border-color:#00cc66;color:#04240f;}
+.act.done .box{background:var(--ok);border-color:var(--ok);color:#04240f;}
 /* A tick that came from the monitor rather than from the facilitator's eye.
    Marked so it can be audited at the debrief — the device saw a button, not a
    crew, and the person grading is still the one who decides. */
@@ -185,6 +230,56 @@ select:focus{border-color:#00e5ff;}
    buttons move: giving capture at 40 mA says this patient captures at 40, and
    taking it away at 80 says they need more than 80. The facilitator still owns
    the number — it just is not a press per pacing attempt any more. */
+.adv-btn{display:block;width:100%;min-height:44px;margin:8px 0 4px;padding:11px 12px;
+  border-radius:var(--radius-sm);
+  cursor:pointer;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--t);
+  font:700 .72rem/1.3 inherit;letter-spacing:.5px;text-align:left;}
+
+/* Three copies, one visible at a time.
+     .adv-col   under the state list — its home, and the wide-screen layout
+     .adv-head  beside End run, where the columns have stacked and the state
+                list has become a column of its own near the bottom of the card
+     .adv-mini  in the condensed bar, which is all there is of the card once a
+                facilitator has collapsed it to reach the drug grid
+   Duplicated in the markup rather than moved by script: the run card is
+   re-rendered wholesale on every tick, and a control that moves between parents
+   as the window resizes is a control that loses its focus and its hit area at
+   the worst possible moment. */
+.adv-btn.adv-head, .adv-btn.adv-mini{display:none;}
+@media (max-width:820px){
+  /* Scoped to the run card: the quick scenarios render their own Advance into
+     the in-grid card, where it is the only copy there is. */
+  .run-card .adv-btn.adv-col{display:none;}
+  .adv-btn.adv-head{display:block;width:auto;min-width:200px;margin:0;flex:1 1 240px;text-align:center;}
+}
+.run-card.condensed .adv-btn.adv-mini{display:block;width:auto;min-width:0;min-height:44px;
+  margin:0;padding:11px 14px;text-align:center;font-size:.66rem;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:38vw;}
+@media (max-width:520px){ .run-card.condensed .adv-btn.adv-mini{max-width:44vw;} }
+.adv-btn:hover{border-color:var(--accent);color:var(--accent);}
+/* The EtCO₂ surge sits under Advance and reads as the capnography colour, so
+   it is never mistaken for the transition control above it. */
+.adv-btn.surge{border-color:rgba(200,119,214,.5);color:var(--co2);}
+.adv-btn.surge:hover{border-color:var(--co2);color:var(--co2);background:rgba(200,119,214,.12);}
+.surge-live{margin:8px 0 4px;padding:9px 12px;border-radius:var(--radius-sm);
+  border:1px solid var(--co2);background:rgba(200,119,214,.12);color:var(--co2);
+  font-size:.7rem;font-weight:bold;letter-spacing:.5px;}
+/* Cued: the crew have delivered the shocks this stage is scripted around. */
+.adv-btn.cued{background:rgba(90,162,240,.14);border-color:var(--accent);color:var(--accent);
+  animation:advPulse 1.6s ease-in-out infinite;}
+@keyframes advPulse{0%,100%{border-color:var(--accent);}50%{border-color:var(--t-dim);}}
+.iv-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;
+  padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--inset);}
+.iv-strip:empty{display:none;}
+.iv-lbl{font-size:.62rem;font-weight:bold;letter-spacing:.5px;color:var(--accent);}
+.iv-f{display:flex;align-items:center;gap:4px;font-size:.6rem;color:var(--t-dim);}
+.iv-f select{width:auto;min-height:34px;padding:2px 6px;font-size:.66rem;margin-bottom:0;}
+.iv-btn{min-height:34px;padding:4px 12px;border-radius:var(--radius-sm);cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--t-dim);
+  font:700 .64rem/1 inherit;letter-spacing:.5px;}
+.iv-btn.on{background:rgba(63,185,132,.12);border-color:var(--ok);color:var(--ok);}
+.iv-note{font-size:.6rem;color:var(--ok);}
+.iv-note.warn{color:var(--amber);}
 .pacer-prompt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;
   padding:8px 10px;border:1px solid #6a4ea8;border-radius:6px;background:#1a1230;}
 .pacer-prompt[hidden]{display:none;}
@@ -200,36 +295,42 @@ select:focus{border-color:#00e5ff;}
 .pp-cap.no{color:#ffb37a;border:1px solid #ffb37a55;background:#ffb37a14;}
 .pp-thr{display:flex;align-items:center;gap:5px;font-size:.6rem;color:var(--t-dim);}
 .pp-thr input{width:56px;min-height:32px;padding:4px 6px;border-radius:5px;border:1px solid #6a4ea8;
-  background:#0d1b2a;color:var(--t-strong);font-family:inherit;font-size:.66rem;text-align:center;}
+  background:var(--surface);color:var(--t-strong);font-family:inherit;font-size:.66rem;text-align:center;}
 
 /* The device timeline. Newest at the top, because during a code the last thing
    that happened is the thing being asked about. */
-.dev-feed{max-height:210px;overflow-y:auto;border:1px solid #1e3a52;border-radius:6px;background:#070b12;padding:4px;}
-.dev-empty{font-size:.6rem;color:var(--t-faint);padding:6px 4px;}
-.dev-row{display:flex;gap:6px;align-items:baseline;font-size:.6rem;line-height:1.5;color:var(--t);
+.dev-feed{max-height:210px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--inset-deep);padding:4px;}
+.dev-empty{font-size:.64rem;color:var(--t-dim);padding:6px 4px;}
+.dev-row{display:flex;gap:6px;align-items:baseline;font-size:.66rem;line-height:1.5;color:var(--t);
   padding:1px 3px;border-radius:3px;}
-.dev-row .dev-t{flex:0 0 30px;color:var(--t-faint);font-variant-numeric:tabular-nums;}
+.dev-row .dev-t{flex:0 0 34px;color:var(--t-dim);font-variant-numeric:tabular-nums;}
 .dev-row .dev-i{flex:0 0 11px;text-align:center;color:#8fb6ff;}
 .dev-row .dev-l{min-width:0;}
 .dev-row .dev-d{color:var(--t-dim);}
 .dev-row.shock{background:#2a0f0a;color:#ff9c7a;}
 .dev-row.shock .dev-i{color:#ff6a3d;}
 .dev-row.auto{color:#7fe0a5;}
-.dev-row.auto .dev-i{color:#00cc66;}
+.dev-row.auto .dev-i{color:var(--ok);}
 
-.act-head{font-size:.58rem;color:#00cc66;letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px;}
-.trig{font-size:.6rem;color:var(--t-dim);line-height:1.45;margin-top:8px;padding-top:8px;
-  border-top:1px solid #1e3a52;white-space:pre-line;}
-.trig b{color:#ff9900;font-weight:bold;letter-spacing:1px;font-size:.56rem;text-transform:uppercase;
+.act-head{font-size:.58rem;color:var(--ok);letter-spacing:1px;text-transform:uppercase;margin:10px 0 5px;}
+.trig{font-size:.66rem;color:var(--t);line-height:1.5;margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--border);white-space:pre-line;}
+.trig b{color:var(--amber);font-weight:bold;letter-spacing:1px;font-size:.56rem;text-transform:uppercase;
   display:block;margin-bottom:3px;}
-.run-foot{margin-top:10px;padding-top:9px;border-top:1px solid #1e3a52;}
-.run-foot input{width:100%;background:#0a0f1a;border:1px solid #1e3a52;border-radius:5px;
+.run-foot{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);}
+.run-foot input{width:100%;background:var(--inset);border:1px solid var(--border);border-radius:5px;
   color:var(--t-strong);padding:5px 8px;font-size:.68rem;outline:none;margin-bottom:6px;}
-.run-foot input:focus{border-color:#00e5ff;}
-.end-btn{width:100%;padding:8px;border-radius:6px;border:1px solid #00cc66;background:#04240f;min-height:44px;
-  color:#00cc66;font-size:.68rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.run-foot input:focus{border-color:var(--accent);}
+/* End run is a 44px target: it saves a competency record, and it is pressed
+   once, at the end, by someone who has just finished running a code. */
+.end-btn{width:100%;padding:11px 8px;min-height:44px;border-radius:6px;border:1px solid var(--ok);background:#04240f;
+  color:var(--ok);font-size:.68rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
 .end-btn:hover{background:#06381a;}
-.run-sum{font-size:.63rem;color:var(--t);line-height:1.5;}
+/* Reopening is a correction, not the way forward — it reads as the quieter of
+   the two so "run this again" stays the obvious next move. */
+.end-btn.reopen{background:var(--surface-2);border-color:var(--border-strong);color:var(--t-dim);}
+.end-btn.reopen:hover{background:var(--surface-2);border-color:var(--accent);color:var(--t-strong);}
+.run-sum{font-size:.68rem;color:var(--t);line-height:1.55;}
 .run-sum .rs-state{margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid #16283a;}
 .run-sum .rs-miss{color:#ff8844;}
 .run-sum .rs-ok{color:#7fe0a5;}
@@ -247,7 +348,7 @@ select:focus{border-color:#00e5ff;}
    patient is in and which actions are still unticked. */
 .run-card{width:100%;max-width:960px;padding:12px 16px 14px;
   position:sticky;top:0;z-index:30;
-  background:var(--card,#0b1220);
+  background:var(--surface);
   box-shadow:0 6px 18px rgba(0,0,0,.55);}
 /* Sticky only helps if it is not itself taller than the viewport. On a short
    screen the card scrolls internally rather than pushing the controls off. */
@@ -288,8 +389,7 @@ select:focus{border-color:#00e5ff;}
 .run-card.condensed{padding:0 12px;position:fixed;top:0;left:50%;
   transform:translateX(-50%);width:min(960px,calc(100vw - 40px));z-index:40;}
 .run-card.condensed .run-head,
-.run-card.condensed .run-cols,
-.run-card.condensed .cl-wrap{display:none;}
+.run-card.condensed .run-cols{display:none;}
 .run-card.condensed .run-mini{display:flex;}
 .run-mini .rm-chev{color:var(--t-dim);font-size:.8rem;width:14px;flex:0 0 auto;}
 .run-mini .rm-phase{font-size:.72rem;font-weight:bold;letter-spacing:.5px;
@@ -302,22 +402,46 @@ select:focus{border-color:#00e5ff;}
 .run-mini .rm-num.all-done{color:#7fe0a5;}
 .run-mini .rm-end{padding:8px 14px;min-height:44px;}
 @media (max-width:520px){ .run-mini .rm-name{display:none;} }
-.run-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;
-  padding-bottom:9px;border-bottom:1px solid #1e3a52;}
-.run-head .rh-name{font-size:.76rem;color:#ff9900;font-weight:bold;line-height:1.3;}
+.run-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;
+  padding-bottom:9px;border-bottom:1px solid var(--border);}
+.run-head .rh-name{font-size:.76rem;color:var(--amber);font-weight:bold;line-height:1.3;}
 .run-head .rh-sub{color:var(--t-dim);font-weight:normal;}
 .run-head .rh-sp{margin-left:auto;}
 .run-cols{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:16px;}
 @media (max-width:820px){.run-cols{grid-template-columns:1fr;}}
 
+/* A megacode is graded on the sheet, so in a megacode the sheet is the window
+   and everything else is the margin: the state list narrows to what it needs to
+   name a rhythm, the trigger prose and the monitor feed drop underneath, and
+   the form gets the width to set its steps on one line each and the height to
+   show a whole section at once.
+   Quarterly scenarios keep the even three columns they have always had — their
+   action lists are four or five lines, not twenty-three. */
+.run-card.sheet-run .run-cols{grid-template-columns:minmax(190px,.62fr) minmax(0,2.5fr);}
+.run-card.sheet-run .run-cols>div:nth-child(3){grid-column:1 / -1;
+  display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+@media (max-width:820px){
+  .run-card.sheet-run .run-cols{grid-template-columns:1fr;}
+  .run-card.sheet-run .run-cols>div:nth-child(3){grid-template-columns:1fr;}
+}
+.run-card.sheet-run .sheet{max-height:min(72vh,780px);}
+
 /* The rail overrides live here, after the .run-cols rules they have to beat —
    a media query adds no specificity, so source order is all there is. */
-@media (min-width:1320px){
+/* 1280 rather than 1320: a 1280x800 laptop is the commonest facilitator screen
+   in this program, and it was landing just under the old threshold — so the one
+   layout where the controls never move was reserved for the machines least
+   likely to be in the room. A 360px rail leaves 920px for a page that lays out
+   at 960 and stays three columns above 860. */
+/* The rail is for the quarterly scenarios. A megacode's sheet needs the width
+   — 360px sets its steps two and three lines deep — so `body.sheet-run` opts
+   out of the rail and keeps the full-width card at the top of the page. */
+@media (min-width:1280px){
   /* run-mode alone, not run-active: the finished-run summary lives in the
      same card and would otherwise sit on top of the controls. */
-  body.run-mode{padding-right:400px;}
-  .run-card{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:none;
-    max-height:none;margin:0;border-radius:0;border-left:1px solid #1e3a52;
+  body.run-mode:not(.sheet-run){padding-right:376px;}
+  body:not(.sheet-run) .run-card{position:fixed;top:0;right:0;bottom:0;width:360px;max-width:none;
+    max-height:none;margin:0;border-radius:0;border-left:1px solid var(--border);
     border-top:none;border-right:none;border-bottom:none;
     overflow-y:auto;z-index:40;box-shadow:-8px 0 22px rgba(0,0,0,.5);}
   /* One column in a rail. Measured against three: the expected-action rows go
@@ -325,59 +449,163 @@ select:focus{border-color:#00e5ff;}
      and the states and actions — the two things touched constantly — both sit
      above the fold on a 768px screen. What scrolls off is the trigger prose
      and the monitor feed, which are read, not tapped. */
-  .run-cols{grid-template-columns:1fr;gap:12px;}
-  .run-head{flex-direction:column;align-items:stretch;}
+  body:not(.sheet-run) .run-cols{grid-template-columns:1fr;gap:12px;}
+  body:not(.sheet-run) .run-head{flex-direction:column;align-items:stretch;}
   /* The header is one flex row at full width; in a 380px rail it has to wrap
      or the End run button hangs off the edge of the screen. */
-  .run-head .rh-sp{margin-left:0;flex-wrap:wrap;}
-  .run-head .rh-sp input{flex:1 1 100%;width:100%;}
-  .run-head .rh-sp .end-btn{flex:1 1 auto;}
+  body:not(.sheet-run) .run-head .rh-sp{margin-left:0;flex-wrap:wrap;}
+  body:not(.sheet-run) .run-head .rh-sp input{flex:1 1 100%;width:100%;}
+  body:not(.sheet-run) .run-head .rh-sp .end-btn{flex:1 1 auto;}
   /* Out of flow here as well, so the wrapper has nothing to hold. */
-  #runWrap{margin-bottom:0;}
-  .run-mini{display:none !important;}
+  body:not(.sheet-run) #runWrap{margin-bottom:0;}
+  body:not(.sheet-run) .run-mini{display:none !important;}
+  /* Nothing to collapse in a rail — it costs no vertical space. */
+  body:not(.sheet-run) .rc-collapse{display:none;}
 }
-.run-cols .col-h{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
+.run-cols .col-h{font-size:.62rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
 .run-card .state-btn{margin-bottom:4px;}
 .run-card .sim-note{margin-top:8px;}
 .run-inline{display:flex;gap:8px;align-items:center;}
 
-/* The AHA checklist assesses team behaviour and CPR quality once for the whole
-   code rather than in any one rhythm, and ends in a PASS / NR. One strip under
-   the header, so it is never mistaken for a step in the state on screen. */
-.cl-wrap{margin-top:10px;border-top:1px solid #1e3a52;padding-top:8px;}
-.cl-head{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.66rem;color:var(--t);
-  padding:4px 2px;border-radius:5px;min-height:44px;}
-.cl-head:hover{background:#0d1b2a;}
-.cl-head:focus-visible{outline:2px solid #00c8e0;outline-offset:1px;}
-.cl-chev{color:var(--t-dim);width:10px;}
-.cl-tally{color:var(--t-dim);font-size:.6rem;}
-.cl-res{margin-left:auto;font-size:.6rem;letter-spacing:1px;color:var(--t-faint);}
-.cl-res.pass{color:#7fe0a5;} .cl-res.nr{color:#ff8844;}
-.cl-strip{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;
-  margin:0 0 10px;padding:8px 10px;border-radius:7px;background:#0a0f1a;border:1px solid #1e3a52;}
-.cl-grp{display:flex;flex-direction:column;gap:4px;}
-.cl-grp>.col-h{margin-bottom:1px;}
-.cl-row{display:flex;gap:10px;flex-wrap:wrap;}
-.cl-chk{display:flex;gap:5px;align-items:center;cursor:pointer;font-size:.63rem;color:var(--t);
-  padding:3px 7px;border-radius:5px;border:1px solid #1e3a52;transition:all .12s;
-  min-height:44px;box-sizing:border-box;}
-.cl-chk:hover{border-color:#00cc66;}
-.cl-chk.done{background:#04240f;border-color:#00cc66;color:#7fe0a5;}
-.cl-chk .box{width:12px;height:12px;border:1px solid #3a5570;border-radius:3px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#04240f;}
-.cl-chk.done .box{background:#00cc66;border-color:#00cc66;}
-.cl-num{display:flex;gap:5px;align-items:center;font-size:.63rem;color:var(--t-dim);}
-.cl-num input{width:52px;background:#0d1b2a;border:1px solid #1e3a52;border-radius:5px;
-  color:var(--t-strong);padding:3px 6px;font-size:.66rem;outline:none;text-align:right;
-  min-height:44px;box-sizing:border-box;}
-.cl-num input:focus{border-color:#00e5ff;}
-.res-grp{margin-left:auto;display:flex;gap:6px;align-items:center;}
-.res-btn{padding:5px 16px;border-radius:6px;border:1px solid #3a5570;background:#0d1b2a;min-height:44px;
+/* ── The check-off sheet ─────────────────────────────────────────────────────
+   A megacode is graded on the AHA Megacode Testing Checklist, and the instructor
+   grading it knows that sheet by its shape. So the run card lays the same shape
+   out: the student and the date of test at the head, one column of Critical
+   Performance Steps down the page in the published section order with the tick
+   box on the right, the Team Leader block the sheet opens with, and STOP TEST
+   over PASS / NR at the foot.
+
+   It replaces two things. The per-state actions column showed only the phase the
+   patient was in, so a step missed in bradycardia could not be ticked once the
+   patient was in VF — on paper the whole sheet is in front of you and you go
+   back up it. And team behaviour, CPR quality and the result were a separate
+   collapsed strip under the columns, which is not where they are on the form.
+
+   The sheet scrolls inside the card rather than growing it; the phase the
+   patient is in is highlighted and scrolled to as the run moves. */
+.sheet{border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  background:var(--inset-deep);max-height:min(58vh,540px);overflow-y:auto;}
+.sh-head{padding:8px 10px 7px;border-bottom:1px solid var(--border-strong);
+  background:var(--surface-2);position:sticky;top:0;z-index:2;}
+.sh-title{font-size:.7rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--t-strong);}
+.sh-sub{font-size:.62rem;color:var(--t-dim);margin-top:2px;line-height:1.35;}
+.sh-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:7px;font-size:.6rem;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--t-dim);}
+.sh-meta label{display:flex;align-items:center;gap:6px;flex:1 1 150px;margin:0;font-size:.6rem;}
+.sh-meta input{flex:1 1 auto;min-width:0;min-height:38px;background:transparent;border:none;
+  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:4px 4px;
+  font-family:inherit;font-size:.72rem;text-transform:none;letter-spacing:0;outline:none;}
+.sh-meta input:focus{border-bottom-color:var(--accent);}
+.sh-meta .writ{flex:1 1 auto;border-bottom:1px solid var(--border);padding:2px 3px;
+  color:var(--t);font-size:.66rem;text-transform:none;letter-spacing:0;}
+/* The form's own header and section bands. The printed sheet is the published
+   one in the published colours; this is the same furniture in the console's
+   key, so an instructor grading on screen is looking at the shape of the paper
+   they will hand in. */
+.sh-colhead{display:flex;gap:8px;padding:6px 10px;background:var(--aha-band);color:#fff;
+  font-size:.62rem;font-weight:bold;letter-spacing:.5px;font-style:italic;}
+.sh-colhead .sh-tick{margin-left:auto;flex:none;text-align:right;font-style:normal;
+  font-size:.54rem;letter-spacing:1px;text-transform:uppercase;}
+.sh-sec-h{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:.66rem;
+  font-weight:bold;letter-spacing:.5px;color:#fff;background:var(--aha-band);}
+.sh-sec-h .sh-n{margin-left:auto;font-weight:normal;font-size:.62rem;color:rgba(255,255,255,.85);
+  font-variant-numeric:tabular-nums;}
+/* The sub-heading inside the Team Leader band is a label, not a band. */
+.sh-sec-h.sub{background:none;color:var(--t-dim);font-style:italic;font-weight:normal;
+  padding:6px 10px 2px;}
+.sh-sec.now .sh-sec-h{box-shadow:inset 3px 0 0 var(--accent);}
+.sh-now{font-size:.54rem;letter-spacing:1px;text-transform:uppercase;color:var(--accent);
+  border:1px solid var(--accent);border-radius:20px;padding:1px 6px;font-weight:bold;}
+/* 40px, not the 30 these were. This is the most-tapped row in the program —
+   a facilitator checks 23 of them per megacode, standing up, often on a touch
+   screen — and 30px is below anything you can hit without looking. The height
+   costs the sheet ~230px, which its own scroll absorbs. */
+.sh-row{display:flex;gap:9px;align-items:center;padding:9px 10px;min-height:40px;cursor:pointer;
+  font-size:.72rem;line-height:1.35;color:var(--t);border-top:1px solid rgba(36,52,73,.5);}
+.sh-row:first-of-type{border-top:none;}
+.sh-row:hover{background:var(--inset);}
+.sh-row.done{color:#7fe0a5;}
+.sh-row .sh-txt{min-width:0;}
+/* The tick column, on the right where the form has it. */
+.sh-row .box{margin-left:auto;flex:0 0 15px;height:15px;border:1px solid var(--border-strong);
+  border-radius:3px;display:flex;align-items:center;justify-content:center;
+  font-size:.62rem;color:#04240f;background:var(--inset);}
+.sh-row.done .box{background:var(--ok);border-color:var(--ok);}
+/* A tick that came from the interventions strip or from a press at the
+   defibrillator rather than from the instructor's own eye. Dashed, and named,
+   because the person signing the sheet is still the one who decides. */
+.sh-row.auto .box{border-style:dashed;}
+.sh-row .auto-tag{flex:none;align-self:center;font-size:.54rem;letter-spacing:.5px;
+  text-transform:uppercase;color:#8fb6ff;white-space:nowrap;}
+.sh-write{display:flex;align-items:center;gap:8px;padding:5px 10px;min-height:40px;font-size:.68rem;
+  color:var(--t-dim);border-top:1px solid rgba(36,52,73,.5);}
+.sh-write input{width:70px;min-height:38px;margin-left:auto;background:var(--inset);
+  border:1px solid var(--border);border-radius:5px;color:var(--t-strong);padding:4px 8px;
+  font-family:inherit;font-size:.72rem;text-align:right;outline:none;}
+.sh-write input:focus{border-color:var(--accent);}
+.sh-write .sh-suffix{flex:none;width:34px;font-size:.6rem;color:var(--t-dim);}
+/* STOP TEST, then the result. Sticky at the foot of the sheet: it is the one
+   thing that must not be scrolled past at the end of a code. */
+.sh-stop{padding:6px 10px;border-top:1px solid var(--border-strong);background:var(--surface-2);
+  font-size:.56rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:var(--amber);}
+/* Not sticky. It was — so that PASS / NR was never out of reach — and in a
+   megacode it spent the whole code sitting on top of the steps being checked:
+   three rows of result and instructor fields covering the bottom third of the
+   form, exactly where the section the patient is in tends to land. It goes at
+   the foot of the sheet, where the paper form has it, and the run ends by
+   scrolling to it. */
+.sh-foot{background:var(--surface-2);border-top:1px solid var(--border-strong);
+  padding:10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;}
+.sh-foot .sh-res-lbl{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);}
+.sh-foot label{display:flex;align-items:center;gap:5px;margin:0;font-size:.58rem;
+  letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);flex:1 1 120px;}
+.sh-foot input{flex:1 1 auto;min-width:0;min-height:38px;background:transparent;border:none;
+  border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:4px 4px;
+  font-family:inherit;font-size:.72rem;text-transform:none;letter-spacing:0;outline:none;}
+.sh-foot input:focus{border-bottom-color:var(--accent);}
+.res-grp{display:flex;gap:6px;align-items:center;}
+
+/* One scrollbar, not two. The rail is already a tall scrolling column, and a
+   sheet with its own capped scroll inside it means scrolling the rail to find
+   the sheet and then scrolling the sheet to find the section, with the result
+   block hidden below both. In the rail the sheet runs its full length and the
+   rail scrolls it; the head and the result block stay stuck to the top and
+   bottom of the card, so the student's name and where PASS lives are both
+   always on screen.
+
+   After the rules it overrides, not inside the rail block further up: a media
+   query adds no specificity, and .sheet's own max-height is written later in
+   this file. */
+@media (min-width:1280px){
+  /* Only where the rail is actually in use. A megacode opts out of the rail
+     and re-caps the sheet's height — leaving `overflow:visible` on it there
+     made a 1368px form sit inside a 546px box with no way to scroll it. */
+  body:not(.sheet-run) .sheet{max-height:none;overflow:visible;}
+}
+.res-btn{padding:9px 18px;min-height:40px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
   color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
-.res-btn.pass.on{background:#04240f;border-color:#00cc66;color:#00cc66;}
+.res-btn.pass.on{background:#04240f;border-color:var(--ok);color:var(--ok);}
 .res-btn.nr.on{background:#2a0e00;border-color:#ff8844;color:#ff8844;}
 .res-btn:hover{border-color:var(--t-dim);}
-.run-inline input{flex:1;min-width:120px;}
+.run-inline input{flex:1;min-width:120px;min-height:36px;padding:6px 9px;font-size:.72rem;}
+
+/* The end-of-run prompt. Above the rail and the condensed bar, both of which
+   sit at z-index 40. */
+.modal-veil{position:fixed;inset:0;background:rgba(4,9,16,.72);z-index:100;
+  display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-veil[hidden]{display:none;}
+.modal{width:min(460px,100%);background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--radius);box-shadow:var(--shadow-float);padding:18px 20px 16px;}
+.modal h3{font-size:.86rem;color:var(--t-strong);letter-spacing:.5px;margin-bottom:6px;}
+.modal-sub{font-size:.68rem;color:var(--t-dim);margin-bottom:8px;}
+.modal-list{margin:0 0 16px 18px;padding:0;font-size:.72rem;line-height:1.7;color:var(--amber);}
+.modal-btns{display:flex;gap:10px;flex-wrap:wrap;}
+.modal-btn{flex:1 1 auto;min-height:44px;padding:11px 14px;border-radius:var(--radius-sm);
+  cursor:pointer;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--t);
+  font:700 .72rem/1.2 inherit;letter-spacing:.5px;}
+.modal-btn:hover{border-color:var(--accent);color:var(--t-strong);}
+.modal-btn.go{background:#04240f;border-color:var(--ok);color:var(--ok);}
+.modal-btn.go:hover{background:#06381a;}
 
 /* In a graded run the state list lives in the full-width card above, so the
    in-grid card would be a duplicate. Hiding it leaves a hole at column 3 row 2,
@@ -395,12 +623,12 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 /* Scenario brief — everything the facilitator would otherwise have the Word
    document open for. Collapsed by default; it is reference, not controls. */
-.brief-card{width:100%;max-width:960px;background:#0d1b2a;border:1px solid #1e3a52;
+.brief-card{width:100%;max-width:960px;background:var(--surface);border:1px solid var(--border);
   border-radius:10px;margin-bottom:12px;overflow:hidden;}
 .brief-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;
-  background:none;border:none;cursor:pointer;color:#ff9900;font-size:.7rem;font-weight:bold;
+  background:none;border:none;cursor:pointer;color:var(--amber);font-size:.7rem;font-weight:bold;
   letter-spacing:1.5px;text-transform:uppercase;text-align:left;}
-.brief-toggle:hover{background:#132638;}
+.brief-toggle:hover{background:var(--surface-2);}
 .brief-toggle .bchev{margin-left:auto;color:var(--t-dim);font-size:.8rem;}
 .brief-body{padding:2px 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;}
 /* `display:grid` from the rule above outranks the user-agent's [hidden] rule,
@@ -408,17 +636,17 @@ body.run-mode .card.bp{grid-row:1/3;}
    text pushing the run card off the bottom of every laptop screen. */
 .brief-body[hidden]{display:none;}
 @media (max-width:820px){.brief-body{grid-template-columns:1fr;}}
-.bsec h4{font-size:.58rem;color:#00e5ff;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;}
+.bsec h4{font-size:.58rem;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;}
 .bsec p{font-size:.68rem;color:var(--t);line-height:1.5;white-space:pre-line;margin-bottom:8px;}
 .bsec.wide{grid-column:1/-1;}
 .bsam{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:.66rem;}
 .bsam dt{color:var(--t-dim);white-space:nowrap;}
 .bsam dd{color:var(--t);}
-.bwithhold{font-size:.66rem;color:#ff9900;background:#2a1a00;border:1px solid #ff990044;
+.bwithhold{font-size:.66rem;color:var(--amber);background:#2a1a00;border:1px solid rgba(224,161,60,.35);
   border-radius:6px;padding:6px 10px;line-height:1.4;}
 
 /* Drug card — positioned via inline grid-column/row */
-.card.drugs h2{color:#ff6600;}
+.card.drugs h2{color:var(--drug);}
 .drug-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px;}
 
 /* ECG card spans rows 1-2 in col 1 */
@@ -435,23 +663,23 @@ body.run-mode .card.bp{grid-row:1/3;}
 .card.etco2{grid-column:2;grid-row:3;}
 .card.temp{grid-column:3;grid-row:3;}
 .drug-btn{
-  background:#0a0f1a;border:1px solid #1e3a52;border-radius:7px;
+  background:var(--inset);border:1px solid var(--border);border-radius:7px;
   padding:8px 6px;cursor:pointer;text-align:center;transition:all .2s;
   display:flex;flex-direction:column;align-items:center;gap:2px;
 }
-.drug-btn:hover{border-color:#ff6600;background:#1a0800;}
-.drug-btn.fired{border-color:#ff6600;background:#1a0800;animation:drugPulse .4s ease-out;}
-.drug-btn.running{border-color:#ff660088;background:#150700;}
-@keyframes drugPulse{0%{box-shadow:0 0 0 0 #ff660088}100%{box-shadow:0 0 0 12px #ff660000}}
+.drug-btn:hover{border-color:var(--drug);background:#1a0800;}
+.drug-btn.fired{border-color:var(--drug);background:#1a0800;animation:drugPulse .4s ease-out;}
+.drug-btn.running{border-color:var(--drug);background:#150700;}
+@keyframes drugPulse{0%{background:var(--surface-2);}100%{background:var(--inset);}}
 .drug-btn .dname{font-size:.68rem;font-weight:bold;color:#ff8844;line-height:1.2;}
 .drug-btn .ddose{font-size:.58rem;color:var(--t-dim);line-height:1.2;}
 .drug-btn .deffect{font-size:.55rem;color:var(--t-dim);line-height:1.2;margin-top:1px;}
-.drug-log{margin-top:10px;padding-top:8px;border-top:1px solid #1e3a52;max-height:90px;overflow-y:auto;}
+.drug-log{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);max-height:90px;overflow-y:auto;}
 .drug-log-entry{font-size:.6rem;color:var(--t);line-height:1.5;display:flex;justify-content:space-between;}
 .drug-log-entry .dlt{color:#ff8844;}
 .drug-log-entry .dltime{color:var(--t-dim);}
 .drug-clear{font-size:.6rem;color:var(--t-dim);cursor:pointer;text-align:right;margin-top:3px;}
-.drug-clear:hover{color:#ff6600;}
+.drug-clear:hover{color:var(--drug);}
 
 /* Make BP and SpO2 cards more compact */
 .card.bp label:first-of-type,.card.spo2 label:first-of-type{margin-top:0;}
@@ -476,25 +704,25 @@ body.run-mode .card.bp{grid-row:1/3;}
   display:flex;align-items:center;justify-content:center;gap:10px;
 }
 .connect-btn.disconnected{
-  background:#1a0000;border:2px solid #cc0000;color:#ff3333;
-  box-shadow:0 0 20px #cc000033;
-  animation:disconnectPulse 2s infinite;
+  background:rgba(242,104,107,.10);border:1px solid var(--danger);color:var(--danger);
+  box-shadow:var(--shadow);
+  animation:none;
 }
 @keyframes disconnectPulse{
-  0%,100%{box-shadow:0 0 12px #cc000033;}
-  50%{box-shadow:0 0 28px #cc000066;}
+  0%,100%{box-shadow:var(--shadow);}
+  50%{box-shadow:var(--shadow);}
 }
 .connect-btn.connected{
-  background:#001a00;border:2px solid #00cc00;color:#00ff00;
-  box-shadow:0 0 20px #00cc0033;
+  background:#001a00;border:2px solid #00cc00;color:var(--ecg);
+  box-shadow:var(--shadow);
   animation:none;
 }
 .connect-dot{
   width:10px;height:10px;border-radius:50%;
   display:inline-block;flex-shrink:0;
 }
-.connect-btn.disconnected .connect-dot{background:#ff3333;box-shadow:0 0 8px #ff3333;}
-.connect-btn.connected .connect-dot{background:#00ff00;box-shadow:0 0 8px #00ff00;}
+.connect-btn.disconnected .connect-dot{background:#ff3333;box-shadow:var(--shadow);}
+.connect-btn.connected .connect-dot{background:var(--ecg);box-shadow:var(--shadow);}
 .phys-btn{
   flex:0 0 180px;padding:14px 12px;font-size:.72rem;font-weight:bold;
   letter-spacing:2px;text-transform:uppercase;
@@ -502,11 +730,11 @@ body.run-mode .card.bp{grid-row:1/3;}
   display:flex;align-items:center;justify-content:center;gap:8px;
   border:2px solid;
 }
-.phys-btn.on{background:#001a33;border-color:#0088cc;color:#00aaff;box-shadow:0 0 16px #0088cc33;}
-.phys-btn.off{background:#1a1a1a;border-color:var(--t-dim);color:var(--t-dim);}
+.phys-btn.on{background:var(--accent-tint);border-color:var(--accent);color:var(--accent);}
+.phys-btn.off{background:var(--inset);border-color:var(--border);color:var(--t-dim);}
 .phys-btn:hover{opacity:.85;}
-.launch-btn{display:block;width:100%;max-width:960px;margin:20px auto 0;padding:16px;font-size:1rem;font-weight:bold;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,#003366,#005599);border:2px solid #00e5ff;border-radius:10px;color:#00e5ff;cursor:pointer;transition:all .2s;box-shadow:0 0 20px #00e5ff22;}
-.launch-btn:hover{background:linear-gradient(135deg,#004488,#0077bb);box-shadow:0 0 30px #00e5ff55;}
+.launch-btn{display:block;width:100%;max-width:960px;margin:20px auto 0;padding:16px;font-size:1rem;font-weight:bold;letter-spacing:3px;text-transform:uppercase;background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius);color:#fff;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.launch-btn:hover{background:var(--accent);box-shadow:var(--shadow);}
 
 /* Narrow screens. The three-column grid is authored against a 960px canvas;
    below that the explicit grid-column/grid-row placements have to be released
@@ -524,6 +752,11 @@ body.run-mode .card.bp{grid-row:1/3;}
   .grid{grid-template-columns:1fr;}
   .connect-bar{flex-direction:column;}
   .phys-btn{flex:none;}
+}
+/* A visible focus ring on every interactive control, so the panel is usable
+   from the keyboard at the back of the room without hunting for where focus is. */
+[role="button"]:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
 }
 </style>
 </head>
@@ -604,12 +837,26 @@ body.run-mode .card.bp{grid-row:1/3;}
 <div id="runSentinel" aria-hidden="true"></div>
 <div id="runWrap"><div class="card run-card" id="runCard" hidden></div></div>
 
+<!-- Asked before a run with gaps in it is filed. Part of the page rather than
+     window.confirm(), which a browser is free to suppress — see endRun(). -->
+<div class="modal-veil" id="endPrompt" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="endPromptTitle">
+    <h3 id="endPromptTitle">Save this run anyway?</h3>
+    <p class="modal-sub">This run is a competency record. It is missing:</p>
+    <ul class="modal-list" id="endPromptList"></ul>
+    <div class="modal-btns">
+      <button class="modal-btn" id="endPromptBack" onclick="closeEndPrompt()">← Go back and fix it</button>
+      <button class="modal-btn go" onclick="commitRun()">Save as it is</button>
+    </div>
+  </div>
+</div>
+
 <div class="grid">
 
 <!-- ECG -->
 <div class="card ecg">
   <h2>ECG / Heart Rate</h2>
-  <button id="btn12Lead" onclick="open12LeadCP()" style="width:100%;padding:10px;margin-bottom:10px;background:#001a2e;border:1px solid #00c8e0;border-radius:7px;color:#00c8e0;font-family:'Courier New',monospace;font-size:.75rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='#002a40'" onmouseout="this.style.background='#001a2e'">⊞ Open 12-Lead ECG</button>
+  <button id="btn12Lead" onclick="open12LeadCP()" style="width:100%;padding:10px;margin-bottom:10px;background:var(--inset);border:1px solid var(--accent);border-radius:7px;color:var(--accent);font-family:'Courier New',monospace;font-size:.75rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--inset)'">⊞ Open 12-Lead ECG</button>
   <label for="hr">Heart Rate (bpm)</label>
   <div class="row">
     <input type="range" id="hr" min="0" max="250" value="78" oninput="sv('hr',+this.value)">
@@ -647,8 +894,8 @@ body.run-mode .card.bp{grid-row:1/3;}
 
   <div class="rcat" style="margin-top:10px;">Ectopic Beats</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;">
-    <div class="rbtn" id="pvcBtn" onclick="toggleEctopic('pvc')" style="border-color:#ff8800;color:#ff8800;">PVC</div>
-    <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:#00aaff;color:#00aaff;">PAC</div>
+    <div class="rbtn" id="pvcBtn" onclick="toggleEctopic('pvc')" style="border-color:var(--amber);color:var(--amber);">PVC</div>
+    <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:var(--accent);color:var(--accent);">PAC</div>
   </div>
   <label for="ectFreq">Ectopic Frequency <span id="ectFreqLbl" style="color:var(--t);">— every 6 beats</span></label>
   <div class="row">
@@ -690,11 +937,11 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <!-- Drug Interactions — col 2, spans rows 1+2 -->
 <div class="card drugs" style="grid-column:2;grid-row:1/3;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e3a52;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">
     <h2 style="margin-bottom:0;padding-bottom:0;border-bottom:none;">Medications</h2>
     <button id="drugHoldBtn" onclick="toggleDrugHold()"
       style="padding:4px 10px;font-size:.62rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;
-             border-radius:5px;border:1px solid #555;background:#0a0f1a;color:var(--t);cursor:pointer;
+             border-radius:5px;border:1px solid var(--border);background:var(--inset);color:var(--t);cursor:pointer;
              transition:all .2s;white-space:nowrap;"
       title="Cancels every medication still running and keeps the vitals where they are now">
       ⏹ STOP MEDS
@@ -773,6 +1020,45 @@ body.run-mode .card.bp{grid-row:1/3;}
       <div class="dname">Push Dose Epi</div>
       <div class="ddose">10–20 mcg IV</div>
       <div class="deffect">↑↑HR · ↑↑BP · ↑SVR</div>
+    </div>
+
+    <!-- ACLS bradycardia and toxicology agents the megacodes call for: the
+         review found no way to record atropine, chronotropic infusions, or the
+         calcium-channel-blocker / hyperkalaemia therapies. -->
+    <div class="drug-btn" data-drug="atropine" onclick="giveDrug('atropine')">
+      <div class="dname">Atropine</div>
+      <div class="ddose">1 mg IV (max 3 mg)</div>
+      <div class="deffect">↑HR · ineffective if denervated/CCB</div>
+    </div>
+
+    <div class="drug-btn" data-drug="dopamine" onclick="giveDrug('dopamine')">
+      <div class="dname">Dopamine</div>
+      <div class="ddose">5–20 mcg/kg/min</div>
+      <div class="deffect">↑HR · ↑BP — chronotrope</div>
+    </div>
+
+    <div class="drug-btn" data-drug="calcium" onclick="giveDrug('calcium')">
+      <div class="dname">Calcium (Cl / gluconate)</div>
+      <div class="ddose">CaCl₂ 1 g IV</div>
+      <div class="deffect">membrane stability · CCB / ↑K⁺</div>
+    </div>
+
+    <div class="drug-btn" data-drug="bicarb" onclick="giveDrug('bicarb')">
+      <div class="dname">Sodium Bicarbonate</div>
+      <div class="ddose">1 mEq/kg IV</div>
+      <div class="deffect">↑K⁺ shift · acidosis — per protocol</div>
+    </div>
+
+    <div class="drug-btn" data-drug="insulin_dextrose" onclick="giveDrug('insulin_dextrose')">
+      <div class="dname">High-Dose Insulin</div>
+      <div class="ddose">1 U/kg bolus + infusion (w/ dextrose)</div>
+      <div class="deffect">inotropy — CCB/BB OD (slow)</div>
+    </div>
+
+    <div class="drug-btn" data-drug="glucagon" onclick="giveDrug('glucagon')">
+      <div class="dname">Glucagon</div>
+      <div class="ddose">3–10 mg IV</div>
+      <div class="deffect">↑HR · ↑BP — BB / CCB OD</div>
     </div>
 
   </div>
@@ -913,7 +1199,7 @@ body.run-mode .card.bp{grid-row:1/3;}
     </div>
     <div></div>
     <div>
-      <div style="font-size:.62rem;color:#ff6666;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
+      <div style="font-size:.62rem;color:var(--danger);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
       <div class="art-readings">
         <div class="arbox pulse wide"><div class="arl">Arterial BP</div><div class="arv" id="arBP">121 / 79</div><div class="aru">mmHg</div></div>
         <div class="arbox"><div class="arl">MAP</div><div class="arv" id="arMAP">93</div><div class="aru">mmHg</div></div>
@@ -921,7 +1207,7 @@ body.run-mode .card.bp{grid-row:1/3;}
         <div class="arbox"><div class="arl">Est. SVR</div><div class="arv" id="arSVR">—</div><div class="aru">dynes·s/cm⁵</div></div>
         <div class="arbox"><div class="arl">Est. SVI</div><div class="arv" id="arSVI">—</div><div class="aru">mL/beat/m²</div></div>
         <div class="arbox wide"><div class="arl">Waveform Quality</div><div class="arv" style="font-size:.85rem;" id="arDamp">Normal — Adequate fidelity</div></div>
-        <div class="arbox wide"><div class="arl">Access Site</div><div class="arv" style="font-size:.85rem;color:#ff8888;" id="arSite">Radial — Left</div></div>
+        <div class="arbox wide"><div class="arl">Access Site</div><div class="arv" style="font-size:.85rem;color:var(--danger);" id="arSite">Radial — Left</div></div>
       </div>
     </div>
   </div>
@@ -929,10 +1215,10 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <!-- Swan-Ganz Catheter (PA Catheter) -->
 <div class="card art" style="grid-column:span 3;margin-top:0;">
-  <h2 style="color:#00aaff;">Swan-Ganz / PA Catheter (P2)</h2>
+  <h2 style="color:var(--accent);">Swan-Ganz / PA Catheter (P2)</h2>
   <div class="art-toggle">
     <div class="art-btn" id="sgBtn" onclick="toggleSG()" style="border-color:var(--t-dim);color:var(--t-dim);">
-      <span class="dot" style="background:#333;"></span><span id="sgLbl">PA CATHETER OFF</span>
+      <span class="dot" style="background:var(--border-strong);"></span><span id="sgLbl">PA CATHETER OFF</span>
     </div>
     <span style="font-size:.65rem;color:var(--t-dim);">Displays PA waveform in P2 channel on monitor</span>
   </div>
@@ -982,14 +1268,14 @@ body.run-mode .card.bp{grid-row:1/3;}
       </select>
     </div>
     <div>
-      <div style="font-size:.62rem;color:#00aaff;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
+      <div style="font-size:.62rem;color:var(--accent);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;">Live Readings</div>
       <div class="art-readings">
-        <div class="arbox wide" style="border-color:#00aaff;background:#001428;"><div class="arl" style="color:#4488ff;">PA Pressure</div><div class="arv" id="sgPA" style="color:#4499ff;">--- / ---</div><div class="aru">mmHg</div></div>
-        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Mean PA</div><div class="arv" id="sgMPA" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
-        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">PCWP</div><div class="arv" id="sgPCWP" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
-        <div class="arbox" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">CVP</div><div class="arv" id="sgCVP" style="color:#4499ff;">---</div><div class="aru">mmHg</div></div>
-        <div class="arbox wide" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Waveform Mode</div><div class="arv" id="sgModeDisp" style="font-size:.85rem;color:#4499ff;">Pulmonary Artery (PA)</div></div>
-        <div class="arbox wide" style="border-color:#1e3a52;"><div class="arl" style="color:#4488ff;">Insertion Site</div><div class="arv" id="sgSiteDisp" style="font-size:.85rem;color:#4499ff;">Right Internal Jugular</div></div>
+        <div class="arbox wide" style="border-color:var(--accent);background:var(--accent-tint);"><div class="arl" style="color:var(--accent);">PA Pressure</div><div class="arv" id="sgPA" style="color:var(--accent);">--- / ---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">Mean PA</div><div class="arv" id="sgMPA" style="color:var(--accent);">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">PCWP</div><div class="arv" id="sgPCWP" style="color:var(--accent);">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">CVP</div><div class="arv" id="sgCVP" style="color:var(--accent);">---</div><div class="aru">mmHg</div></div>
+        <div class="arbox wide" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">Waveform Mode</div><div class="arv" id="sgModeDisp" style="font-size:.85rem;color:var(--accent);">Pulmonary Artery (PA)</div></div>
+        <div class="arbox wide" style="border-color:var(--border);"><div class="arl" style="color:var(--accent);">Insertion Site</div><div class="arv" id="sgSiteDisp" style="font-size:.85rem;color:var(--accent);">Right Internal Jugular</div></div>
       </div>
     </div>
   </div>
@@ -1145,6 +1431,7 @@ const DEF={
   patientConnected:false,
   scenario:'',
   etco2On:false,
+  ecg:null,
 };
 let S={...DEF};
 
@@ -1170,8 +1457,8 @@ function paint12Lead(){
   const btn=document.getElementById('btn12Lead');
   if(!btn) return;
   btn.textContent=cp12Open?'✕ Close 12-Lead ECG':'⊞ Open 12-Lead ECG';
-  btn.style.borderColor=cp12Open?'#ff4444':'#00c8e0';
-  btn.style.color=cp12Open?'#ff4444':'#00c8e0';
+  btn.style.borderColor=cp12Open?'#ff4444':'var(--accent)';
+  btn.style.color=cp12Open?'#ff4444':'var(--accent)';
 }
 function sync12Lead(open){
   if(open===cp12Open) return;
@@ -1210,6 +1497,8 @@ function flushSave(){
 // ── Connect Patient ───────────────────────────────────────────
 function toggleConnect(){
   S.patientConnected=!S.patientConnected;
+  crewDid.monitor=S.patientConnected;
+  if(!S.patientConnected) stopO2Trend();
   const btn=document.getElementById('connectBtn');
   const lbl=document.getElementById('connectLabel');
   if(S.patientConnected){
@@ -1236,8 +1525,8 @@ function toggleConnect(){
 function syncToggles(){
   const set=(id,fn)=>{const e=document.getElementById(id);if(e)fn(e);};
 
-  set('pvcBtn',b=>{b.style.background=S.pvcOn?'#2a1400':'';b.style.opacity=S.pvcOn?'1':'0.6';b.style.boxShadow=S.pvcOn?'0 0 8px #ff880066':'none';});
-  set('pacBtn',b=>{b.style.background=S.pacOn?'#001428':'';b.style.opacity=S.pacOn?'1':'0.6';b.style.boxShadow=S.pacOn?'0 0 8px #00aaff66':'none';});
+  set('pvcBtn',b=>{b.style.background=S.pvcOn?'rgba(224,161,60,.14)':'';b.style.opacity=S.pvcOn?'1':'0.6';b.style.boxShadow='none';});
+  set('pacBtn',b=>{b.style.background=S.pacOn?'var(--accent-tint)':'';b.style.opacity=S.pacOn?'1':'0.6';b.style.boxShadow='none';});
 
   set('etco2OnBtn',b=>{b.className='atog '+(S.etco2On?'on':'off');b.textContent=S.etco2On?'⬤ EtCO₂ ON':'⬤ EtCO₂ OFF';});
 
@@ -1258,6 +1547,9 @@ function syncToggles(){
 }
 
 function sv(k,v){
+  // The facilitator dragging saturation is them taking it back from the oxygen
+  // trend; a slider that springs back to where the model wanted it is unusable.
+  if(k==='spo2') stopO2Trend();
   S[k]=v;
   // Physiology lock first, so the value the A-Line mirrors is the corrected
   // one. Mirroring before the lock ran let refreshArt() write the unclamped
@@ -1284,10 +1576,10 @@ function toggleSG(){
   const lbl=document.getElementById('sgLbl');
   const inner=document.getElementById('sgInner');
   if(S.sgActive){
-    btn.style.borderColor='#00aaff';btn.style.background='#001428';btn.style.color='#00aaff';
-    btn.style.boxShadow='0 0 10px #00aaff44';
-    btn.querySelector('.dot').style.background='#00aaff';
-    btn.querySelector('.dot').style.boxShadow='0 0 6px #00aaff';
+    btn.style.borderColor='var(--accent)';btn.style.background='var(--accent-tint)';btn.style.color='var(--accent)';
+    btn.style.boxShadow='none';
+    btn.querySelector('.dot').style.background='var(--accent)';
+    btn.querySelector('.dot').style.boxShadow='none';
     lbl.textContent='PA CATHETER ACTIVE';
     inner.style.opacity='1';
   } else {
@@ -1535,24 +1827,24 @@ const SIMULATIONS={
   qs_normal:{name:'Normal Adult',subtitle:'Baseline Adult Patient',patientType:'Adult',states:[
     {label:'Initial State',color:'#00cc44',vitals:{hr:78,rhythm:'nsr',sbp:121,dbp:79,spo2:97,etco2:36,rr:12,temp:36.9},display:'HR 78 | BP 121/79 | SpO₂ 97% | EtCO₂ 36 | RR 12',note:'Patient stable. Normal sinus rhythm. All vitals within normal limits.'},
     {label:'Slightly Worsening',color:'#ffcc00',vitals:{hr:95,rhythm:'nsr',sbp:108,dbp:70,spo2:95,etco2:38,rr:16,temp:37.2},display:'HR 95 | BP 108/70 | SpO₂ 95% | EtCO₂ 38 | RR 16',note:'Mild deterioration. Slight tachycardia, BP trending down. Monitor closely and identify cause.'},
-    {label:'Worsening',color:'#ff6600',vitals:{hr:118,rhythm:'tachy',sbp:90,dbp:58,spo2:92,etco2:42,rr:22,temp:37.6},display:'HR 118 | BP 90/58 | SpO₂ 92% | EtCO₂ 42 | RR 22',note:'Significant deterioration. Tachycardia, hypotension, dropping SpO₂. Intervention required immediately.'},
+    {label:'Worsening',color:'var(--drug)',vitals:{hr:118,rhythm:'tachy',sbp:90,dbp:58,spo2:92,etco2:42,rr:22,temp:37.6},display:'HR 118 | BP 90/58 | SpO₂ 92% | EtCO₂ 42 | RR 22',note:'Significant deterioration. Tachycardia, hypotension, dropping SpO₂. Intervention required immediately.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:82,rhythm:'nsr',sbp:118,dbp:76,spo2:97,etco2:36,rr:14,temp:37.0},display:'HR 82 | BP 118/76 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Patient responding to treatment. Vitals improving toward normal limits.'},
   ]},
   qs_tachy:{name:'Sinus Tachycardia',subtitle:'Compensatory — Unknown Etiology',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:130,rhythm:'tachy',sbp:105,dbp:68,spo2:96,etco2:38,rr:18,temp:37.4},display:'HR 130 | BP 105/68 | SpO₂ 96% | EtCO₂ 38 | RR 18',note:'Sinus tachycardia. Identify and treat underlying cause — pain, hypovolemia, fever, anxiety.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:142,rhythm:'tachy',sbp:96,dbp:62,spo2:94,etco2:40,rr:22,temp:37.8},display:'HR 142 | BP 96/62 | SpO₂ 94% | EtCO₂ 40 | RR 22',note:'HR increasing, BP dropping. Underlying cause not adequately treated. Increase fluids, assess for hemorrhage.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:130,rhythm:'tachy',sbp:105,dbp:68,spo2:96,etco2:38,rr:18,temp:37.4},display:'HR 130 | BP 105/68 | SpO₂ 96% | EtCO₂ 38 | RR 18',note:'Sinus tachycardia. Identify and treat underlying cause — pain, hypovolemia, fever, anxiety.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:142,rhythm:'tachy',sbp:96,dbp:62,spo2:94,etco2:40,rr:22,temp:37.8},display:'HR 142 | BP 96/62 | SpO₂ 94% | EtCO₂ 40 | RR 22',note:'HR increasing, BP dropping. Underlying cause not adequately treated. Increase fluids, assess for hemorrhage.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:158,rhythm:'tachy',sbp:82,dbp:50,spo2:90,etco2:28,rr:28,temp:38.2},display:'HR 158 | BP 82/50 | SpO₂ 90% | EtCO₂ 28 | RR 28',note:'Decompensating. Severe tachycardia with hypotension and hypoxia. Aggressive resuscitation required.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:114,dbp:72,spo2:97,etco2:36,rr:16,temp:37.2},display:'HR 102 | BP 114/72 | SpO₂ 97% | EtCO₂ 36 | RR 16',note:'Responding to treatment. HR trending down, BP improving. Continue monitoring and treat underlying cause.'},
   ]},
   qs_brady:{name:'Sinus Bradycardia',subtitle:'Symptomatic Bradycardia',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:40,rhythm:'brady',sbp:88,dbp:55,spo2:95,etco2:34,rr:22,temp:36.2},display:'HR 40 | BP 88/55 | SpO₂ 95% | EtCO₂ 34 | RR 22',note:'Symptomatic bradycardia. Assess hemodynamic instability. Consider Atropine 0.5mg IV or transcutaneous pacing.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:34,rhythm:'brady',sbp:80,dbp:48,spo2:93,etco2:30,rr:18,temp:36.1},display:'HR 34 | BP 80/48 | SpO₂ 93% | EtCO₂ 30 | RR 18',note:'HR dropping. Hypotension worsening. Initiate transcutaneous pacing. Dopamine/Epinephrine infusion if needed.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:40,rhythm:'brady',sbp:88,dbp:55,spo2:95,etco2:34,rr:22,temp:36.2},display:'HR 40 | BP 88/55 | SpO₂ 95% | EtCO₂ 34 | RR 22',note:'Symptomatic bradycardia. Assess hemodynamic instability. Consider Atropine 0.5mg IV or transcutaneous pacing.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:34,rhythm:'brady',sbp:80,dbp:48,spo2:93,etco2:30,rr:18,temp:36.1},display:'HR 34 | BP 80/48 | SpO₂ 93% | EtCO₂ 30 | RR 18',note:'HR dropping. Hypotension worsening. Initiate transcutaneous pacing. Dopamine/Epinephrine infusion if needed.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:28,rhythm:'brady',sbp:68,dbp:40,spo2:88,etco2:22,rr:10,temp:36.0},display:'HR 28 | BP 68/40 | SpO₂ 88% | EtCO₂ 22 | RR 10',note:'Severe bradycardia with cardiogenic shock. Immediate TCP or transvenous pacing. Push-dose Epi. Airway management.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:62,rhythm:'nsr',sbp:110,dbp:70,spo2:97,etco2:36,rr:14,temp:36.5},display:'HR 62 | BP 110/70 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Effective pacing or Atropine response. Hemodynamics improving. Prepare for transport.'},
   ]},
   qs_afib:{name:'Atrial Fibrillation',subtitle:'New Onset A-Fib with RVR',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:110,rhythm:'afib',sbp:118,dbp:76,spo2:96,etco2:35,rr:14,temp:37.1},display:'HR 110 | BP 118/76 | SpO₂ 96% | EtCO₂ 35 | RR 14',note:'A-Fib with controlled rate. Mildly symptomatic. Assess for hemodynamic instability and stroke risk.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:138,rhythm:'afib_rvr',sbp:104,dbp:66,spo2:94,etco2:36,rr:18,temp:37.2},display:'HR 138 | BP 104/66 | SpO₂ 94% | EtCO₂ 36 | RR 18',note:'Rate increasing — now RVR. BP dropping. Consider rate control: Diltiazem or Metoprolol if stable.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:110,rhythm:'afib',sbp:118,dbp:76,spo2:96,etco2:35,rr:14,temp:37.1},display:'HR 110 | BP 118/76 | SpO₂ 96% | EtCO₂ 35 | RR 14',note:'A-Fib with controlled rate. Mildly symptomatic. Assess for hemodynamic instability and stroke risk.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:138,rhythm:'afib_rvr',sbp:104,dbp:66,spo2:94,etco2:36,rr:18,temp:37.2},display:'HR 138 | BP 104/66 | SpO₂ 94% | EtCO₂ 36 | RR 18',note:'Rate increasing — now RVR. BP dropping. Consider rate control: Diltiazem or Metoprolol if stable.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:162,rhythm:'afib_rvr',sbp:86,dbp:54,spo2:91,etco2:34,rr:22,temp:37.3},display:'HR 162 | BP 86/54 | SpO₂ 91% | EtCO₂ 34 | RR 22',note:'Unstable A-Fib with RVR. Hemodynamically compromised. Synchronized cardioversion indicated. Sedate if conscious.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:88,rhythm:'afib',sbp:116,dbp:74,spo2:97,etco2:36,rr:14,temp:37.1},display:'HR 88 | BP 116/74 | SpO₂ 97% | EtCO₂ 36 | RR 14',note:'Rate controlled. Hemodynamics improved. Anticoagulation per protocol. Transport to ED.'},
   ]},
@@ -1564,14 +1856,14 @@ const SIMULATIONS={
   ]},
   qs_vtach:{name:'Ventricular Tachycardia',subtitle:'Unstable V-Tach',patientType:'Adult',states:[
     {label:'Initial State',color:'#ff3333',vitals:{hr:180,rhythm:'vtach',sbp:62,dbp:30,spo2:88,etco2:56,rr:28,temp:37.0},display:'HR 180 | BP 62/30 | SpO₂ 88% | EtCO₂ 56 | RR 28',note:'Unstable V-Tach. Severe hemodynamic compromise. Synchronized cardioversion 100J. Sedate if conscious. Amiodarone 150mg.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:188,rhythm:'vtach',sbp:58,dbp:34,spo2:84,etco2:15,rr:24,temp:37.1},display:'HR 188 | BP 58/34 | SpO₂ 84% | EtCO₂ 15 | RR 24',note:'Hemodynamics worsening. Cardioversion not effective. Repeat shock at higher energy. Amiodarone infusion.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:188,rhythm:'vtach',sbp:58,dbp:34,spo2:84,etco2:15,rr:24,temp:37.1},display:'HR 188 | BP 58/34 | SpO₂ 84% | EtCO₂ 15 | RR 24',note:'Hemodynamics worsening. Cardioversion not effective. Repeat shock at higher energy. Amiodarone infusion.'},
     {label:'Worsening (Pulseless)',color:'#cc0000',vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:37.0},display:'HR 0 | V-Fib | BP 0/0 | Pulseless Arrest',note:'Deteriorated to pulseless V-Fib. Unsynchronized defibrillation 200J. CPR. Epi 1mg. Amiodarone 300mg.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:88,rhythm:'nsr',sbp:104,dbp:66,spo2:95,etco2:36,rr:16,temp:37.0},display:'HR 88 | BP 104/66 | SpO₂ 95% | EtCO₂ 36 | RR 16',note:'Converted to NSR. Continue Amiodarone infusion. 12-lead ECG. Transport to cath lab if STEMI.'},
   ]},
   qs_asystole:{name:'Asystole',subtitle:'Non-Shockable Cardiac Arrest',patientType:'Adult',states:[
     {label:'Initial State',color:'#ff3333',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:0,rr:0,temp:36.5},display:'HR 0 | Asystole | BP 0/0 | SpO₂ 0%',note:'Asystole confirmed in 2 leads. CPR immediately. Epi 1mg IV/IO every 3–5 min. Search for reversible causes.'},
     {label:'Worsening',color:'#880000',vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:2,rr:0,temp:36.3},display:'HR 0 | Asystole | EtCO₂ 2 | Prolonged',note:'Prolonged asystole. Consider termination of efforts per medical direction if no reversible cause found.'},
-    {label:'Slightly Improved',color:'#ff6600',vitals:{hr:18,rhythm:'junctional',sbp:20,dbp:6,spo2:0,etco2:0,rr:0,temp:36.3},display:'HR 18 | Junctional Escape | BP 20/6 | SpO₂ 0% | EtCO₂ 0',note:'Junctional escape rhythm at 18 bpm. Narrow QRS, no visible P wave. Electrical activity present but no effective perfusion — confirm no pulse. Continue CPR. Epi 1mg IV/IO. Do not confuse with ROSC.'},
+    {label:'Slightly Improved',color:'var(--drug)',vitals:{hr:18,rhythm:'junctional',sbp:20,dbp:6,spo2:0,etco2:0,rr:0,temp:36.3},display:'HR 18 | Junctional Escape | BP 20/6 | SpO₂ 0% | EtCO₂ 0',note:'Junctional escape rhythm at 18 bpm. Narrow QRS, no visible P wave. Electrical activity present but no effective perfusion — confirm no pulse. Continue CPR. Epi 1mg IV/IO. Do not confuse with ROSC.'},
     {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:48,rhythm:'brady',sbp:63,dbp:31,spo2:73,etco2:26,rr:8,temp:36.5},display:'HR 48 | ROSC | BP 63/31 | SpO₂ 73% | EtCO₂ 26 | RR 8',note:'ROSC — bradycardic, hypotensive. Vasopressors for hypotension. Targeted temp management. 12-lead ECG. Rapid transport.'},
   ]},
   qs_pea:{name:'PEA (Pulseless Electrical Activity)',subtitle:'Organized Rhythm — No Pulse',patientType:'Adult',states:[
@@ -1581,26 +1873,26 @@ const SIMULATIONS={
     {label:'Improved (ROSC)',color:'#00cc44',vitals:{hr:53,rhythm:'brady',sbp:76,dbp:33,spo2:82,etco2:27,rr:14,temp:36.6},display:'HR 53 | ROSC | BP 76/33 | SpO₂ 82% | EtCO₂ 27',note:'ROSC after reversible cause treated. Bradycardic, hypotensive — vasopressors and airway support. 12-lead ECG. Transport immediately.'},
   ]},
   qs_shock:{name:'Septic Shock',subtitle:'Undifferentiated Septic Shock',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:125,rhythm:'tachy',sbp:78,dbp:45,spo2:93,etco2:28,rr:27,temp:38.8},display:'HR 125 | BP 78/45 | SpO₂ 93% | EtCO₂ 28 | RR 27',note:'Septic shock. Fluid resuscitation 30mL/kg. Blood cultures, broad-spectrum antibiotics. Vasopressors if no fluid response.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:138,rhythm:'tachy',sbp:68,dbp:38,spo2:90,etco2:24,rr:30,temp:39.2},display:'HR 138 | BP 68/38 | SpO₂ 90% | EtCO₂ 24 | RR 30',note:'Worsening despite fluids. Initiate Norepinephrine. Supplemental O₂/CPAP. Consider intubation if respiratory failure.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:125,rhythm:'tachy',sbp:78,dbp:45,spo2:93,etco2:28,rr:27,temp:38.8},display:'HR 125 | BP 78/45 | SpO₂ 93% | EtCO₂ 28 | RR 27',note:'Septic shock. Fluid resuscitation 30mL/kg. Blood cultures, broad-spectrum antibiotics. Vasopressors if no fluid response.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:138,rhythm:'tachy',sbp:68,dbp:38,spo2:90,etco2:24,rr:30,temp:39.2},display:'HR 138 | BP 68/38 | SpO₂ 90% | EtCO₂ 24 | RR 30',note:'Worsening despite fluids. Initiate Norepinephrine. Supplemental O₂/CPAP. Consider intubation if respiratory failure.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:148,rhythm:'tachy',sbp:56,dbp:30,spo2:86,etco2:18,rr:34,temp:39.6},display:'HR 148 | BP 56/30 | SpO₂ 86% | EtCO₂ 18 | RR 34',note:'Refractory septic shock. RSI indicated. Vasopressin add-on. Hydrocortisone. Emergent transport to ICU.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:108,rhythm:'tachy',sbp:94,dbp:60,spo2:96,etco2:32,rr:20,temp:38.4},display:'HR 108 | BP 94/60 | SpO₂ 96% | EtCO₂ 32 | RR 20',note:'MAP improving >65 with vasopressors. SpO₂ recovering. Continue resuscitation en route. Reassess every 5 min.'},
   ]},
   qs_hypertensive:{name:'Hypertensive Crisis',subtitle:'Hypertensive Emergency',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:103,rhythm:'nsr',sbp:210,dbp:130,spo2:95,etco2:37,rr:16,temp:37.0},display:'HR 103 | BP 210/130 | SpO₂ 95% | EtCO₂ 37 | RR 16',note:'Hypertensive emergency. Assess for end-organ damage. Nitroglycerin or Labetalol per protocol. Avoid rapid BP drops.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:110,rhythm:'nsr',sbp:228,dbp:140,spo2:94,etco2:38,rr:18,temp:37.1},display:'HR 110 | BP 228/140 | SpO₂ 94% | EtCO₂ 38 | RR 18',note:'BP rising further. New neuro symptoms or chest pain? Initiate antihypertensive. 10–20% reduction goal first hour.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:103,rhythm:'nsr',sbp:210,dbp:130,spo2:95,etco2:37,rr:16,temp:37.0},display:'HR 103 | BP 210/130 | SpO₂ 95% | EtCO₂ 37 | RR 16',note:'Hypertensive emergency. Assess for end-organ damage. Nitroglycerin or Labetalol per protocol. Avoid rapid BP drops.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:110,rhythm:'nsr',sbp:228,dbp:140,spo2:94,etco2:38,rr:18,temp:37.1},display:'HR 110 | BP 228/140 | SpO₂ 94% | EtCO₂ 38 | RR 18',note:'BP rising further. New neuro symptoms or chest pain? Initiate antihypertensive. 10–20% reduction goal first hour.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:118,rhythm:'nsr',sbp:244,dbp:152,spo2:91,etco2:40,rr:22,temp:37.2},display:'HR 118 | BP 244/152 | SpO₂ 91% | EtCO₂ 40 | RR 22',note:'Hypertensive crisis with pulmonary edema or stroke. Aggressive airway management. Nitroglycerin drip. Emergent transport.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:92,rhythm:'nsr',sbp:178,dbp:108,spo2:96,etco2:37,rr:14,temp:37.0},display:'HR 92 | BP 178/108 | SpO₂ 96% | EtCO₂ 37 | RR 14',note:'BP trending down with treatment. Neurological status stable. Goal SBP <180 initially. Continue en route.'},
   ]},
   qs_hypotensive:{name:'Hypotensive Crisis',subtitle:'Undifferentiated Hypotension',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:118,rhythm:'tachy',sbp:72,dbp:42,spo2:94,etco2:30,rr:22,temp:36.8},display:'HR 118 | BP 72/42 | SpO₂ 94% | EtCO₂ 30 | RR 22',note:'Hypotension — identify cause. IV access ×2, fluid bolus, supine positioning, O₂. Reassess after 500mL.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:132,rhythm:'tachy',sbp:62,dbp:36,spo2:92,etco2:26,rr:26,temp:36.7},display:'HR 132 | BP 62/36 | SpO₂ 92% | EtCO₂ 26 | RR 26',note:'Worsening despite fluids. Push Dose Epi. Reassess for tension pneumo, tamponade, hemorrhage. Norepinephrine if distributive.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:118,rhythm:'tachy',sbp:72,dbp:42,spo2:94,etco2:30,rr:22,temp:36.8},display:'HR 118 | BP 72/42 | SpO₂ 94% | EtCO₂ 30 | RR 22',note:'Hypotension — identify cause. IV access ×2, fluid bolus, supine positioning, O₂. Reassess after 500mL.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:132,rhythm:'tachy',sbp:62,dbp:36,spo2:92,etco2:26,rr:26,temp:36.7},display:'HR 132 | BP 62/36 | SpO₂ 92% | EtCO₂ 26 | RR 26',note:'Worsening despite fluids. Push Dose Epi. Reassess for tension pneumo, tamponade, hemorrhage. Norepinephrine if distributive.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:148,rhythm:'tachy',sbp:50,dbp:28,spo2:88,etco2:20,rr:30,temp:36.5},display:'HR 148 | BP 50/28 | SpO₂ 88% | EtCO₂ 20 | RR 30',note:'Decompensated shock. Impending arrest. RSI if airway compromised. Vasopressors. Blood products if hemorrhagic.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:102,rhythm:'tachy',sbp:90,dbp:58,spo2:95,etco2:32,rr:18,temp:36.8},display:'HR 102 | BP 90/58 | SpO₂ 95% | EtCO₂ 32 | RR 18',note:'MAP improving. Continue resuscitation. Vasopressors titrated. Goal MAP >65. Rapid transport to definitive care.'},
   ]},
   qs_hypoxia:{name:'Hypoxia',subtitle:'Acute Hypoxic Respiratory Failure',patientType:'Adult',states:[
-    {label:'Initial State',color:'#ff9900',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
-    {label:'Slightly Worsening',color:'#ff6600',vitals:{hr:128,rhythm:'tachy',sbp:94,dbp:60,spo2:76,etco2:58,rr:32,temp:37.4},display:'HR 128 | BP 94/60 | SpO₂ 76% | EtCO₂ 58 | RR 32',note:'Worsening hypoxia. CPAP/BiPAP initiated? Consider RSI if patient tiring. Albuterol if bronchospasm.'},
+    {label:'Initial State',color:'var(--amber)',vitals:{hr:115,rhythm:'tachy',sbp:100,dbp:65,spo2:82,etco2:52,rr:28,temp:37.2},display:'HR 115 | BP 100/65 | SpO₂ 82% | EtCO₂ 52 | RR 28',o2Response:{target:94,perMin:14},note:'Severe hypoxia with hypercapnia. High-flow O₂ or BVM. Identify cause. Consider CPAP/BiPAP.'},
+    {label:'Slightly Worsening',color:'var(--drug)',vitals:{hr:128,rhythm:'tachy',sbp:94,dbp:60,spo2:76,etco2:58,rr:32,temp:37.4},display:'HR 128 | BP 94/60 | SpO₂ 76% | EtCO₂ 58 | RR 32',note:'Worsening hypoxia. CPAP/BiPAP initiated? Consider RSI if patient tiring. Albuterol if bronchospasm.'},
     {label:'Worsening',color:'#ff3333',vitals:{hr:140,rhythm:'tachy',sbp:82,dbp:50,spo2:68,etco2:66,rr:38,temp:37.6},display:'HR 140 | BP 82/50 | SpO₂ 68% | EtCO₂ 66 | RR 38',note:'Respiratory failure — RSI indicated. Pre-oxygenate aggressively. Post-intubation vent management critical.'},
     {label:'Improved',color:'#00cc44',vitals:{hr:104,rhythm:'tachy',sbp:108,dbp:68,spo2:94,etco2:42,rr:18,temp:37.2},display:'HR 104 | BP 108/68 | SpO₂ 94% | EtCO₂ 42 | RR 18',note:'SpO₂ improving with intervention. Titrate FiO₂. Address underlying cause. Reassess frequently en route.'},
   ]},
@@ -1613,9 +1905,10 @@ const SIMULATIONS={
       {
         id:'initial',
         label:'Initial State',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:128,rhythm:'tachy',sbp:92,dbp:58,spo2:82,etco2:65,rr:7,temp:34.5},
         display:'HR 128 | BP 92/58 | SpO₂ 82% | EtCO₂ 65 | RR 7 | Temp 34.5°C',
+        o2Response:{target:90,perMin:10,why:'Aspiration and shunt — oxygen helps but will not reach normal without positive pressure and PEEP.'},
         note:'Patient found in recovery position. Gurgling frothy secretions. Shallow/irregular breathing. GCS 9.',
       },
       {
@@ -1652,15 +1945,16 @@ const SIMULATIONS={
       {
         id:'initial',
         label:'Initial State',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:122,rhythm:'tachy',sbp:116,dbp:70,spo2:90,etco2:50,rr:32,temp:37.0,co2Shape:'shark'},
         display:'HR 122 | BP 116/70 | SpO₂ 90% | EtCO₂ 50 | RR 32 | Shark-fin',
+        o2Response:{responds:false,why:'Severe bronchospasm — oxygen alone will not shift this. The scenario states the patient does not improve without albuterol and epinephrine.'},
         note:'Tripoding, anxious. Speaks 2–3 words. Diffuse expiratory wheeze, prolonged expiration. GCS 15. Initiate nebulizer/MDI — patient will worsen after 5 min regardless.',
       },
       {
         id:'slightly_worsening',
         label:'Slightly Worsening State',
-        color:'#ff6600',
+        color:'var(--drug)',
         vitals:{hr:134,rhythm:'tachy',sbp:116,dbp:70,spo2:89,etco2:55,rr:30,temp:37.0,co2Shape:'shark'},
         display:'HR 134 | BP 116/70 | SpO₂ 89% | EtCO₂ 55 | RR 30 | Shark-fin',
         note:'Speaks 1-word sentences. Initiate BiPAP (IPAP ~10, EPAP ~6). Give epinephrine, magnesium 2g, steroids. Failure to do so → Worsening State. Avoid intubation.',
@@ -1691,7 +1985,7 @@ const SIMULATIONS={
       {
         id:'phase1',
         label:'Phase 1 — Initial State',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:132,rhythm:'tachy',sbp:78,dbp:50,spo2:92,etco2:30,rr:28,temp:35.5},
         display:'HR 132 | BP 78/50 | SpO₂ 92% | EtCO₂ 30 | RR 28 | Temp 35.5°C',
         note:'Pt on backboard, moaning, pale/cool/diaphoretic, abdomen distended, GCS 9. Expected: Scene safety, pelvic binder, permissive hypotension (SBP 80–90), TXA, blood/fluids, RSI prep. → Improvement if actions within 5 min. → Deterioration if delayed.',
@@ -1730,7 +2024,7 @@ const SIMULATIONS={
       {
         id:'primary_assessment',
         label:'Primary Assessment by Crew',
-        color:'#ff9900',
+        color:'var(--amber)',
         vitals:{hr:87,rhythm:'nsr',sbp:135,dbp:75,spo2:96,etco2:44,rr:14,temp:37.1},
         display:'HR 87 | BP 135/75 | SpO₂ 96% | EtCO₂ 44 | RR 14 | Temp 37.1°C',
         note:'Lethargic, opens eyes to pain, inappropriate words, withdraws from pain. GCS 10. Pupils 3mm sluggish. Hematoma L forehead, C-collar present, dry emesis in airway, coughing/dry heaving. Expected: Intubate (RSI per Broselow) — aspiration risk + declining GCS. If no intubation → Decompensation state.',
@@ -1738,7 +2032,7 @@ const SIMULATIONS={
       {
         id:'intubated_icp',
         label:'Intubated — Increased ICP',
-        color:'#ff6600',
+        color:'var(--drug)',
         vitals:{hr:67,rhythm:'brady',sbp:147,dbp:79,spo2:98,etco2:38,rr:16,temp:37.1},
         display:'HR 67 | BP 147/79 | SpO₂ 98% | EtCO₂ 38 | RR 16 (vent)',
         note:'Post-intubation, paralytic wearing off — irregular spontaneous breaths. Pupils 6mm non-reactive. Signs of ↑ICP. → SEIZURE: HR 54, BP 127/71, SpO₂ 84%, rigidity all extremities. Expected: Recognize ↑ICP, treat seizure per PCG, administer 3% HTS or Mannitol, HOB elevated, neutral neck. If seizure treated + HTS/Mannitol → Stabilization. If seizure treated only → Post-Ictal Herniation.',
@@ -1780,14 +2074,16 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_pvt_pea',
     states:[
-      {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia',color:'var(--amber)',
        vitals:{hr:38,rhythm:'brady',sbp:78,dbp:42,spo2:92,etco2:34,rr:18,temp:36.8,pvcOn:true},
        display:'HR 38 | BP 78/42 | SpO₂ 92% | EtCO₂ 34 | RR 18',
-       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.'},
+       note:'Sinus bradycardia with occasional PVC. Conscious and alert, pale and diaphoretic, not following commands. No radial pulse; carotid weak and slow.',
+       coach:'Adult Bradycardia Algorithm (2025 AHA): atropine first; if it fails or is inadequate, move to transcutaneous pacing and/or a dopamine or epinephrine infusion. Record the pacing and the infusion — not just the atropine.'},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:180,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:18,rr:0,temp:36.8,pvcOn:false},
        display:'HR 180 | Pulseless VT | BP 0/0 | EtCO₂ 18',
-       note:'With the introduction of the pacing impulse the monitor displays VT and there is no pulse. Pacing should be discontinued and the patient defibrillated.'},
+       note:'With the introduction of the pacing impulse the monitor displays VT and there is no pulse. Pacing should be discontinued and the patient defibrillated.',
+       advanceOn:{shocks:3,note:'The manual moves the patient to an organized rhythm after the third shock.'}},
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:40,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:20,rr:0,temp:36.7},
        display:'HR 40 | PEA | BP 0/0 | EtCO₂ 20',
@@ -1803,14 +2099,16 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_vf_asys',
     states:[
-      {id:'brady',label:'Unstable Bradycardia',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia',color:'var(--amber)',
        vitals:{hr:44,rhythm:'brady',sbp:84,dbp:50,spo2:88,etco2:30,rr:3,temp:36.6},
        display:'HR 44 | BP 84/50 | SpO₂ 88% | EtCO₂ 30 | RR 3',
-       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.'},
+       note:'Sinus bradycardia on the limb leads; 12-lead not suspicious for injury or ischaemia. During IV access the patient has a 5-second grand mal seizure and remains unresponsive.',
+       coach:'Adult Bradycardia Algorithm (2025 AHA): atropine first, then transcutaneous pacing and/or a dopamine or epinephrine infusion if it is inadequate. This patient is also barely breathing (RR 3) — support ventilation early.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:22,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 22',
-       note:'No respirations and no pulse. After the first 2 minutes of CPR the rhythm is still VF. EtCO₂ 22 mmHg with an advanced airway placed.'},
+       note:'No respirations and no pulse. After the first 2 minutes of CPR the rhythm is still VF. EtCO₂ 22 mmHg with an advanced airway placed.',
+       advanceOn:{shocks:2,note:'Shock, 2 minutes of CPR, a second shock — then the rhythm is asystole.'}},
       {id:'asystole',label:'Asystole',color:'#880000',
        vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:14,rr:0,temp:36.4},
        display:'Asystole | BP 0/0 | EtCO₂ 14',
@@ -1826,21 +2124,24 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_pvt_pea',
     states:[
-      {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia — 3° AV Block',color:'var(--amber)',
        vitals:{hr:32,rhythm:'hb3',sbp:86,dbp:48,spo2:96,etco2:36,rr:18,temp:36.7},
-       display:'HR 32 | BP 86/48 Doppler | SpO₂ 96% | RR 18',
-       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.'},
+       display:'HR 32 | SBP 86 (Doppler) | SpO₂ 96% | RR 18',
+       note:'Third-degree AV block with wider QRS at 32. Grossly diaphoretic, pale and grey. Heart transplant 2 years ago — atropine will have no effect because of denervation. 12-lead suspicious for injury in II, III, aVF; V4R flat. Allergic to sulfa.',
+       ecg:{qrs:140,interp:'*** ACUTE INFERIOR INJURY — ST elevation II, III, aVF (III > II); V4R flat, no right-ventricular ST elevation ***'},
+       coach:'Transplanted (denervated) heart: atropine is typically ineffective — do not wait on it. Go early to transcutaneous pacing and chronotropic support (dopamine or epinephrine infusion). ACC/AHA/HRS bradycardia guidance.'},
       {id:'pvt',label:'Pulseless VT',color:'#ff3333',
        vitals:{hr:170,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:22,rr:0,temp:36.7},
        display:'HR 170 | Pulseless VT | BP 0/0 | EtCO₂ 22',
-       note:'Before the transcutaneous pacemaker acquires capture the patient becomes unresponsive and apneic, the rhythm changes to VT and there is no pulse.'},
+       note:'Before the transcutaneous pacemaker acquires capture the patient becomes unresponsive and apneic, the rhythm changes to VT and there is no pulse.',
+       advanceOn:{shocks:2,note:'Two shocks with CPR between them, then sinus bradycardia with no pulse.'}},
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:32,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:48,rr:0,temp:36.6},
        display:'HR 32 | PEA | BP 0/0 | EtCO₂ 48',
        note:'Sinus bradycardia with marginally wide QRS after 2 minutes; no pulse. Advanced airway placed, capnography 22 then rising to 48. A carotid pulse becomes present but no radial.'},
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:40,rhythm:'brady',sbp:68,dbp:40,spo2:92,etco2:40,rr:8,temp:36.6},
-       display:'HR 40 | ROSC | BP 68/40 Doppler | RR 8',
+       display:'HR 40 | ROSC | SBP 68 (Doppler) | RR 8',
        note:'The patient bats his eyes to loud voices and breathes at 8/min. Consider dopamine and/or epinephrine infusion for perfusion. ED 3 min, STEMI centre 12 min.'},
     ]},
   megacode4:{
@@ -1849,22 +2150,25 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'tachy_vf_pea',
     states:[
-      {id:'tachy',label:'Unstable Tachycardia',color:'#ff9900',
+      {id:'tachy',label:'Unstable Tachycardia',color:'var(--amber)',
        vitals:{hr:150,rhythm:'vtach',sbp:84,dbp:54,spo2:94,etco2:32,rr:20,temp:36.9},
        display:'HR 150 | BP 84/54 | SpO₂ 94% on 15 L | RR 20',
        note:'Monomorphic wide-complex tachycardia with a pulse. Awake, talking in 2–3 word sentences, fine crackles both bases, palpable carotid and radial pulses. Cardioversion produces no change; while preparing to escalate energy she stops breathing and the monitor shows VF.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:25,rr:0,temp:36.8},
        display:'VF | BP 0/0 | EtCO₂ 25',
-       note:'Moved from the car to the stretcher, CPR and rapid defibrillation. IO access achieved; bag-mask ventilation with mild difficulty. Still VF after 2 minutes; advanced airway placed, capnography 25.'},
+       note:'Moved from the car to the stretcher, CPR and rapid defibrillation. IO access achieved; bag-mask ventilation with mild difficulty. Still VF after 2 minutes; advanced airway placed, capnography 25.',
+       advanceOn:{shocks:2,note:'Still VF after the first shock and 2 minutes of CPR; after the second the rhythm is organized.'}},
       {id:'pea',label:'PEA',color:'#cc0000',
        vitals:{hr:70,rhythm:'brady',sbp:0,dbp:0,spo2:0,etco2:25,rr:0,temp:36.8},
        display:'HR 70 | PEA | BP 0/0 | EtCO₂ 22–27',
-       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.'},
+       note:'Organized wide-complex rhythm at 70 with no pulses. The driver states "I was taking her to dialysis because she missed her appointment 2 days ago" — consider calcium chloride or gluconate and sodium bicarbonate for hyperkalaemia.',
+       coach:'Wide-complex PEA in a missed-dialysis patient: treat the reversible cause — recognise and manage suspected hyperkalaemia per your local protocol. The 2025 AHA evidence statement is cautious: calcium and bicarbonate are not universally proven, so score reversible-cause recognition and your protocol, not a fixed drug list.'},
       {id:'pcac',label:'ROSC — Post–Cardiac Arrest Care',color:'#00cc44',
        vitals:{hr:100,rhythm:'nsr',sbp:94,dbp:56,spo2:100,etco2:60,rr:14,temp:36.9},
        display:'HR 100 | ROSC | BP 94/56 | SpO₂ 100% | EtCO₂ 60',
-       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.'},
+       note:'Marginally wide-complex rhythm with severely peaked T waves at 100, carotid pulse present. Disorganized spontaneous respirations. Glucose 330 mg/dL. ED 7 min, tertiary centre 14 min.',
+       ecg:{qrs:110,qt:360,interp:'*** Marginally wide QRS with tall, peaked T waves — consider HYPERKALAEMIA (dialysis patient, missed session) ***'}},
     ]},
   megacode5:{
     name:'ACLS Megacode 5 — ED Unstable Bradycardia',
@@ -1872,14 +2176,17 @@ const SIMULATIONS={
     patientType:'Adult',
     checklist:'brady_vf_asys',
     states:[
-      {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'#ff9900',
+      {id:'brady',label:'Unstable Bradycardia — CCB Overdose',color:'var(--amber)',
        vitals:{hr:30,rhythm:'hb3',sbp:80,dbp:48,spo2:98,etco2:34,rr:16,temp:36.5},
        display:'HR 30 | BP 80/48 | SpO₂ 98% on 3 L | RR 16',
-       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.'},
+       note:'Wide QRS ventricular escape rhythm at 30 with a long QT. Very drowsy, slurring his words; no useful history obtainable. Diltiazem overdose — empty bottle found. Glucose 195 mg/dL.',
+       ecg:{qrs:150,qt:720,interp:'*** Wide-complex ventricular escape with a prolonged QT — see QTc (Bazett) below ***'},
+       coach:'Calcium-channel-blocker (diltiazem) overdose: the primary therapies are high-dose insulin (euglycemic), vasopressors, and calcium — treat with these first. Lipid emulsion is of uncertain usefulness (2025 AHA Special Circumstances) and ECPR is a discussion point, not first-line; do not let them displace the primary treatment.'},
       {id:'vf',label:'Ventricular Fibrillation',color:'#ff3333',
        vitals:{hr:0,rhythm:'vfib',sbp:0,dbp:0,spo2:3,etco2:20,rr:0,temp:36.5},
        display:'VF | BP 0/0 | EtCO₂ 20',
-       note:'The heart rate continues to drop, then he suddenly becomes unresponsive and pulseless. Advanced learners may discuss IV lipid emulsion therapy and extracorporeal CPR.'},
+       note:'The heart rate continues to drop, then he suddenly becomes unresponsive and pulseless. Advanced learners may discuss IV lipid emulsion therapy and extracorporeal CPR.',
+       advanceOn:{shocks:2,note:'After the second shock the rhythm changes to asystole.'}},
       {id:'asystole',label:'Asystole',color:'#880000',
        vitals:{hr:0,rhythm:'asystole',sbp:0,dbp:0,spo2:0,etco2:12,rr:0,temp:36.4},
        display:'Asystole | BP 0/0 | EtCO₂ 12',
@@ -2024,8 +2331,8 @@ const ACLS_CPR_FIELDS=[
   {id:'rate',   label:'Compression rate 100-120/min', type:'check'},
   {id:'depth',  label:'Compression depth ≥2 inches',  type:'check'},
   {id:'recoil', label:'Chest recoil',                 type:'check'},
-  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%'},
-  {id:'ventRate',label:'Ventilation rate',            type:'value', suffix:'/min'},
+  {id:'fraction',label:'Chest compression fraction >80%', type:'value', suffix:'%', min:0, max:100},
+  {id:'ventRate',label:'Ventilation rate (breaths/min)', type:'value', suffix:'/min', min:0, max:60},
 ];
 
 const SCENARIO_DOCS={
@@ -2153,7 +2460,7 @@ const SCENARIO_DOCS={
     brief:{
       patient:'Elderly man · chest pain · heart transplant 2 years ago',
       dispatch:'Your ALS ambulance is dispatched to help an elderly man having chest pain. A BLS engine is also responding. You arrive to find the firefighters placing a nonrebreathing oxygen mask on the patient.',
-      hpi:'Vital signs from the manual: BP 86/48 mmHg by Doppler, RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
+      hpi:'Vital signs from the manual: BP 86/48 mmHg "by Doppler" (a Doppler yields a systolic only, so read the 86 as the systolic; the 48 is not a Doppler value), RR 18/min and nonlabored, third-degree AV block at 32/min. SpO₂, temperature, weight and age are blank — SpO₂ 96% on the non-rebreather is inferred.',
       handoff:'',
       withhold:'',
       sample:[['Signs / symptoms','Chest heaviness, may need to vomit; started abruptly while waiting in line at the bank'],['Allergies','Sulfa'],['Medications','Multiple, all at home'],['Past history','Cardiac problems; heart transplant 2 years ago'],['Last oral intake','Not specified'],['Events','Abrupt chest heaviness while standing in line']],
@@ -2166,7 +2473,7 @@ const SCENARIO_DOCS={
       {trigger:'If students try to give atropine it will have no effect because of heart denervation.\n\n→ The transcutaneous pacemaker is applied, but before it acquires capture the patient becomes unresponsive, the rhythm changes to VT and he becomes apneic. There is no pulse.'},
       {trigger:'Defibrillate, then high-quality CPR for 2 minutes with peripheral IVs in each arm. After 2 minutes the rhythm is still VT — defibrillate again, CPR, epinephrine. Bag-mask ventilation is easy, so an advanced airway is not required unless the Team Leader feels it is indicated.\n\n→ After 2 minutes the rhythm is sinus bradycardia with marginally wide QRS complexes and no pulse.'},
       {trigger:'CPR continues, advanced airway placed, capnography 22 mmHg. After 2 minutes the rhythm is nearly the same and the QRS complexes are less wide but the rate is unchanged. EtCO₂ is now 48 mmHg.\n\n→ A carotid pulse is present but a radial pulse cannot be felt.'},
-      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. BP by Doppler is 68/40 mmHg. Consider dopamine and/or epinephrine infusion to support perfusion.'},
+      {trigger:'The patient bats his eyes to loud voices and begins breathing at 8/min. Systolic by Doppler is 68 mmHg (the manual prints 68/40). Consider dopamine and/or epinephrine infusion to support perfusion.'},
     ],
   },
   megacode4:{
@@ -2233,14 +2540,66 @@ function applyVitals(vitals, patType){
   // A new patient state clears anything still circulating, so a drug given
   // against the last state cannot wear off into this one.
   stopDrugs();
+  // The capnogram follows the patient. A state that does not name a shape gets
+  // a normal one rather than inheriting the last state's — otherwise a CPR or
+  // shark-fin capnogram set during an earlier phase lingers into ROSC, which
+  // the review caught. States that do set a shape (the asthma shark-fin) keep it.
+  if(!('co2Shape' in vitals)) S.co2Shape=DEF.co2Shape;
+  // The 12-lead contract is per-stage; clear it here and let applySimState set
+  // the incoming stage's, so a previous stage's interpretation cannot linger.
+  S.ecg=null;
   Object.assign(S, vitals);
   if(patType) S.patientType=patType;
   // Only mirror into the A-Line while it is linked. Overwriting an unlinked
   // A-Line threw away values the instructor had set independently.
   if(S.artLinked){ S.artSbp=S.sbp; S.artDbp=S.dbp; }
+  applyAirwayVentilation();
   updateAllUI();
   save();
 }
+
+/** Arrest rhythms, for the rules that only apply while the patient has none. */
+function inArrest(){
+  return S.rhythm==='vfib'||S.rhythm==='asystole'||S.rhythm==='pea'||(!S.hr&&!S.sbp);
+}
+const ADVANCED_AIRWAYS=['sga','ett'];
+function advancedAirway(){ return ADVANCED_AIRWAYS.indexOf(crewDid.airway)>=0; }
+
+/* Capnography through an arrest.
+ *
+ * A scenario's arrest states carry RR 0, which is true of the patient: they are
+ * not breathing. It is not true of the screen once the crew have put in an
+ * advanced airway and are ventilating through it — the capnogram then shows
+ * their breaths, at the rate the algorithm asks for, which is one every 6
+ * seconds (2025 AHA: 1 breath every 6 seconds, 10/min, continuous compressions).
+ *
+ * So an advanced airway in an arrest turns the capnogram on, sets the rate to
+ * the ventilations the crew are giving, and puts the CPR shape on it. The
+ * numbers stay the scenario author's: EtCO₂ is theirs, this only decides
+ * whether and how often the waveform draws a breath.
+ */
+function applyAirwayVentilation(){
+  if(!advancedAirway()) return;
+  S.etco2On=true;
+  const arrest=inArrest();
+  // Once there is a tube in, the rate on the screen is the crew's, not the
+  // patient's: an arrest state carries RR 0 because the patient is not
+  // breathing, which stops being what the monitor should show the moment
+  // somebody starts ventilating them.
+  S.rr=arrest?ADV_AIRWAY_ARREST_RR:ADV_AIRWAY_PULSE_RR;
+  // The shape follows the perfusion, not the airway. A scenario that authored
+  // its own waveform — the asthma shark fin, a curare cleft — keeps it; only
+  // the two this rule owns are switched between.
+  if(!S.co2Shape||S.co2Shape==='normal'||S.co2Shape==='cpr')
+    S.co2Shape=arrest?'cpr':'normal';
+}
+/* Ventilation through an advanced airway, in breaths per minute.
+   In an arrest, one breath every six seconds, continuous compressions
+   underneath (2025 AHA). With a pulse back — post-ROSC, or an apnoeic patient
+   the crew is bagging through a tube — the program ventilates faster, and the
+   capnogram is a normal square wave rather than the CPR trace. */
+const ADV_AIRWAY_ARREST_RR=10;
+const ADV_AIRWAY_PULSE_RR=12;
 
 // Every select that reflects a piece of state, so a scenario that sets one
 // (the asthma states set a shark-fin capnogram; the pediatric sims set the
@@ -2302,6 +2661,10 @@ function applySimScenario(){
   activeSim=entry.sim;
   activeStateIdx=entry.idx;
   run=null; lastRun=null;   // Apply always begins a new run, even on the same scenario
+  // Graded scenarios reset via startRun inside applySimState; the ungraded sims
+  // (no approved action list, so no run) reach nothing that would, so they get
+  // the clean slate here.
+  if(!SCENARIO_DOCS[entry.sim]) resetForNewScenario();
   applySimState(entry.sim,entry.idx);
   // Clear the quick scenario dropdown so it doesn't look selected
   document.getElementById('scenarioSel').value='';
@@ -2323,6 +2686,15 @@ function applySimState(simKey, stateIdx){
     enterRunState(stateIdx);
   }
   applyVitals(st.vitals, sim.patientType);
+  // The trend does NOT restart here. A stage carries the saturation its author
+  // wrote, and oxygen the crew put on two stages ago must not quietly drag that
+  // number somewhere else — at ROSC the authored 94% was climbing to 99% on its
+  // own. Oxygen moves the number when the CREW changes something; the scenario
+  // moves it when the facilitator changes stage.
+  stopO2Trend(); stopEtco2Surge();
+  // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
+  // printout matches the described findings (applyVitals cleared any prior one).
+  if(st.ecg){ S.ecg=st.ecg; save(); }
   // Repaint so the active state's own note and checklist are the ones showing.
   renderSimPanel(simKey);
 }
@@ -2341,9 +2713,47 @@ let lastRun=null;  // the finished record, kept on screen for the debrief
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const mmss=sec=>Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
 
+// A new scenario is a clean slate. On the panel that means nothing the last
+// run left circulating, logged or set may bleed into the next: the medications
+// on board and their visible log, the device timeline, and the pacer model.
+// The one thing the panel cannot reach directly is the defibrillator's own
+// state — shock count, therapy mode, energy, lead/size, a running printer —
+// because that lives on the monitor. So it bumps S.deviceReset, a token the
+// monitor watches to return the unit to its power-on baseline.
+//
+// Display and sensor state that a scenario's vitals do not necessarily set —
+// the capnogram shape, whether EtCO2/A-Line/PA are on, ectopy, alarm mute — is
+// returned to defaults here too, before the scenario's own vitals are applied
+// over it, so an asthma shark-fin or an A-Line from the last scenario cannot
+// carry forward.
+function resetForNewScenario(){
+  stopDrugs();
+  stopO2Trend(); stopEtco2Surge();
+  drugLog=[]; renderDrugLog();
+  deviceFeed=[]; renderDeviceFeed();
+  pacer={on:false,rate:70,ma:0};
+  crewDid={monitor:false,o2:'none',airway:'none',access:'none'};
+  captureThreshold=70; preCapture=null;
+  Object.assign(S,{
+    co2Shape:DEF.co2Shape, etco2On:DEF.etco2On,
+    artActive:DEF.artActive, artLinked:DEF.artLinked, sgActive:DEF.sgActive,
+    pvcOn:DEF.pvcOn, pacOn:DEF.pacOn, alarmMuted:DEF.alarmMuted,
+  });
+  S.deviceReset=(S.deviceReset||0)+1;
+  syncToggles();
+  renderPacerPrompt();
+  save();
+}
+
 function startRun(simKey){
   const sim=SIMULATIONS[simKey], doc=SCENARIO_DOCS[simKey];
   if(!sim||!doc) return;
+  resetForNewScenario();
+  // A graded run starts with nothing attached. The crew is being assessed on
+  // finding the rhythm, not on reading it off a screen that was already live
+  // when they walked in — so the monitor stays blank until the facilitator
+  // marks the leads on.
+  S.patientConnected=false;
   const cl=sim.checklist?ACLS_CHECKLISTS[sim.checklist]:null;
   run={
     scenario:simKey,
@@ -2359,15 +2769,41 @@ function startRun(simKey){
     team:cl?ACLS_TEAM_STEPS.map(t=>({text:t,done:false})):null,
     cpr:cl?{rate:false,depth:false,recoil:false,fraction:'',ventRate:''}:null,
     result:null,
+    // The two the renewal paperwork is signed with. Carried forward from the
+    // last run on this machine — it is the same instructor all morning, and
+    // typing an instructor number into every sheet is how sheets go out blank.
+    instructorInitials:rememberedInstructor().initials||'',
+    instructorNumber:rememberedInstructor().number||'',
     // Every press at the monitor, with its offset into the run.
     device:[], lastShockAt:null,
     states:sim.states.map((st,i)=>({
       id:st.id||('state'+i),
       label:st.label,
+      // The published section this phase is tested against — "VF Management",
+      // not the scenario's own name for the rhythm. Empty on the quarterly
+      // scenarios, which have no sheet. Kept on the record so a sheet printed
+      // months later still carries the headings it was graded under.
+      section:(doc.states[i]||{}).section||'',
       seconds:0,
       actions:((doc.states[i]||{}).actions||[]).map(t=>({text:t,done:false})),
     })),
   };
+  sheetPhase=-1;
+}
+
+// ── The instructor signing the sheet ─────────────────────────────────────────
+const INSTRUCTOR_KEY='ces.sim.instructor';
+function rememberedInstructor(){
+  try{ return JSON.parse(localStorage.getItem(INSTRUCTOR_KEY))||{}; }catch(e){ return {}; }
+}
+function setInstructor(field,value){
+  if(!run) return;
+  run[field]=value;
+  try{
+    localStorage.setItem(INSTRUCTOR_KEY,JSON.stringify({
+      initials:run.instructorInitials||'', number:run.instructorNumber||'',
+    }));
+  }catch(e){}
 }
 
 // Close the clock on the state being left and open it on the next. Passing -1
@@ -2379,11 +2815,23 @@ function enterRunState(idx){
     run.states[run.current].seconds += Math.round((now-run.enteredAt)/1000);
   run.current=idx;
   run.enteredAt=now;
+  run.stageShocks=0;
+  pendingAdvance=false;
 }
 
 function toggleAction(i){
-  if(!run||run.current<0) return;
-  const a=run.states[run.current].actions[i];
+  if(!run) return;
+  toggleActionAt(run.current,i);
+}
+/* Any step in any section, not only the phase on screen.
+   The sheet shows the whole form, and an instructor who notices in VF that
+   "places monitor leads in proper position" was never ticked back in
+   bradycardia has to be able to reach up the page and tick it — which is what
+   they would do on paper. */
+function toggleActionAt(si,ai){
+  if(!run||si<0) return;
+  const st=run.states[si];
+  const a=st&&st.actions[ai];
   if(!a) return;
   a.done=!a.done;
   // A tick the facilitator has touched is theirs, however it started.
@@ -2403,7 +2851,21 @@ function toggleCpr(id){
   run.cpr[id]=!run.cpr[id];
   renderSimPanel(run.scenario);
 }
-function setCpr(id,v){ if(run&&run.cpr) run.cpr[id]=v; }
+function setCpr(id,v,min,max){
+  if(!run||!run.cpr) return;
+  // A percentage cannot be 140 and a ventilation rate cannot be negative.
+  // Clamp value fields to their range so the saved record is always valid.
+  if(min!=null||max!=null){
+    if(v===''){ run.cpr[id]=''; return; }
+    let n=parseInt(v,10);
+    if(!isFinite(n)){ run.cpr[id]=''; return; }
+    if(min!=null) n=Math.max(min,n);
+    if(max!=null) n=Math.min(max,n);
+    run.cpr[id]=String(n);
+    return;
+  }
+  run.cpr[id]=v;
+}
 // PASS / NR, as the checklist has it. Clicking the set result again clears it,
 // so a mis-tap before the debrief is one click to undo.
 function setResult(r){
@@ -2412,14 +2874,55 @@ function setResult(r){
   renderSimPanel(run.scenario);
 }
 
+// What is missing or inconsistent about the run as it stands. A run is a
+// competency record, and the review was able to save a PASS with 1 of 18
+// actions observed and no crew name — so ending one now surfaces these first.
+function runWarnings(){
+  const out=[];
+  if(!run) return out;
+  if(!run.crew||!run.crew.trim()) out.push(run.checklist?'no student name recorded':'no crew name recorded');
+  if(!run.notes||!run.notes.trim()) out.push('no debrief note');
+  if(run.checklist&&!run.result) out.push('no PASS / NR result circled');
+  // A sheet with no instructor on it is not a document a registry will take.
+  if(run.checklist&&!(run.instructorInitials||'').trim()) out.push('no instructor initials on the sheet');
+  const total=run.states.reduce((n,s)=>n+s.actions.length,0);
+  const done=run.states.reduce((n,s)=>n+s.actions.filter(a=>a.done).length,0);
+  // A PASS with most of the critical actions unobserved is the one the review
+  // called out by name.
+  if(run.result==='pass'&&total>0&&done<Math.ceil(total*0.7))
+    out.push('PASS selected with only '+done+' of '+total+' expected actions observed');
+  return out;
+}
+
+/* Ending a run, in two halves: the check, and the save.
+
+   The check used to be window.confirm(). That dialog is unstyled, it blocks
+   the whole tab, and — the reason it had to go — a browser told to "prevent
+   this page from creating additional dialogs", or an in-app browser that
+   suppresses them outright, returns false without showing anything. On this
+   page that meant End run silently doing nothing, on the one press that files
+   a competency record. The prompt below is part of the page, so it is always
+   seen and always answerable. */
 function endRun(){
   if(!run) return;
+  // Nothing should still be moving the patient once the run is over — the
+  // oxygen trend outlived the run and went on changing the saturation behind
+  // the debrief summary.
+  stopO2Trend(); stopEtco2Surge();
+  const warns=runWarnings();
+  if(warns.length){ openEndPrompt(warns); return; }
+  commitRun();
+}
+
+function commitRun(){
+  if(!run) return;
+  closeEndPrompt();
   enterRunState(-1);
   const rec={
     scenario:run.scenario, scenarioName:run.scenarioName,
     startedAt:run.startedAt, endedAt:new Date().toISOString(),
     crew:run.crew.trim(), notes:run.notes.trim(),
-    states:run.states.map(st=>({id:st.id,label:st.label,seconds:st.seconds,actions:st.actions})),
+    states:run.states.map(st=>({id:st.id,label:st.label,section:st.section||'',seconds:st.seconds,actions:st.actions})),
     device:run.device.slice(),
   };
   if(run.checklist){
@@ -2428,6 +2931,9 @@ function endRun(){
     rec.team=run.team;
     rec.cpr=run.cpr;
     rec.result=run.result;   // 'pass' | 'nr' | null
+    // Printed on the sheet the student submits for card renewal.
+    rec.instructorInitials=(run.instructorInitials||'').trim();
+    rec.instructorNumber=(run.instructorNumber||'').trim();
   }
   // Hand it to the CES app. Same origin, so this is a direct call to the host
   // that framed us; standalone the panel simply keeps the summary on screen.
@@ -2443,6 +2949,28 @@ function endRun(){
   renderSimPanel(rec.scenario);
 }
 
+// ── "Save this run anyway?" ──────────────────────────────────────────────────
+// Everything the run is missing, in one list, with the way back to fix it.
+function openEndPrompt(warns){
+  const box=document.getElementById('endPrompt');
+  if(!box){ commitRun(); return; }   // no dialog in the page: never block a save
+  document.getElementById('endPromptList').innerHTML=
+    warns.map(w=>`<li>${esc(w)}</li>`).join('');
+  box.hidden=false;
+  const back=document.getElementById('endPromptBack');
+  // Focus lands on the way back, not on the save: the prompt exists because
+  // something is missing, and fixing it is the likelier answer.
+  if(back) back.focus();
+}
+function closeEndPrompt(){
+  const box=document.getElementById('endPrompt');
+  if(box) box.hidden=true;
+}
+function endPromptOpen(){
+  const box=document.getElementById('endPrompt');
+  return !!box&&!box.hidden;
+}
+
 // ── The run card's footprint ─────────────────────────────────────────────────
 // See the CSS above for the measurements. Wide screens put the card in the
 // dead margin beside the 960px page; narrow ones condense it to a line once
@@ -2453,9 +2981,14 @@ function endRun(){
 // the whole panel down with it. innerWidth is the same answer either way.
 let RAIL_MQ=null;
 function railMode(){
-  if(!RAIL_MQ&&window.matchMedia) RAIL_MQ=window.matchMedia('(min-width:1320px)');
-  return RAIL_MQ?RAIL_MQ.matches:window.innerWidth>=1320;
+  // A megacode keeps the full-width card whatever the screen: the sheet is what
+  // is being graded, and a 360px rail sets its steps two and three lines deep.
+  if(sheetRun()) return false;
+  if(!RAIL_MQ&&window.matchMedia) RAIL_MQ=window.matchMedia('(min-width:1280px)');
+  return RAIL_MQ?RAIL_MQ.matches:window.innerWidth>=1280;
 }
+/** Is the card showing a megacode check sheet? Drives the layout it gets. */
+function sheetRun(){ return !!(run&&run.checklist); }
 
 // Elapsed run time. run.states[i].seconds only banks a state when it is left,
 // so the state on screen has to be added live or the clock stops on entry.
@@ -2470,21 +3003,32 @@ function miniTally(){
   return rs?{done:rs.actions.filter(a=>a.done).length,total:rs.actions.length}:{done:0,total:0};
 }
 
-// Expanded by hand stays expanded: ticking four actions in a row should not
-// fight a card that re-collapses under you. Scrolling back to the top of the
-// page clears it, which is the same gesture that would have shown it anyway.
-let runExpanded=false;
-function expandRunCard(){ runExpanded=true; applyRunCondense(); }
+/* Collapsing is the facilitator's choice, not the scroll position's.
+
+   It used to collapse itself the moment the page scrolled past the card, which
+   is the behaviour reported here as the megacode controls "disappearing" — a
+   facilitator who scrolled down to give a drug and then needed to change a
+   rhythm or tick an action at the top found the card gone, and had to find the
+   bar and tap it open again on every trip. Scrolling down is not a statement
+   that you are finished with the controls.
+
+   So the card stays whole while the page scrolls under it. It is sticky and
+   scrolls internally, so it is always reachable and never taller than the
+   screen, and the mini bar is still there for when the facilitator actually
+   wants the room back — reached by the collapse control in the run header
+   rather than by scrolling. */
+let runCollapsed=false;
+function expandRunCard(){ runCollapsed=false; applyRunCondense(); }
+function collapseRunCard(){ runCollapsed=true; applyRunCondense(); }
+function toggleRunCard(){ runCollapsed=!runCollapsed; applyRunCondense(); }
 function applyRunCondense(){
   const card=document.getElementById('runCard');
-  const sent=document.getElementById('runSentinel');
-  if(!card||!sent) return;
-  const past=sent.getBoundingClientRect().bottom<0;
-  if(!past) runExpanded=false;
+  if(!card) return;
   // Only the live run has a bar to condense to. The finished-run summary is
   // rendered into the same card and would collapse to an empty strip.
   const hasBar=!!card.querySelector('.run-mini');
-  const want=hasBar&&!railMode()&&past&&!runExpanded;
+  // The rail costs no vertical space, so there is nothing to collapse there.
+  const want=hasBar&&!railMode()&&runCollapsed;
   const wrap=document.getElementById('runWrap');
   if(want===card.classList.contains('condensed')) return;
   // Measured before the class changes, because after it the card is 52px.
@@ -2492,7 +3036,6 @@ function applyRunCondense(){
   card.classList.toggle('condensed',want);
   if(!want&&wrap) wrap.style.height='';
 }
-window.addEventListener('scroll',applyRunCondense,{passive:true});
 window.addEventListener('resize',applyRunCondense);
 // The mini bar is keyboard-reachable like every other role="button" here; the
 // delegated Enter/Space handler further down covers it.
@@ -2528,6 +3071,272 @@ let deviceFeed=[];       // last few events, shown whether or not a run is open
    surfaces their settings with a button that does exactly that. */
 let pacer={on:false,rate:70,ma:0};
 
+/* ── Interventions ────────────────────────────────────────────────────────
+   What the crew has actually done to the patient, and what the monitor shows
+   because of it.
+
+   The scenario used to begin with the patient already on the monitor and every
+   number visible, whatever the crew had or had not done. That gives away the
+   assessment: a student who has not touched the patient can read their rhythm
+   and their saturation off the screen. So a graded run starts with the monitor
+   blank — as though nothing is attached — and the facilitator brings each thing
+   to life as they watch it happen.
+
+   These are deliberately NOT the AHA checklist. The published step is one line
+   reading "Starts oxygen if needed, places monitor, starts IV", and that text is
+   transcribed verbatim and graded against — three separate acts in one tick,
+   which cannot drive three separate effects on the screen. So the interventions
+   are their own controls, and ticking one also ticks whichever checklist step it
+   satisfies. The facilitator taps once; the record and the monitor both follow.
+
+   Reset by resetForNewScenario, like everything else a run leaves behind. */
+const O2_DEVICES=[
+  {id:'none',  label:'Room air',  short:'RA',   boost:0},
+  {id:'nc2',   label:'NC 2 L',    short:'NC2',  boost:4},
+  {id:'nc4',   label:'NC 4 L',    short:'NC4',  boost:7},
+  {id:'nc6',   label:'NC 6 L',    short:'NC6',  boost:9},
+  {id:'nrb15', label:'NRB 15 L',  short:'NRB',  boost:14},
+  {id:'bvm',   label:'BVM + O₂',  short:'BVM',  boost:16},
+  {id:'cpap',  label:'CPAP',      short:'CPAP', boost:15},
+];
+const AIRWAYS=[
+  {id:'none', label:'None'},
+  {id:'basic',label:'OPA / NPA'},
+  {id:'sga',  label:'Supraglottic'},
+  {id:'ett',  label:'ET tube'},
+];
+const ACCESS=[
+  {id:'none',label:'None'},
+  {id:'iv',  label:'IV'},
+  {id:'io',  label:'IO'},
+];
+
+let crewDid={monitor:false,o2:'none',airway:'none',access:'none'};
+
+function o2Device(id){ return O2_DEVICES.find(d=>d.id===(id||'none'))||O2_DEVICES[0]; }
+
+/** The stage the facilitator currently has the patient in, if any. */
+function activeStage(){
+  const sim=SIMULATIONS[activeSim];
+  return sim&&sim.states?sim.states[activeStateIdx]:null;
+}
+
+/**
+ * Where oxygen can take this patient, and how fast.
+ *
+ * A stage may declare its own answer — `o2Response:{responds:false,why:...}` for
+ * a hypoxia oxygen alone cannot fix, or `{target:96,perMin:14}` to say exactly
+ * where it goes. Absent that, the device's boost is applied to the saturation
+ * the stage started at, which is a teaching approximation and nothing more.
+ *
+ * A pulseless patient never improves: there is no perfusion to carry it, and
+ * the monitor shows --- for saturation anyway.
+ */
+function o2Goal(){
+  const dev=o2Device(crewDid.o2);
+  if(dev.id==='none') return null;
+  if(!S.patientConnected) return null;
+  if(!S.sbp||S.rhythm==='vfib'||S.rhythm==='asystole') return null;
+  const st=activeStage();
+  const r=st&&st.o2Response;
+  if(r&&r.responds===false) return {blocked:true,why:r.why||'This patient will not improve on oxygen alone.'};
+  const base=(st&&st.vitals&&typeof st.vitals.spo2==='number')?st.vitals.spo2:S.spo2;
+  const target=Math.min(99,(r&&typeof r.target==='number')?r.target:base+dev.boost);
+  const perMin=(r&&r.perMin)||18;
+  return {target,perSec:Math.max(0.05,perMin/60)};
+}
+
+let o2Timer=null;
+/* The saturation shown is a whole number, but the climb is not: at a realistic
+   rate a tick moves it a third of a point, and rounding that back into S every
+   second meant the number never moved at all. The precise value is carried
+   here and only rounded on its way to the screen. */
+let o2Float=null;
+function stopO2Trend(){ if(o2Timer){clearInterval(o2Timer);o2Timer=null;} o2Float=null; }
+function startO2Trend(){
+  stopO2Trend();
+  if(!o2Goal()) return;
+  o2Float=drugBase?drugBase.spo2:S.spo2;
+  o2Timer=setInterval(o2Tick,1000);
+  o2Tick();
+}
+/**
+ * Ease the saturation toward the goal a second at a time.
+ *
+ * Where medications are on board the drug engine owns S.spo2 and recomputes it
+ * from its own baseline every tick, so oxygen moves the BASELINE and lets the
+ * drug deltas ride on top. Writing S.spo2 directly in that case would be undone
+ * 100ms later.
+ */
+function o2Tick(){
+  const goal=o2Goal();
+  if(!goal||goal.blocked){ stopO2Trend(); return; }
+  if(o2Float===null) o2Float=drugBase?drugBase.spo2:S.spo2;
+  const done=Math.abs(o2Float-goal.target)<=goal.perSec;
+  o2Float=done?goal.target:o2Float+Math.sign(goal.target-o2Float)*goal.perSec;
+  const shown=Math.round(o2Float);
+  if(drugBase) drugBase.spo2=shown; else setVital('spo2',shown);
+  save();
+  // Reaching the target ends the trend, but the value stays where it landed.
+  if(done){ if(o2Timer){clearInterval(o2Timer);o2Timer=null;} }
+}
+
+/* ── The EtCO₂ surge ──────────────────────────────────────────────────────
+   A sudden sharp rise in end-tidal CO₂ during CPR is one of the signs of
+   return of spontaneous circulation, and it is a sign the crew is meant to
+   notice and act on rather than be told about. So it is a control, not a
+   consequence: the facilitator taps it when they want the crew to have that
+   information, and the number climbs on the crew's screen the way it does in
+   an arrest — over a few seconds, not in one step, because a step change reads
+   as the instructor moving a slider.
+
+   It does not move the patient on. Whether the crew see the surge and check a
+   pulse is the thing being assessed, and the transition stays the
+   facilitator's, on the Advance control, as every other transition is. */
+const SURGE_TARGET=42;      // mmHg — the "sudden rise" ACLS teaches to look for
+const SURGE_SECONDS=6;
+let surgeTimer=null, surgeFloat=null;
+function stopEtco2Surge(){ if(surgeTimer){clearInterval(surgeTimer);surgeTimer=null;} surgeFloat=null; }
+/** Can a surge be offered? Only with capnography up on an arrested patient. */
+function surgeReady(){ return !!S.etco2On&&inArrest()&&S.etco2<SURGE_TARGET-4; }
+function etco2Surge(target){
+  const to=target||SURGE_TARGET;
+  stopEtco2Surge();
+  surgeFloat=Number(S.etco2)||0;
+  const perTick=(to-surgeFloat)/(SURGE_SECONDS*2);   // twice a second
+  if(perTick<=0) return;
+  logLocal('etco2','EtCO₂ RISING','ROSC indicator — '+Math.round(surgeFloat)+' → '+to+' mmHg');
+  surgeTimer=setInterval(()=>{
+    surgeFloat+=perTick;
+    if(surgeFloat>=to){ surgeFloat=to; stopEtco2Surge(); }
+    setVital('etco2',Math.round(surgeFloat));
+    save();
+    renderSimPanel(activeSim);
+  },500);
+}
+
+/** Apply an intervention: change the patient, log it, and tick what it satisfies. */
+function setIntervention(kind,value){
+  if(kind==='monitor'){
+    crewDid.monitor=!!value;
+    S.patientConnected=crewDid.monitor;
+    logLocal('intervention',crewDid.monitor?'MONITOR ATTACHED':'MONITOR REMOVED','');
+    // Leads on is what makes the screen live; nothing else can be read until then.
+    if(!crewDid.monitor) stopO2Trend();
+  } else if(kind==='o2'){
+    crewDid.o2=value;
+    const d=o2Device(value);
+    logLocal('intervention','OXYGEN',d.label);
+    const goal=o2Goal();
+    if(goal&&goal.blocked) logLocal('intervention','NO RESPONSE TO O₂',goal.why);
+    startO2Trend();
+  } else if(kind==='airway'){
+    crewDid.airway=value;
+    const a=AIRWAYS.find(x=>x.id===value);
+    logLocal('intervention','AIRWAY',a?a.label:value);
+    // An advanced airway is what puts waveform capnography on the screen, and
+    // in an arrest it is also what puts a ventilation rate on it.
+    applyAirwayVentilation();
+  } else if(kind==='access'){
+    crewDid.access=value;
+    const a=ACCESS.find(x=>x.id===value);
+    logLocal('intervention','ACCESS',a?a.label:value);
+  }
+  // The same tap that changed the patient marks any step it now satisfies.
+  tickForIntervention();
+  syncToggles();
+  updateAllUI();
+  save();
+  renderInterventions();
+}
+
+/* Which checklist step each intervention satisfies.
+
+   The published first step reads "Starts oxygen if needed, places monitor,
+   starts IV" — three acts on one line. Ticking it because the leads went on
+   would credit the crew for oxygen and access they have not established, which
+   in a competency record is not a convenience, it is an overstatement. So that
+   step waits until all three of the things it names are marked; the steps that
+   name one act tick on that act alone. */
+const IV_TICKS=[
+  // The bundled step: only when everything it names has been done.
+  {re:/Starts oxygen.*places monitor.*starts IV/i,
+   when:()=>crewDid.monitor&&crewDid.o2!=='none'&&crewDid.access!=='none'},
+  {re:/Places monitor leads/i, when:()=>crewDid.monitor},
+  {re:/airway management/i,    when:()=>crewDid.airway==='sga'||crewDid.airway==='ett'},
+];
+function tickForIntervention(){
+  if(!run||run.current<0) return;
+  for(const t of IV_TICKS) if(t.when()) autoTick(t.re,{type:'intervention'});
+}
+
+/* ── Moving the patient on ────────────────────────────────────────────────
+   The scenario's own "Moves on when…" is prose the facilitator has to read and
+   then act on by finding the right state button. For the defibrillation
+   scenarios the trigger is a count — "after the third shock the patient
+   develops an organized rhythm" — and counting shocks while running a code and
+   grading it is exactly the sort of bookkeeping this panel should be doing.
+
+   So the panel counts the shocks delivered in the current stage, and when the
+   count the scenario scripts is reached it offers the transition as one tap.
+   It does NOT move the patient itself: a miscounted shock would otherwise
+   convert a rhythm nobody converted, and the facilitator is still the one who
+   decides what the patient does. */
+function nextStage(){
+  const sim=SIMULATIONS[activeSim];
+  if(!sim||activeStateIdx<0) return null;
+  const i=activeStateIdx+1;
+  return i<sim.states.length?{idx:i,state:sim.states[i]}:null;
+}
+function advanceStage(){
+  const n=nextStage();
+  if(!n) return;
+  pendingAdvance=false;
+  applySimState(activeSim,n.idx);
+}
+/** True once the crew have delivered the shocks this stage is scripted around. */
+let pendingAdvance=false;
+function shocksThisStage(){ return run?(run.stageShocks||0):0; }
+function advanceCue(){
+  const st=activeStage();
+  const n=nextStage();
+  if(!st||!n||!st.advanceOn||!st.advanceOn.shocks) return null;
+  if(shocksThisStage()<st.advanceOn.shocks) return null;
+  return {
+    label:`Shock ${st.advanceOn.shocks} delivered → ${n.state.label}`,
+    why:st.advanceOn.note||'',
+  };
+}
+
+/* The strip itself. Rendered into every .iv-strip on the page, the same way the
+   pacing prompt is, so it is reachable whether the run card is full width, in
+   the rail, or the facilitator is working from the ECG card. */
+function renderInterventions(){
+  const els=document.querySelectorAll('.iv-strip');
+  if(!els.length) return;
+  const goal=o2Goal();
+  const sel=(kind,opts,cur)=>
+    `<select aria-label="${kind}" onchange="setIntervention('${kind}',this.value)">`+
+    opts.map(o=>`<option value="${o.id}"${o.id===cur?' selected':''}>${esc(o.label)}</option>`).join('')+
+    `</select>`;
+  const monBtn=`<button class="iv-btn ${crewDid.monitor?'on':''}" onclick="setIntervention('monitor',${!crewDid.monitor})"
+      title="${crewDid.monitor?'Leads are on — the screen is live':'The monitor is blank until this is on'}">
+      ${crewDid.monitor?'◉ Monitor on':'○ Monitor off'}</button>`;
+  const note=crewDid.o2!=='none'&&goal
+    ? (goal.blocked
+        ? `<span class="iv-note warn">${esc(goal.why)}</span>`
+        : `<span class="iv-note">SpO₂ → ${goal.target}%</span>`)
+    : '';
+  const html=
+    `<span class="iv-lbl">✚ Crew has done</span>`+
+    monBtn+
+    `<span class="iv-f">O₂ ${sel('o2',O2_DEVICES,crewDid.o2)}</span>`+
+    `<span class="iv-f">Airway ${sel('airway',AIRWAYS,crewDid.airway)}</span>`+
+    `<span class="iv-f">Access ${sel('access',ACCESS,crewDid.access)}</span>`+
+    note;
+  els.forEach(el=>{ el.innerHTML=html; });
+}
+
 // Auto-tick.
 //
 // Deliberately a short table. Most of the AHA megacode checklist is about
@@ -2553,6 +3362,11 @@ const AUTO_TICK=[
   {when:(ev,ctx)=>ev.type==='cpr'&&/ON$/.test(ev.label)&&ctx.sinceShock!==null&&ctx.sinceShock<=15,
    match:/Immediately resumes CPR after shocks/i},
   {when:ev=>ev.type==='pacer'&&ev.label==='PACER ON', match:/Prepares for second-line treatment/i},
+  // A synchronized shock is the tachycardia section's cardioversion step, and
+  // the device now says 'synchronized' in the event only when SYNC was actually
+  // armed for the delivery — a plain defibrillation does not match it.
+  {when:ev=>ev.type==='shock'&&/synchronized/.test(ev.detail||''),
+   match:/synchronized cardioversion/i},
 ];
 
 function onDeviceEvent(ev){
@@ -2578,7 +3392,20 @@ function onDeviceEvent(ev){
   if(run){
     const at=Math.max(0,Math.round((now-Date.parse(run.startedAt))/1000));
     run.device.push({at,type:ev.type,label:ev.label,detail:ev.detail||''});
-    if(ev.type==='shock') run.lastShockAt=now;
+    if(ev.type==='shock'){
+      run.lastShockAt=now;
+      // Counted per stage, not per run: the scripts say "after the third shock"
+      // of THIS rhythm, and a run carries several.
+      run.stageShocks=(run.stageShocks||0)+1;
+      // The count is what raises the cue, so the card has to be repainted when
+      // it changes — otherwise the transition button sits there reading
+      // "Advance" while the shock that scripts it has already been delivered.
+      if(!pendingAdvance&&advanceCue()){
+        pendingAdvance=true;
+        logLocal('advance','TRANSITION CUED',advanceCue().label);
+        renderSimPanel(run.scenario);
+      }
+    }
     const ctx={sinceShock:run.lastShockAt?(now-run.lastShockAt)/1000:null};
     for(const rule of AUTO_TICK){
       if(!rule.when(ev,ctx)) continue;
@@ -2598,7 +3425,11 @@ function autoTick(re,ev){
   if(!st) return;
   const a=st.actions.find(x=>re.test(x.text)&&!x.done);
   if(!a) return;
-  a.done=true; a.auto=true;
+  // Where it came from matters at the debrief: a press at the defibrillator is
+  // the device reporting itself, while an intervention mark is the facilitator
+  // saying they watched it happen. Labelling both "from monitor" credited the
+  // device with an observation a person made.
+  a.done=true; a.auto=(ev&&ev.type==='intervention')?'crew':'monitor';
   run.device.push({at:Math.max(0,Math.round((Date.now()-Date.parse(run.startedAt))/1000)),
     type:'autotick',label:'Auto-ticked',detail:a.text});
   renderSimPanel(run.scenario);
@@ -2608,7 +3439,8 @@ const DEV_ICON={shock:'⚡',charge:'⚡',analyze:'▶',advisory:'⚑',cpr:'♥',
   pacer:'⌗',pacerRate:'⌗',pacerCurrent:'⌗',pacerPause:'⌗',nibp:'◎',
   ecg12:'⊞',print:'⎙',codeSummary:'⎙',transmit:'↑',event:'⚑',
   alarms:'♪',lead:'≡',size:'≡',sync:'⇄',energy:'⚡',autotick:'✓',capture:'⌁',
-  power:'⏻',display:'☀',disarm:'⚡'};
+  power:'⏻',display:'☀',disarm:'⚡',mode:'☰',intervention:'✚',advance:'⇥',
+  temp:'🌡',etco2:'⤴'};
 
 /* Electrical capture: the paced rhythm at the rate the crew dialled in.
 
@@ -2754,59 +3586,183 @@ function renderBrief(simKey){
   document.getElementById('briefBody').innerHTML=html;
 }
 
-// The run-level half of the AHA checklist: team behaviour, CPR quality, and the
-// PASS / NR the instructor circles at the end.
-/* Collapsed while the run is live. Team behaviour, CPR quality and PASS / NR
-   are graded once at the end, but the strip was sitting between the run header
-   and the columns — 190px of the most valuable space on the screen, occupied
-   by controls nobody touches until the debrief. The summary line keeps the
-   tally visible so nothing is forgotten. */
-let clOpen=false;
-function toggleChecklist(){ clOpen=!clOpen; renderSimPanel(activeSim); }
-function checklistStripHtml(){
-  if(!run||!run.checklist) return '';
-  const teamDone=run.team.filter(t=>t.done).length;
-  const cprDone=ACLS_CPR_FIELDS.filter(f=>f.type==='check'&&run.cpr[f.id]).length;
-  const cprChecks=ACLS_CPR_FIELDS.filter(f=>f.type==='check').length;
-  const head=`<div class="cl-head" role="button" tabindex="0" onclick="toggleChecklist()">
-      <span class="cl-chev">${clOpen?'▾':'▸'}</span>
-      <span>Team &amp; CPR quality</span>
-      <span class="cl-tally">${teamDone}/${run.team.length} team · ${cprDone}/${cprChecks} CPR</span>
-      <span class="cl-res ${run.result||''}">${run.result==='pass'?'PASS':run.result==='nr'?'NR':'no result yet'}</span>
-    </div>`;
-  if(!clOpen) return `<div class="cl-wrap">${head}</div>`;
-  return `<div class="cl-wrap">${head}${checklistBodyHtml()}</div>`;
+// ── The check-off sheet ──────────────────────────────────────────────────────
+// A megacode run graded on the shape of the paper form: student and date of
+// test at the head, Critical Performance Steps in the published section order
+// with the tick column on the right, the Team Leader block first, and STOP TEST
+// over PASS / NR at the foot.
+//
+// The whole sheet is live. On paper an instructor who realises in VF that the
+// bradycardia lead placement was never ticked goes back up the page and ticks
+// it; the actions column only ever showed the phase on screen, so here they
+// could not. Every section stays tickable for the length of the run.
+//
+// Which phase the patient is in is a highlight and a scroll, not a filter.
+let sheetPhase=-1;
+
+/* `key` survives the re-render that follows every tick: the row that was
+   focused is gone by the time the click handler returns, and without a way to
+   find its replacement a keyboard or screen-reader user is dropped back to the
+   top of the document on every step they check. */
+function sheetRow(text,done,auto,handler,key){
+  const tag=auto?`<span class="auto-tag">${auto==='crew'?'from interventions':'from monitor'}</span>`:'';
+  const why=auto?(auto==='crew'?'Ticked from the interventions you marked — click to undo'
+                               :'Ticked from a press at the defibrillator — click to undo'):'';
+  return `<div class="sh-row${done?' done':''}${auto?' auto':''}" role="button" tabindex="0"
+       data-k="${esc(key||'')}" aria-pressed="${!!done}" title="${esc(why)}" onclick="${handler}">
+    <span class="sh-txt">${esc(text)}</span>${tag}<span class="box">${done?'✓':''}</span></div>`;
 }
-function checklistBodyHtml(){
-  const team=run.team.map((t,i)=>
-    `<div class="cl-chk${t.done?' done':''}" role="button" tabindex="0" onclick="toggleTeam(${i})">
-       <span class="box">${t.done?'✓':''}</span><span>${esc(t.text)}</span></div>`).join('');
-  const cpr=ACLS_CPR_FIELDS.map(f=>{
-    if(f.type==='check'){
-      const on=run.cpr[f.id];
-      return `<div class="cl-chk${on?' done':''}" role="button" tabindex="0" onclick="toggleCpr('${f.id}')">
-        <span class="box">${on?'✓':''}</span><span>${esc(f.label)}</span></div>`;
-    }
-    return `<label class="cl-num">${esc(f.label)}
-      <input inputmode="numeric" value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value)">${f.suffix}</label>`;
+
+function sheetHtml(){
+  if(!run||!run.checklist) return '';
+  const cl=ACLS_CHECKLISTS[run.checklist]||{};
+  const title=(run.checklistName||'').split(' — ');
+  // Team leader and CPR quality, as the sheet opens.
+  const team=run.team.map((t,i)=>sheetRow(t.text,t.done,null,`toggleTeam(${i})`,'t'+i)).join('');
+  const cprChecks=ACLS_CPR_FIELDS.filter(f=>f.type==='check')
+    .map(f=>sheetRow(f.label,run.cpr[f.id],null,`toggleCpr('${f.id}')`,'c'+f.id)).join('');
+  const cprWrite=ACLS_CPR_FIELDS.filter(f=>f.type==='value').map(f=>
+    `<div class="sh-write"><span>${esc(f.label)}</span>
+      <input inputmode="numeric" type="number" min="${f.min}" max="${f.max}" aria-label="${esc(f.label)}"
+        value="${esc(run.cpr[f.id])}" oninput="setCpr('${f.id}',this.value,${f.min},${f.max})">
+      <span class="sh-suffix">${esc(f.suffix)}</span></div>`).join('');
+  const teamDone=run.team.filter(t=>t.done).length
+    +ACLS_CPR_FIELDS.filter(f=>f.type==='check'&&run.cpr[f.id]).length;
+  const teamTotal=run.team.length+ACLS_CPR_FIELDS.filter(f=>f.type==='check').length;
+
+  const sections=run.states.map((st,si)=>{
+    const done=st.actions.filter(a=>a.done).length;
+    const now=si===run.current;
+    const rows=st.actions.map((a,ai)=>sheetRow(a.text,a.done,a.auto,`toggleActionAt(${si},${ai})`,'a'+si+'.'+ai)).join('');
+    return `<div class="sh-sec${now?' now':''}">
+      <div class="sh-sec-h">${esc(st.section||st.label)}
+        ${now?'<span class="sh-now">now</span>':''}
+        <span class="sh-n">${done}/${st.actions.length}</span></div>
+      ${rows}</div>`;
   }).join('');
-  return `<div class="cl-strip">
-    <div class="cl-grp"><div class="col-h">Team leader / team members</div><div class="cl-row">${team}</div></div>
-    <div class="cl-grp"><div class="col-h">High-quality CPR at all times</div><div class="cl-row">${cpr}</div></div>
-    <div class="res-grp">
-      <span class="col-h" style="margin:0 4px 0 0;">Result</span>
-      <button class="res-btn pass${run.result==='pass'?' on':''}" onclick="setResult('pass')">PASS</button>
-      <button class="res-btn nr${run.result==='nr'?' on':''}" onclick="setResult('nr')">NR</button>
+
+  return `<div class="sheet" id="sheet">
+    <div class="sh-head">
+      <div class="sh-title">Megacode Testing Checklist${title[0]?': '+esc(title[0]):''}</div>
+      <div class="sh-sub">${esc(title[1]||cl.path||'')}</div>
+      <div class="sh-meta">
+        <label>Student <input id="crewIn" placeholder="name" value="${esc(run.crew)}"
+          oninput="setRunField('crew',this.value)"></label>
+        <label>Date of test <span class="writ">${esc(sheetDate(run.startedAt))}</span></label>
+      </div>
+    </div>
+    <div class="sh-colhead"><span>Critical Performance Steps</span><span class="sh-tick">check if done correctly</span></div>
+    <div class="sh-sec">
+      <div class="sh-sec-h">Team Leader/Team Members<span class="sh-n">${teamDone}/${teamTotal}</span></div>
+      ${team}
+      <div class="sh-sec-h sub">Ensures high-quality CPR at all times</div>
+      ${cprChecks}${cprWrite}
+    </div>
+    ${sections}
+    <div class="sh-stop">■ Stop test</div>
+    <div class="sh-foot">
+      <span class="sh-res-lbl">Test results</span>
+      <span class="res-grp">
+        <button class="res-btn pass${run.result==='pass'?' on':''}" aria-pressed="${run.result==='pass'}" onclick="setResult('pass')">PASS</button>
+        <button class="res-btn nr${run.result==='nr'?' on':''}" aria-pressed="${run.result==='nr'}" onclick="setResult('nr')">NR</button>
+      </span>
+      <label>Instr. initials <input aria-label="Instructor initials" maxlength="6"
+        value="${esc(run.instructorInitials)}" oninput="setInstructor('instructorInitials',this.value)"></label>
+      <label>Instr. number <input aria-label="Instructor number" maxlength="16"
+        value="${esc(run.instructorNumber)}" oninput="setInstructor('instructorNumber',this.value)"></label>
     </div>
   </div>`;
+}
+
+/** Date of test, as a form is filled in. */
+function sheetDate(iso){
+  const d=new Date(iso||Date.now());
+  if(isNaN(d)) return '';
+  return String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'/'+d.getFullYear();
+}
+
+/* The sheet is re-rendered from scratch on every tick, and replacing innerHTML
+   throws the scroll position away — so ticking a step half way down the form
+   sent the instructor back to the top of it, on every single tick. Both boxes
+   that can be doing the scrolling are banked before the render and put back
+   after it. */
+function sheetScrollState(){
+  const sheet=document.getElementById('sheet');
+  const card=document.getElementById('runCard');
+  const active=document.activeElement;
+  return {
+    sheet:sheet?sheet.scrollTop:null,
+    card:card?card.scrollTop:null,
+    // The row that had focus, by the key that outlives the render.
+    focus:active&&active.dataset?active.dataset.k||null:null,
+  };
+}
+function restoreSheetScroll(prev){
+  if(!prev) return;
+  const sheet=document.getElementById('sheet');
+  const card=document.getElementById('runCard');
+  if(sheet&&prev.sheet!=null) sheet.scrollTop=prev.sheet;
+  if(card&&prev.card!=null) card.scrollTop=prev.card;
+  if(prev.focus){
+    // Same step, new element. Without this, checking a step from the keyboard
+    // drops focus to the top of the document and the next one has to be tabbed
+    // back to from there.
+    const back=document.querySelector('[data-k="'+prev.focus+'"]');
+    if(back) try{ back.focus({preventScroll:true}); }catch(e){ back.focus(); }
+  }
+}
+
+/* Bring the phase the patient is in into view — but only when the phase itself
+   changes. Scrolling on every tick would drag the form out from under an
+   instructor working their way down a section. */
+function syncSheetScroll(){
+  if(!run||!run.checklist) return;
+  if(run.current===sheetPhase) return;
+  const wasPhase=sheetPhase;
+  sheetPhase=run.current;
+  // Not on the first phase of a run. Everything is at the top of the card at
+  // that point — the scenario, the student's name, End run — and scrolling the
+  // form up to meet the first section takes all of it off the screen before
+  // the crew have done anything.
+  if(wasPhase<0) return;
+  try{
+    const sheet=document.getElementById('sheet');
+    const sec=sheet&&sheet.querySelector('.sh-sec.now');
+    if(!sheet||!sec) return;
+    const head=sheet.querySelector('.sh-head');
+    const headH=head?head.offsetHeight:0;
+    // Whichever box actually scrolls: the sheet where it is capped, the run
+    // card where the rail lets the sheet run its full length. Measured rather
+    // than read off offsetTop, which is relative to the nearest positioned
+    // ancestor — the card, not the sheet — and put the scroll nowhere.
+    const box=(sheet.scrollHeight>sheet.clientHeight+2)?sheet:document.getElementById('runCard');
+    if(!box) return;
+    const boxRect=box.getBoundingClientRect();
+    const secRect=sec.getBoundingClientRect();
+    // Already in front of them: leave the view alone. Without this, starting a
+    // run scrolled the rail down to the first section — which is where it was
+    // anyway — and took the run header, the student's name and End run off the
+    // top of the screen with it.
+    //
+    // "In front of them" means clear of the sticky head above and far enough
+    // from the bottom edge that the section's first steps are on screen too.
+    if(secRect.top>=boxRect.top+headH&&secRect.top<boxRect.bottom-120) return;
+    const delta=secRect.top-boxRect.top;
+    box.scrollTop=Math.max(0,box.scrollTop+delta-headH-6);
+  }catch(e){}
 }
 
 function renderSimPanel(simKey){
   const panel=document.getElementById('simStatePanel');
   const card=document.getElementById('runCard');
+  // Banked before anything is replaced; see sheetScrollState above.
+  const scrollWas=sheetScrollState();
   const graded=!!SCENARIO_DOCS[simKey];
   document.body.classList.toggle('run-mode',graded);
   document.body.classList.toggle('run-active',!!run);
+  // Megacode layout: the sheet is the window, and the rail stands down.
+  document.body.classList.toggle('sheet-run',sheetRun());
+  if(card) card.classList.toggle('sheet-run',sheetRun());
   if(card) card.hidden=!graded;
 
   if(!simKey||!SIMULATIONS[simKey]){
@@ -2830,7 +3786,7 @@ function renderSimPanel(simKey){
     const hit=rs?rs.actions.filter(a=>a.done).length:0;
     const tot=rs?rs.actions.length:0;
     const tally=tot?`<span style="float:right;font-size:.6rem;color:${hit===tot?'#7fe0a5':'var(--t-dim)'}">${hit}/${tot}</span>`:'';
-    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" onclick="applySimState('${simKey}',${i})">
+    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" aria-pressed="${i===activeStateIdx}" onclick="applySimState('${simKey}',${i})">
       <span class="sname" style="color:${st.color}">${st.label}${tally}</span>
       <span class="svitals">${st.display}</span>
     </div>`;
@@ -2843,13 +3799,46 @@ function renderSimPanel(simKey){
   let actionsHtml='';
   if(run&&run.current===activeStateIdx&&run.states[activeStateIdx].actions.length){
     actionsHtml=run.states[activeStateIdx].actions.map((a,i)=>
-      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" onclick="toggleAction(${i})"
-            title="${a.auto?'Ticked from the monitor — click to undo':''}">
-        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?'<span class="auto-tag">from monitor</span>':''}
+      `<div class="act${a.done?' done':''}${a.auto?' auto':''}" role="button" tabindex="0" aria-pressed="${a.done}" onclick="toggleAction(${i})"
+            title="${a.auto?(a.auto==='crew'?'Ticked from the interventions you marked — click to undo':'Ticked from a press at the defibrillator — click to undo'):''}">
+        <span class="box">${a.done?'✓':''}</span><span>${esc(a.text)}</span>${a.auto?`<span class="auto-tag">${a.auto==='crew'?'from interventions':'from monitor'}</span>`:''}
       </div>`).join('');
   }
+  /* The transition, as a control rather than as prose to act on. The cue only
+     appears once the scripted shocks have actually been delivered.
+
+     Rendered in three places, one of which is visible at a time — see the CSS.
+     Under the state list is its home, and where it stays on a wide screen. But
+     on a stacked layout that list is a column of its own, which puts Advance
+     near the bottom of a 600px card, and when the card is condensed to a line
+     it is not on screen at all. Advancing the patient is a thing a facilitator
+     does at every rhythm change, standing up, while watching a crew — it has to
+     be where their hand already is. */
+  const nx=nextStage();
+  const cue=advanceCue();
+  const advBody=nx?(cue?`⚡ ${esc(cue.label)}`:`→ Advance to ${esc(nx.state.label)}`):'';
+  const advTitle=cue?'The shocks this stage is scripted around have been delivered'
+                    :'Move the patient to the next stage';
+  const advBtn=(cls)=>nx
+    ? `<button class="adv-btn ${cls}${cue?' cued':''}" onclick="event.stopPropagation();advanceStage()"
+               title="${esc(advTitle)}">${advBody}</button>`
+    : '';
+  const advanceHtml=advBtn('adv-col');
+  // The ROSC sign the crew is meant to notice, offered only while it would mean
+  // something: capnography up, patient in arrest, EtCO₂ still down where CPR
+  // holds it.
+  const surgeHtml=surgeReady()
+    ? `<button class="adv-btn surge" onclick="etco2Surge()"
+         title="Raise EtCO₂ sharply over six seconds — the crew should notice and check a pulse">⤴ EtCO₂ surge — ROSC sign</button>`
+    : (surgeTimer
+        ? `<div class="surge-live">⤴ EtCO₂ rising — ${esc(String(S.etco2))} mmHg</div>`
+        : '');
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
   const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
+  // Program coaching, distinct from the AHA-transcribed note above it: the
+  // clinical emphasis the review asked for, added rather than overwriting the
+  // manual text so it is clear which is which.
+  const coachHtml=st&&st.coach?`<div class="sim-note coach">🎓 <b>Program coaching:</b> ${esc(st.coach)}</div>`:'';
 
   if(graded){
     // Full width: states, the checklist and the triggers side by side, so a
@@ -2865,34 +3854,43 @@ function renderSimPanel(simKey){
         <span class="rm-sp">
           <span class="rm-num" id="rmClock">${mmss(runElapsed())}</span>
           <span class="rm-num${miniTally().done&&miniTally().done===miniTally().total?' all-done':''}">\u2713 ${miniTally().done}/${miniTally().total}</span>
+          ${advBtn('adv-mini')}
           <button class="end-btn rm-end" style="width:auto;"
                   onclick="event.stopPropagation();endRun()">\u25a0 End</button>
         </span>
       </div>
       <div class="run-head">
         <div class="rh-name">📋 ${esc(sim.name)}<br><span class="rh-sub">${esc(sim.subtitle)}</span></div>
+        ${advBtn('adv-head')}
         <div class="rh-sp run-inline">
-          <input id="crewIn" placeholder="Crew being assessed" value="${esc(run?run.crew:'')}"
-                 oninput="setRunField('crew',this.value)">
+          ${run&&run.checklist?'':`<input id="crewIn" placeholder="Crew being assessed" value="${esc(run?run.crew:'')}"
+                 oninput="setRunField('crew',this.value)">`}
           <input id="noteIn" placeholder="Debrief note" value="${esc(run?run.notes:'')}"
                  oninput="setRunField('notes',this.value)">
-          <button class="apply-btn" style="padding:7px 12px;min-height:44px;min-width:44px;" onclick="toggleSetup()"
+          <button class="apply-btn" style="padding:9px 13px;min-height:44px;min-width:44px;" onclick="toggleSetup()"
                   title="Show the scenario pickers without ending the run">⚙</button>
+          <button class="apply-btn rc-collapse" style="padding:9px 13px;min-height:38px;" onclick="collapseRunCard()"
+                  title="Collapse this card to a single line — it stays put while you scroll either way">▲</button>
           <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
         </div>
       </div>
+      <div class="iv-strip"></div>
       <div class="run-cols">
-        <div><div class="col-h">Patient state — click to drive</div>${states}</div>
-        <div><div class="col-h" style="color:#00cc66;">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}</div>
-        <div>${triggerHtml}${noteHtml}
-          <div class="col-h" style="color:#8fb6ff;margin-top:10px;">At the monitor</div>
+        <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}${surgeHtml}</div>
+        <div>${run&&run.checklist
+          ? sheetHtml()
+          : `<div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}`}</div>
+        <div>${triggerHtml}${noteHtml}${coachHtml}
+          <div class="col-h" style="color:var(--accent);margin-top:10px;">At the monitor</div>
           <div class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
         </div>
-      </div>
-      ${run&&run.checklist?checklistStripHtml():''}`;
+      </div>`;
     renderDeviceFeed();
     renderPacerPrompt();
+    renderInterventions();
+    restoreSheetScroll(scrollWas);
+    syncSheetScroll();
     applyRunCondense();
     return;
   }
@@ -2901,7 +3899,9 @@ function renderSimPanel(simKey){
   // the compact in-grid card they have always had.
   let html=`<div class="sim-scenario-name">📋 ${sim.name}<br><span style="color:var(--t-dim);font-weight:normal;">${sim.subtitle}</span></div>`;
   html+=`<div class="sim-states">${states}</div>`;
+  html+=advanceHtml;
   html+=noteHtml;
+  html+=coachHtml;
   panel.innerHTML=html;
 }
 
@@ -2920,9 +3920,11 @@ function runSummaryHtml(rec){
       'fraction '+(c.fraction||'—')+'%','vent '+(c.ventRate||'—')+'/min'].join(' · ');
     h+=`<div style="margin-bottom:8px;">`+
        (rec.result?`<span class="res-btn ${rec.result} on" style="cursor:default;">${rec.result==='pass'?'PASS':'NR'}</span> `:
-         `<span style="color:#ff8844;">No result recorded — the checklist asks for PASS or NR.</span> `)+
+         `<span style="color:var(--amber);">No result recorded — the checklist asks for PASS or NR.</span> `)+
        `<span style="color:var(--t-dim);">${esc(rec.checklistName||'')}</span></div>`;
     h+=`<div style="margin-bottom:8px;color:var(--t-dim);">Team ${teamHit}/${(rec.team||[]).length} · CPR ${esc(cprBits)}</div>`;
+    h+=`<div style="margin-bottom:8px;color:var(--t-dim);">Instructor ${esc(rec.instructorInitials||'—')}`+
+       (rec.instructorNumber?` · number ${esc(rec.instructorNumber)}`:'')+`</div>`;
   }
   h+=`<div style="margin-bottom:8px;color:var(--t-dim);">${hit} of ${tot} expected actions observed · ${mmss(total)} total`+
      (rec.crew?` · ${esc(rec.crew)}`:'')+`</div>`;
@@ -2935,16 +3937,79 @@ function runSummaryHtml(rec){
     h+=`</div>`;
   });
   h+=`</div>`;
-  h+=`<div class="run-foot" style="color:var(--t-dim);font-size:.6rem;line-height:1.4;">`+
-     (rec.saved?'Saved to CES — see Records above.':'Not saved: the panel is open on its own rather than inside CES.')+
+  h+=`<div class="run-foot" style="color:var(--t-dim);font-size:.66rem;line-height:1.45;">`+
+     (rec.saved?'Saved to CES — see Runs above.':'Not saved: the panel is open on its own rather than inside CES.')+
+     // The sheet the student submits to renew the card. Printed by CES, which
+     // is where the record now lives and which knows who is signed in; the
+     // panel on its own has no record to print from.
+     (rec.saved&&rec.checklist
+       ? `<button class="end-btn" style="margin-top:8px;" onclick="printSheet()">🖨 Print check-off sheet</button>`
+       : '')+
+     // Ended by mistake, or ended one action early. Restores the run and takes
+     // the record back off CES.
+     `<button class="end-btn reopen" style="margin-top:8px;" onclick="reopenRun()"
+              title="Put this run back on the clock — the record just filed is withdrawn">↩ Reopen this run</button>`+
      `<button class="end-btn" style="margin-top:8px;" onclick="newRun()">↻ Run this scenario again</button></div>`;
   return h;
+}
+
+/* Put a run that has just been ended back on the clock.
+
+   End run & save is one press, it is next to the controls that get pressed
+   constantly, and until now it was final: a mis-tap with the crew still working
+   meant the record was filed, and putting it right meant going to CES, deleting
+   it and running the scenario again from the top.
+
+   Reopening restores the run exactly as it was and asks CES to drop the record
+   it just filed, so there is one record at the end and not two. The patient is
+   left alone — ending a run never touched the vitals, so the monitor is still
+   showing what the crew are looking at. */
+function reopenRun(){
+  const rec=lastRun;
+  if(!rec) return;
+  run={
+    scenario:rec.scenario, scenarioName:rec.scenarioName,
+    startedAt:rec.startedAt,
+    crew:rec.crew||'', notes:rec.notes||'',
+    current:-1, enteredAt:Date.now(),
+    checklist:rec.checklist||null, checklistName:rec.checklistName||'',
+    team:rec.team||null, cpr:rec.cpr||null, result:rec.result||null,
+    instructorInitials:rec.instructorInitials||'', instructorNumber:rec.instructorNumber||'',
+    device:(rec.device||[]).slice(), lastShockAt:null, stageShocks:0,
+    states:rec.states.map(st=>({
+      id:st.id, label:st.label, section:st.section||'', seconds:st.seconds,
+      actions:st.actions.map(a=>Object.assign({},a)),
+    })),
+  };
+  lastRun=null;
+  sheetPhase=-1;
+  if(rec.saved){
+    try{
+      if(window.parent&&window.parent!==window)
+        window.parent.postMessage({type:'ces-sim-unsave'},window.location.origin);
+    }catch(e){}
+  }
+  // Back on the clock at the stage the panel is showing, which is the stage the
+  // patient is actually in.
+  enterRunState(activeStateIdx>=0?activeStateIdx:0);
+  renderSimPanel(run.scenario);
+}
+
+/** Ask CES to open the print dialog on the sheet for the run just saved. */
+function printSheet(){
+  try{
+    if(window.parent&&window.parent!==window)
+      window.parent.postMessage({type:'ces-sim-print'},window.location.origin);
+  }catch(e){}
 }
 
 // ── Open Monitor ─────────────────────────────────────────────
 function openMonitor(){
   flushSave(); // the monitor reads localStorage as it loads
-  window.open('patient_monitor_display.html','Monitor','width=1280,height=720,resizable=yes');
+  // This is the LIFEPAK 15 program, so the monitor opens in the LP skin rather
+  // than the ZOLL-style default. The crew can still switch it unless a session
+  // is opened locked (?skin=lp&lock=1).
+  window.open('patient_monitor_display.html?skin=lp','Monitor','width=1280,height=720,resizable=yes');
 }
 
 // ── Drug Interactions Engine ──────────────────────────────────
@@ -2985,6 +4050,23 @@ const DRUGS={
     effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*40),dbp:Math.round(b.dbp+pk*20),hr:Math.round(b.hr+pk*30)};}},
   whole_blood:{name:'O+ LTWB',duration:120,
     effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*22),dbp:Math.round(b.dbp+pk*12),hr:Math.round(b.hr-pk*10),spo2:Math.min(99,Math.round(b.spo2+pk*5))};}},
+  // ACLS bradycardia + toxicology agents. On a pulseless patient these produce
+  // no perfusion (see drugTick) — they act on a perfusing patient, which is
+  // where a chronotrope or a CCB-overdose therapy is judged. Atropine is given a
+  // real effect here; the transplant and CCB scenarios are where the facilitator
+  // withholds the response, as the coaching notes say.
+  atropine:{name:'Atropine',duration:40,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*30),sbp:Math.round(b.sbp+pk*12),dbp:Math.round(b.dbp+pk*6)};}},
+  dopamine:{name:'Dopamine',duration:150,
+    effect:(b,p)=>{const pk=ramp(p,.25);return{hr:Math.round(b.hr+pk*22),sbp:Math.round(b.sbp+pk*30),dbp:Math.round(b.dbp+pk*16)};}},
+  calcium:{name:'Calcium (CaCl₂ / gluconate)',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*8),hr:Math.round(b.hr+pk*8)};}},
+  bicarb:{name:'Sodium Bicarbonate',duration:120,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{sbp:Math.round(b.sbp+pk*6),dbp:Math.round(b.dbp+pk*3)};}},
+  insulin_dextrose:{name:'High-Dose Insulin (euglycemic)',duration:180,
+    effect:(b,p)=>{const pk=ramp(p,.45);return{sbp:Math.round(b.sbp+pk*26),dbp:Math.round(b.dbp+pk*14),hr:Math.round(b.hr+pk*10)};}},
+  glucagon:{name:'Glucagon',duration:90,
+    effect:(b,p)=>{const pk=Math.sin(Math.PI*p);return{hr:Math.round(b.hr+pk*18),sbp:Math.round(b.sbp+pk*14),dbp:Math.round(b.dbp+pk*7)};}},
 };
 
 // Floors are zero because arrest is a state this simulator ships: with the
@@ -3022,7 +4104,7 @@ function toggleDrugHold(){
   btn.style.color='#ff3333';
   btn.style.boxShadow='0 0 8px #ff333355';
   setTimeout(()=>{
-    btn.style.background='#0a0f1a';
+    btn.style.background='var(--inset)';
     btn.style.borderColor='#555';
     btn.style.color='#888';
     btn.style.boxShadow='none';
@@ -3070,9 +4152,18 @@ function drugTick(){
     const b=document.querySelector('.drug-btn[data-drug="'+k+'"]');
     if(b) b.classList.remove('running');
   });
-  // Drug effects deliberately ignore the physiology lock: giving epinephrine
-  // in an arrest is exactly the case where the instructor wants the numbers to
-  // move off what the rhythm would otherwise pin them to.
+  // A pulseless patient does not perfuse, and a drug cannot change that. A
+  // pressor given in VF, asystole, pulseless VT or PEA is on board and logged,
+  // but it manufactures no blood pressure, no saturation and no perfusing rate
+  // — those appear only when the facilitator establishes a perfusing rhythm
+  // (ROSC), at which point stopDrugs has cleared it and a fresh dose works. The
+  // undrugged baseline is the test: a systolic of zero there is an arrest.
+  // (This is the review's "epinephrine during pVT changed NIBP 0/0 -> 17/8 and
+  // increased the electrical rate" — it should have done neither.)
+  const pulseless=drugBase.sbp<=0;
+  if(pulseless){ totals.hr=0; totals.sbp=0; totals.dbp=0; totals.spo2=0; totals.rr=0; }
+  // Otherwise drug effects override the physiology lock: raising a perfusing
+  // patient's pressure with a pressor is exactly what the lock must not pin.
   for(const k in totals){
     const lim=VITAL_LIMITS[k];
     S[k]=Math.max(lim[0],Math.min(lim[1],Math.round(drugBase[k]+totals[k])));
@@ -3108,6 +4199,8 @@ function makeFocusable(){
   });
 }
 document.addEventListener('keydown',e=>{
+  // Escape is the way out of the end-of-run prompt, as it is out of any dialog.
+  if(e.key==='Escape'&&endPromptOpen()){ e.preventDefault(); closeEndPrompt(); return; }
   const t=e.target;
   if(!t||typeof t.matches!=='function'||!t.matches('[role="button"]')) return;
   if(e.key==='Enter'||e.key===' '){e.preventDefault();t.click();}

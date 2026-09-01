@@ -16,10 +16,12 @@
 // the plan ran 23, which is the exact kind of drift that turns a recruiting
 // email into a broken promise.
 //
-// KC_CALENDAR_WEEKS, not KC_COURSE_WEEKS. The filing numbers sixteen course
-// weeks, but holidays push the last of them into a seventeenth calendar week —
-// and a candidate working out whether they can commit is asking how long this
-// takes, not how the weeks are numbered.
+// KC_CALENDAR_WEEKS, not KC_COURSE_WEEKS. The schedule delivers sixteen
+// instructional weeks across eighteen calendar ones, because of the two-week
+// break over the holidays — and a candidate working out whether they can commit
+// is asking how long this takes, not how the weeks are numbered. Both are
+// quoted in the program shape below, since the difference is a fortnight they
+// need to plan around rather than a technicality.
 //
 // The policy figures that ARE quoted — the pass mark, the absence limit, the
 // K.A.R. clinical minimums — are imported from data/aemt.ts rather than
@@ -28,7 +30,10 @@
 
 import {
   CLINICAL_REQUIREMENTS,
+  GRADING_MODEL,
   KC_CALENDAR_WEEKS,
+  KC_COURSE_WEEKS,
+  PRE_COURSE_POLICY,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from './aemt'
@@ -76,9 +81,30 @@ export const EXAM_URL = 'https://ces-nu.vercel.app/exam'
 
 /** The shape of the program, without committing to an hour count. */
 const PROGRAM_SHAPE = [
-  `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for ${KC_CALENDAR_WEEKS} weeks.`,
-  `Classroom and lab sessions are held at AMR Kansas City headquarters. Hospital clinical and field internship hours are completed at partner sites in the Kansas City area.`,
+  `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for ${KC_CALENDAR_WEEKS} calendar weeks, delivering ${KC_COURSE_WEEKS} instructional weeks with a two-week break over the holidays.`,
+  `It is run jointly with AMR Wichita: one class, one schedule, one standard. Classroom and lab sessions are held at AMR Kansas City headquarters, with Wichita joining by Teams. Hospital clinical and field internship hours are completed at partner sites in your own operation's area — you will not be travelling for them.`,
 ].join(' ')
+
+/**
+ * How the grade is made up, in one line.
+ *
+ * Read off GRADING_MODEL rather than written out, because this is the promise
+ * made to a candidate before they accept a seat and it must not be able to
+ * disagree with the syllabus. The previous wording — "exams are 60% of your
+ * grade and quizzes/homework 40%" — outlived the model it described.
+ */
+function gradingLine(): string {
+  const weighted = GRADING_MODEL.filter((c) => c.weight !== null)
+  const su = GRADING_MODEL.filter((c) => c.weight === null)
+  return [
+    `${MIN_PASSING_PERCENT}% minimum to pass.`,
+    `${weighted.map((c) => `${c.short} ${c.weight}%`).join('; ')}.`,
+    su.length ? `${su.map((c) => c.short).join('; ')}: satisfactory/unsatisfactory.` : '',
+    'Most of the graded weight is closed-book and proctored, because that is what the certification exam is.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 
 export type EmailTemplateId = 'next-steps' | 'interview' | 'not-selected' | 'accepted'
 
@@ -211,8 +237,8 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       ``,
       `WHAT IS EXPECTED OF YOU TO COMPLETE IT`,
       ``,
-      `  • ${MIN_PASSING_PERCENT}% minimum to pass. Exams are 60% of your grade and quizzes/homework 40%; lab, clinical and field internship are satisfactory/unsatisfactory.`,
-      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time fails the course.`,
+      `  • ${gradingLine()}`,
+      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time triggers a documented make-up requirement — an equivalent-competency demonstration on what you missed, within 14 days.`,
       `  • Clinical and field shifts are 12 hours each and are scheduled IN ADDITION TO your regular work schedule. This is the single biggest demand of the program — plan for it now.`,
       `  • You are responsible for documenting your own clinical minimums as you go.`,
       ``,
@@ -333,8 +359,8 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       ...(notes.length ? [...notes, ``] : []),
       `WHAT YOU ARE COMMITTING TO`,
       ``,
-      `  • ${MIN_PASSING_PERCENT}% minimum to pass. Exams are 60% of your grade and quizzes/homework 40%; lab, clinical and field internship are satisfactory/unsatisfactory.`,
-      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time fails the course. Build your schedule around this now.`,
+      `  • ${gradingLine()}`,
+      `  • Attendance: missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time triggers a documented make-up requirement — an equivalent-competency demonstration on what you missed, within 14 days. Build your schedule around this now.`,
       `  • Clinical and field shifts are 12 hours each and are scheduled IN ADDITION TO your regular work schedule.`,
       `  • You are responsible for documenting your own clinical minimums as you go: ${clinicalMinimums()}.`,
       ``,
@@ -351,6 +377,9 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       `  • Confirm your seat by replying to this email`,
       `  • Make sure your certification and required credentials are current in Ninth Brain`,
       `  • Talk to your supervisor about your schedule for the next ${KC_CALENDAR_WEEKS} weeks`,
+      `  • REQUIRED PRE-COURSE WORK: ${PRE_COURSE_POLICY.requirement} Due ${PRE_COURSE_POLICY.dueBy}.`,
+      ``,
+      `That pre-course block is chapters 1 to 4 — EMS systems, workforce safety, medical-legal and documentation. It is the material you already work inside every shift, so we are not spending a classroom day on it. Doing it before you arrive is what lets the first session open on medical terminology and the second get into anatomy and physiology. ${PRE_COURSE_POLICY.checkedAt} ${PRE_COURSE_POLICY.ifIncomplete}`,
       ``,
       `Congratulations again. Reply with any questions.`,
     ],

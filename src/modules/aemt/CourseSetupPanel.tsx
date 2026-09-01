@@ -54,6 +54,9 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
     course.primaryInstructorCredential ?? 'paramedic',
   )
   const [instructorCert, setInstructorCert] = useState(course.primaryInstructorCertNumber ?? '')
+  // One per line rather than a repeater: it is a short list that changes once a
+  // course, and a repeater would be more chrome than the field deserves.
+  const [coInstructors, setCoInstructors] = useState((course.coInstructors ?? []).join('\n'))
   // Editable here because it was previously settable only at creation: a course
   // created without one silently dropped the monitor sheet from every student's
   // psychomotor requirement, with no way to correct it afterwards.
@@ -135,6 +138,22 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
           />
         </div>
       </div>
+      <div className="field">
+        <label htmlFor="ce-coi">Other instructors of record</label>
+        <textarea
+          id="ce-coi"
+          rows={2}
+          value={coInstructors}
+          onChange={(e) => setCoInstructors(e.target.value)}
+          placeholder={'Cassandra Powell'}
+        />
+        <div className="help-text">
+          One per line. Everyone who teaches this cohort besides the primary instructor — on a joint
+          course, the other market&rsquo;s lead. K.A.R. 109-17-3 asks each student to evaluate every
+          instructor who taught them, so this is the number the Forms tab counts against.
+        </div>
+      </div>
+
       <div className="field-row">
         <div className="field">
           <label htmlFor="ce-coord">Program manager</label>
@@ -232,6 +251,13 @@ function EditModal({ course, onClose }: { course: AemtCourse; onClose: () => voi
               primaryInstructor: instructor.trim() || undefined,
               primaryInstructorCredential: instructor.trim() ? instructorCred : undefined,
               primaryInstructorCertNumber: instructorCert.trim() || undefined,
+              coInstructors: (() => {
+                const names = coInstructors
+                  .split('\n')
+                  .map((n) => n.trim())
+                  .filter(Boolean)
+                return names.length ? names : undefined
+              })(),
             })
             onClose()
           }}

@@ -27,6 +27,23 @@ import {
   PROHIBITED_TOPICS,
 } from '../../data/aemtSelection'
 import { useCan } from '../../lib/role'
+import { printDoc, downloadDoc, safeFilename } from '../academy/docGen'
+import {
+  candidateRecordBody,
+  candidateRecordTitle,
+  cohortRecordBody,
+  cohortRecordTitle,
+  recordFingerprint,
+} from './selectionRecord'
+import {
+  parseTranscript,
+  listSpeakers,
+  guessCandidate,
+  segmentAnswers,
+  suggestScore,
+  docxToText,
+  type Suggestion,
+} from '../../lib/interviewTranscript'
 import type { AemtCandidate, AemtCourse } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -220,6 +237,50 @@ function InterviewModal({
   const [scores, setScores] = useState<Record<string, number>>(mine?.scores ?? {})
   const [notes, setNotes] = useState<Record<string, string>>(mine?.notes ?? {})
   const total = Object.values(scores).reduce((n, v) => n + v, 0)
+
+  // ----- transcript assist (optional) -------------------------------------
+  // A Teams transcript can pre-fill the answers and suggest a 1-5 per question.
+  // It is a convenience: the interviewer confirms every answer and score. See
+  // lib/interviewTranscript.ts.
+  const [showTx, setShowTx] = useState(false)
+  const [tx, setTx] = useState('')
+  const [candidateSpeaker, setCandidateSpeaker] = useState('')
+  const [txError, setTxError] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<Record<string, Suggestion>>({})
+  const turns = tx.trim() ? parseTranscript(tx) : []
+  const speakerList = listSpeakers(turns)
+  const chosenSpeaker = candidateSpeaker || guessCandidate(turns)
+
+  async function onPickFile(file: File | undefined) {
+    if (!file) return
+    setTxError(null)
+    try {
+      const text = await docxToText(await file.arrayBuffer())
+      setTx(text)
+    } catch (e) {
+      setTxError((e as Error).message || 'Could not read that file. Try pasting the transcript instead.')
+    }
+  }
+
+  function applyTranscript() {
+    if (!turns.length) return
+    const answers = segmentAnswers(turns, chosenSpeaker, INTERVIEW_QUESTIONS)
+    const nextNotes = { ...notes }
+    const nextScores = { ...scores }
+    const nextSug: Record<string, Suggestion> = {}
+    for (const q of INTERVIEW_QUESTIONS) {
+      const a = answers[q.id]
+      if (a) nextNotes[q.id] = a
+      const s = suggestScore(q.id, a || '')
+      nextSug[q.id] = s
+      // Only pre-select where there is an answer to suggest from; an empty
+      // answer must not silently drop a 1 onto the form.
+      if (a) nextScores[q.id] = s.score
+    }
+    setNotes(nextNotes)
+    setScores(nextScores)
+    setSuggestions(nextSug)
+  }
   const complete =
     INTERVIEW_QUESTIONS.every((q) => typeof scores[q.id] === 'number') && identity !== ''
   const alreadyScored = (candidate.interviews ?? []).map((i) => i.scorer)
@@ -254,6 +315,87 @@ function InterviewModal({
           afterwards — this saves your scores only.
         </div>
       )}
+
+      <div className="card" style={{ padding: 12, marginTop: 12, borderLeft: '3px solid var(--info)' }}>
+        <button
+          className="link-btn"
+          onClick={() => setShowTx((v) => !v)}
+          aria-expanded={showTx}
+          style={{ fontWeight: 700 }}
+        >
+          {showTx ? '▾' : '▸'} Score from a Teams transcript (optional)
+        </button>
+        {showTx && (
+          <>
+            {/* Info, not warn: on a signed-out device this sits directly under
+                the amber "not signed in" banner, and two ambers in a row means
+                neither is read. */}
+            <div className="banner info" style={{ marginTop: 8 }}>
+              <strong>An assistant, not the decision.</strong> Suggestions come from keyword signals
+              in the words on the page — a starting point, not an assessment. You confirm every
+              answer and every score, and you remain the scorer of record.
+            </div>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="tx-paste">Paste the transcript, or upload the Teams .docx</label>
+              <textarea
+                id="tx-paste"
+                rows={6}
+                value={tx}
+                onChange={(e) => setTx(e.target.value)}
+                placeholder="Paste the Teams meeting transcript here…"
+              />
+            </div>
+            <div className="btn-row">
+              <label className="btn" style={{ cursor: 'pointer' }}>
+                Upload .docx
+                <input
+                  type="file"
+                  accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  hidden
+                  onChange={(e) => onPickFile(e.target.files?.[0])}
+                />
+              </label>
+              {tx.trim() && (
+                <button className="btn" onClick={() => { setTx(''); setSuggestions({}); setTxError(null) }}>
+                  Clear
+                </button>
+              )}
+            </div>
+            {txError && (
+              <div className="banner crit" style={{ marginTop: 8 }}>
+                {txError}
+              </div>
+            )}
+            {turns.length > 0 && (
+              <>
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label htmlFor="tx-speaker">Which speaker is the candidate?</label>
+                  <select
+                    id="tx-speaker"
+                    value={chosenSpeaker}
+                    onChange={(e) => setCandidateSpeaker(e.target.value)}
+                  >
+                    {speakerList.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name} · {s.words} words
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="btn-row">
+                  <button className="btn primary" onClick={applyTranscript} disabled={!chosenSpeaker}>
+                    Fill answers &amp; suggest scores
+                  </button>
+                </div>
+                <div className="help-text">
+                  {turns.length} turns · {speakerList.length} speakers detected. Applying fills “What
+                  they said” and pre-selects a suggested score under each question — both editable.
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
 
       {INTERVIEW_QUESTIONS.map((q) => (
         <div key={q.id} className="card" style={{ padding: 12, marginTop: 10 }}>
@@ -292,6 +434,31 @@ function InterviewModal({
             <br />
             <strong>5</strong> {q.anchors[5]}
           </div>
+
+          {suggestions[q.id] && (
+            <div
+              className="help-text"
+              style={{
+                marginTop: 6,
+                padding: '6px 8px',
+                background: 'var(--muted-bg)',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              <strong>Suggested {suggestions[q.id].score}/5</strong> · {suggestions[q.id].confidence}{' '}
+              confidence — a starting point, not a score.
+              <ul style={{ margin: '4px 0 0 16px' }}>
+                {suggestions[q.id].rationale.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+              {typeof scores[q.id] === 'number' && scores[q.id] !== suggestions[q.id].score && (
+                <div style={{ marginTop: 3, color: 'var(--info)' }}>
+                  You set {scores[q.id]} — overriding the suggestion.
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="field" style={{ marginTop: 6 }}>
             <label htmlFor={`nt-${q.id}`}>What they said</label>
@@ -337,6 +504,158 @@ function InterviewModal({
         <button className="btn" onClick={onClose}>
           Cancel
         </button>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * The filed selection record for one candidate — scores, interview in full, and
+ * the justification of the whole procedure — printed to PDF or saved as an
+ * editable .doc, fingerprinted so a filed copy is tamper-evident.
+ */
+const DECISIONS: { id: 'advance' | 'hold' | 'declined'; label: string }[] = [
+  { id: 'advance', label: 'Advance' },
+  { id: 'hold', label: 'Hold' },
+  { id: 'declined', label: 'Do not advance' },
+]
+
+function RecordModal({
+  candidate,
+  course,
+  actor,
+  canRecord,
+  onClose,
+}: {
+  candidate: AemtCandidate
+  course: AemtCourse
+  actor: string
+  canRecord: boolean
+  onClose: () => void
+}) {
+  // The decision is recorded here because this is the moment it is filed. Held
+  // in local state and written through, so the document generated below carries
+  // the decision the button shows without waiting for a store round-trip.
+  const [decision, setDecisionState] = useState(candidate.decision)
+  const stamped: AemtCandidate = {
+    ...candidate,
+    decision,
+    decidedBy: decision ? actor : undefined,
+    decidedAt: decision ? candidate.decidedAt ?? new Date().toISOString() : undefined,
+  }
+  const score = scoreCandidate(stamped)
+  const [fingerprint, setFingerprint] = useState<string | null>(null)
+  const [ready, setReady] = useState(false)
+
+  function chooseDecision(id: 'advance' | 'hold' | 'declined') {
+    // Clicking the recorded decision again clears it, for a mis-tap.
+    const next = decision === id ? undefined : id
+    setDecisionState(next)
+    updateCandidate(candidate.id, {
+      decision: next,
+      decidedBy: next ? actor : undefined,
+      decidedAt: next ? new Date().toISOString() : undefined,
+    })
+  }
+
+  useEffect(() => {
+    let live = true
+    setReady(false)
+    recordFingerprint(stamped, score).then((h) => {
+      if (live) {
+        setFingerprint(h)
+        setReady(true)
+      }
+    })
+    return () => {
+      live = false
+    }
+    // Re-fingerprint when the decision changes — the decision is one of the
+    // scoring facts the hash covers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate, decision])
+
+  const meta = () => ({ actor, generatedAt: new Date().toLocaleString(), fingerprint })
+  const ivCount = candidate.interviews?.length ?? 0
+
+  return (
+    <Modal title={`Selection record — ${candidate.name}`} onClose={onClose}>
+      <div className="banner info" style={{ marginTop: 0 }}>
+        A filed record of how this candidate was scored — the composite, the interview in full, and
+        the justification of the procedure. Retained under HR, not the K.A.R. program-records clock.
+      </div>
+
+      <div className="meta" style={{ margin: '8px 0' }}>
+        Composite <strong>{score.composite.toFixed(1)}</strong> / {THRESHOLDS.composite} ·{' '}
+        {ivCount === 0
+          ? 'no interview recorded'
+          : `${ivCount} interviewer${ivCount === 1 ? '' : 's'}`}
+        {ivCount === 1 && ' (procedure expects two)'} ·{' '}
+        {score.complete && score.blockers.length === 0 ? 'clears every threshold' : 'does not clear'}
+      </div>
+      {ivCount === 0 && (
+        <div className="banner warn">
+          No interview has been scored for this candidate yet. The record will still generate — the
+          interview section will say so — but it is not a complete selection record.
+        </div>
+      )}
+
+      <div className="field" style={{ marginTop: 10 }}>
+        <label id="dec-lbl">Final decision</label>
+        <div className="segmented" role="radiogroup" aria-labelledby="dec-lbl" style={{ width: '100%' }}>
+          {DECISIONS.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              role="radio"
+              aria-checked={decision === d.id}
+              disabled={!canRecord}
+              title={canRecord ? undefined : 'Signed out — a decision recorded here could not be attributed.'}
+              className={decision === d.id ? 'active' : ''}
+              style={{ flex: 1 }}
+              onClick={() => chooseDecision(d.id)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <div className="help-text">
+          {decision
+            ? `Recorded ${actor === 'local' ? 'on this device' : `as ${actor}`}, and stamped on the document. Tap again to clear.`
+            : 'Optional — the record prints “No final decision recorded” until one is set.'}
+        </div>
+      </div>
+
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <button
+          className="btn primary"
+          disabled={!ready}
+          onClick={() =>
+            printDoc(candidateRecordTitle(stamped), candidateRecordBody(stamped, score, course, meta()))
+          }
+        >
+          Print / Save as PDF
+        </button>
+        <button
+          className="btn"
+          disabled={!ready}
+          onClick={() =>
+            downloadDoc(
+              safeFilename(`AEMT-selection-${candidate.name}`),
+              candidateRecordTitle(stamped),
+              candidateRecordBody(stamped, score, course, meta()),
+            )
+          }
+        >
+          Download .doc
+        </button>
+      </div>
+      <div className="help-text" style={{ marginTop: 6 }}>
+        {ready
+          ? fingerprint
+            ? 'Fingerprinted (SHA-256) for the file.'
+            : 'Fingerprint unavailable on this device — the record notes it.'
+          : 'Preparing the record…'}
       </div>
     </Modal>
   )
@@ -476,6 +795,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
   const [pullNote, setPullNote] = useState<string | null>(null)
   const [scoring, setScoring] = useState<AemtCandidate | null>(null)
   const [interviewing, setInterviewing] = useState<AemtCandidate | null>(null)
+  const [recording, setRecording] = useState<AemtCandidate | null>(null)
 
   // Clearing candidates first, then by score. A blocked candidate with a high
   // raw composite heading the list reads as the strongest applicant, which is
@@ -536,6 +856,24 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
             {pulling ? 'Pulling…' : '⬇ Pull exam results'}
           </button>
         )}
+        {canEdit && candidates.length > 0 && (
+          <button
+            className="btn"
+            title="One-page summary of the whole field with the scoring methodology — for the file"
+            onClick={() =>
+              printDoc(
+                cohortRecordTitle(course),
+                cohortRecordBody(
+                  course,
+                  scored,
+                  { actor: safety.actor, generatedAt: new Date().toLocaleString() },
+                ),
+              )
+            }
+          >
+            🗎 Cohort record
+          </button>
+        )}
         {canEdit && (
           <button className="btn primary" onClick={() => setAdding(true)}>
             + Candidate
@@ -573,7 +911,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
             return (
               <div
                 key={c.id}
-                className={`row left-accent ${clear ? 'acc-ok' : score.complete ? 'acc-crit' : 'acc-warn'}`}
+                className={`row cand-row left-accent ${clear ? 'acc-ok' : score.complete ? 'acc-crit' : 'acc-warn'}`}
               >
                 <div className="grow">
                   <div className="title">
@@ -582,6 +920,15 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                     {score.bonus > 0 && (
                       <span className="pill info" style={{ marginLeft: 8 }}>
                         +{score.bonus} additional duty
+                      </span>
+                    )}
+                    {/* The filed decision, visible without opening the record. */}
+                    {c.decision && (
+                      <span
+                        className={`pill ${c.decision === 'advance' ? 'ok' : c.decision === 'declined' ? 'crit' : 'warn'}`}
+                        style={{ marginLeft: 8 }}
+                      >
+                        {DECISIONS.find((d) => d.id === c.decision)?.label}
                       </span>
                     )}
                   </div>
@@ -618,7 +965,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                     </div>
                   )}
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="cand-score" style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 800, fontSize: 20 }}>
                     {score.composite.toFixed(1)}
                   </div>
@@ -627,7 +974,7 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                   </div>
                 </div>
                 {canEdit && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div className="cand-actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button className="btn sm" onClick={() => setScoring(c)}>
                       Scores
                     </button>
@@ -638,6 +985,13 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
                       onClick={() => setInterviewing(c)}
                     >
                       Interview
+                    </button>
+                    <button
+                      className="btn sm"
+                      title="Generate the filed selection record — scores, interview, and the justification of the process"
+                      onClick={() => setRecording(c)}
+                    >
+                      Record
                     </button>
                     <button
                       className="btn sm danger"
@@ -721,6 +1075,15 @@ export default function SelectionTab({ course }: { course: AemtCourse }) {
           candidate={interviewing}
           actor={safety.actor}
           onClose={() => setInterviewing(null)}
+        />
+      )}
+      {recording && (
+        <RecordModal
+          candidate={recording}
+          course={course}
+          actor={safety.actor}
+          canRecord={safety.canRecordOfficial}
+          onClose={() => setRecording(null)}
         />
       )}
     </div>

@@ -171,6 +171,17 @@ html,body{
   touch-action:manipulation;}
 #joinBox button.ghost{background:none;border-color:#3a434e;color:#9aa2ab;}
 .join-t{color:#9aa2ab;}
+/* A permanent way to the join prompt. Dismissing the prompt hides the prompt,
+   never this — so a crew that tapped "Not now" once can still join a session
+   the facilitator starts later. Sits opposite the skin switch, out of the way. */
+#joinTab{position:fixed;bottom:calc(4px + env(safe-area-inset-bottom));right:calc(4px + env(safe-area-inset-right));
+  z-index:90;min-height:44px;padding:0 12px;cursor:pointer;
+  background:#11151a;color:#9aa2ab;border:1px solid #3a434e;border-radius:8px;
+  font:700 12px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;
+  opacity:.35;transition:opacity .15s;touch-action:manipulation;}
+#joinTab[hidden]{display:none;}
+#joinTab:hover,#joinTab:focus{opacity:1;}
+#joinTab.live{color:#7fe0a5;border-color:#2c5e44;}
 
 #armAudio{
   position:fixed;top:calc(6px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
@@ -192,6 +203,9 @@ html,body{
 .skb{min-width:44px;min-height:44px;padding:0 10px;font-size:13px;font-weight:bold;cursor:pointer;
   background:#222;color:#a8a8a8;border:none;letter-spacing:1px;transition:all .15s;touch-action:manipulation;}
 .skb.on{background:#004466;color:#00e5ff;}
+/* Locked for a competency session: the skin cannot be switched, so the ZX/LP
+   toggles are removed. Fullscreen stays — it changes nothing about the device. */
+body.skin-locked #skinZX,body.skin-locked #skinLP{display:none;}
 
 /* =====================================================================
    LIFEPAK 15 skin
@@ -430,7 +444,14 @@ body.lp-skin #devUnder{display:flex;}
 .printslot{width:70%;height:7px;background:#3a3c39;border-radius:2px;box-shadow:inset 0 1px 2px #000;}
 .printgrip{width:44%;height:18px;background:#aaada7;border:1px solid #82857f;border-radius:3px;}
 .printdoor.printing::after{
-  content:'';position:absolute;left:15%;right:15%;top:0;height:0;background:#f4f4ef;
+  content:'';position:absolute;left:15%;right:15%;top:0;height:0;
+  /* ECG paper, not blank stock: pink grid with a printed trace band down the
+     middle, so a strip coming out never reads as empty paper. */
+  background:
+    linear-gradient(0deg, transparent 45%, rgba(25,25,25,.6) 47%, rgba(25,25,25,.6) 53%, transparent 55%),
+    repeating-linear-gradient(90deg, rgba(198,120,120,.35) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(0deg, rgba(198,120,120,.22) 0 1px, transparent 1px 7px),
+    #f5efe9;
   border:1px solid #b9bcb6;animation:paperOut 1.4s ease-out forwards;
 }
 /* Continuous strip: the paper keeps coming until PRINT is pressed again. */
@@ -481,6 +502,9 @@ body.lp-skin .zxseg{display:none;}
 .lpBP .lphd{color:#e8e8e8;} .lpBP .lpval{color:#e8e8e8;font-size:32px;flex:0 1 auto;}
 .lpBP .lpdia{font-size:26px;}
 .lpBP .lpsub{color:#8d949c;font-size:14px;text-align:left;padding-left:8px;}
+/* When the reading on screen was taken. A cuff number is of its moment, and
+   during a code the moment matters more than the number. */
+.lpBP .lpage{display:block;font-size:12px;color:#6f7780;letter-spacing:.5px;}
 .lpP1{display:none;} .lpP1.visible{display:flex;}
 .lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:31px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
 /* A cuff cycle in progress, or a parameter the patient is not wearing. */
@@ -585,8 +609,21 @@ body.lp-skin.portrait #rotate{
 #rotate span{font-size:14px;line-height:1.55;color:#9aa2ab;max-width:340px;}
 
 /* ---- power off ---- */
-body.lp-skin.powered-off #screen>*{visibility:hidden;}
-body.lp-skin.powered-off #screenWrap{background:#050505;}
+body.powered-off #screen>*{visibility:hidden;}
+body.powered-off #screenWrap{background:#050505;}
+/* The self-test the unit runs on the way up. Two seconds of it is enough to
+   make powering on read as powering on rather than as a screen appearing. */
+#lpBoot{position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;background:#050505;z-index:60;
+  font-family:'Public Sans',Arial,sans-serif;color:#cfd6de;letter-spacing:2px;}
+body.booting #lpBoot{display:flex;}
+body.booting #screen>*{visibility:hidden;}
+#lpBoot .bt-name{font-size:26px;font-weight:800;letter-spacing:4px;color:#e8edf3;}
+#lpBoot .bt-sub{font-size:13px;color:#8d949c;letter-spacing:1.5px;}
+#lpBoot .bt-bar{width:180px;height:4px;border-radius:2px;background:#1c2027;overflow:hidden;}
+#lpBoot .bt-bar i{display:block;height:100%;width:0;background:#2f8f4e;
+  animation:btFill 1.6s linear forwards;}
+@keyframes btFill{from{width:0}to{width:100%}}
 
 </style>
 </head>
@@ -622,7 +659,11 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 
   <div id="screenCol">
    <div class="screenLabel"><b>LIFEPAK 15</b><span>MONITOR/DEFIBRILLATOR</span></div>
-   <div id="screenWrap"><div id="screen">
+   <div id="screenWrap"><div id="lpBoot" aria-hidden="true">
+     <div class="bt-name">LIFEPAK 15</div>
+     <div class="bt-sub">SELF TEST</div>
+     <div class="bt-bar"><i></i></div>
+   </div><div id="screen">
 
 <div id="alm">⚠ ALARM</div>
 
@@ -694,7 +735,7 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
     <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
     <div class="lpval" id="lpSys">---</div>
     <div class="lpval lpdia" id="lpDia">--</div>
-    <div class="lpsub"><span class="lpmap" id="lpMap">--</span></div>
+    <div class="lpsub"><span class="lpmap" id="lpMap">--</span><span class="lpage" id="lpBPage"></span></div>
   </div>
   <div class="lpb lpP1" id="lpP1box">
     <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>P1</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
@@ -888,14 +929,15 @@ body.lp-skin.powered-off #screenWrap{background:#050505;}
 
 <!-- Shown only while the alarm tone cannot sound. Pressing it is the gesture
      the browser needs, so the notice and the fix are the same control. -->
-<button id="armAudio" onclick="armAudio()" title="Enable the alarm tone">
-  <span class="a-off">🔇 Alarm sound off — tap to enable</span>
-  <span class="a-on">🔊 Alarm sound on</span>
+<button id="armAudio" onclick="armAudio()" title="Audio check — tap to test and enable the alarm tone">
+  <span class="a-off">🔇 Audio check — tap to test alarm sound</span>
+  <span class="a-on">🔊 Alarm sound tested &amp; on</span>
 </button>
 
 <!-- Shown until this window is either being driven locally or has joined a
      session. Dismissible, because most runs are two windows on one laptop. -->
 <div id="joinBox" class="join off"></div>
+<button id="joinTab" onclick="openJoinPrompt()" title="Join or change the facilitator session">⇄ Join session</button>
 
 <div id="skinbar">
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
@@ -916,6 +958,14 @@ let pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
 const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
 function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
 ld(); // load saved state on startup
+
+/* Scenario-reset high-water mark. The panel bumps S.deviceReset every time it
+   (re)starts a graded scenario; the monitor watches that number and returns its
+   own device-local state to the power-on baseline when it climbs. Seeded from
+   whatever is already stored so a monitor opened later does not replay the last
+   session's reset the moment it loads — the same one-shot pattern the 12-lead
+   command uses. */
+let lastDeviceReset=(S&&S.deviceReset)||0;
 
 /* Where patient state is allowed to come from.
 
@@ -953,6 +1003,7 @@ function localStateAllowed(){
 let relay=null, relayState='off';
 function relayReady(){ return relay&&relayState==='live'; }
 function joinSession(code){
+  forceJoinOpen=false;   // a fresh join attempt: let a successful one hide the box
   if(!window.CESRelay){ setJoinUi('error','Relay unavailable — reload the page'); return; }
   const c=window.CESRelay.normaliseCode(code);
   if(c.length!==6){ setJoinUi('error','Six characters'); return; }
@@ -970,24 +1021,42 @@ function leaveSession(){
   try{ localStorage.removeItem('ces.sim.session'); }catch(e){}
   setJoinUi('off');
 }
+/* The join prompt can be dismissed; the route back to it cannot. forceJoinOpen
+   lets the persistent tab reopen the full form even while a session is live, so
+   a crew can change to a different session, and "Not now" only hides the prompt
+   for now — never for good. */
+let forceJoinOpen=false;
+function openJoinPrompt(){ forceJoinOpen=true; setJoinUi(relayState); }
+function dismissJoin(){ forceJoinOpen=false; const el=document.getElementById('joinBox'); if(el) el.hidden=true; }
+function joinFromInput(){ const v=document.getElementById('joinCode'); if(v) joinSession(v.value); }
 function setJoinUi(st,detail){
+  // The persistent tab is always present and always a way back to the prompt.
+  const tab=document.getElementById('joinTab');
+  if(tab){
+    tab.hidden=false;
+    tab.classList.toggle('live',st==='live');
+    tab.textContent=st==='live'?('⇄ '+(relay?relay.code():'Session')):'⇄ Join session';
+  }
   const el=document.getElementById('joinBox');
   if(!el) return;
   el.className='join '+st;
-  if(st==='live'){
+  if(st==='live'&&!forceJoinOpen){
     // Connected: the panel is driving this screen, and the crew should be
-    // looking at a monitor rather than at a connection notice.
+    // looking at a monitor rather than at a connection notice. The tab above
+    // stays, so changing session later is still one tap away.
     el.innerHTML='';
     el.hidden=true;
     return;
   }
   el.hidden=false;
-  el.innerHTML=st==='joining'
-    ? `<span class="join-t">Joining ${detail||''}…</span>`
-    : `<span class="join-t">${st==='error'?(detail||'Could not join'):'Monitor on a second device?'}</span>
+  if(st==='joining'){ el.innerHTML=`<span class="join-t">Joining ${detail||''}…</span>`; return; }
+  const title=st==='error'?(detail||'Could not join')
+    :st==='live'?'Connected — change session?'
+    :'Monitor on a second device?';
+  el.innerHTML=`<span class="join-t">${title}</span>
        <input id="joinCode" maxlength="6" placeholder="CODE" autocapitalize="characters" autocomplete="off">
-       <button onclick="joinSession(document.getElementById('joinCode').value)">Join</button>
-       <button class="ghost" onclick="document.getElementById('joinBox').hidden=true">Not now</button>`;
+       <button onclick="joinFromInput()">Join</button>
+       <button class="ghost" onclick="dismissJoin()">${st==='live'?'Keep current':'Not now'}</button>`;
 }
 
 // BroadcastChannel — receives live updates from Control Panel the instant any
@@ -1070,6 +1139,9 @@ const LP_Y='#e0913c', LP_B='#4aa8ff', LP_W='#e8e8e8', LP_G='#31d63a';
 
 function setSkin(skin){
   currentSkin=skin;
+  // Remember it, so a monitor reopened for the same class comes back in the same
+  // skin instead of defaulting to the ZOLL-style one.
+  try{ localStorage.setItem('ces.sim.skin',skin); }catch(e){}
   document.body.classList.toggle('lp-skin', skin==='lp');
   document.getElementById('skinZX').classList.toggle('on', skin==='zx');
   document.getElementById('skinLP').classList.toggle('on', skin==='lp');
@@ -1171,6 +1243,10 @@ function m3(s,d){return Math.round((s+2*d)/3);}
 function upNums(){
   const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
   const nc=!S.patientConnected; // not connected
+  // The LIFEPAK blanks the ECG-derived heart rate while it is delivering pacing
+  // pulses — the pacing spikes swamp the rate meter, so it shows --- rather than
+  // the paced number. The review caught it reading the paced 80.
+  const pacingActive=D.pacer&&D.pacerMa>0;
   document.getElementById('tPat').textContent=S.patientType||'Adult';
   document.getElementById('dLead').textContent=devLead();
   {const e=document.getElementById('dSize'); if(e) e.textContent=ecgSize().toFixed(ecgSize()<1?2:1)+' cm/mV';}
@@ -1181,7 +1257,7 @@ function upNums(){
     (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
       ? Math.round(60/(3.0*(S.ectFreq||6)))  // PVC rate: 60s / (agonal_bp * freq_interval)
       : '---')
-    : S.hr;
+    : (pacingActive?'---':S.hr);
   const noP=nc||dead||!S.sbp;
   document.getElementById('nSys').textContent=noP?'---':S.sbp;
   document.getElementById('nDia').textContent=noP?'---':S.dbp;
@@ -1200,7 +1276,9 @@ function upNums(){
   }
   document.getElementById('nEtco2').textContent=nc||!S.etco2On?'---':S.etco2;
   document.getElementById('nRR').textContent=nc?'---':S.rr;
-  document.getElementById('nSpo2').textContent=nc?'---':S.spo2;
+  // SpO2 needs a pulse to read. No perfusing pressure -> ---, the same as the
+  // pleth going flat, rather than a saturation number over a dead trace.
+  document.getElementById('nSpo2').textContent=noP?'---':S.spo2;
   const tv=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
   document.getElementById('nTemp').textContent=nc?'---':tv;
   const nTuHdr=document.getElementById('nTuHdr');
@@ -1270,7 +1348,9 @@ function upNums(){
   // the parameter goes on flashing, only the announcement stops.
   const live=!nc&&S.alarmOn&&D.alarms;
   const hrBreach=live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
-  const spBreach=live&&(S.spo2<S.spo2AlarmLow);
+  // No perfusing pressure means the SpO2 reads ---, so there is no value to
+  // breach: a --- must not drive a "SpO2 LOW" alarm.
+  const spBreach=live&&!noP&&(S.spo2<S.spo2AlarmLow);
   almBreaching=hrBreach||spBreach;
   const flag=(el,on)=>{if(el)el.classList.toggle('alarming',!!on);};
   flag(document.getElementById('nHR'),hrBreach);
@@ -1287,8 +1367,9 @@ function upNums(){
   const almEl=document.getElementById('alm');
   almEl.textContent='\u26a0 '+alarms.join('   \u26a0 ');
   // Same condition as the banner: a breach the facilitator has not muted and
-  // the crew has not silenced at the unit.
-  const almShow=!!alarms.length&&!S.alarmMuted&&Date.now()>=D.silenceUntil;
+  // the crew has not silenced at the unit — and the unit being switched off is
+  // the loudest silence of all.
+  const almShow=D.on&&!!alarms.length&&!S.alarmMuted&&Date.now()>=D.silenceUntil;
   alarmTone(almShow);
   almEl.classList.toggle('shown',almShow);
   almEl.style.display=currentSkin==='lp'?'':(almShow?'block':'none');
@@ -1302,22 +1383,32 @@ function upNums(){
       ? (S.rhythm==='asystole'&&S.pvcOn&&S.patientConnected
           ? Math.round(60/(3.0*(S.ectFreq||6)))
           : '---')
-      : S.hr);
-    setEl('lpSP', nc?'---':S.spo2);
+      : (pacingActive?'---':S.hr));
+    setEl('lpSP', noP?'---':S.spo2);
     setEl('lpCO2v', nc||!S.etco2On?'---':S.etco2);
     setEl('lpRR', nc?'--':S.rr);
+    // Temperature needs a probe on the patient. Until one is placed the block
+    // is empty, as it is on a unit nobody has connected a probe to.
     const tv2=S.tempUnit==='F'?(S.temp*9/5+32).toFixed(1):parseFloat(S.temp||36.9).toFixed(1);
-    setEl('lpTMP', nc?'---':tv2);
+    setEl('lpTMP', (nc||!D.tempProbe)?'---':tv2);
     const el2=document.getElementById('lpTu');if(el2)el2.textContent='°'+(S.tempUnit||'C');
 
-    // A cuff cycle takes the reading away while it runs, as the unit does —
-    // pressing NIBP and watching the old number sit there teaches nothing.
+    /* A cuff cycle takes the reading away while it runs, as the unit does —
+       pressing NIBP and watching the old number sit there teaches nothing.
+
+       What is shown between cycles is the last reading the crew took, not the
+       patient's live pressure. That is what a cuff gives you, and it is the
+       whole point at ROSC: the pressure comes back, and nobody knows it until
+       somebody cycles the cuff. The reading ages on screen so a number taken
+       four minutes and two rhythms ago is not mistaken for this one. */
     const cuff=nibpBusy();
     const bpBox=document.getElementById('lpBPbox');
     if(bpBox) bpBox.classList.toggle('pending',cuff);
-    setEl('lpSys', cuff||noP?'---':S.sbp);
-    setEl('lpDia', cuff||noP?'--':S.dbp);
-    setEl('lpMap', cuff||mv==='---'?'--':mv);
+    const nb=(cuff||nc)?null:D.nibp;
+    setEl('lpSys', nb?nb.sys:'---');
+    setEl('lpDia', nb?nb.dia:'--');
+    setEl('lpMap', nb?m3(nb.sys,nb.dia):'--');
+    setEl('lpBPage', nb?nibpAge():(cuff?'cuff':''));
 
     const p1box=document.getElementById('lpP1box');
     const showP1=S.artActive&&!nc&&!dead;
@@ -1977,6 +2068,22 @@ function applyLeadCfg(raw, ph, cfg){
   return dv + 0.5;
 }
 
+/* Ventricular fibrillation is chaotic, not a repeating template. The old branch
+   sampled one keyframe at a fixed 5 Hz, so every cycle was identical and the
+   trace read as ventricular flutter / very rapid monomorphic VT — the review
+   caught this on scenario 2. Summing a few incommensurate sinusoids under a
+   slow waxing/waning envelope gives a trace that is deterministic in t (so the
+   sweep stays continuous frame to frame) yet never repeats cycle to cycle, with
+   the coarse-to-fine undulation real VF shows. */
+function vfibValue(t){
+  const v = Math.sin(2*Math.PI*4.7*t)
+          + 0.75*Math.sin(2*Math.PI*7.3*t+1.3)
+          + 0.55*Math.sin(2*Math.PI*10.1*t+2.1)
+          + 0.60*Math.sin(2*Math.PI*3.1*t+0.7);
+  const env = 0.72 + 0.28*Math.sin(2*Math.PI*0.55*t+0.4);
+  return Math.max(0,Math.min(1,0.5+0.16*env*v));
+}
+
 // Sample functions — pure math, no noise (noise added at render time)
 function sEcg(t){
   // null means "draw nothing". A disconnected monitor used to show a flat green
@@ -1984,7 +2091,7 @@ function sEcg(t){
   // trained to read as asystole. Real equipment shows no trace and says so.
   if(!S.patientConnected) return null;
   const r=S.rhythm,hr=Math.max(S.hr,.5);
-  if(r==='vfib') return sL(L.vfib,(t*5%1+1)%1);
+  if(r==='vfib') return vfibValue(t);
   // Use a slow agonal rate (20 bpm) as the PVC schedule base during asystole
   const bp=r==='asystole'?3.0:60/hr;
 
@@ -2058,6 +2165,8 @@ function sArt(t){
            :L.art;
   return Math.max(0,Math.min(1, db/sc+(sb/sc-db/sc)*sL(lut,ph)));
 }
+/** Compressions per minute — the metronome's tempo and the capnogram's ripple. */
+const COMPRESSION_RATE=110;
 function sCo2(t){
   if(!S.patientConnected) return null;
   if(S.etco2On===false) return 0;
@@ -2065,10 +2174,26 @@ function sCo2(t){
   const etco2=S.etco2||0;
   const rr=Math.max(S.rr||0,1);
   if(shape==='flat') return 0;
+  /* Capnography during CPR.
+   *
+   * This used to draw at a fixed 100 per minute — the compression rate — so a
+   * crew ventilating once every six seconds through a tube watched a trace
+   * chattering ten times faster than they were bagging, and nothing on the
+   * screen answered the rate they were actually giving.
+   *
+   * What a capnogram looks like in an arrest with an advanced airway is a
+   * normal square wave at the ventilation rate, low and flattened by the poor
+   * cardiac output CPR produces, with compression oscillations riding on it.
+   * So: the same waveform as any other breath, at S.rr, scaled down, plus a
+   * small ripple at compression rate. The number stays the scenario author's.
+   */
   if(shape==='cpr'){
-    const ph=((t/(60/100))%1+1)%1;
-    const n=Math.max(etco2,10)/co2Ceiling();
-    return ph<.35?n*.6*Math.sin(Math.PI*(ph/.35)):0;
+    const bp=60/rr, ph=((t/bp)%1+1)%1;
+    const n=Math.max(etco2,4)/co2Ceiling();
+    const breath=n*sL(L.co2,ph);
+    const ripple=Math.sin(2*Math.PI*t*(COMPRESSION_RATE/60))*n*.07;
+    // Compressions show on the plateau and as a low chatter on the baseline.
+    return Math.max(0,Math.min(1,breath>n*.15?breath+ripple:Math.abs(ripple)*.5));
   }
   if(!etco2||!S.rr) return 0;
   const bp=60/rr, ph=((t/bp)%1+1)%1;
@@ -2135,9 +2260,13 @@ function sCo2(t){
 
 function sSpo2(t){
   if(!S.patientConnected) return null;
-  const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
+  // No perfusing pressure means no pulsatile flow for the probe to read — a
+  // flat line, not a plethysmograph. This is any pulseless rhythm, not only
+  // VF/asystole: pulseless VT and PEA carry a systolic of zero too, and the
+  // review found both drawing an "Excellent" pleth against an SpO2 of 3.
+  const noPerf=!S.sbp||S.rhythm==='asystole'||S.rhythm==='vfib';
   const quality=S.spo2Quality||'excellent';
-  if(dead||quality==='none') return .04;
+  if(noPerf||quality==='none') return .04;
   if(quality==='motion'){nS=lp(nS,.12);return Math.max(.04,Math.min(.95,.5+nS));}
   const hr=Math.max(S.hr,.5), bp=60/hr, ph=((t/bp)%1+1)%1;
   const baseAmp=.78*(S.spo2/100)+.06;
@@ -2230,6 +2359,11 @@ canvas{display:block;width:100%;height:100%;}
   <div class="lead rhythm-row" style="height:70px"><div class="lead-name">II (Rhythm Strip)</div><canvas id="L_rhythm"></canvas></div>
 </div>
 <div class="footer">Patient Simulation Monitor — Auto-generated 12-Lead ECG</div>
+<div class="footer" id="metaRow" style="margin-top:3px;color:#7a7a7a;">
+  25 mm/s &nbsp;·&nbsp; 10 mm/mV &nbsp;·&nbsp; 0.05–150 Hz &nbsp;·&nbsp; <span id="acqPatient">Adult</span> &nbsp;·&nbsp; <span id="acqDate">—</span>
+</div>
+<div class="rate-info" style="margin-top:2px;"><div><label>QTc: </label><span id="qtcDisp">—</span> <label>ms (Bazett)</label> <span id="qtcTag" style="color:#888;"></span></div></div>
+<div class="footer" id="interpRow" style="display:none;margin-top:4px;font-size:12px;color:#ffd88a;letter-spacing:1px;"></div>
 <div class="footer" id="qtcRow" style="display:none;margin-top:4px;font-size:12px;color:#ff4444;letter-spacing:1px;">
   ⚠ QTc: <span id="qtcVal">587</span> ms &nbsp;|&nbsp; PROLONGED QT — Risk of Torsades de Pointes
 </div>
@@ -2251,7 +2385,12 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') close12(); });
 const PARENT_S = ${JSON.stringify({
   rhythm: S.rhythm, hr: S.hr, sbp: S.sbp, dbp: S.dbp,
   spo2: S.spo2, etco2: S.etco2, rr: S.rr, patientType: S.patientType,
-  scenario: S.scenario
+  scenario: S.scenario,
+  // Per-stage ECG contract, when the scenario carries one: overrides the
+  // rhythm-derived QRS/QT and adds a device-style interpretation line, so the
+  // printout matches what the scenario text describes (inferior injury, a
+  // hyperkalaemic pattern, a genuinely long QT) instead of a generic strip.
+  ecg: S.ecg || null
 })};
 
 // Catmull-Rom spline
@@ -2503,12 +2642,42 @@ function drawLead(canvasId, cfg){
 
 // Draw all 12 leads + rhythm strip — deferred to window.onload so canvases are sized
 window.onload=function(){
-  // Set interval labels
+  // Set interval labels. A per-stage contract, where present, overrides the
+  // rhythm-derived QRS/QT so the printout matches the described findings.
+  const C=PARENT_S.ecg||{};
+  const qrsVal=C.qrs!=null?C.qrs:QRS_MS[rhy];
+  const qtVal =C.qt !=null?C.qt :QT_MS[rhy];
   document.getElementById('rhythmLabel').textContent='Rhythm: '+(RHYTHM_NAMES[rhy]||rhy.toUpperCase());
   document.getElementById('hrDisp').textContent=PARENT_S.hr||'---';
   document.getElementById('prDisp').textContent=PR_MS[rhy]||'---';
-  document.getElementById('qrsDisp').textContent=QRS_MS[rhy]||'---';
-  document.getElementById('qtDisp').textContent=QT_MS[rhy]||'---';
+  document.getElementById('qrsDisp').textContent=qrsVal||'---';
+  document.getElementById('qtDisp').textContent=qtVal||'---';
+
+  // QTc, always, by Bazett (QT / sqrt(RR)). The review found a raw QT of 480 at
+  // HR 30 presented as "long QT" — but corrected for that rate it is normal, so
+  // showing QT alone establishes nothing. The corrected value is what a monitor
+  // prints and what the abnormality is read from.
+  const hrForQtc=PARENT_S.hr||0;
+  if(qtVal&&hrForQtc>0){
+    const rr=60/hrForQtc;                       // seconds
+    const qtc=Math.round(qtVal/Math.sqrt(rr));
+    const tag=qtc>=500?'PROLONGED — Torsades risk':qtc>=460?'borderline prolonged':qtc<350?'short':'normal';
+    const col=qtc>=500?'#ff4444':qtc>=460?'#ffd88a':'#7fe0a5';
+    const qd=document.getElementById('qtcDisp'), qt2=document.getElementById('qtcTag');
+    if(qd){ qd.textContent=qtc; qd.style.color=col; }
+    if(qt2){ qt2.textContent='('+tag+')'; qt2.style.color=col; }
+  }
+
+  // Device-style interpretation line from the contract.
+  if(C.interp){
+    const ir=document.getElementById('interpRow');
+    if(ir){ ir.textContent=C.interp; ir.style.display='block'; }
+  }
+
+  // Acquisition metadata, as a real printout carries it.
+  {const p=document.getElementById('acqPatient'); if(p) p.textContent=PARENT_S.patientType||'Adult';}
+  {const dt=document.getElementById('acqDate'); if(dt) dt.textContent=new Date().toLocaleString();}
+
   if(isDrowning){
     document.getElementById('qtcRow').style.display='block';
     document.getElementById('osbornNote').style.display='block';
@@ -2777,6 +2946,21 @@ function drawChannel(id, fn, stroke, fill){
   }
   ctx.stroke();
   ctx.shadowBlur=0;
+
+  // Sync markers: a tick above every QRS the unit senses, but only while SYNC
+  // is armed — "flashes with detection of each QRS" is the LED; this is the
+  // same detection drawn on the trace, so the crew can confirm the unit is
+  // marking real complexes before they cardiovert. scanQrs (run just above for
+  // cEcg) leaves the sensed sample indices in qrsMarks.
+  if(id==='cEcg'&&D.sync&&qrsMarks.length){
+    ctx.fillStyle=currentSkin==='lp'?'#4aa8ff':'#00e5ff';
+    for(const m of qrsMarks){
+      const px=(prevPx+m)%W;
+      ctx.beginPath();
+      ctx.moveTo(px-3,2); ctx.lineTo(px+3,2); ctx.lineTo(px,9);
+      ctx.closePath(); ctx.fill();
+    }
+  }
 }
 
 
@@ -2813,16 +2997,39 @@ const ANALYZE_CYCLE_MS=120000;
 const NIBP_MS=25000;
 const SILENCE_MS=120000;
 
+/* How long ON has to be held to power the unit down. Three seconds: long
+   enough that a knuckle brushing the key mid-code cannot black out the screen
+   the crew is reading. */
+const POWER_OFF_HOLD_MS=3000;
+
 const D={
-  on:true,
+  /* The unit starts off, the way it sits on the shelf. The crew turning it on
+     is the first thing they do with it, and on a megacode it is part of what
+     is being watched — a monitor that is already up has done that step for
+     them. */
+  on:false,
   energyIx:ENERGIES.indexOf(200),
   charging:false, charged:false, chargeStart:0, disarmAt:0,
   shocks:0, lastShockAt:0,
+  // Operating mode is explicit: 'manual' or 'aed'. SYNC is a manual-mode
+  // modifier, never its own mode — an AED SYNC state cannot exist.
+  mode:'manual',
   sync:false, cpr:false, analyzing:false, analyzeUntil:0, advisory:'', reanalyzeAt:0,
   pacer:false, pacerRate:70, pacerMa:0, pacePaused:false,
   alarms:true, silenceUntil:0,
   sunvue:false,
   nibpUntil:0,
+  /* What the crew have actually measured.
+     A cuff reading and a temperature are not vital signs the monitor knows —
+     they are measurements somebody took, and until they are taken the screen
+     has nothing to show. This mattered most at ROSC: the patient gets a blood
+     pressure back and the old screen handed it to the crew before anyone had
+     put a cuff on them, which is a hand-out, not an assessment.
+     `nibp` is a snapshot, not a live mirror: a reading is of the moment it was
+     taken, and it ages on screen the way it does on the real unit. */
+  nibp:null,             // {sys,dia,at} — last completed cuff cycle
+  nibpTimer:null,
+  tempProbe:false,       // no probe on the patient, no temperature
   leadIx:1, leadFromPanel:null,
   sizeIx:2,
   menu:null, menuIx:0, homeSel:-1, printing:false,
@@ -2841,6 +3048,38 @@ function devLead(){
   return LEADS[D.leadIx];
 }
 function takeLead(){ D.leadFromPanel=S.lead||'II'; }
+
+/* ── Scenario reset ──────────────────────────────────────────────────────
+   A new scenario is a clean unit. Everything the last crew did to the
+   defibrillator — shock count, therapy mode, charged energy, the lead and
+   size they dialled, silenced alarms, a running printer, the event log —
+   would otherwise carry straight into the next scenario, which was the most
+   damaging defect at review: scenario 4's first shock recorded as shock #4,
+   later scenarios opening in AED or pacing mode.
+
+   Returns every device-local field in D to its power-on default and cancels
+   every timer and tone. Deliberately left alone: whether the unit is powered
+   on, which skin it is wearing, and the joined relay session — those belong to
+   the crew and the room, not to the scenario. */
+function resetDevice(){
+  disarm();                                  // clears charge/charged, tones, banner
+  cprMetronome(false); readyTone(false); chargeTone(false);
+  printerRun(false); closeMenu(); clearHomeSel();
+  D.energyIx=ENERGIES.indexOf(200);
+  D.shocks=0; D.lastShockAt=0;
+  D.sync=false; D.cpr=false;
+  D.analyzing=false; D.analyzeUntil=0; D.advisory=''; D.reanalyzeAt=0;
+  aedReset();                                // AED/SYNC state machine to MANUAL_IDLE
+  D.pacer=false; D.pacerRate=70; D.pacerMa=0; D.pacePaused=false;
+  D.alarms=true; D.silenceUntil=0;
+  D.nibpUntil=0;
+  if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
+  D.nibp=null; D.tempProbe=false;
+  D.leadIx=1; D.leadFromPanel=null; D.sizeIx=2;
+  D.log.length=0;
+  if(D.sunvue){ D.sunvue=false; document.body.classList.remove('sunvue'); invalidateCanvases(); }
+  banner(null);
+}
 
 /* ── Event log ───────────────────────────────────────────────────────── */
 /* Shares the state channel rather than opening a second subscriber onto the
@@ -2899,9 +3138,14 @@ function chargeTone(on){
 let audioArmed=false;
 function armAudio(){
   const c=ac();
+  const was=audioArmed;
   audioArmed=!!(c&&c.state==='running');
   const chip=document.getElementById('armAudio');
   if(chip) chip.classList.toggle('armed',audioArmed);
+  // The audio check: the first time it arms, sound a confirmation beep so the
+  // crew hears that the alarm tone works rather than trusting one that may never
+  // come. Only on the transition, so it does not chirp on every later keypress.
+  if(audioArmed&&!was) beep(880,140,.12,'square');
   return audioArmed;
 }
 /* Two-tone, repeating, and deliberately not pretty — this is the sound a
@@ -2925,7 +3169,7 @@ function readyTone(on){
 let cprTimer=null;
 function cprMetronome(on){
   clearInterval(cprTimer); cprTimer=null;
-  if(on) cprTimer=setInterval(()=>beep(880,60,.09,'square'),60000/110);
+  if(on) cprTimer=setInterval(()=>beep(880,60,.09,'square'),60000/COMPRESSION_RATE);
 }
 
 /* ── Fitting the unit to the window ──────────────────────────────────── */
@@ -3041,14 +3285,19 @@ function chargeDone(){
 }
 function deliverShock(){
   if(!D.charged) return;
+  const wasSync=D.sync;
   D.shocks++; D.lastShockAt=Date.now();
   // Shock, then two minutes of CPR, then the unit asks for another rhythm check.
   if(D.advisory) D.reanalyzeAt=Date.now()+ANALYZE_CYCLE_MS;
   D.charged=false; D.disarmAt=0;
   readyTone(false);
   beep(140,300,.2,'square');
-  logEvent('shock','SHOCK',energy()+'J'+(D.sync?' synchronized':'')+' · shock #'+D.shocks);
+  logEvent('shock','SHOCK',energy()+'J'+(wasSync?' synchronized':'')+' · shock #'+D.shocks);
   banner('SHOCK DELIVERED  '+energy()+'J',2500,true,false);
+  // A synchronized shock disarms SYNC — the real unit requires it to be
+  // reactivated before the next cardioversion, so a crew cannot fire a second
+  // synchronized shock on a stale arming.
+  if(wasSync){ D.sync=false; logEvent('sync','SYNC OFF','after synchronized shock'); }
 }
 
 /* ── LED pulses ──────────────────────────────────────────────────────── */
@@ -3061,10 +3310,60 @@ function applyPulses(now){
   }
 }
 
+/* ── AED / SYNC / defibrillation state machine ───────────────────────────
+   The three therapy pathways are explicit states rather than a handful of
+   booleans read in whatever order a handler happened to check them, which is
+   what let the review reach illegal combinations — AED SYNC, a synchronized
+   shock on a plain tap, SYNC still armed after the shock, ENERGY SELECT
+   changing joules without leaving AED.
+
+     MANUAL_IDLE → MANUAL_CHARGING → MANUAL_READY → (shock) → MANUAL_IDLE
+     AED_ANALYZING → AED_SHOCK_ADVISED → AED_CHARGING → AED_READY → (shock)
+     SYNC_ARMED → SYNC_CHARGING → SYNC_READY → (hold shock) → MANUAL_IDLE
+
+   defibState() derives the label from D so the machine has one source of truth
+   and the test can assert it; the transitions below are the only writers. */
+function defibState(){
+  if(D.mode==='aed'){
+    if(D.analyzing) return 'AED_ANALYZING';
+    if(D.charged)   return 'AED_READY';
+    if(D.charging)  return 'AED_CHARGING';
+    if(D.advisory==='SHOCK ADVISED') return 'AED_SHOCK_ADVISED';
+    return 'AED_IDLE';
+  }
+  if(D.sync){
+    if(D.charged)  return 'SYNC_READY';
+    if(D.charging) return 'SYNC_CHARGING';
+    return 'SYNC_ARMED';
+  }
+  if(D.charged)  return 'MANUAL_READY';
+  if(D.charging) return 'MANUAL_CHARGING';
+  return 'MANUAL_IDLE';
+}
+/* Return the unit to plain manual operation, clearing any AED advisory. Used
+   by ENERGY SELECT (Table 3-1 makes it the way out of AED) and by a scenario
+   reset. */
+function exitAedToManual(reason){
+  if(D.mode==='manual'&&!D.advisory) return;
+  D.mode='manual'; D.analyzing=false; D.advisory=''; D.reanalyzeAt=0;
+  logEvent('mode','MANUAL MODE',reason||'exited AED');
+}
+/* Baseline for the reset: manual mode, no advisory, SYNC off. Charge state is
+   cleared by disarm() in resetDevice, so it is not touched here. */
+function aedReset(){
+  D.mode='manual'; D.analyzing=false; D.analyzeUntil=0;
+  D.advisory=''; D.reanalyzeAt=0; D.sync=false;
+}
+
 /* ── Analyze ─────────────────────────────────────────────────────────── */
 const SHOCKABLE=['vfib','vtach','pvt','torsades'];
 function startAnalyze(){
   if(!D.on||D.analyzing) return;
+  // ANALYZE is the entry to AED mode. SYNC is a manual-mode setting and cannot
+  // survive the switch — this is what makes "AED SYNC" unreachable.
+  D.mode='aed';
+  if(D.sync){ D.sync=false; logEvent('sync','SYNC OFF','cleared entering AED'); }
+  if(D.charged||D.charging) disarm('analyze');
   D.analyzing=true; D.analyzeUntil=Date.now()+ANALYZE_MS; D.reanalyzeAt=0;
   logEvent('analyze','ANALYZE','started');
   banner('ANALYZING  —  DO NOT TOUCH THE PATIENT',0,true,true);
@@ -3085,17 +3384,47 @@ function finishAnalyze(){
   const shockable=SHOCKABLE.includes(S.rhythm);
   D.advisory=shockable?'SHOCK ADVISED':'NO SHOCK ADVISED';
   logEvent('advisory',D.advisory,'rhythm shown: '+(S.rhythm||'—'));
-  banner(D.advisory,6000,shockable,shockable);
   beep(shockable?1200:520,shockable?400:700,.15,'square');
+  // In AED mode the unit charges itself the moment a shock is advised, exactly
+  // as a real AED does — the crew clears and shocks, they do not press CHARGE.
+  // Gated on AED mode so a bare finishAnalyze() (manual rhythm check) only
+  // reports the advisory.
+  if(shockable&&D.mode==='aed'){ startCharge(); }
+  else banner(D.advisory,6000,shockable,shockable);
 }
 
-/* ── NIBP ────────────────────────────────────────────────────────────── */
+/* ── NIBP ──────────────────────────────────────────────────────────────
+   A cycle takes the old reading off the screen, runs, and then either produces
+   a number or does not. On a patient in arrest it does not: there is no
+   pulsatile flow for a cuff to find, and a monitor that answered 0/0 would be
+   teaching that the machine can tell you what a code is doing. */
 function startNibp(){
-  if(!D.on||Date.now()<D.nibpUntil) return;
+  if(!D.on||nibpBusy()) return;
   D.nibpUntil=Date.now()+NIBP_MS;
+  if(D.nibpTimer) clearTimeout(D.nibpTimer);
+  D.nibpTimer=setTimeout(finishNibp,NIBP_MS);
   logEvent('nibp','NIBP','cycle started');
 }
+function finishNibp(){
+  D.nibpTimer=null;
+  if(!D.on) return;
+  const sys=Math.round(Number(S.sbp)||0), dia=Math.round(Number(S.dbp)||0);
+  if(!sys){
+    D.nibp=null;
+    banner('NIBP UNABLE TO MEASURE',6000,true);
+    logEvent('nibp','NIBP','unable to measure');
+    return;
+  }
+  D.nibp={sys:sys,dia:dia,at:Date.now()};
+  logEvent('nibp','NIBP',sys+'/'+dia+' mmHg');
+}
 const nibpBusy=()=>Date.now()<D.nibpUntil;
+/** How long ago the reading on screen was taken, as the unit prints it. */
+function nibpAge(){
+  if(!D.nibp) return '';
+  const mins=Math.floor((Date.now()-D.nibp.at)/60000);
+  return mins<1?'now':mins+'m';
+}
 
 /* ── Menus and screen selection ───────────────────────────────────────────
    "Scrolls through and selects screen or menu items" — Table 3-3. Both
@@ -3154,7 +3483,7 @@ const SCREEN_ITEMS=[
   {key:'hr',    el:'lpHRbox', menu:()=>limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
   {key:'spo2',  el:'lpSPbox', menu:()=>limitsMenu('SpO2','%',S.spo2AlarmLow,null)},
   {key:'co2',   el:'lpCO2box',menu:()=>limitsMenu('CO2','mmHg',null,null)},
-  {key:'temp',  el:'lpTMPbox',menu:()=>limitsMenu('Temp','°'+(S.tempUnit||'C'),null,null)},
+  {key:'temp',  el:'lpTMPbox',menu:()=>tempMenu()},
   {key:'nibp',  el:'lpBPbox', menu:()=>limitsMenu('NIBP','mmHg',null,null)},
 ];
 
@@ -3175,6 +3504,19 @@ const sizeMenu=()=>({title:'SIZE',items:SIZES.map((z,i)=>
 /* Alarm limits are the facilitator's to set from the panel, so these read
    them out rather than offering to edit them — a monitor-side edit would be
    overwritten by the panel's next broadcast a second later. */
+/* Temperature is a probe you put on a patient, so it is a thing the crew does
+   rather than a number the monitor knows. Offered from the temperature block's
+   own menu, which is where the parameter's own controls live on this unit. */
+const tempMenu=()=>{
+  const m=limitsMenu('Temp','°'+(S.tempUnit||'C'),null,null);
+  m.items.unshift({label:D.tempProbe?'Remove temperature probe':'Place temperature probe',run:()=>{
+    D.tempProbe=!D.tempProbe;
+    logEvent('temp','TEMP PROBE',D.tempProbe?'placed':'removed');
+    closeMenu();
+  }});
+  return m;
+};
+
 function limitsMenu(name,unit,low,high){
   const items=[];
   if(low==null&&high==null) items.push({label:'No alarm limits on this parameter',info:true});
@@ -3226,16 +3568,78 @@ function printerRun(on){
   if(k) k.classList.toggle('held',on);
 }
 
-/* ── Power ───────────────────────────────────────────────────────────── */
+/* ── Code summary ─────────────────────────────────────────────────────────
+   CODE SUMMARY used to log a facilitator-side event and print a blank burst —
+   nothing the trainee could read. The real key prints the code record: the
+   shocks delivered and a timestamped event list. buildCodeSummary is the pure
+   report so it can be checked; openCodeSummary puts it in a window to read or
+   print at the debrief. */
+function buildCodeSummary(){
+  const evs=D.log.slice();
+  const shocks=evs.filter(e=>e.type==='shock').length;
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const t0=evs.length?evs[0].ms:Date.now();
+  const rows=evs.map(e=>{
+    const s=Math.max(0,Math.round((e.ms-t0)/1000));
+    const mm=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    return `<tr><td>${mm}</td><td>${esc(e.label)}</td><td>${esc(e.detail)}</td></tr>`;
+  }).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Code Summary</title>
+<style>body{background:#fff;color:#111;font-family:'Courier New',monospace;padding:16px;}
+h2{font-size:15px;letter-spacing:1px;margin:0 0 6px;}
+.sum{margin:6px 0 10px;font-weight:bold;}
+table{border-collapse:collapse;width:100%;font-size:12px;}
+td{border-bottom:1px solid #ccc;padding:3px 6px;vertical-align:top;}
+td:first-child{width:56px;color:#555;}
+.foot{margin-top:12px;font-size:11px;color:#666;}</style></head>
+<body><h2>LIFEPAK 15 — CODE SUMMARY</h2>
+<div class="sum">Shocks delivered: ${shocks} &nbsp;·&nbsp; Events: ${evs.length} &nbsp;·&nbsp; ${new Date().toLocaleString()}</div>
+<table><tr><td>Time</td><td>Event</td><td>Detail</td></tr>${rows||'<tr><td colspan="3">No events recorded.</td></tr>'}</table>
+<div class="foot">Generated by the patient simulation monitor for debrief.</div>
+</body></html>`;
+}
+function openCodeSummary(){
+  const w=window.open('','CodeSummary','width=560,height=720,resizable=yes');
+  if(!w) return false;
+  w.document.write(buildCodeSummary()); w.document.close();
+  return true;
+}
+
+/* ── Power ─────────────────────────────────────────────────────────────
+   ON is a real button on a real device and it does the thing it says: press it
+   and the unit comes up, press it again and it goes down. The manual's
+   press-and-hold to power off still works — that is what the crew are taught
+   at the side of the truck — but a press that did nothing at all, which is
+   what this key did while the unit was already on, reads as a broken button.
+
+   Powering off is not a reset. Shock count, therapy mode, the crew's lead and
+   the event log are all still there when it comes back up, exactly as they are
+   on the unit; only the screen and the noises go away. */
+let bootTimer=null;
 function setPower(on){
+  if(D.on===on) return;
   D.on=on;
   document.body.classList.toggle('powered-off',!on);
+  if(bootTimer){ clearTimeout(bootTimer); bootTimer=null; }
+  document.body.classList.remove('booting');
   if(!on){
     disarm(); cprMetronome(false); D.cpr=false; D.pacer=false; D.analyzing=false;
     printerRun(false); closeMenu(); clearHomeSel(); banner(null);
+    // A cuff cycle does not survive the unit being switched off.
+    if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
+    D.nibpUntil=0;
+  }else{
+    document.body.classList.add('booting');
+    bootTimer=setTimeout(()=>{
+      document.body.classList.remove('booting');
+      bootTimer=null;
+      beep(880,120,.10,'square');
+    },1700);
   }
   logEvent('power',on?'ON':'OFF','');
 }
+/** Kept for the console and for tests; the key itself does not toggle. */
+function togglePower(){ setPower(!D.on); }
 
 /* ── Wiring ──────────────────────────────────────────────────────────── */
 function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();armAudio();fn();}); }
@@ -3254,26 +3658,44 @@ function bindHold(id,ms,onHold,onRelease,onTap){
   el.addEventListener('pointercancel',up);
 }
 
-bindHold('kON',1200,()=>{ if(D.on) setPower(false); },null,()=>{ if(!D.on) setPower(true); });
+/* ON, as the key works on the device: a press brings the unit up, and holding
+   it for three seconds takes it down. A press while it is already on does
+   nothing, which is also what the unit does — powering off is deliberately the
+   harder gesture, because it is the one that loses the screen mid-code. */
+bindHold('kON',POWER_OFF_HOLD_MS,()=>{ if(D.on) setPower(false); },null,()=>{ if(!D.on) setPower(true); });
 
 bind('kCPR',()=>{ if(!D.on) return; D.cpr=!D.cpr; cprMetronome(D.cpr);
   logEvent('cpr',D.cpr?'CPR metronome ON':'CPR metronome OFF',''); });
 
 bind('kANALYZE',()=>{ if(!D.on) return; startAnalyze(); });
 
-bind('kLEAD',()=>{ if(!D.on) return; takeLead(); D.leadIx=(D.leadIx+1)%LEADS.length;
-  logEvent('lead','LEAD',LEADS[D.leadIx]); });
+// LEAD and SIZE open their menus rather than cycling on each press. The real
+// unit has no hard key that steps through leads — the value is chosen from a
+// menu with the Speed Dial — and a key that silently advanced one lead per tap
+// taught a workflow the device does not have.
+bind('kLEAD',()=>{ if(!D.on) return; clearHomeSel(); openMenu(leadMenu()); });
+bind('kSIZE',()=>{ if(!D.on) return; clearHomeSel(); openMenu(sizeMenu()); });
 
-bind('kSIZE',()=>{ if(!D.on) return; D.sizeIx=(D.sizeIx+1)%SIZES.length;
-  logEvent('size','SIZE',ecgSize().toFixed(2)+' cm/mV'); });
-
-bind('kSYNC',()=>{ if(!D.on) return; D.sync=!D.sync;
+bind('kSYNC',()=>{ if(!D.on) return;
+  // SYNC belongs to manual mode. Trying to arm it during an AED analysis or
+  // advisory is refused rather than producing an "AED SYNC" the unit has no
+  // such mode for.
+  if(!D.sync&&(D.mode==='aed'||D.analyzing||D.advisory==='SHOCK ADVISED')){
+    beep(220,120,.08,'square');
+    banner('SYNC NOT AVAILABLE IN AED',2200,true,true);
+    return;
+  }
+  D.sync=!D.sync;
   if(D.sync&&D.charged) disarm('sync changed');
   logEvent('sync',D.sync?'SYNC ON':'SYNC OFF',''); });
 
 function nudgeEnergy(d){
   if(!D.on) return;
-  if(D.analyzing){ beep(220,120,.08,'square'); return; }   // Manual mode only
+  if(D.analyzing){ beep(220,120,.08,'square'); return; }   // not while analysing
+  // ENERGY SELECT is the way out of AED into Manual (Table 3-1). A crew that
+  // reaches for the energy dial mid-advisory is taking manual control, so the
+  // AED advisory is cleared rather than the joules changing under it.
+  if(D.mode==='aed') exitAedToManual('energy select');
   const was=energy();
   D.energyIx=Math.max(0,Math.min(ENERGIES.length-1,D.energyIx+d));
   if(energy()!==was){
@@ -3284,7 +3706,21 @@ function nudgeEnergy(d){
 bind('kEnergyUp',()=>nudgeEnergy(1));
 bind('kEnergyDn',()=>nudgeEnergy(-1));
 bind('kCHARGE',()=>startCharge());
-bind('kSHOCK',()=>{ if(D.charged) deliverShock(); else beep(220,120,.08,'square'); });
+/* SHOCK delivers on a press, synchronized or not.
+   
+   It used to refuse a tap while SYNC was armed and ask for a press-and-hold,
+   after the manual's description of holding SHOCK until the unit fires on the
+   next R wave. In a classroom that reads as a broken button: the crew calls
+   the cardioversion, presses SHOCK, and nothing happens — reported from a live
+   megacode as "synchronized cardioversion fails to defibrillate". Holding
+   still works, for the crews taught that way, but a press is a press. */
+bindHold('kSHOCK',450,
+  ()=>{ armAudio(); if(D.charged) deliverShock(); },      // held: delivers if charged
+  null,
+  ()=>{ armAudio();
+    if(!D.charged){ beep(220,120,.08,'square'); return; }
+    deliverShock();
+  });
 
 bind('kPACER',()=>{ if(!D.on) return; D.pacer=!D.pacer;
   logEvent('pacer',D.pacer?'PACER ON':'PACER OFF',D.pacer?D.pacerRate+' ppm · '+D.pacerMa+' mA':''); });
@@ -3319,7 +3755,7 @@ bind('k12LEAD',()=>{ if(!D.on) return; toggle12Lead(); printerBurst(2200);
   logEvent('ecg12','12-LEAD','acquired'); });
 bind('kTRANSMIT',()=>{ if(!D.on) return; banner('TRANSMITTING…',2200);
   setTimeout(()=>banner('TRANSMIT COMPLETE',2200),2300); logEvent('transmit','TRANSMIT','12-lead sent'); });
-bind('kCODESUM',()=>{ if(!D.on) return; printerBurst(2600); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
+bind('kCODESUM',()=>{ if(!D.on) return; printerBurst(2600); openCodeSummary(); logEvent('codeSummary','CODE SUMMARY',D.log.length+' events'); });
 bind('kPRINT',()=>{ if(!D.on) return; printerRun(!D.printing);
   logEvent('print',D.printing?'PRINT started':'PRINT stopped','continuous strip'); });
 
@@ -3421,6 +3857,10 @@ function pacePulsed(t){
 /* ── Per-frame device tick ───────────────────────────────────────────── */
 function devTick(){
   const now=Date.now();
+  // A scenario (re)start on the panel bumps S.deviceReset. Acting on it here —
+  // rather than in each of the three merge paths that can deliver it — catches
+  // it however it arrived: BroadcastChannel, relay or the localStorage poll.
+  if(S.deviceReset&&S.deviceReset>lastDeviceReset){ lastDeviceReset=S.deviceReset; resetDevice(); }
   // The pacing clock is the device's own; the QRS detector runs inside the
   // ECG draw, on the samples the trace is made of.
   if(D.on&&pacePulsed(TT)) pulseLed('ledPACER');
@@ -3556,6 +3996,67 @@ setTimeout(()=>{
   if(saved&&window.CESRelay) joinSession(saved);
   else setJoinUi('off');
 },400);
+
+/* Which skin the monitor opens in, and whether the crew may change it.
+   Precedence: an explicit ?skin= on the URL (how the facilitator forces a
+   LIFEPAK session — the panel's Open Monitor uses ?skin=lp), then the last
+   skin this device used, then the ZX default. ?lock=1 (or lock=lp) hides the
+   skin switch so a competency session cannot be flipped out of the LIFEPAK. */
+function applySkinPrefs(){
+  let want='', lock=false;
+  try{
+    const q=new URLSearchParams(location.search);
+    want=(q.get('skin')||'').toLowerCase();
+    lock=q.get('lock')==='1'||q.get('lock')==='lp'||q.get('lockskin')==='1';
+  }catch(e){}
+  if(want!=='lp'&&want!=='zx'){
+    try{ want=localStorage.getItem('ces.sim.skin')||''; }catch(e){}
+  }
+  if(want==='lp'||want==='zx') setSkin(want);
+  if(lock) document.body.classList.add('skin-locked');
+}
+applySkinPrefs();
+
+/* The unit opens off, so the screen has to start dark — setPower() is what
+   normally paints this, and nobody has pressed anything yet. */
+document.body.classList.toggle('powered-off',!D.on);
+
+/* ── Keeping the screen up ───────────────────────────────────────────────
+   The monitor is a patient monitor: it is meant to sit on a table showing a
+   rhythm for twenty minutes while nobody touches it, which is exactly what an
+   iPad reads as "nobody is using this" before it dims and locks. A crew who
+   lose the screen mid-code lose the scenario.
+
+   The Screen Wake Lock API holds the display on. It is dropped by the browser
+   whenever the page is hidden — the tab backgrounded, the device locked by
+   hand — so it is taken again on every return to visibility. Everything here
+   is best-effort: Safari needs 16.4+, the request can be refused outright on
+   low battery, and none of that is worth a broken monitor, so every call is
+   guarded and nothing depends on it. */
+let wakeLock=null;
+async function holdScreenAwake(){
+  try{
+    if(!('wakeLock' in navigator)||document.visibilityState!=='visible') return;
+    if(wakeLock) return;
+    wakeLock=await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release',()=>{ wakeLock=null; });
+  }catch(e){ wakeLock=null; }
+}
+function releaseScreenAwake(){
+  try{ if(wakeLock) wakeLock.release(); }catch(e){}
+  wakeLock=null;
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') holdScreenAwake();
+});
+/* Some browsers only grant the lock inside a user gesture, so the first touch
+   on the monitor asks again. Once is enough — the listener takes itself off. */
+['pointerdown','keydown'].forEach(ev=>
+  window.addEventListener(ev,function once(){
+    window.removeEventListener(ev,once);
+    holdScreenAwake();
+  },{passive:true}));
+holdScreenAwake();
 
 fitDevice();
 requestAnimationFrame(loop);

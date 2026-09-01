@@ -20,56 +20,114 @@
    * Navy and the pale blue are sampled from ems.gov itself. The red is AMR's
    * own #e11d2e rather than ems.gov's brick #bb4241 — the structure is
    * borrowed, the brand is not. Swap --red here to change the band. */
-  --navy: #20395a;
-  --navy-700: #183b5d;
-  --navy-600: #1a4480;
-  --navy-900: #16293f;
-  --red: #e11d2e;
-  --red-700: #b91626;
+  --navy: #1c3454;
+  --navy-700: #1b3f66;
+  --navy-600: #1d4a8a;
+  --navy-500: #2f6bbd;
+  --navy-900: #142639;
+  --red: #d81f2f;
+  --red-700: #ad1725;
 
-  /* Surfaces. ems.gov sets body copy on white over a pale blue field; this
-     app is card-based, so the field goes behind and the cards stay white. */
-  --bg: #eef2f8;
-  --pale: #e3edfc;
+  /* Surfaces.
+   *
+   * The field used to be #e7edf5 — a saturated blue-grey that fought the white
+   * cards for attention and gave the whole app a cold cast under fluorescent
+   * light. It is now a near-neutral with a trace of the brand hue in it, so
+   * the cards read as the content and the field reads as nothing. */
+  --bg: #f2f4f7;
+  --pale: #e8eefb;
   --surface: #ffffff;
-  --surface-2: #f5f7fb;
-  --border: #d6dbe3;
-  --border-strong: #a9b2bf;
-  /* The grey rule under every page title. Straight off ems.gov. */
-  --rule: #a3a3a3;
+  --surface-2: #f4f6fa;
+  --surface-3: #eaeef5;
+  --border: #dbe0e8;
+  --border-strong: #9aa4b4;
+  --rule: #c3cad6;
 
-  /* Text */
-  --text: #39404f;
-  --text-strong: #1b2534;
-  --text-muted: #5b6472;
+  /* Text.
+   *
+   * A four-step ramp with real separation between the steps. Body copy is
+   * darker than it was — #39404f on white is 8.9:1 but reads washed at 15px,
+   * and this app is used on a phone in daylight and on a laptop in an
+   * ambulance bay. */
+  --text: #2b3444;
+  --text-strong: #131b28;
+  --text-muted: #5c6676;
+  --text-faint: #78828f;
   --text-invert: #ffffff;
 
-  /* Status */
-  --ok: #16a34a;
-  --ok-bg: #dcfce7;
-  --warn: #d97706;
-  --warn-bg: #fef3c7;
-  --crit: #dc2626;
-  --crit-bg: #fee2e2;
-  --info: #1a4480;
-  --info-bg: #e3edfc;
-  --muted-bg: #f0f3f8;
+  /* Status. Foreground pairs are held here rather than hard-coded at each use,
+     so a pill, a dot and a left accent cannot drift apart. */
+  --ok: #15803d;
+  --ok-bg: #e4f7ea;
+  --ok-fg: #14532d;
+  --warn: #b45309;
+  --warn-bg: #fdf3dd;
+  --warn-fg: #7c4106;
+  --crit: #c81e1e;
+  --crit-bg: #fdeaea;
+  --crit-fg: #8c1616;
+  --info: #1d4a8a;
+  --info-bg: #e7effb;
+  --info-fg: #1a3f75;
+  --muted-bg: #eef1f6;
 
-  /* USWDS is nearly square. Keeping 2px rather than 0 stops inputs looking
-     like a 1996 form while still reading as institutional. */
-  --radius: 3px;
-  --radius-sm: 2px;
-  /* Borders carry the structure now, so shadows are almost gone. */
-  --shadow: 0 1px 2px rgba(27, 37, 52, 0.06);
-  --shadow-lg: 0 10px 34px rgba(27, 37, 52, 0.18);
-  --ring: rgba(26, 68, 128, 0.28);
-  --navy-tint: rgba(32, 57, 90, 0.06);
-  --nav-h: 64px;
+  /* ---- Type scale --------------------------------------------------------
+   * One ratio, six steps, named by role rather than by size so a heading that
+   * needs to grow does not turn into a magic number at the call site.
+   * Base moves 15 -> 15.5px: the densest screens in this app are tables of
+   * clinical counts, and a half-point across the whole app is the cheapest
+   * legibility win available. */
+  --fs-xs: 12px;
+  --fs-sm: 13.5px;
+  --fs-base: 15.5px;
+  --fs-md: 17px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 31px;
+  --lh-tight: 1.25;
+  --lh-body: 1.55;
+
+  /* ---- Spacing -----------------------------------------------------------
+   * A 4px grid. Padding and gaps across the app were 6/9/10/12/14/18/26px with
+   * no relationship between them, which is most of why the screens read as
+   * assembled rather than designed. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Still institutional, but a touch softer than USWDS square — enough to read
+     as a polished app rather than a 1996 form. */
+  --radius: 8px;
+  --radius-sm: 6px;
+  /* Borders carry the structure. The shadow is a hairline lift, not a float:
+     a card that hovers over the page reads as a dialog. */
+  --shadow: 0 1px 2px rgba(19, 27, 40, 0.05);
+  --shadow-md: 0 1px 2px rgba(19, 27, 40, 0.05), 0 6px 16px -6px rgba(19, 27, 40, 0.12);
+  --shadow-lg: 0 16px 44px -12px rgba(19, 27, 40, 0.28);
+  --ring: rgba(29, 74, 138, 0.32);
+  --navy-tint: rgba(28, 52, 84, 0.07);
+  --nav-h: 60px;
+  /* The reading column. Prose caps out here; dense tables opt out with
+     .full-bleed. Was 900px for everything, which squeezed the placement board
+     and the schedule table into a scroll on a screen with room to spare. */
+  --measure: 1080px;
+  /* Running prose caps here regardless of how wide the card is. At the full
+     1080 a paragraph runs to about 150 characters a line, and the eye loses
+     its place returning to the left margin somewhere past 90. */
+  --measure-prose: 74ch;
 
   font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, Helvetica, Arial, sans-serif;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 
@@ -85,17 +143,34 @@ body,
 }
 
 body {
-  /* Faint navy wash at the top so the page doesn't read as one flat gray. */
-  background:
-    radial-gradient(1100px 320px at 50% -120px, var(--navy-tint), transparent 70%),
-    var(--bg);
+  /* Flat. The wash that used to sit here was doing the job the field colour
+     should do on its own, and against the calmer neutral it read as a smudge. */
+  background: var(--bg);
   color: var(--text);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
 }
+
+/* Headings share one ramp. They were set individually at each use, which is
+   why an h2 on one screen was smaller than an h3 on another. */
+h1, h2, h3, h4 {
+  color: var(--text-strong);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--sp-2);
+}
+h1 { font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -0.025em; }
+h2 { font-size: var(--fs-lg); font-weight: 700; }
+h3 { font-size: var(--fs-md); font-weight: 700; }
+h4 { font-size: var(--fs-base); font-weight: 700; }
+p { margin: 0 0 var(--sp-3); }
+p:last-child { margin-bottom: 0; }
 
 /* Keyboard focus: one consistent ring everywhere. */
 :focus-visible {
   outline: 2px solid var(--navy-600);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /* Links are underlined. On a government site that is an accessibility rule;
@@ -196,9 +271,11 @@ input[type='date']::-webkit-date-and-time-value {
   box-shadow: none;
   /* The red band. On ems.gov this strip carries the site search; here it is
      a solid rule, and it is the single strongest borrowed cue — a deep navy
-     masthead cut off by a saturated red edge. 3px read as a hairline; 5px
-     reads as a band. */
-  border-bottom: 5px solid var(--red);
+     masthead cut off by a saturated red edge.
+     Down from 5px to 3px: at 5 the band was the loudest element on every
+     screen, and it is chrome. 3px still reads as a band rather than a
+     hairline because it sits against the navy above it. */
+  border-bottom: 3px solid var(--red);
 }
 
 .topbar .brand {
@@ -207,8 +284,8 @@ input[type='date']::-webkit-date-and-time-value {
   gap: 11px;
   /* Heavy and tight, like a wordmark rather than a page heading. */
   font-weight: 800;
-  font-size: 19px;
-  letter-spacing: -0.02em;
+  font-size: 18px;
+  letter-spacing: -0.022em;
   line-height: 1.1;
   /* Must be allowed to shrink, or the sync chip pushes the title into extra
      lines that overflow the fixed-height bar and clip. */
@@ -295,9 +372,13 @@ input[type='date']::-webkit-date-and-time-value {
 .content {
   flex: 1;
   width: 100%;
-  max-width: 900px;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 18px 16px calc(80px + env(safe-area-inset-bottom));
+  padding: var(--sp-6) var(--sp-5) calc(88px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 600px) {
+  .content { padding: var(--sp-4) var(--sp-4) calc(84px + env(safe-area-inset-bottom)); }
 }
 
 /* ---------- Bottom nav (mobile-first) ---------- */
@@ -307,11 +388,14 @@ input[type='date']::-webkit-date-and-time-value {
   left: 0;
   right: 0;
   z-index: 20;
-  background: var(--surface);
+  /* Nearly opaque. At 0.92 the page scrolled visibly through the bar and the
+     labels sat on top of whatever text happened to be behind them. */
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: saturate(180%) blur(14px);
   border-top: 1px solid var(--border);
   display: flex;
   padding-bottom: env(safe-area-inset-bottom);
-  box-shadow: 0 -1px 6px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 -1px 3px rgba(19, 27, 40, 0.04);
 }
 
 /* Five sections at most, so a cell is ~75px wide on a 375px phone and can
@@ -320,11 +404,12 @@ input[type='date']::-webkit-date-and-time-value {
 .tabbar a {
   flex: 1;
   position: relative;
-  padding: 10px 4px 12px;
+  padding: 9px 4px 11px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
+  letter-spacing: 0.005em;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -332,19 +417,23 @@ input[type='date']::-webkit-date-and-time-value {
   transition: color 0.15s;
 }
 
-.tabbar a .icon {
-  font-size: 20px;
-  line-height: 1;
-  transition: transform 0.15s;
+/* Sized in px rather than em: the label under a tab is 11.5px, so an em-based
+   icon came out at 18px and read as undersized next to a 24px-grid glyph. */
+.tabbar a .icon,
+.tabbar a .icon-wrap {
+  line-height: 0;
+  position: relative;
+  display: inline-flex;
 }
 
+.tabbar a svg.icon { width: 23px; height: 23px; }
+
+/* An SVG icon can take a colour, so the active state is a colour change and a
+   weight change rather than the 12% scale-up the emoji forced — that read as a
+   rendering wobble, not as a selection. */
 .tabbar a.active {
-  color: var(--navy-700);
+  color: var(--navy-600);
   font-weight: 700;
-}
-
-.tabbar a.active .icon {
-  transform: scale(1.12);
 }
 
 /* Small indicator bar along the top edge of the active tab. */
@@ -353,10 +442,10 @@ input[type='date']::-webkit-date-and-time-value {
   content: '';
   position: absolute;
   top: -1px;
-  left: 6px;
-  right: 6px;
-  height: 4px;
-  border-radius: 0;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 0 0 2px 2px;
   background: var(--red);
 }
 
@@ -373,7 +462,8 @@ input[type='date']::-webkit-date-and-time-value {
 
 .tabbar a .badge {
   position: absolute;
-  transform: translate(14px, -6px);
+  top: -3px;
+  right: -8px;
   background: var(--red);
   color: #fff;
   font-size: 10px;
@@ -464,71 +554,113 @@ input[type='date']::-webkit-date-and-time-value {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: none;
-  padding: 18px;
+  box-shadow: var(--shadow);
+  padding: var(--sp-5);
 }
 
 .card + .card {
-  margin-top: 14px;
+  margin-top: var(--sp-4);
+}
+
+/* The onboarding card on Home. It is the first thing an FTO sees and it is
+   long, so it gets a top accent to mark it as guidance rather than as a
+   record — and drops away entirely once they sign in. */
+.guide-card {
+  border-top: 3px solid var(--navy-600);
+}
+
+.guide-card h2 { color: var(--navy-700); }
+
+/* Running prose inside a card gets a reading measure even though the card
+   around it is full width.
+ *
+ * Direct children only. The content column widened to 1080px so the dense
+ * tables stop scrolling horizontally, which is right for a table and wrong for
+ * a paragraph — at that width a line of body copy is about 140 characters and
+ * the eye loses the next line on the way back to the left margin. Tables,
+ * rows and grids are unaffected because they are not direct-child paragraphs. */
+.card > p,
+.card > .subtle,
+.card > .help-text,
+.guide-card p,
+.guide-card .subtle,
+.guide-card li { max-width: var(--measure-prose); }
+
+@media (max-width: 600px) {
+  .card { padding: var(--sp-4); }
 }
 
 /* Small, spaced, and now navy rather than grey — on ems.gov these act as
    structure, not as captions. */
+/* Sentence case, not caps.
+ *
+ * These were 12.5px uppercase with 0.09em tracking, which is a caption
+ * treatment doing a heading's job: all-caps costs about 15% reading speed
+ * because word shapes disappear, and the labels here are phrases —
+ * "Completion readiness", "Deficit checkpoints" — not one-word tags. Sentence
+ * case at a larger size reads faster and looks less like a form. */
 .section-title {
-  font-size: 12.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--navy-700);
+  font-size: var(--fs-md);
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
   font-weight: 700;
-  margin: 26px 2px 10px;
-  padding-bottom: 6px;
-  border-bottom: 2px solid var(--border);
+  line-height: var(--lh-tight);
+  margin: var(--sp-6) 0 var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
 }
+
+.section-title:first-child { margin-top: 0; }
 
 /* The ems.gov page-title treatment: a large bold navy heading with a heavy
    grey rule under it. The rule is what makes the page feel like a document
    rather than a dashboard, and it costs one pseudo-element. */
 .page-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   /* Wraps rather than squeezing: on a phone a two-button title row otherwise
      stacks the actions into a narrow column and drags the rule down with it. */
   flex-wrap: wrap;
-  gap: 10px 12px;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  gap: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
   position: relative;
 }
 
 .page-head > :first-child { flex: 1 1 15rem; }
 
+/* A full-width hairline, not the 320px 4px slab that used to sit here. That
+   one stopped partway across the page and read as a rendering fault rather
+   than as a rule — the first thing anyone asked about on every screen. */
 .page-head::after {
   content: '';
   position: absolute;
   left: 0;
+  right: 0;
   bottom: 0;
-  /* Partial width, as on ems.gov — a full-bleed rule reads as a divider
-     between sections instead of as part of the title. */
-  width: min(320px, 70%);
-  height: 4px;
-  background: var(--rule);
+  height: 1px;
+  background: var(--border);
 }
 
 .page-head h1 {
-  font-size: 30px;
+  font-size: var(--fs-2xl);
   font-weight: 800;
   letter-spacing: -0.028em;
-  color: var(--navy-700);
+  color: var(--text-strong);
+  margin: 0;
 }
 
+.page-head .subtle { margin-top: 2px; }
+
 @media (max-width: 470px) {
-  .page-head h1 { font-size: 26px; }
+  .page-head h1 { font-size: var(--fs-xl); }
+  .page-head { margin-bottom: var(--sp-4); padding-bottom: var(--sp-3); }
 }
 
 .subtle {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 /* ---------- Buttons ---------- */
@@ -540,27 +672,28 @@ input[type='date']::-webkit-date-and-time-value {
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
-  padding: 9px 14px;
+  padding: 9px var(--sp-4);
   /* Thumb-sized: the whole app is used one-handed on a phone, often in a
      moving truck or with a glove on. */
   min-height: 42px;
   border-radius: var(--radius-sm);
-  /* USWDS buttons are heavy and squared. Bumping the weight and dropping the
-     shadow is most of what separates a government control from a SaaS one. */
-  font-weight: 700;
-  font-size: 15px;
+  font-weight: 650;
+  font-size: var(--fs-base);
+  line-height: 1.2;
   white-space: nowrap;
-  box-shadow: none;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.06s;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, box-shadow 0.14s, color 0.14s;
 }
 
 .btn:hover {
   background: var(--surface-2);
   border-color: var(--navy-600);
+  color: var(--navy-600);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  background: var(--surface-3);
   box-shadow: none;
 }
 
@@ -573,7 +706,14 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 .btn.primary:hover {
-  background: linear-gradient(180deg, var(--navy-700), var(--navy));
+  background: var(--navy-700);
+  border-color: var(--navy-700);
+  color: #fff;
+}
+
+.btn.primary:active:not(:disabled) {
+  background: var(--navy);
+  border-color: var(--navy);
 }
 
 .btn.danger {
@@ -600,8 +740,8 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 .btn.sm {
-  padding: 6px 10px;
-  font-size: 13px;
+  padding: 6px var(--sp-3);
+  font-size: var(--fs-sm);
   /* Still visually secondary, but a skill sheet is 13 rows of pass/fail taps —
      a mis-tap writes the wrong result, so don't shrink these to 29px. */
   min-height: 36px;
@@ -614,42 +754,50 @@ input[type='date']::-webkit-date-and-time-value {
 
 .btn-row {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
+  align-items: center;
 }
 
 /* ---------- Forms ---------- */
 .field {
-  margin-bottom: 14px;
+  margin-bottom: var(--sp-4);
 }
 
 .field label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: 650;
   margin-bottom: 5px;
-  color: var(--text);
+  color: var(--text-strong);
 }
+
 
 .field input,
 .field select,
 .field textarea {
   width: 100%;
-  padding: 10px 12px;
-  min-height: 40px;
+  padding: 10px var(--sp-3);
+  min-height: 44px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
+  font: inherit;
+  font-size: var(--fs-base);
+  transition: border-color 0.14s, box-shadow 0.14s;
 }
 
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  outline: 2px solid var(--navy-600);
-  outline-offset: -1px;
+  outline: none;
   border-color: var(--navy-600);
+  box-shadow: 0 0 0 3px var(--ring);
 }
+
+.field input::placeholder,
+.field textarea::placeholder { color: var(--text-faint); }
 
 .field textarea {
   min-height: 80px;
@@ -662,22 +810,38 @@ input[type='date']::-webkit-date-and-time-value {
   gap: 12px;
 }
 
+/* Three across, for a set that reads as one thing — a date and the two times
+   that bracket it. As a two-column grid the third field dropped to its own row
+   and left half a row of white space beside it. */
+.field-row.trio {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 640px) {
+  .field-row.trio {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Badges / pills ---------- */
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 700;
+  letter-spacing: 0.005em;
   white-space: nowrap;
 }
 
-.pill.ok { background: var(--ok-bg); color: #166534; }
-.pill.warn { background: var(--warn-bg); color: #92400e; }
-.pill.crit { background: var(--crit-bg); color: #991b1b; }
-.pill.info { background: var(--info-bg); color: #1e40af; }
+/* Foreground comes from the token pair rather than a hard-coded hex, so a
+   pill, its dot and a left accent in the same state cannot drift apart. */
+.pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
+.pill.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.pill.crit { background: var(--crit-bg); color: var(--crit-fg); }
+.pill.info { background: var(--info-bg); color: var(--info-fg); }
 .pill.muted { background: var(--muted-bg); color: var(--text-muted); }
 
 .dot {
@@ -714,32 +878,41 @@ input[type='date']::-webkit-date-and-time-value {
 /* ---------- Stat tiles ---------- */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-3);
 }
 
 .stat {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px;
+  padding: var(--sp-4);
   box-shadow: var(--shadow);
 }
 
-.stat .value {
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--navy);
-}
-
+/* Label above value.
+ *
+ * A tile read top-down as "0 / Trainees in progress" makes you read the number
+ * before you know what it counts, so on a row of three you read every number
+ * twice. Label first costs nothing and the number still dominates by size. */
 .stat .label {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
-  margin-top: 2px;
+  line-height: 1.3;
+  order: -1;
+  margin-bottom: var(--sp-1);
+}
+
+.stat { display: flex; flex-direction: column; }
+
+.stat .value {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
 }
 
 .stat.alert .value { color: var(--crit); }
@@ -749,17 +922,18 @@ input[type='date']::-webkit-date-and-time-value {
 .list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--sp-2);
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 /* Rows that navigate somewhere lift slightly on hover. */
@@ -768,14 +942,14 @@ a.row {
 }
 
 a.row:hover {
-  border-color: var(--navy-600);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  border-color: var(--navy-500);
+  box-shadow: var(--shadow-md);
 }
 
 .row .grow { flex: 1; min-width: 0; }
-.row .title { font-weight: 700; }
-.row .meta { color: var(--text-muted); font-size: 13px; }
+.row .title { font-weight: 700; color: var(--text-strong); line-height: 1.35; }
+.row .meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.4; }
+.row .meta + .meta { margin-top: 1px; }
 
 /* ---------- Section landings ---------- */
 /* One row per destination inside a section. The leading glyph repeats the tab
@@ -783,14 +957,30 @@ a.row:hover {
    same object — the row is the only place that association can be made now
    that a leaf no longer has a tab of its own. */
 .hub-icon {
-  font-size: 22px;
-  line-height: 1;
-  flex: none;
-  width: 28px;
-  text-align: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--info-bg);
+  color: var(--navy-600);
+  font-size: var(--fs-lg);
 }
 
-.hub-row { padding: 14px; }
+.hub-row { padding: var(--sp-4); }
+
+/* The disclosure chevron. It was a bare '›' at caption size and grey, which on
+   a 40px row read as a stray character rather than as "this goes somewhere". */
+.hub-chevron {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+  display: inline-flex;
+  transition: transform 0.14s, color 0.14s;
+}
+
+a.row:hover .hub-chevron { color: var(--navy-600); transform: translateX(2px); }
 
 .stat-grid + .list { margin-top: 14px; }
 
@@ -799,6 +989,32 @@ a.row:hover {
 .row.acc-warn { border-left-color: var(--warn); }
 .row.acc-crit { border-left-color: var(--crit); }
 .row.acc-muted { border-left-color: var(--border-strong); }
+
+/* ---------- Candidate row (AEMT selection) ----------
+   A selection row carries more than an ordinary list row: the name and score
+   breakdown, a composite figure, and four actions. On a phone that trio cannot
+   shrink far enough — measured at 430px the name wrapped one word per line, the
+   blockers became a vertical column of single words, and the button group
+   pushed the whole page into horizontal scroll, which clipped the toolbar too.
+   So below the breakpoint the row becomes two stacked bands: the detail, then
+   the composite and the actions side by side. */
+@media (max-width: 620px) {
+  .row.cand-row { flex-wrap: wrap; align-items: flex-start; }
+  .row.cand-row .grow { flex: 1 1 100%; }
+  .row.cand-row .cand-score {
+    flex: 0 0 auto;
+    text-align: left;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .row.cand-row .cand-actions {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+  /* Full-height tap targets rather than the compact desktop button. */
+  .row.cand-row .cand-actions .btn { min-height: 40px; }
+}
 
 .truncate {
   overflow: hidden;
@@ -937,15 +1153,22 @@ a.row:hover {
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 14px;
+  font-size: var(--fs-sm);
+  background: var(--surface);
 }
 
 th,
 td {
   text-align: left;
-  padding: 10px 12px;
+  padding: 10px var(--sp-3);
   border-bottom: 1px solid var(--border);
+  vertical-align: top;
 }
+
+/* Numbers line up in a column when they share a width. Every table in this app
+   is counts and dates, and proportional digits made a column of clinical
+   totals read as ragged even when it was correct. */
+td { font-variant-numeric: tabular-nums; }
 
 /* Headers stay on one line; body cells wrap so tables fit narrow screens
    instead of clipping (cells that must not wrap set it explicitly). */
@@ -953,12 +1176,15 @@ th {
   white-space: nowrap;
 }
 
+/* Sentence case, like the section titles. A header row of caps at 12px with
+   letter-spacing is a lot of visual noise above data that is itself the point. */
 th {
   background: var(--surface-2);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.005em;
   color: var(--text-muted);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 tbody tr:last-child td {
@@ -967,6 +1193,103 @@ tbody tr:last-child td {
 
 tbody tr:hover td {
   background: var(--surface-2);
+}
+
+/* Zebra striping on long tables only — on a five-row table it is decoration,
+   and on a fifty-row one it is what keeps your eye on the line. */
+.table-wrap.striped tbody tr:nth-child(even) td { background: var(--surface-2); }
+.table-wrap.striped tbody tr:hover td { background: var(--info-bg); }
+
+/* ---------- Placement board ----------
+   Weeks down, departments across. Wide by nature — the wrapper scrolls, and
+   the week column stays put so a row never loses its label mid-scroll. */
+.grid-table {
+  min-width: 720px;
+}
+
+.grid-table th[style*='sticky'] {
+  background: var(--surface-2);
+  z-index: 1;
+}
+
+.grid-table td {
+  vertical-align: top;
+  min-width: 120px;
+}
+
+/* The current week, so the eye lands on the row that is actually actionable. */
+.grid-table tr.is-now th,
+.grid-table tr.is-now td {
+  background: var(--info-bg, var(--surface-2));
+}
+
+/* A two-or-three-way switch. Buttons share an edge and read as one control. */
+.seg {
+  display: inline-flex;
+  gap: 0;
+}
+
+.seg .btn {
+  border-radius: 0;
+}
+
+.seg .btn:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.seg .btn:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* ---------- CQMP: a fixed value shown where an input used to be ----------
+   Same height and box as the inputs beside it so the row does not jump, but
+   plainly not editable. */
+.fixed-value {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ---------- CQMP: a business unit that folds away once it is done ----------
+   Eight units and twenty-six measures: the useful question while typing is
+   what is LEFT, so a finished one stops taking up the screen. */
+.op-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 16px 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.op-head:hover {
+  border-color: var(--text-muted);
+}
+
+.op-head.is-done {
+  opacity: 0.75;
+}
+
+.op-head .title {
+  font-weight: 600;
+}
+
+.op-caret {
+  color: var(--text-muted);
+  font-size: 12px;
+  width: 12px;
 }
 
 /* ---------- Attendance grid cell ----------
@@ -1000,12 +1323,12 @@ span.att-cell {
 
 .att-cell.present {
   background: var(--ok-bg);
-  color: #166534;
+  color: var(--ok-fg);
 }
 
 .att-cell.absent {
   background: var(--crit-bg);
-  color: #991b1b;
+  color: var(--crit-fg);
 }
 
 /* Inset ring: an offset outline would be clipped by the scroll container. */
@@ -1135,18 +1458,24 @@ span.att-cell {
 .spacer { flex: 1; }
 
 .banner {
-  background: var(--pale);
-  border: 1px solid #c6d9f4;
-  /* Thick leading edge — USWDS alerts are identified by the bar, not a tint. */
-  border-left: 6px solid var(--navy-600);
-  border-radius: 0;
-  padding: 14px 16px;
+  background: var(--info-bg);
+  border: 1px solid transparent;
+  /* Leading edge — USWDS alerts are identified by the bar, not a tint. Down
+     from 6px: at 6 the bar competed with the text it was labelling. */
+  border-left: 4px solid var(--navy-600);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: var(--sp-3) var(--sp-4);
   color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
 }
-.banner.info { background: var(--info-bg); color: #1e3a8a; border-left-color: var(--info); }
-.banner.warn { background: var(--warn-bg); color: #92400e; border-left-color: var(--warn); }
-.banner.crit { background: var(--crit-bg); color: #991b1b; border-left-color: var(--crit); }
-.banner.ok { background: var(--ok-bg); color: #166534; border-left-color: var(--ok); }
+
+.banner + .banner { margin-top: var(--sp-2); }
+.banner strong { color: inherit; }
+.banner.info { background: var(--info-bg); color: var(--info-fg); border-left-color: var(--info); }
+.banner.warn { background: var(--warn-bg); color: var(--warn-fg); border-left-color: var(--warn); }
+.banner.crit { background: var(--crit-bg); color: var(--crit-fg); border-left-color: var(--crit); }
+.banner.ok { background: var(--ok-bg); color: var(--ok-fg); border-left-color: var(--ok); }
 
 .link-btn {
   background: none;
@@ -1162,9 +1491,26 @@ span.att-cell {
 }
 
 .help-text {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 5px;
+  line-height: 1.45;
+}
+
+/* A validation message that belongs under one input rather than atop the form.
+   Same size as the hint it replaces, so nothing shifts when it appears. */
+.help-text.crit-text {
+  color: var(--crit-fg);
+  font-weight: 600;
+}
+
+/* The offending span in a rejected free-text field. Marked, not merely
+   described — the point is to put the eye on the words. */
+.help-text mark {
+  background: var(--crit-bg);
+  color: var(--crit-fg);
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 /* ---------- Survey / choice buttons ---------- */
@@ -1566,7 +1912,7 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 /* Intake submission cutoff — deliberately prominent, at the very top. */
 .intake-deadline {
   background: var(--crit-bg);
-  color: #991b1b;
+  color: var(--crit-fg);
   border: 1px solid var(--crit);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
@@ -1602,7 +1948,7 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   background: var(--muted-bg);
   color: var(--text);
 }
-.exam-timer.low { background: var(--crit-bg); color: #991b1b; }
+.exam-timer.low { background: var(--crit-bg); color: var(--crit-fg); }
 .exam-q .exam-domain {
   font-size: 11px;
   font-weight: 700;
@@ -1882,10 +2228,16 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .cal-chip.lab { background: var(--warn-bg); border-left-color: #b45309; color: #7c3f06; }
 .cal-chip.clinical { background: var(--ok-bg); border-left-color: #15803d; color: #14532d; }
 .cal-chip.exam { background: var(--crit-bg); border-left-color: #b91c1c; color: #7f1d1d; }
+/* The two AHA Saturdays. Purple because they are neither a class day nor a lab
+   day — eight hours, off the Tue/Thu pattern, taught to AHA's curriculum — and
+   the month grid is the one place that difference should be visible at a
+   glance. */
+.cal-chip.aha { background: #ede9fe; border-left-color: #6d28d9; color: #4c1d95; }
 .cal-key.didactic i { background: #1a4480; }
 .cal-key.lab i { background: #b45309; }
 .cal-key.clinical i { background: #15803d; }
 .cal-key.exam i { background: #b91c1c; }
+.cal-key.aha i { background: #6d28d9; }
 
 /* On a phone a 7-column grid of stacked chips is unreadable, so the cells get
    shorter, the titles drop away and each day reduces to its time and hours.
@@ -2520,4 +2872,243 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .sim-run-note {
   margin-top: 10px; padding: 8px 10px; border-radius: 7px;
   background: var(--surface-2, #f2f5f9); font-size: 13px; line-height: 1.5;
+}
+
+/* What a saved run can be done with: printed as the sheet the student submits,
+   downloaded to add a note to, or — for the runs that were only ever a test of
+   the equipment — deleted. Deleting is at the far end of the row, away from the
+   two that get pressed on purpose. */
+.sim-run-acts {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.sim-run-acts .grow { flex: 1 1 auto; }
+
+/* A button that reads as a link, inside a line of running text. */
+.link-inline {
+  border: 0; background: none; padding: 0; font: inherit; color: var(--navy-600);
+  text-decoration: underline; cursor: pointer;
+}
+.link-inline:hover { color: var(--navy); }
+
+/* ---------------------------------------------------------------------------
+   Clinical clearance.
+
+   A student cannot start a rotation until the program holds a specific list of
+   dated records. The panel is a per-student row of those records as chips, so
+   what is missing reads across a roster at a glance rather than one modal at a
+   time.
+   --------------------------------------------------------------------------- */
+.clr-card { padding: 0; overflow: hidden; margin-bottom: 14px; }
+.clr-head {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 14px; background: none; border: 0; cursor: pointer; text-align: left;
+}
+.clr-head:hover { background: var(--surface-2, #f2f5f9); }
+.clr-body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
+.clr-row {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.clr-row:last-of-type { border-bottom: 0; }
+.clr-name { flex: 1 1 12rem; min-width: 0; }
+.clr-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 2 1 22rem; }
+.clr-chips .pill { font-size: 11px; }
+.clr-acts { display: flex; gap: 8px; margin-left: auto; }
+.clr-foot { margin-top: 12px; font-size: 12px; }
+.ok-text { color: #0a7d43; font-weight: 600; }
+
+/* A checkbox and its label on one line, with room for help text underneath —
+   several of the clearance fields are a confirmation about a document rather
+   than a date. */
+.check-row {
+  display: flex; gap: 9px; align-items: flex-start;
+  margin: 6px 0; font-size: 13.5px; line-height: 1.45; cursor: pointer;
+}
+.check-row input[type='checkbox'] {
+  width: auto; min-height: 0; margin-top: 3px; flex: 0 0 auto;
+}
+.check-row .help-text { margin-top: 2px; }
+
+/* ---------- CQMP: compact meeting entry ----------
+   The minutes print as tables of one-line rows; the editor now matches that
+   shape instead of giving every row a card of five stacked full-width fields. */
+.minute-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.minute-row .field {
+  margin: 0;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.minute-row .field.grow {
+  flex: 2 1 220px;
+}
+
+.minute-row > .btn {
+  margin-bottom: 1px;
+}
+
+/* Two people per row. A name and a title do not need the full width. */
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 6px;
+}
+
+.person {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.person input {
+  min-width: 0;
+}
+
+/* The officer roster, when it is opened for editing. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0 12px;
+}
+
+@media (max-width: 640px) {
+  .minute-row .field,
+  .minute-row .field.grow {
+    flex-basis: 100%;
+  }
+}
+
+/* ---------- AEMT: who is being looked at ----------
+   A chip row rather than five full rows. Early in a course every student reads
+   "0 of 7 complete", so the rows carried no information and a lot of height. */
+.student-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.student-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+.student-chip:hover {
+  border-color: var(--text-muted);
+}
+
+.student-chip.is-on {
+  border-color: var(--brand, var(--text));
+  background: var(--muted-bg);
+  box-shadow: inset 0 0 0 1px var(--brand, var(--text));
+}
+
+.student-chip .title {
+  display: block;
+  font-weight: 600;
+}
+
+.student-chip .meta {
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ---------- AEMT: the encounter log, grouped ----------
+   One row per performance in the data; one row per block of work on screen. */
+.enc-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.enc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.enc-head:hover {
+  background: var(--surface-2);
+}
+
+.enc-head .title {
+  display: block;
+  font-weight: 600;
+}
+
+.enc-head .meta {
+  display: block;
+}
+
+.enc-count {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.enc-rows {
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.enc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 32px;
+  font-size: 13px;
+}
+
+.enc-row + .enc-row {
+  border-top: 1px solid var(--border);
+}
+
+/* Rules that never change, read once, kept out of the way after that. */
+.rules-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 10px 0;
+}
+
+.rules-note summary {
+  cursor: pointer;
+  color: var(--text);
+}
+
+/* The optional extras on a metric card — a note, a screenshot — as two
+   separate links rather than two words run together. */
+.card-extras {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.card-extras:empty {
+  display: none;
 }

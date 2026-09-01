@@ -42,7 +42,28 @@ export interface AemtFormDef {
   /** 'shift' forms are logged repeatedly; 'course' forms once per student. */
   cadence: 'shift' | 'ongoing' | 'course'
   sections: FormSection[]
+  /**
+   * Drafted from the program's own description of the instrument, and not yet
+   * signed off. Every one of the five started here, and the flag prints
+   * "DRAFT INSTRUMENT" on the blank form and warns on the screen that fills it
+   * in — which is right, and was also inescapable: `passthrough` carries the
+   * flag through the template editor untouched, so a Program Manager who read
+   * every line and published a version still got a draft. The review below is
+   * how it comes off.
+   */
   draft?: boolean
+  /**
+   * Who signed the instrument off, and when.
+   *
+   * The program's own note on these says they are adopted for quality rather
+   * than mandated in this wording, so the sign-off is a real decision somebody
+   * makes rather than a formality — and K.A.R. 109-17-3 retains what comes back
+   * on them for three years, which is a long time to collect evidence on a form
+   * nobody approved. Recorded on the instrument so it travels with the version
+   * a record was assessed under.
+   */
+  reviewedBy?: string
+  reviewedOn?: string
 }
 
 const S5 = { min: 1, max: 5, minLabel: 'needs work', maxLabel: 'excellent' }

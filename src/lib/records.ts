@@ -12,6 +12,11 @@ export interface SyncRecord {
   id: string
   data: unknown
   deleted?: boolean
+  /**
+   * A cheap identity for the record, where its slice defines one. Used only to
+   * decide whether the record changed; never sent, never stored.
+   */
+  identity?: string
 }
 
 interface SliceDef {
@@ -20,6 +25,21 @@ interface SliceDef {
   slice: keyof DBShape
   /** Stable identity of one item within the slice. */
   idOf: (item: never) => string
+  /**
+   * A cheap value that changes whenever the item does, where stringifying the
+   * whole item on every state change would be wasteful.
+   *
+   * diffRecords runs on EVERY state change — every attendance tap, every
+   * keystroke in a form — and compares each record by stringifying it. That is
+   * fine for a session row and wrong for a retained program document, which
+   * carries eighty kilobytes of rendered HTML that is written once and never
+   * edited. Where a slice can name a value that is a complete identity for the
+   * item, it goes here and the body is never stringified.
+   *
+   * Only correct for immutable rows. A row that can be edited in place must
+   * not use this unless the version key changes with every edit.
+   */
+  identity?: (item: never) => string
 }
 
 // Items are typed `never` in idOf so each definition casts once, locally.
@@ -94,6 +114,26 @@ const SLICES: SliceDef[] = [
     idOf: ((d: { courseId: string; typeId: string }) =>
       `${d.courseId}:${d.typeId}`) as SliceDef['idOf'],
   },
+  {
+    // The documents the app builds and keeps: the syllabus, the curriculum, the
+    // clinical objectives, the policy manual. K.A.R. 109-17-3 retains these for
+    // three years, so they sync like every other record rather than living in
+    // one device's IndexedDB — a retained record on somebody's laptop is worse
+    // than the shared drive this replaced.
+    //
+    // A row is written once when the document is built and never edited; a
+    // rebuild writes a new row. So the fingerprint of the issued document is a
+    // complete identity for it, and the diff never has to stringify the body.
+    collection: 'aemtProgramDocs',
+    slice: 'aemtProgramDocs',
+    idOf: id as SliceDef['idOf'],
+    identity: ((d: { id: string; fingerprint?: string; generatedAt: string }) =>
+      `${d.fingerprint ?? ''}|${d.generatedAt}`) as SliceDef['identity'],
+  },
+  // Documented private progress conferences. K.A.R. 109-17-3 retains these and
+  // the syllabus commits to at least one per student; they were "kept
+  // elsewhere" only because nothing here recorded one.
+  { collection: 'aemtConferences', slice: 'aemtConferences', idOf: id as SliceDef['idOf'] },
   { collection: 'aemtAudit', slice: 'aemtAudit', idOf: id as SliceDef['idOf'] },
   { collection: 'aemtCandidates', slice: 'aemtCandidates', idOf: id as SliceDef['idOf'] },
 
@@ -138,7 +178,12 @@ export function toRecords(db: DBShape): Map<string, SyncRecord> {
     const items = db[def.slice] as unknown as never[]
     for (const item of items) {
       const recordId = def.idOf(item)
-      out.set(key(def.collection, recordId), { collection: def.collection, id: recordId, data: item })
+      out.set(key(def.collection, recordId), {
+        collection: def.collection,
+        id: recordId,
+        data: item,
+        identity: def.identity?.(item),
+      })
     }
   }
   out.set(key(SETTINGS_COLLECTION, SETTINGS_ID), {
@@ -157,7 +202,17 @@ export function diffRecords(prev: DBShape, next: DBShape): SyncRecord[] {
   const changed: SyncRecord[] = []
   for (const [k, rec] of after) {
     const old = before.get(k)
-    if (!old || JSON.stringify(old.data) !== JSON.stringify(rec.data)) changed.push(rec)
+    if (!old) {
+      changed.push(rec)
+      continue
+    }
+    // Where the slice names a cheap identity, trust it and skip stringifying a
+    // body that cannot have changed without it changing too.
+    const same =
+      rec.identity !== undefined && old.identity !== undefined
+        ? rec.identity === old.identity
+        : JSON.stringify(old.data) === JSON.stringify(rec.data)
+    if (!same) changed.push(rec)
   }
   for (const [k, rec] of before) {
     if (!after.has(k)) changed.push({ collection: rec.collection, id: rec.id, data: {}, deleted: true })

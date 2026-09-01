@@ -41,6 +41,87 @@ Hunter's head:
   `src/data/kcOperation.ts` (the reading), `scripts/neop-exam-bank.mjs` (the
   questions, deliberately outside `src/`), `src/data/neopSelection.ts` (the
   interview probes). Written up in `docs/neop-selection-exam.md`.
+- **Module G — AEMT program (`/aemt`):** the Kansas-approved Advanced EMT
+  initial course, end to end — candidate selection, roster, the dated class
+  schedule, psychomotor skill sheets, clinical and field placement, the
+  K.A.R. 109-11-8 minimums, and the completion record the primary instructor
+  signs. The **October 2026 cohort is run jointly by AMR Kansas City and AMR
+  Wichita**: one class, one schedule, one standard, with the didactic shared
+  and clinical placement local to each operation. That split is why students
+  and sites carry a `campus`, and why the placement board counts capacity per
+  campus rather than pooling it — Kansas City's four students cannot use
+  Wichita's slack, and averaging the two hides a shortfall on either side.
+  The agreed schedule is dated at source in `src/data/aemt.ts`: sixteen
+  instructional weeks over eighteen calendar weeks, Tuesdays and Thursdays
+  0900–1300, with Thanksgiving surrendered rather than fought (week 8 runs
+  Tuesday only, ACLS moves to a Saturday) and a deliberate two-week break that
+  is loaded with clinical shifts and dated retrieval work rather than left
+  idle. Graded structure — three blueprint-weighted mastery gates, twelve
+  cumulative closed-book retrieval quizzes, two full-length 135-item
+  simulations — lives in `src/data/aemtAssessments.ts`; the rotation cadence,
+  its phases and the five dated deficit checkpoints in
+  `src/data/aemtPhases.ts`. What Navigate actually ships per chapter — module
+  run times, Skill Drills with page numbers, the ride-along videos — is
+  transcribed from the Jones & Bartlett instructor guide into
+  `src/data/navigateAssets.ts`, and the schedule's pre-class hours are derived
+  from it rather than typed. Seven **Word documents** generate straight from
+  that data, and `npm run doc:all` builds the set:
+
+  | Command | Document | Who reads it |
+  | --- | --- | --- |
+  | `doc:application` | KBEMS Initial Course Approval application | The board, under K.A.R. 109-11-4a |
+  | `doc:syllabus` | Course syllabus | Students, and filed with the application (K.A.R. 109-1-1(ss)) |
+  | `doc:curriculum` | Standards coverage map and per-session lesson plans | Whoever teaches the session; a reviewer checking coverage |
+  | `doc:objectives` | Clinical and field training objectives | The preceptor who has a student for twelve hours |
+  | `doc:policies` | Program policy manual | Retained under K.A.R. 109-17-3 |
+  | `doc:forms` | Patient encounter log and the five blank instruments | Students and preceptors, on paper |
+  | `doc:student` | Student course guide — sixteen dated weeks of readings, modules, drills and graded events | Students |
+
+  They are separate documents because they go to separate people, and separate
+  scripts because each has its own argument to make. What they cannot have is
+  separate ideas about what the course is: all seven load the same modules
+  through `scripts/lib/doc-kit.mjs`, so none of them can drift from the
+  calendar the coordinator works to.
+
+  **The four the program retains as documents are also built inside the app**,
+  because "run `npm run doc:syllabus`" is not a thing a Program Manager can do
+  — so in practice the only copy of the syllabus was whatever somebody had last
+  exported. Each is a `Block[]` in `src/data/programDocs/`, rendered twice: to
+  .docx by `scripts/lib/doc-render.mjs` for the copy a reviewer is sent, and to
+  standalone HTML by `src/lib/docHtml.ts` for the copy the Records tab builds.
+  One source, two renderers, so the two cannot say different things. Pressing
+  Build stores what it produced, dated and fingerprinted: that stored copy is
+  the retained record, deliberately a snapshot, because three years from now
+  the question is what was issued and not what today's data would produce.
+  Rebuilding supersedes without erasing what went out in September.
+
+  `src/data/aemtRecords.ts` answers, for
+  every record K.A.R. 109-17-3 retains, the only question that matters about
+  one — where it actually is. Three answers, because there are three: **held in
+  CES**, where the tab that owns it is the record and the status is how much is
+  in it; **generated**, where the app builds the document from the course
+  record and keeps what it built, flagging it stale when the course moves on;
+  and **kept elsewhere**, which is three records, each saying why nothing here
+  can produce it — the Navigate gradebook, first-attempt exam outcomes and the
+  end-of-cohort outcome analysis. The Records tab prints a **requirement
+  listing**: every record, the regulation behind it, where it is, and what is
+  actually in it. The distinction the list is built to hold is between the document that *states* a
+  rule and the record that *proves* it was followed: the policy manual states
+  the make-up policy and is not a record of what any student made up;
+  `doc:forms` prints a blank preceptor evaluation and is not the returned
+  evaluations.
+
+  `npm run check:plan` and `check:skills` assert the arithmetic, the calendar
+  and the coverage; `check:documents` builds all seven documents and reads them
+  back — and re-runs every one of those assertions against the app's own
+  rendering, then compares the two documents' headings rather than taking
+  "cannot drift by construction" on trust — checking each carries the sections
+  it owes and that no source path, unfilled value or developer note reached the
+  page; `check:records` drives the
+  store to assert the registry's claims hold — every instrument belongs to
+  exactly one record, every command a record names is real, a make-up documents
+  competency without erasing the absence, and a student who evaluated one of
+  two instructors is not finished.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics
@@ -90,6 +171,7 @@ src/
     ce/           Module B — CE deadline tracker
     cqmp/         Module F — monthly KPI review + PowerPoint generator
     academy/      Module D — cohorts, curriculum checklist, FTO release
+    aemt/         Module G — the AEMT initial course, selection to completion
     sections/     the four section landings behind the bottom bar
     settings/     reviewer/sample defaults, data backup, about
 ```
