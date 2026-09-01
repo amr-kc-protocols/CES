@@ -21,6 +21,7 @@ import {
   useRecordSafety,
 } from './aemtStore'
 import { ABSENCE_MAKEUP, MAX_ABSENT_HOURS } from '../../data/aemt'
+import { patternLabel, workConflicts } from './workPattern'
 import { todayISO } from '../../lib/date'
 import { AttendanceCell, attendanceGridKeys } from '../../components/AttendanceCell'
 import { useCan } from '../../lib/role'
@@ -154,6 +155,13 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
   const owed = hours
     .flatMap((h) => h.makeUpOwed.map((session) => ({ student: h.student, session })))
     .sort(bySession)
+  // What each student's regular line costs them before a single absence is
+  // recorded. Attendance measures what happened; this measures what is already
+  // arranged to happen, which is the half nobody could see.
+  const lineConflicts = students
+    .map((st) => workConflicts(st, sessions, MAX_ABSENT_HOURS))
+    .filter((c) => c.clashes.length > 0)
+    .sort((a, b) => b.hoursLost - a.hoursLost)
   const done = hours
     .flatMap((h) => h.makeUpsDone.map((d) => ({ student: h.student, ...d })))
     .sort(bySession)
@@ -422,6 +430,44 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
                   </span>
                 </div>
               ))}
+          </div>
+        </>
+      )}
+
+      {/* Scheduled against, before anything is missed.
+          The attendance grid above records what happened. This is what the
+          students' own bid lines have already decided will happen — the same
+          hours, arrived at fourteen weeks earlier, while there is still time to
+          trade a shift or move a line. */}
+      {lineConflicts.length > 0 && (
+        <>
+          <div className="section-title">Class hours their work line already covers</div>
+          <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
+            Not absences — these sessions have not happened. This is the collision between the class
+            schedule and the shifts each student is rostered on, which is the same hours counted
+            against the {MAX_ABSENT_HOURS}-hour cap unless something changes first.
+          </div>
+          <div className="list">
+            {lineConflicts.map((c) => (
+              <div
+                key={c.student.id}
+                className={`row left-accent ${c.overCap ? 'acc-crit' : 'acc-warn'}`}
+              >
+                <div className="grow">
+                  <div className="title">{c.student.name}</div>
+                  <div className="meta">{c.pattern ? patternLabel(c.pattern) : ''}</div>
+                  <div className="meta">
+                    {c.clashes.length} session{c.clashes.length === 1 ? '' : 's'} ·{' '}
+                    {c.clashes.filter((x) => x.whole).length} lost whole · first is{' '}
+                    {formatDate(c.clashes[0].session.date)}
+                  </div>
+                </div>
+                <span className={`pill ${c.overCap ? 'crit' : 'warn'}`}>
+                  {c.hoursLost} h
+                  {c.overCap ? ` · over ${MAX_ABSENT_HOURS} h cap` : ''}
+                </span>
+              </div>
+            ))}
           </div>
         </>
       )}

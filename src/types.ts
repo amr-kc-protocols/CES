@@ -989,6 +989,72 @@ export interface AemtStudent {
    * data/aemtPhases.ts for which requirements each one gates.
    */
   skillClearances?: AemtSkillClearance[]
+  /**
+   * Their regular AMR line. Absent means not recorded — which is different
+   * from "works nothing", and every screen that reads it says so rather than
+   * reporting a clean sheet for a student nobody has asked.
+   */
+  workPattern?: AemtWorkPattern
+}
+
+/**
+ * A student's regular AMR work line.
+ *
+ * Every one of these students is a working EMT holding a bid line, and the
+ * course is scheduled on top of it rather than instead of it. The line is a
+ * fact about the person that decides three things the program otherwise finds
+ * out the hard way:
+ *
+ *   WHICH CLASS SESSIONS THEY CANNOT ATTEND. Class runs Tuesday and Thursday
+ *   0900-1300. A 1236 line working Thursdays noon-to-midnight loses the last
+ *   hour of every Thursday — sixteen hours across the course, against an
+ *   eight-hour absence cap. That is a course failure arranged in advance, and
+ *   it is knowable in week 0 instead of week 6.
+ *
+ *   WHICH DAYS A CLINICAL SHIFT CANNOT BE BOOKED. The placement board books
+ *   twelve-hour rotations and had no idea when a student is already working
+ *   twelve. Booking one on top of the other produces a no-show or a student
+ *   who has been awake for twenty hours next to a patient.
+ *
+ *   WHAT THE STUDENT IS ACTUALLY BEING ASKED FOR. Class plus a line plus
+ *   eighteen twelve-hour rotations is the real ask, and a candidate deciding
+ *   whether to accept a seat deserves it stated rather than discovered.
+ *
+ * Held per student rather than imported from the operations workbook on a
+ * schedule: lines change on bid, and a stale copy that silently stops matching
+ * is worse than one somebody updated when it moved.
+ */
+export interface AemtWorkPattern {
+  /** The unit or line — KC105, CM101, AD101. */
+  line?: string
+  /** ALS, BLS, Dedicated — recorded because it is on the roster, not used. */
+  los?: string
+  /** Shift start, 24h "HH:MM". */
+  startTime: string
+  /**
+   * Shift end, 24h "HH:MM". Earlier than `startTime` means it crosses
+   * midnight — a 1200-0000 line is twelve hours ending at midnight, and
+   * treating that as a negative-length shift is the obvious way to get this
+   * wrong.
+   */
+  endTime: string
+  /** The operation's own shift-type code (1040, 1236, 1339), for reference. */
+  shiftType?: string
+  /**
+   * The two-week rotation, as day-of-week indices 0=Sunday..6=Saturday.
+   * `weekOne` and `weekTwo` because these lines alternate, and a pattern
+   * flattened to one week reports conflicts on the wrong days half the time.
+   */
+  weekOne: number[]
+  weekTwo: number[]
+  /**
+   * The Sunday that begins week one of the rotation. Without it there is no
+   * way to know which of the two weeks any given date falls in.
+   */
+  anchorSunday: string
+  /** Where this came from and when, so a stale line is visible as stale. */
+  source?: string
+  updatedOn?: string
 }
 
 /** Mirrors SKILL_CLEARANCES in data/aemtPhases.ts. */
