@@ -487,13 +487,49 @@ a check that cannot lay the page out.
 holding it to a thumb's minimum would be measuring a room nobody is in. On the
 panel, only the controls tapped *while a code is running*: the expected
 actions, the check-off sheet's own rows and fields, the result, the patient
-states and the way out. That list is held by a selector, and a selector that
-matches nothing is not a passing check — it is a check that stopped running,
-which is what the `.cl-*` names in it became when the sheet replaced that UI.
-The
-vitals sliders, rhythm buttons and setup selects stay at the density a pointer
-wants — this page is compact on purpose, and every pixel above the cards is a
-pixel of the scenario the facilitator cannot see.
+states and the way out. The vitals sliders, rhythm buttons and setup selects
+stay at the density a pointer wants — this page is compact on purpose, and
+every pixel above the cards is a pixel of the scenario the facilitator cannot
+see.
+
+## A check that did not run is not a pass
+
+Three things in this repo report success without having verified anything, and
+all three have already cost real coverage.
+
+**A selector that matches nothing.** The panel's 44pt list is held as selectors,
+and `el.matches()` on a name that matches nothing raises nothing — it simply
+floors no controls. When the check-off sheet replaced the collapsed checklist,
+`.cl-head`, `.cl-chk` and `.cl-num input` went with it, and the panel's grading
+controls stopped being measured while `check-reach` went on printing a pass.
+
+The list is an array now, each entry is recorded when it is seen on a control,
+and the sweep ends by asserting that every one of them described something. It
+found a second gap the moment it was written: `.act` matched nothing either.
+Not because it is dead — it is the per-state action list the *quarterly
+simulations* are graded on — but because every panel state loaded `megacode1`,
+which is graded on the sheet instead. That whole grading UI had never been
+swept. There is a `quarterly sim running` state now, and panel coverage went
+from 48 configurations to 54.
+
+**A missing optional dependency.** `check-simulator` and `check-checkoff` skip
+without `jsdom`; `check-reach` skips without `playwright`, without a Chromium
+it can drive, or without a build to serve. All are deliberate — the pages ship
+as static HTML, and a fresh clone should not fail the aggregate check — but all
+exited 0 with a line of output, which is indistinguishable from a pass at a
+glance and identical to one in CI. They now say `SKIPPED`, say that nothing was
+verified, and name what would make them run.
+
+```
+npm run check          # skips are skips, exit 0
+npm run check:strict   # a skip is a failure — CES_CHECK_STRICT=1
+```
+
+**A state whose setup throws** is the one case that was already handled: the
+sweep catches it per configuration and reports it as a defect, so the dead
+`toggleChecklist()` call would have surfaced on its own.
+
+`scripts/lib/check-kit.mjs` holds the skip helper and the strict flag.
 
 ## Facilitating and grading
 

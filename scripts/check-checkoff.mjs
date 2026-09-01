@@ -28,6 +28,7 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { skip } from './lib/check-kit.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -38,8 +39,7 @@ let JSDOM
 try {
   ;({ JSDOM } = await import('jsdom'))
 } catch {
-  console.log('check-checkoff: jsdom not installed — skipping (npm install to enable)')
-  process.exit(0)
+  skip('check-checkoff', 'jsdom not installed', 'npm install to enable')
 }
 const { build } = await import('esbuild')
 
