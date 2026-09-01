@@ -99,10 +99,15 @@ const sessions = D.KC_SCHEDULE.filter(
   delivery: r.delivery,
 }))
 check(sessions.length > 0, 'the filed schedule has dated sessions to compare against')
+// The filter stays broader than f2f on purpose. It is written against every
+// session a student has to be in a room for, not the Tuesday/Thursday rows,
+// because a weekend line collides with a weekend session and with nothing on a
+// Tuesday — which is exactly what a narrower filter hid when the two Saturday
+// AHA courses were still in the schedule.
 check(
-  sessions.some((s) => s.delivery === 'aha'),
-  'the Saturday AHA provider courses are among them',
-  'a weekend line collides with those and with nothing on a Tuesday',
+  sessions.every((s) => s.delivery === 'f2f'),
+  'every session students must attend is now a Tue/Thu classroom row',
+  sessions.filter((s) => s.delivery !== 'f2f').map((s) => `${s.date} ${s.delivery}`).join(', '),
 )
 
 const results = Object.entries(LINES).map(([name, workPattern]) => ({
@@ -147,15 +152,18 @@ for (const name of ['Abby Schmelzle', 'Spencer Mayes']) {
   )
 }
 
-// The one a Tuesday/Thursday-only view misses entirely.
-const abbySaturdays = results
+// Taking ACLS and PALS out of the filed schedule cost Abby's Saturdays their
+// only collision — ten of her twenty-five hours. It is the one thing that
+// change improved for anybody, and it is worth holding onto: if a weekend
+// session is ever filed again, this stops being true and somebody should have
+// to notice.
+const abbyWeekend = results
   .find((r) => r.name === 'Abby Schmelzle')
-  .clashes.filter((c) => c.session.delivery === 'aha')
+  .clashes.filter((c) => [0, 6].includes(new Date(c.session.date + 'T00:00:00').getDay()))
 check(
-  abbySaturdays.length === 2 && abbySaturdays.every((c) => c.overlapHours === 5),
-  'a Thu/Fri/Sat line also collides with both Saturday AHA provider courses',
-  abbySaturdays.map((c) => `${c.session.date} ${c.overlapHours}h`).join(' · ') ||
-    'none found — a check that only looks at Tuesdays and Thursdays reports this student ten hours better off than they are',
+  abbyWeekend.length === 0,
+  'a Thu/Fri/Sat line no longer collides with anything at the weekend',
+  abbyWeekend.map((c) => `${c.session.date} ${c.overlapHours}h`).join(' · '),
 )
 
 // The finding this was written for.
@@ -176,7 +184,7 @@ check(
 )
 
 console.log(`
-  ${sessions.length} dated sessions students must attend — Tuesdays, Thursdays and two Saturdays
+  ${sessions.length} dated classroom sessions students must attend — Tuesdays and Thursdays
 ${results
   .map(
     (r) =>

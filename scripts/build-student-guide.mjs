@@ -253,7 +253,7 @@ function weekSection(w) {
   return out
 }
 
-// ----- standalone rows: the AHA Saturdays and the break ----------------------
+// ----- standalone rows: the winter break, and any weekend provider course ----
 
 function standaloneSection(r) {
   const out = [
@@ -413,7 +413,7 @@ const doc = new Document({
           for (let w = 1; w <= m.KC_COURSE_WEEKS; w++) {
             out.push(...weekSection(w))
             // Anything standalone that falls after this week's last session and
-            // before the next week's first — the AHA Saturdays and the break.
+            // before the next week's first — the winter break block.
             const lastOfWeek = classesOf(w).slice(-1)[0]?.date
             const firstOfNext = classesOf(w + 1)[0]?.date
             for (const r of standalone) {

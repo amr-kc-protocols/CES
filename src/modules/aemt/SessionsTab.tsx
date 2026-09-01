@@ -417,7 +417,8 @@ function SeedModal({
         <strong>
           {plan.didactic} didactic + {plan.lab} lab
         </strong>
-        , plus {plan.aha} h of AHA provider courses. {plan.classroom} hours in total.
+        {plan.aha > 0 && <>, plus {plan.aha} h of AHA provider courses</>}. {plan.classroom} hours
+        in total.
       </p>
       <p style={{ lineHeight: 1.55 }} className="subtle">
         <strong>{plan.f2f} h of that is face-to-face</strong>, across {plan.f2fWeeks} class weeks —{' '}
@@ -425,7 +426,7 @@ function SeedModal({
         {CLASS_HOURS_PER_WEEK} h a week) from{' '}
         {String(Math.floor(KC_CLASS_PATTERN.startMinute / 60)).padStart(2, '0')}:
         {String(KC_CLASS_PATTERN.startMinute % 60).padStart(2, '0')}. The other {plan.assignment} h
-        is Navigate modules, flashcards, practice activities and AHA pre-course reading the student
+        is Navigate modules, flashcards and practice activities the student
         completes on their own, so it costs no class time. {KC_COURSE_WEEKS} instructional weeks
         over {KC_CALENDAR_WEEKS} calendar weeks, ending {formatDate(KC_END_DATE)}.
       </p>
@@ -467,9 +468,8 @@ function SeedModal({
         are the agreement, not a projection, which is why re-seeding cannot quietly move them.
         <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
           <li>
-            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Tuesday only, and ACLS moves
-            out to Saturday 5 December. Pulling the two AHA courses onto Saturdays protects the
-            Tuesday/Thursday rhythm.
+            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Tuesday only. Absorbing it
+            rather than chasing it protects the Tuesday/Thursday rhythm.
           </li>
           <li>
             <strong>A deliberate two-week break</strong>, {formatDate(WINTER_BREAK.start)} to{' '}

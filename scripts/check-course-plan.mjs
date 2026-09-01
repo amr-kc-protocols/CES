@@ -106,16 +106,24 @@ check(
   offPattern.map((r) => `${r.label} ${r.date} (${WEEKDAY[dayOf(r.date)]})`).join(', '),
 )
 
+// ACLS and PALS came out of the filed schedule: both operations run them
+// through their own AHA classes, so the sixteen hours are not this course's to
+// file and the two Saturdays are gone. What is worth asserting now is that they
+// are gone CLEANLY — a leftover row would be sixteen hours filed against a
+// course nobody here is teaching, and a leftover promise in the syllabus would
+// be worse, which is what the document checks cover.
 const ahaRows = m.KC_SCHEDULE.filter((r) => r.delivery === 'aha')
 check(
-  ahaRows.length === 2 && ahaRows.every((r) => dayOf(r.date) === 6),
-  'both AHA provider courses are Saturdays',
-  ahaRows.map((r) => `${r.short} ${r.date} (${WEEKDAY[dayOf(r.date)]})`).join(', '),
+  ahaRows.length === 0,
+  'no AHA provider course is filed on this cohort',
+  ahaRows.map((r) => `${r.short} ${r.date}`).join(', '),
 )
+// Which leaves the winter break as the only row outside the Tue/Thu pattern.
+const standalone = m.KC_SCHEDULE.filter((r) => r.standalone)
 check(
-  ahaRows.map((r) => r.date).join(',') === '2026-12-05,2027-01-09',
-  'ACLS is Saturday 5 December and PALS Saturday 9 January',
-  ahaRows.map((r) => r.date).join(', '),
+  standalone.every((r) => r.delivery === 'assignment'),
+  'every remaining standalone row is student work, not a session in a room',
+  standalone.filter((r) => r.delivery !== 'assignment').map((r) => r.label).join(', '),
 )
 
 // The whole point of absorbing the holidays instead of pushing past them.
@@ -239,14 +247,16 @@ check(
     .map((r) => `${r.short} ${r.startTime}-${r.endTime} vs ${m.rowHours(r)} h`)
     .join(', '),
 )
-// The AHA Saturdays are the only rows with a break, and publishing the real
-// end time is the point: 16:00 would have reconciled the arithmetic by telling
-// students the course finishes an hour before it does.
+// No row declares a break any more — the AHA Saturdays were the only ones long
+// enough to need one. The rule stays because the arithmetic it protects is the
+// point: a row whose clock span exceeds its filed hours must declare the
+// difference as a break rather than publish a false end time, which is how a
+// student ends up told the day finishes an hour before it does.
 check(
   m.KC_SCHEDULE.filter((r) => r.breakMinutes).every(
-    (r) => r.delivery === 'aha' && r.endTime === '17:00',
+    (r) => m.rowHours(r) > 0 && r.endTime && r.startTime,
   ),
-  'the AHA courses publish their real 17:00 end time and declare the lunch hour',
+  'any row declaring a break still publishes its real end time',
   m.KC_SCHEDULE.filter((r) => r.breakMinutes).map((r) => `${r.short} ${r.endTime}`).join(', '),
 )
 
@@ -356,7 +366,16 @@ check(
 // ----- the hours ------------------------------------------------------------
 
 check(near(t.lab, 52), 'lab totals 52 h, as the plan states', `${t.lab} h`)
-check(near(t.aha, 16), 'AHA provider courses total 16 h, as the plan states', `${t.aha} h`)
+check(near(t.aha, 0), 'no AHA hours are filed', `${t.aha} h`)
+// The joint plan's own summary counted 16 h of AHA. That number is still in
+// FILED_SUMMARY because it records what the source document said; the distance
+// from it is now deliberate rather than drift, and saying so here is what stops
+// somebody "fixing" the schedule back.
+check(
+  m.FILED_SUMMARY.aha === 16 && t.aha === 0,
+  'the 16 h the source document filed for AHA is recorded as a deliberate departure',
+  `filed ${m.FILED_SUMMARY.aha} h, scheduled ${t.aha} h`,
+)
 check(
   near(t.f2fDidactic + t.lab, t.f2f),
   'face-to-face splits exactly into didactic and lab',
@@ -368,10 +387,14 @@ check(
   `${t.didactic} vs ${t.f2fDidactic} + ${t.assignment}`,
 )
 check(
-  near(m.KC_HOUR_TARGETS.find((h) => h.id === 'didactic').hours, t.didactic) &&
-    near(m.KC_HOUR_TARGETS.find((h) => h.id === 'lab').hours, t.lab) &&
-    near(m.KC_HOUR_TARGETS.find((h) => h.id === 'aha').hours, t.aha),
-  'filed targets equal the schedule',
+  ['didactic', 'lab', 'aha'].every((id) => {
+    const target = m.KC_HOUR_TARGETS.find((h) => h.id === id)
+    // A category the cohort does not file has no target row, and that is the
+    // right answer rather than a row reading zero — but it has to agree with a
+    // schedule that lays out none of it.
+    return target ? near(target.hours, t[id]) : t[id] === 0
+  }),
+  'filed targets equal the schedule, and a category with no target lays out none',
 )
 check(
   near(m.KC_CLASSROOM_TARGET, t.classroom),

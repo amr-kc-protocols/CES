@@ -84,7 +84,13 @@ export const EXAM_BLUEPRINT: BlueprintDomain[] = [
     examMax: 15,
     priorHours: 13,
     priorShare: 12,
-    verdict: 'Appropriate. ACLS carries much of it.',
+    // The prior verdict read "Appropriate. ACLS carries much of it." — which
+    // stopped being true the moment ACLS came out of the filed schedule. The
+    // hours did not change; what changed is that they are now the only
+    // cardiology this course delivers, so the allocation has to stand on its
+    // own rather than lean on a provider course taught somewhere else.
+    verdict:
+      'Appropriate, and now load-bearing: with ACLS run separately by each operation, these are the only cardiology hours this course files.',
   },
   {
     id: 'airway',
@@ -449,7 +455,7 @@ export interface SessionBlock {
 /**
  * The shape of an ordinary Tuesday or Thursday.
  *
- * Applies to every session that is not an AHA course, a gate exam or a
+ * Applies to every session that is not a gate exam or a
  * full-length simulation. The 09:00-09:15 quiz is the highest-yield fifteen
  * minutes in the course and it is first on purpose: a quiz that slips to the
  * end of a session is a quiz that gets dropped when the session runs long.

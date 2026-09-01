@@ -54,7 +54,7 @@ export function policiesBlocks(): Block[] {
 
     h1('Attendance'),
     p(
-      `Sessions run Tuesdays and Thursdays 0900–1300, plus two Saturday American Heart Association provider courses. Attendance at all scheduled meeting times is required.`,
+      `Sessions run Tuesdays and Thursdays 0900–1300. Attendance at all scheduled meeting times is required. ACLS and PALS are not part of this course; each operation runs its own AHA classes and students arrange those separately.`,
     ),
     h2('Absence and make-up'),
     p(

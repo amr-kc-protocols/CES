@@ -646,8 +646,15 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
  * a single schedule that both primary instructors have agreed to.
  *
  * Transcribed from AEMT_Course_Oct2026_Cohort.docx: Tuesday 6 October 2026
- * through Thursday 4 February 2027, Tuesdays and Thursdays 09:00-13:00, with
- * the two AHA provider courses pulled out onto Saturdays.
+ * through Thursday 4 February 2027, Tuesdays and Thursdays 09:00-13:00.
+ *
+ * THE TWO AHA PROVIDER COURSES ARE NOT IN IT. ACLS and PALS were originally
+ * filed as two Saturdays inside this course, sixteen hours on AHA's curriculum
+ * and AHA's certificate. Both operations run their own AHA classes and will
+ * put these students through those instead, so they are out of the filed
+ * schedule and out of the filed hours. Students still take them — the syllabus
+ * says so — but as their operation's course rather than as part of this one,
+ * which is the honest way to file hours nobody here is teaching.
  *
  * WHAT CHANGED, AND WHY IT IS NOT A GENERATED CALENDAR ANY MORE.
  *
@@ -659,7 +666,7 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
  * fought, and the resulting calendar is the agreement.
  *
  *   - Thanksgiving (Thu 26 Nov) is surrendered. Week 8 is a single Tuesday
- *     session, and ACLS moves out to Saturday 5 December.
+ *     session.
  *   - A deliberate two-week break, 21 Dec - 3 Jan, replaces four sessions that
  *     would have been half empty. Christmas Eve, Christmas Day, New Year's Eve
  *     and New Year's Day all fall inside it.
@@ -701,23 +708,26 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
  *
  * `f2f`        — Tuesday/Thursday 09:00-13:00 class. Costs instructor time and
  *                room time, and is what the eight-hour weekly cap is about.
- * `assignment` — Navigate modules, flashcards, practice activities and the AHA
- *                pre-course work, done by the student on their own.
- * `aha`        — an AHA provider course: a Saturday, eight hours, taught to
- *                AHA's curriculum rather than ours and certificated by them.
- *                Counted in its own bucket because the joint plan counts it
- *                that way ("plus 52 lab and 16 hours of AHA courses"), and
- *                because it is the one thing on the calendar that legitimately
- *                exceeds four hours in a day.
+ * `assignment` — Navigate modules, flashcards, practice activities, done by the
+ *                student on their own.
+ * `aha`        — an AHA provider course: taught to AHA's curriculum rather than
+ *                ours and certificated by them. THIS COHORT FILES NONE — both
+ *                operations run ACLS and PALS through their own AHA classes —
+ *                but the kind stays, because a course that does file one needs
+ *                somewhere to put it and it is counted apart from didactic and
+ *                lab wherever it appears — the joint plan counted it that way
+ *                ("plus 52 lab and 16 hours of AHA courses") and so does this,
+ *                for whatever course files one next.
  */
 export type Delivery = 'f2f' | 'assignment' | 'aha'
 
 export interface ScheduleRow {
   order: number
   /**
-   * Instructional week, 1-16. The two AHA Saturdays and the winter break carry
-   * the week they sit alongside; `standalone` marks them as not part of that
-   * week's Tuesday/Thursday pair.
+   * Instructional week, 1-16. A row that sits alongside a week rather than
+   * inside its Tuesday/Thursday pair — the winter break block, or a weekend
+   * provider course on a cohort that files one — carries the week it is
+   * adjacent to and is marked `standalone`.
    */
   week: number
   /** Row label as the joint plan writes it. */
@@ -740,11 +750,12 @@ export interface ScheduleRow {
   /**
    * Unpaid break inside the clock span, in minutes.
    *
-   * The AHA provider courses run 08:00-17:00 and are eight instructional
-   * hours: nine on the clock, one of them lunch. Filing 16:00 to make the
-   * arithmetic work would tell a student the course ends an hour before it
-   * does, on the schedule they plan their Saturday around — so the break is
-   * declared instead, and the validator subtracts it.
+   * A day filed 08:00-17:00 that is eight instructional hours is nine on the
+   * clock with one of them lunch. Filing 16:00 to make the arithmetic work
+   * would tell a student the day ends an hour before it does, on the schedule
+   * they plan around — so the break is declared instead, and the validator
+   * subtracts it. No row on this cohort needs it since the AHA Saturdays came
+   * out; it stays because the next full-day session will.
    */
   breakMinutes?: number
   /**
@@ -784,9 +795,9 @@ export interface ScheduleRow {
    */
   taughtNotChecked?: string[]
   /**
-   * Not one of the week's Tuesday/Thursday sessions — a Saturday AHA course or
-   * the winter break block. Excluded from the eight-hour weekly cap check,
-   * which is about the Tue/Thu pattern.
+   * Not one of the week's Tuesday/Thursday sessions — the winter break block,
+   * or a weekend provider course on a cohort that files one. Excluded from the
+   * eight-hour weekly cap check, which is about the Tue/Thu pattern.
    */
   standalone?: boolean
   /**
@@ -1171,16 +1182,16 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     order: 22,
     week: 8,
     label: 'Week 8 pre-class',
-    short: 'Module 18 · ACLS prep',
+    short: 'Module 18 · Cardiovascular',
     title:
-      'Navigate Module 18 (Ch 18) Cardiovascular Emergencies (MT8). AHA ACLS pre-course work, assigned over the holiday — low-cognitive-load work that survives a break.',
+      'Navigate Module 18 (Ch 18) Cardiovascular Emergencies (MT8), assigned over the holiday — low-cognitive-load work that survives a break. It doubles as ACLS pre-course reading for whoever is taking ACLS with their operation around the same time.',
     delivery: 'assignment',
     didacticHours: 0.9,
     labHours: 0,
     date: '2026-11-24',
     chapters: [18],
     sections: ['MT8'],
-    note: 'The AHA pre-course carries no separate hour figure. The joint plan does not quantify it and the provider course itself is counted in the 16-hour AHA block.',
+    note: 'Assigned over the Thanksgiving week so the break carries something useful and nothing new is introduced against it.',
   },
   {
     order: 23,
@@ -1196,7 +1207,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-g'],
-    note: 'No Thursday session. Thanksgiving falls on 26 November and is surrendered rather than fought; ACLS moves to Saturday 5 December to protect the Tue/Thu rhythm.',
+    note: 'No Thursday session. Thanksgiving falls on 26 November and is surrendered rather than fought rather than pushing every later date out to chase it.',
   },
 
   // ----- week 9 -------------------------------------------------------------
@@ -1242,24 +1253,6 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     date: '2026-12-03',
     startTime: AM,
     endTime: PM,
-  },
-
-  // ----- Saturday 5 December — AHA ACLS -------------------------------------
-  {
-    order: 27,
-    week: 9,
-    label: 'Saturday 5 December',
-    short: 'AHA ACLS',
-    title: 'AHA ACLS Provider Course, 8 hours.',
-    delivery: 'aha',
-    didacticHours: 8,
-    labHours: 0,
-    date: '2026-12-05',
-    startTime: '08:00',
-    endTime: '17:00',
-    breakMinutes: 60,
-    standalone: true,
-    note: 'Pulled out of the Tue/Thu rhythm so that Thanksgiving week does not cost the class a session. Most agencies run the AHA courses on Saturdays anyway.',
   },
 
   // ----- week 10 ------------------------------------------------------------
@@ -1376,9 +1369,9 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     order: 35,
     week: 12,
     label: 'Week 12 pre-class',
-    short: 'Module 36 · PALS prep',
+    short: 'Module 36 · Pediatrics',
     title:
-      'Navigate Module 36 (Ch 36) Pediatric Emergencies (SP3). AHA PALS pre-course work.',
+      'Navigate Module 36 (Ch 36) Pediatric Emergencies (SP3). Doubles as PALS pre-course reading for whoever is taking PALS with their operation.',
     delivery: 'assignment',
     didacticHours: 1.8,
     labHours: 0,
@@ -1415,23 +1408,6 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     startTime: AM,
     endTime: PM,
     note: 'Sim #1 item analysis drives every individualised assignment from here forward.',
-  },
-
-  // ----- Saturday 9 January — AHA PALS --------------------------------------
-  {
-    order: 38,
-    week: 12,
-    label: 'Saturday 9 January',
-    short: 'AHA PALS',
-    title: 'AHA PALS Provider Course, 8 hours.',
-    delivery: 'aha',
-    didacticHours: 8,
-    labHours: 0,
-    date: '2027-01-09',
-    startTime: '08:00',
-    endTime: '17:00',
-    breakMinutes: 60,
-    standalone: true,
   },
 
   // ----- week 13 ------------------------------------------------------------
@@ -1709,7 +1685,7 @@ export interface ScheduleTotals {
   weeks: number
   /** Instructor-led Tuesday/Thursday hours — what the eight-hour cap is about. */
   f2f: number
-  /** Student self-study: Navigate modules, flashcards, practice activities, AHA pre-course. */
+  /** Student self-study: Navigate modules, flashcards and practice activities. */
   assignment: number
   f2fWeeks: number
   /** Face-to-face didactic only, for the 66/40 split the joint plan quotes. */
@@ -1787,8 +1763,9 @@ export function duplicatedChapters(): number[] {
  *
  * Tuesday and Thursday, 09:00-13:00. Wichita ran that pattern in 2025, Kansas
  * City adopted it, and the joint cohort keeps it — eight instructor-led hours a
- * week is a budget constraint both operations are working inside. The two AHA
- * Saturdays are the deliberate exception and are marked `standalone`.
+ * week is a budget constraint both operations are working inside. With the AHA
+ * Saturdays out of the schedule, every session on the calendar now sits inside
+ * that pattern; the winter break block is the only `standalone` row left.
  */
 export interface ClassPattern {
   /** Weekdays carrying class, 0 = Sunday. */
@@ -1824,7 +1801,7 @@ export const KC_HOLIDAYS: { date: string; name: string; absorbedBy: string }[] =
   {
     date: '2026-11-26',
     name: 'Thanksgiving Day',
-    absorbedBy: 'Week 8 runs Tuesday only. ACLS moves to Saturday 5 December.',
+    absorbedBy: 'Week 8 runs Tuesday only.',
   },
   {
     date: '2026-11-27',
@@ -2054,12 +2031,20 @@ export const KC_HOUR_TARGETS: HourTarget[] = [
     hours: scheduleTotals().lab,
     note: 'All face-to-face. Minimum 2 instructors required on lab days.',
   },
-  {
-    id: 'aha',
-    label: 'AHA provider courses',
-    hours: scheduleTotals().aha,
-    note: 'ACLS Saturday 5 December and PALS Saturday 9 January, 8 h each. Pulled onto Saturdays so Thanksgiving week does not cost the class a session.',
-  },
+  // AHA appears only on a cohort that files one. This one does not: both
+  // operations run ACLS and PALS through their own AHA classes, and a filed
+  // target of zero hours reads on every screen as a commitment nobody is
+  // meeting rather than a commitment nobody made.
+  ...(scheduleTotals().aha > 0
+    ? [
+        {
+          id: 'aha',
+          label: 'AHA provider courses',
+          hours: scheduleTotals().aha,
+          note: 'Taught to AHA\'s curriculum on AHA\'s certificate, counted apart from didactic and lab.',
+        },
+      ]
+    : []),
   {
     id: 'clinical',
     label: 'Hospital clinical',
@@ -2081,7 +2066,7 @@ export const KC_CLINICAL_TARGET = 72
 export const KC_FIELD_TARGET = 144
 
 /**
- * Classroom time — didactic, lab and the AHA provider courses.
+ * Classroom time — didactic and lab, plus any provider courses a cohort files.
  *
  * Includes the assignment hours: the "~106 didactic" figure the joint plan
  * quotes counts Navigate pre-class work alongside classroom time. Instructor-led
