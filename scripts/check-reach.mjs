@@ -233,7 +233,8 @@ const PANEL_STATES = {
   'nothing picked': () => {},
   'quick preset': () => { document.getElementById('scenarioSel').value = 'brady'; applyScenario() },
   'megacode running': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0) },
-  'checklist open': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0); toggleChecklist() },
+  'sheet at a later phase': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 2) },
+  'run card collapsed': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0); collapseRunCard() },
   pacing: () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0)
     onDeviceEvent({ type: 'pacer', label: 'PACER ON', detail: '70 ppm' })
     onDeviceEvent({ type: 'pacerCurrent', label: 'PACING CURRENT', detail: '70 mA' }) },
@@ -297,7 +298,13 @@ const monBad = await sweep('monitor', `${ORIGIN}/patient_monitor_display.html`, 
 // is running*, with a crew to watch at the same time: the expected actions,
 // the checklist, the result, the patient states and the way out. The vitals
 // sliders and setup selects stay at the density a pointer wants.
-const GRADING = '.act, .cl-head, .cl-chk, .cl-num input, .res-btn, .end-btn, .pp-btn, .state-btn'
+// .cl-* until the check-off sheet replaced that UI. Those classes are on no
+// element now, and a selector that matches nothing is not a passing check —
+// it is a check that stopped running. The sheet's own controls take their
+// place: the tick rows, the CPR-quality fields, and the identity and result
+// fields at its head and foot.
+const GRADING = '.act, .sh-row, .sh-write input, .sh-meta input, .sh-foot input, ' +
+  '.res-btn, .end-btn, .pp-btn, .state-btn'
 const panelBad = await sweep('panel', `${ORIGIN}/control_panel.html`, PANEL_STATES, PANEL_VPS, null,
   (w) => w <= 1180, GRADING)
 await browser.close()

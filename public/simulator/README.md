@@ -463,11 +463,34 @@ to turn the iPad round, but covering is only paint, and the whole chassis stayed
 in the tab order behind it, SHOCK included. It is `inert` in portrait now, which
 takes it out of hit-testing and the tab order together.
 
+It then caught the same shape twice more on the panel, in work that landed
+while this check was waiting to merge:
+
+- **"Save this run anyway?" left the page live behind it.** The veil is opaque
+  and the dialog is `aria-modal`, but neither is a barrier: the rhythm buttons,
+  the drug log, the sheet's tick rows and PASS / NR were all still tabbable, so
+  the question could be answered by changing the run it was asked about.
+  `setResult()` and `giveDrug()` fire with nothing on screen to say they did.
+  The page goes `inert` while the prompt is up.
+- **The condensed run card covered the page header.** The bar is fixed at
+  `top:0`, and the header is the one thing that can never be scrolled out from
+  under it — at `scrollY` 0 the monitor chip, CONNECT and PHYS LOCK sit inside
+  its band. Unclickable, still tabbable, still firing. Collapsing now reserves
+  the bar's measured height (it declares 52px and wraps to 116 on a 1440-wide
+  window) so the header starts below it.
+
+Both are the inverse case rather than a small target, and neither is visible to
+a check that cannot lay the page out.
+
 **Where the 44pt floor applies.** On the monitor, at the sizes an iPad presents
 — not every small window. A 960x720 browser window on a laptop is a mouse, and
 holding it to a thumb's minimum would be measuring a room nobody is in. On the
 panel, only the controls tapped *while a code is running*: the expected
-actions, the checklist, the result, the patient states and the way out. The
+actions, the check-off sheet's own rows and fields, the result, the patient
+states and the way out. That list is held by a selector, and a selector that
+matches nothing is not a passing check — it is a check that stopped running,
+which is what the `.cl-*` names in it became when the sheet replaced that UI.
+The
 vitals sliders, rhythm buttons and setup selects stay at the density a pointer
 wants — this page is compact on purpose, and every pixel above the cards is a
 pixel of the scenario the facilitator cannot see.

@@ -492,7 +492,7 @@ select:focus{border-color:var(--accent);}
 .sh-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:7px;font-size:.6rem;
   letter-spacing:.5px;text-transform:uppercase;color:var(--t-dim);}
 .sh-meta label{display:flex;align-items:center;gap:6px;flex:1 1 150px;margin:0;font-size:.6rem;}
-.sh-meta input{flex:1 1 auto;min-width:0;min-height:38px;background:transparent;border:none;
+.sh-meta input{flex:1 1 auto;min-width:0;min-height:44px;background:transparent;border:none;
   border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:4px 4px;
   font-family:inherit;font-size:.72rem;text-transform:none;letter-spacing:0;outline:none;}
 .sh-meta input:focus{border-bottom-color:var(--accent);}
@@ -516,11 +516,14 @@ select:focus{border-color:var(--accent);}
 .sh-sec.now .sh-sec-h{box-shadow:inset 3px 0 0 var(--accent);}
 .sh-now{font-size:.54rem;letter-spacing:1px;text-transform:uppercase;color:var(--accent);
   border:1px solid var(--accent);border-radius:20px;padding:1px 6px;font-weight:bold;}
-/* 40px, not the 30 these were. This is the most-tapped row in the program —
+/* 44px, not the 30 these were. This is the most-tapped row in the program —
    a facilitator checks 23 of them per megacode, standing up, often on a touch
-   screen — and 30px is below anything you can hit without looking. The height
-   costs the sheet ~230px, which its own scroll absorbs. */
-.sh-row{display:flex;gap:9px;align-items:center;padding:9px 10px;min-height:40px;cursor:pointer;
+   screen — and 30px is below anything you can hit without looking. It went to
+   40 on that reasoning and check-reach then measured the same row at 40 on an
+   iPad, which is the floor's own case: standing up, on a touch screen, is
+   exactly where 44pt is the number. The height costs the sheet ~320px, which
+   its own scroll absorbs. */
+.sh-row{display:flex;gap:9px;align-items:center;padding:9px 10px;min-height:44px;cursor:pointer;
   font-size:.72rem;line-height:1.35;color:var(--t);border-top:1px solid rgba(36,52,73,.5);}
 .sh-row:first-of-type{border-top:none;}
 .sh-row:hover{background:var(--inset);}
@@ -537,9 +540,9 @@ select:focus{border-color:var(--accent);}
 .sh-row.auto .box{border-style:dashed;}
 .sh-row .auto-tag{flex:none;align-self:center;font-size:.54rem;letter-spacing:.5px;
   text-transform:uppercase;color:#8fb6ff;white-space:nowrap;}
-.sh-write{display:flex;align-items:center;gap:8px;padding:5px 10px;min-height:40px;font-size:.68rem;
+.sh-write{display:flex;align-items:center;gap:8px;padding:5px 10px;min-height:44px;font-size:.68rem;
   color:var(--t-dim);border-top:1px solid rgba(36,52,73,.5);}
-.sh-write input{width:70px;min-height:38px;margin-left:auto;background:var(--inset);
+.sh-write input{width:70px;min-height:44px;margin-left:auto;background:var(--inset);
   border:1px solid var(--border);border-radius:5px;color:var(--t-strong);padding:4px 8px;
   font-family:inherit;font-size:.72rem;text-align:right;outline:none;}
 .sh-write input:focus{border-color:var(--accent);}
@@ -559,7 +562,7 @@ select:focus{border-color:var(--accent);}
 .sh-foot .sh-res-lbl{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);}
 .sh-foot label{display:flex;align-items:center;gap:5px;margin:0;font-size:.58rem;
   letter-spacing:1px;text-transform:uppercase;color:var(--t-dim);flex:1 1 120px;}
-.sh-foot input{flex:1 1 auto;min-width:0;min-height:38px;background:transparent;border:none;
+.sh-foot input{flex:1 1 auto;min-width:0;min-height:44px;background:transparent;border:none;
   border-bottom:1px solid var(--border-strong);color:var(--t-strong);padding:4px 4px;
   font-family:inherit;font-size:.72rem;text-transform:none;letter-spacing:0;outline:none;}
 .sh-foot input:focus{border-bottom-color:var(--accent);}
@@ -582,7 +585,7 @@ select:focus{border-color:var(--accent);}
      made a 1368px form sit inside a 546px box with no way to scroll it. */
   body:not(.sheet-run) .sheet{max-height:none;overflow:visible;}
 }
-.res-btn{padding:9px 18px;min-height:40px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
+.res-btn{padding:9px 18px;min-height:44px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);
   color:var(--t-dim);font-size:.68rem;font-weight:bold;letter-spacing:1px;cursor:pointer;transition:all .15s;}
 .res-btn.pass.on{background:#04240f;border-color:var(--ok);color:var(--ok);}
 .res-btn.nr.on{background:#2a0e00;border-color:#ff8844;color:#ff8844;}
@@ -2951,20 +2954,38 @@ function commitRun(){
 
 // ── "Save this run anyway?" ──────────────────────────────────────────────────
 // Everything the run is missing, in one list, with the way back to fix it.
+// Covering the page is only paint. The veil is opaque and the prompt is
+// aria-modal, but every control behind it stayed in the tab order: the rhythm
+// buttons, the drug log, the sheet's own tick rows and the result. So the
+// question "is this run missing something?" could be answered by tabbing past
+// the dialog and changing the run it was asked about — and setResult() and
+// giveDrug() fire blind, with nothing on screen to say they did. inert takes
+// the page out of hit-testing and the tab order together, the same way the
+// monitor's portrait notice does.
+function pageInert(on){
+  for(const el of document.body.children){
+    if(el.id==='endPrompt') continue;
+    if(on) el.setAttribute('inert',''); else el.removeAttribute('inert');
+  }
+}
 function openEndPrompt(warns){
   const box=document.getElementById('endPrompt');
   if(!box){ commitRun(); return; }   // no dialog in the page: never block a save
   document.getElementById('endPromptList').innerHTML=
     warns.map(w=>`<li>${esc(w)}</li>`).join('');
   box.hidden=false;
+  pageInert(true);
   const back=document.getElementById('endPromptBack');
   // Focus lands on the way back, not on the save: the prompt exists because
-  // something is missing, and fixing it is the likelier answer.
+  // something is missing, and fixing it is the likelier answer. Set after the
+  // page goes inert — focus() on an element inside an inert subtree is a
+  // no-op, and the veil is not inert, so the order here matters.
   if(back) back.focus();
 }
 function closeEndPrompt(){
   const box=document.getElementById('endPrompt');
   if(box) box.hidden=true;
+  pageInert(false);
 }
 function endPromptOpen(){
   const box=document.getElementById('endPrompt');
@@ -3035,6 +3056,18 @@ function applyRunCondense(){
   if(want&&wrap) wrap.style.height=card.offsetHeight+'px';
   card.classList.toggle('condensed',want);
   if(!want&&wrap) wrap.style.height='';
+  // The bar is fixed at top:0, and the page header is the one thing that can
+  // never be scrolled out from under it — at scrollY 0 the monitor chip, the
+  // connect button and PHYS LOCK sit inside its band, unclickable but still
+  // tabbable and still firing. Reserve its height so the header starts below
+  // it. Measured rather than assumed: .run-mini declares 52px and the bar
+  // wraps to 116 on a 1440-wide window.
+  //
+  // This is the layout change the comment on .run-card.condensed rules out,
+  // and the reason it did is gone: the oscillation was the sentinel pulling
+  // itself back into view, and nothing observes #runSentinel any more. The
+  // card condenses on an explicit press now, so there is no loop to feed.
+  document.body.style.paddingTop=want?card.offsetHeight+'px':'';
 }
 window.addEventListener('resize',applyRunCondense);
 // The mini bar is keyboard-reachable like every other role="button" here; the
@@ -3869,7 +3902,7 @@ function renderSimPanel(simKey){
                  oninput="setRunField('notes',this.value)">
           <button class="apply-btn" style="padding:9px 13px;min-height:44px;min-width:44px;" onclick="toggleSetup()"
                   title="Show the scenario pickers without ending the run">⚙</button>
-          <button class="apply-btn rc-collapse" style="padding:9px 13px;min-height:38px;" onclick="collapseRunCard()"
+          <button class="apply-btn rc-collapse" style="padding:9px 13px;min-height:44px;min-width:44px;" onclick="collapseRunCard()"
                   title="Collapse this card to a single line — it stays put while you scroll either way">▲</button>
           <button class="end-btn" style="width:auto;padding:8px 16px;" onclick="endRun()">■ End run &amp; save</button>
         </div>
