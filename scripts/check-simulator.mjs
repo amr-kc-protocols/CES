@@ -1007,8 +1007,10 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   {
     const { w } = loadMonitor()
     w.eval('openMenu(optionsMenu())')
-    const rows = w.eval('D.menu.items.map(i=>i.label)')
-    ok('OPTIONS still lists the rows Table 3-4 shows', rows.length === 6, rows.join(' | '))
+    const rows = w.eval('D.menu.items.map(i=>typeof i.label==="function"?i.label():i.label)')
+    // Table 3-2's own list, in its own order.
+    const want = ['PATIENT', 'PACING', 'DATE/TIME', 'ALARM VOLUME', 'ARCHIVES', 'PRINT', 'USER TEST']
+    ok('OPTIONS lists what Table 3-2 lists', want.every((t, i) => rows[i] === t), rows.join(' | '))
     const inert = []
     for (let i = 0; i < rows.length - 1; i++) {      // the last row is Exit
       w.eval('openMenu(optionsMenu())')
@@ -1029,20 +1031,24 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   // nothing could produce. OPTIONS -> Alarms -> Off is the way in.
   {
     const { w } = loadMonitor()
-    const alarmsOff = () => {
-      w.eval('openMenu(alarmsMenu())')
-      const ix = w.eval("D.menu.items.findIndex(i=>/Off/.test(i.label))")
-      w.eval(`D.menuIx=${ix}; menuSelect()`)
+    // ALARMS is press-and-hold now — a tap silences, a hold opens the menu —
+    // so a click event no longer reaches it. Tap it the way a finger does.
+    const tap = (id) => {
+      const el = w.document.getElementById(id)
+      el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+      el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
     }
-    alarmsOff()
+    w.eval('openMenu(alarmsMenu())')
+    const off = w.eval('D.menu.items.findIndex(i=>/Off/.test(typeof i.label==="function"?i.label():i.label))')
+    w.eval(`D.menuIx=${off}; menuSelect()`)
     ok('the unit\'s alarms can be switched off', w.eval('D.alarms') === false)
-    w.document.getElementById('kALARMS').click()
+    tap('kALARMS')
     ok('ALARMS then enables them', w.eval('D.alarms') === true && !w.eval('Date.now()<D.silenceUntil'))
-    w.document.getElementById('kALARMS').click()
-    ok('ALARMS again silences for two minutes', w.eval('Date.now()<D.silenceUntil'))
+    tap('kALARMS')
+    ok('ALARMS again silences', w.eval('Date.now()<D.silenceUntil'))
     ok('and silencing leaves them enabled', w.eval('D.alarms') === true,
       'a crew reading the LED would be told the alarms are off')
-    w.document.getElementById('kALARMS').click()
+    tap('kALARMS')
     ok('ALARMS again unsilences', !w.eval('Date.now()<D.silenceUntil'))
     w.close()
   }
@@ -1053,10 +1059,171 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   {
     const { w } = loadMonitor()
     w.eval('openMenu(alarmsMenu())')
-    const ix = w.eval("D.menu.items.findIndex(i=>/Off/.test(i.label))")
+    const ix = w.eval('D.menu.items.findIndex(i=>/Off/.test(typeof i.label==="function"?i.label():i.label))')
     w.eval(`D.menuIx=${ix}; menuSelect()`)
     w.eval('setPower(false)'); w.eval('setPower(true)')
     ok('alarms come back on with the unit', w.eval('D.alarms') === true)
+    w.close()
+  }
+
+  // ── The therapy interlocks Table 3-1 and the subsystem description state ───
+  // Both directions of "the pacer and the defibrillator do not run together",
+  // and both were missing: CHARGE left the pacer running, and switching the
+  // pacer on left a charge sitting in the capacitor.
+  {
+    const { w } = loadMonitor()
+    w.eval('D.pacer=true; D.pacerMa=70')
+    w.eval('startCharge()')
+    ok('CHARGE deactivates pacing first', w.eval('D.pacer') === false,
+      'Table 3-1: "if the pacer is operating, pressing CHARGE deactivates pacing"')
+    w.close()
+  }
+  {
+    const { w } = loadMonitor()
+    w.eval('startCharge(); D.chargeStart=Date.now()-99999; devTick()')
+    ok('the unit is charged before the pacer is asked for', w.eval('D.charged') === true)
+    w.document.getElementById('kPACER').click()
+    ok('activating the pacer dumps the stored energy', w.eval('D.charged') === false,
+      'one of the four documented dump conditions')
+    w.close()
+  }
+
+  // ── Alarm silence is "up to 15 minutes" (p.51), not the two it was ─────────
+  {
+    const { w } = loadMonitor()
+    const secs = w.eval('SILENCE_MS') / 1000
+    ok('alarms silence for 15 minutes', secs === 900, `${secs}s`)
+    w.close()
+  }
+
+  // ── Pacer steps: keys move 10, the SPEED DIAL moves 5 (Table 3-2) ──────────
+  {
+    const { w } = loadMonitor()
+    w.eval('D.pacer=true; D.pacerRate=70; D.pacerMa=40')
+    w.document.getElementById('kRateUp').click()
+    ok('the RATE key steps 10 ppm', w.eval('D.pacerRate') === 80, w.eval('D.pacerRate'))
+    w.document.getElementById('kCurUp').click()
+    ok('the CURRENT key steps 10 mA', w.eval('D.pacerMa') === 50, w.eval('D.pacerMa'))
+
+    w.eval('openMenu(pacingMenu())')
+    ok('OPTIONS carries a PACING menu', w.eval('D.menu.title') === 'PACING')
+    w.eval('D.menuIx=0; dialPress()')
+    ok('pressing the dial takes the field', w.eval('D.editing') === true)
+    w.eval('dialTurn(1)')
+    ok('and the dial steps the rate by 5 ppm', w.eval('D.pacerRate') === 85, w.eval('D.pacerRate'))
+    w.eval('dialPress(); D.menuIx=1; dialPress(); dialTurn(1)')
+    ok('the dial steps the current by 5 mA', w.eval('D.pacerMa') === 55, w.eval('D.pacerMa'))
+    w.eval('dialPress()')
+    ok('pressing again lets the field go', w.eval('D.editing') === false)
+    w.eval('dialTurn(1)')
+    ok('and the dial moves the highlight again', w.eval('D.menuIx') !== 1)
+    w.close()
+  }
+
+  // ── PAUSED sits before PPM (Table 3-2), not trailing the current ───────────
+  {
+    const { w } = loadMonitor()
+    w.eval('D.pacer=true; D.pacerRate=70; D.pacerMa=60; D.pacePaused=true')
+    const line = w.eval('pacerBanner()')
+    ok('PAUSED appears before ppm', line.indexOf('PAUSED') < line.indexOf('ppm'), line)
+    ok('and pacing runs at a quarter rate while held',
+      w.eval('D.pacePaused?D.pacerRate*0.25:D.pacerRate') === 17.5)
+    w.close()
+  }
+
+  // ── A press-and-hold key is still a button, and Enter is still a press ─────
+  // ON, SHOCK and PAUSE listened for pointers only: they took focus, and Enter
+  // on a charged SHOCK fired nothing.
+  {
+    const { w } = loadMonitor()
+    w.eval('S.patientConnected=true')
+    w.eval('startCharge(); D.chargeStart=Date.now()-99999; devTick()')
+    const sh = w.document.getElementById('kSHOCK')
+    sh.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    sh.dispatchEvent(new w.KeyboardEvent('keyup', { key: 'Enter', bubbles: true }))
+    ok('Enter on a charged SHOCK delivers', w.eval("D.log.filter(e=>e.type==='shock').length") === 1,
+      'a focusable button that does nothing from the keyboard')
+    w.close()
+  }
+
+  // ── Nothing ends on a key unless it began there ───────────────────────────
+  // bindHold's release ran the tap action whenever the hold had not fired, and
+  // it is wired to pointerleave and blur as well as pointerup — none of which
+  // implies a press. A charged SHOCK delivered when the pointer merely crossed
+  // the key, when focus left it, and when a drag begun elsewhere was released
+  // over it. On the iPad this runs on, a finger sliding across the unit fired
+  // the defibrillator.
+  const shocks = (w) => w.eval("D.log.filter(e=>e.type==='shock').length")
+  const charged = (w) => { w.eval('S.patientConnected=true'); w.eval('startCharge(); D.chargeStart=Date.now()-99999; devTick()') }
+  {
+    const { w } = loadMonitor(); charged(w)
+    const el = w.document.getElementById('kSHOCK')
+    el.dispatchEvent(new w.PointerEvent('pointerleave', { bubbles: true }))
+    ok('a pointer crossing SHOCK does not deliver', shocks(w) === 0)
+    w.close()
+  }
+  {
+    const { w } = loadMonitor(); charged(w)
+    const el = w.document.getElementById('kSHOCK')
+    el.dispatchEvent(new w.FocusEvent('blur', { bubbles: false }))
+    ok('focus leaving SHOCK does not deliver', shocks(w) === 0)
+    w.close()
+  }
+  {
+    const { w } = loadMonitor(); charged(w)
+    const el = w.document.getElementById('kSHOCK')
+    // A release with no press before it — a drag that began on another key.
+    el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
+    ok('a release on SHOCK with no press before it does not deliver', shocks(w) === 0)
+    w.close()
+  }
+  {
+    const { w } = loadMonitor(); charged(w)
+    const el = w.document.getElementById('kSHOCK')
+    el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+    el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
+    ok('but a real press on a charged SHOCK still delivers', shocks(w) === 1)
+    w.close()
+  }
+  {
+    // The case that separates cancel from release: a press that began on the
+    // key and then left it. Pressing SHOCK and sliding off is how anyone
+    // takes back a press they thought better of, on a button or on a
+    // defibrillator, and it must not deliver.
+    const { w } = loadMonitor(); charged(w)
+    const el = w.document.getElementById('kSHOCK')
+    el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+    el.dispatchEvent(new w.PointerEvent('pointerleave', { bubbles: true }))
+    ok('pressing SHOCK and sliding off it does not deliver', shocks(w) === 0)
+    // And the press is spent: coming back and releasing is not a second half.
+    el.dispatchEvent(new w.PointerEvent('pointerup', { bubbles: true }))
+    ok('nor does releasing after coming back', shocks(w) === 0)
+    w.close()
+  }
+  {
+    // Same again for the keyboard: Enter down, then focus away.
+    const { w } = loadMonitor(); charged(w)
+    const el = w.document.getElementById('kSHOCK')
+    el.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    el.dispatchEvent(new w.FocusEvent('blur', { bubbles: false }))
+    ok('Enter held on SHOCK and then focus lost does not deliver', shocks(w) === 0)
+    w.close()
+  }
+  {
+    // Dragging off mid-hold cancels, and a cancelled PAUSE still has to put
+    // the pacing rate back or it stays at a quarter for the rest of the code.
+    const { w } = loadMonitor()
+    w.eval('D.pacer=true; D.pacerMa=70')
+    const el = w.document.getElementById('kPAUSE')
+    el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }))
+    // Long enough for the hold to fire, so pacing is actually paused before
+    // the pointer leaves. Cancelling before it fires is a different case: the
+    // rate never dropped, so there is nothing to put back.
+    await new Promise((r) => setTimeout(r, 280))
+    ok('holding PAUSE drops the pacing rate', w.eval('D.pacePaused') === true)
+    el.dispatchEvent(new w.PointerEvent('pointerleave', { bubbles: true }))
+    ok('and dragging off it still restores the rate', w.eval('D.pacePaused') === false,
+      'pacing would stay at a quarter rate for the rest of the code')
     w.close()
   }
 

@@ -582,6 +582,8 @@ body.lp-skin .wt{font-size:13px;}
    cost more than the selection is worth. */
 .lpb.sel,.wr.sel{outline:2px solid #ffd24a;outline-offset:-2px;}
 #lpMenu .mi.info{color:#9aa2ab;}
+/* A field the dial has taken, as opposed to one merely highlighted. */
+#lpMenu .mi.editing{outline:1px solid #ffd24a;outline-offset:-1px;}
 
 /* ---- on-screen menus, driven by the speed dial ---- */
 #lpMenu{
@@ -2995,12 +2997,13 @@ const ANALYZE_MS=8000;
    two-minute CPR cycle, which is when its ANALYZE LED starts flashing. */
 const ANALYZE_CYCLE_MS=120000;
 const NIBP_MS=25000;
-const SILENCE_MS=120000;
+const SILENCE_MS=900000;    // "silenced for up to 15 minutes", p.51 — was 2 min
 
 /* How long ON has to be held to power the unit down. Three seconds: long
    enough that a knuckle brushing the key mid-code cannot black out the screen
    the crew is reading. */
 const POWER_OFF_HOLD_MS=3000;
+const ALARM_MENU_HOLD_MS=600;   // hold ALARMS for the alarm menu; a tap silences
 
 const D={
   /* The unit starts off, the way it sits on the shelf. The crew turning it on
@@ -3032,7 +3035,7 @@ const D={
   tempProbe:false,       // no probe on the patient, no temperature
   leadIx:1, leadFromPanel:null,
   sizeIx:2,
-  menu:null, menuIx:0, homeSel:-1, printing:false,
+  menu:null, menuIx:0, editing:false, homeSel:-1, printing:false,
   banner:null, bannerUntil:0, bannerWarn:false,
   log:[],
 };
@@ -3273,6 +3276,10 @@ function startCharge(){
   // this nor ENERGY SELECT is available.
   if(!D.on||D.charging||D.analyzing){ if(D.analyzing) beep(220,120,.08,'square'); return; }
   if(D.charged){ return; }
+  // Table 3-1: "If the pacer is operating, pressing CHARGE deactivates pacing
+  // and charges the defibrillator." The two therapies do not run together, and
+  // the unit decides that rather than leaving it to the crew.
+  if(D.pacer){ D.pacer=false; D.pacePaused=false; logEvent('pacer','PACER OFF','charging'); }
   D.charging=true; D.chargeStart=Date.now();
   chargeTone(true);
   logEvent('charge','CHARGE',energy()+'J'+(D.sync?' · SYNC':''));
@@ -3435,8 +3442,8 @@ function nibpAge(){
    A menu is an object rather than a key into a table, so a menu can be built
    from live state — the lead list has to show which lead is current, and the
    parameter menus have to show the limits actually in force. */
-function openMenu(m){ D.menu=m||null; D.menuIx=0; renderMenu(); }
-function closeMenu(){ D.menu=null; renderMenu(); }
+function openMenu(m){ D.menu=m||null; D.menuIx=0; D.editing=false; renderMenu(); }
+function closeMenu(){ D.menu=null; D.editing=false; renderMenu(); }
 
 function renderMenu(){
   let el=document.getElementById('lpMenu');
@@ -3449,7 +3456,9 @@ function renderMenu(){
   const m=D.menu;
   el.style.display='block';
   el.innerHTML='<div class="mh">'+m.title+'</div>'+m.items.map((t,i)=>
-    '<div class="mi'+(i===D.menuIx?' sel':'')+(t.info?' info':'')+'">'+t.label+'</div>').join('');
+    '<div class="mi'+(i===D.menuIx?' sel':'')+(t.info?' info':'')+
+    (i===D.menuIx&&D.editing?' editing':'')+'">'+
+    (typeof t.label==='function'?t.label():t.label)+'</div>').join('');
 }
 function menuMove(dir){
   if(!D.menu) return;
@@ -3466,46 +3475,57 @@ function menuSelect(){
 }
 const exitItem={label:'Exit',run:()=>closeMenu()};
 
-/* OPTIONS. Every row here used to close the menu and do nothing: five labels
-   that highlighted and selected like working items and led nowhere, which
-   teaches a workflow the unit does not have. Each one now either acts or says
-   why it cannot.
+/* OPTIONS lists what Table 3-2 lists: PATIENT, PACING, DATE/TIME, ALARM
+   VOLUME, ARCHIVES, PRINT, USER TEST. It used to carry a different five, each
+   mapped to run:()=>closeMenu() — rows that highlighted and selected like
+   working ones and led nowhere, which teaches a workflow the unit does not
+   have. Each row now acts or says why it cannot.
 
-   Alarms is the one that acts, because enabling them is device state this
-   window owns. It was also the only way to reach ALARMS' own first press:
-   D.alarms is initialised true and resetDevice puts it back to true, so
-   `if(!D.alarms)` in that handler could never run, and the key had two states
-   where the unit has three. limitsMenu has been reading out "Alarms off" for a
-   condition nothing could produce.
+   PACING is the one that does real work, because it is where the SPEED DIAL
+   earns its second job: the RATE and CURRENT keys step 10, the dial steps 5.
 
-   Patient mode and the clock read out rather than offer to edit — the first is
+   PATIENT and the clock read out rather than offer to edit — the patient is
    the facilitator's and arrives on the panel's broadcast, so a monitor-side
-   edit would be overwritten a second later, which is the same reason the alarm
-   limits read rather than edit. The last two have no model behind them and say
-   so, the way the three stated LEDs do. */
-const infoMenu=(title,text)=>({title,items:[
+   edit would be overwritten a second later, the same reason the alarm limits
+   read rather than edit. The last four have no model behind them and say so,
+   the way the three stated LEDs do. */
+const infoMenu=(title,text,back)=>({title,items:[
   {label:text,info:true},
+  {label:'Exit',run:()=>openMenu((back||optionsMenu)())},
+]});
+const pacingMenu=()=>({title:'PACING',items:[
+  {label:()=>'Rate &nbsp;'+D.pacerRate+' ppm',
+   edit:d=>{ D.pacerRate=Math.max(40,Math.min(170,D.pacerRate+d*5));
+             logEvent('pacerRate','PACING RATE',D.pacerRate+' ppm'); }},
+  {label:()=>'Current &nbsp;'+D.pacerMa+' mA',
+   edit:d=>{ D.pacerMa=Math.max(0,Math.min(200,D.pacerMa+d*5));
+             logEvent('pacerCurrent','PACING CURRENT',D.pacerMa+' mA'); }},
+  {label:()=>D.pacer?'Pacer is on':'Pacer is off',info:true},
   {label:'Exit',run:()=>openMenu(optionsMenu())},
 ]});
+/* The alarm menu Table 3-1 says this key opens. The manual gives the key both
+   jobs — "opens alarm menu or silences alarms" — without saying which press
+   does which, so a tap silences (the thing wanted in a hurry, mid-code) and a
+   hold opens the menu, following ON and PAUSE, the two keys the manual does
+   describe as press-and-hold. */
 const alarmsMenu=()=>({title:'ALARMS',items:[
-  {label:(D.alarms?'&bull; ':'&nbsp;&nbsp;')+'On',run:()=>{
+  {label:()=>(D.alarms?'&bull; ':'&nbsp;&nbsp;')+'On',run:()=>{
     if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }
-    openMenu(optionsMenu()); }},
-  {label:(!D.alarms?'&bull; ':'&nbsp;&nbsp;')+'Off',run:()=>{
+    closeMenu(); }},
+  {label:()=>(!D.alarms?'&bull; ':'&nbsp;&nbsp;')+'Off',run:()=>{
     if(D.alarms){ D.alarms=false; D.silenceUntil=0; logEvent('alarms','ALARMS OFF',''); }
-    openMenu(optionsMenu()); }},
-  {label:'Exit',run:()=>openMenu(optionsMenu())},
+    closeMenu(); }},
+  {label:'Exit',run:()=>closeMenu()},
 ]});
 const optionsMenu=()=>({title:'OPTIONS',items:[
-  {label:'Patient Mode',run:()=>openMenu(infoMenu('PATIENT MODE',
+  {label:'PATIENT',run:()=>openMenu(infoMenu('PATIENT',
     (S.patientType||'Adult')+' &mdash; set from the control panel'))},
-  {label:'Alarms',run:()=>openMenu(alarmsMenu())},
-  {label:'Date / Time',run:()=>openMenu(infoMenu('DATE / TIME',
-    new Date().toLocaleString()))},
-  {label:'Print Settings',run:()=>openMenu(infoMenu('PRINT SETTINGS',
-    'Not simulated on this trainer'))},
-  {label:'Transmit Sites',run:()=>openMenu(infoMenu('TRANSMIT SITES',
-    'Not simulated on this trainer'))},
+  {label:'PACING',run:()=>openMenu(pacingMenu())},
+  {label:'DATE/TIME',run:()=>openMenu(infoMenu('DATE/TIME',new Date().toLocaleString()))},
+  {label:'ALARM VOLUME',run:()=>openMenu(infoMenu('ALARM VOLUME','Not simulated on this trainer'))},
+  {label:'ARCHIVES',run:()=>openMenu(infoMenu('ARCHIVES','Not simulated on this trainer'))},
+  {label:'PRINT',run:()=>openMenu(infoMenu('PRINT','Not simulated on this trainer'))},
+  {label:'USER TEST',run:()=>openMenu(infoMenu('USER TEST','Not simulated on this trainer'))},
   exitItem,
 ]});
 
@@ -3690,15 +3710,52 @@ function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventLi
    turns the unit off when held, PAUSE slows pacing only while held. */
 function bindHold(id,ms,onHold,onRelease,onTap){
   const el=document.getElementById(id); if(!el) return;
-  let timer=null,fired=false;
-  const down=e=>{ e.preventDefault(); ac(); fired=false; el.classList.add('held');
+  let timer=null,fired=false,pressing=false;
+  /* `pressing` is the whole point of this rewrite. up() used to run onTap
+     whenever the hold had not fired — and it is bound to pointerleave and
+     blur as well as pointerup, neither of which implies a press ever began.
+     So a charged SHOCK delivered when the pointer merely crossed the key and
+     left, when focus moved off it, and when a drag that started somewhere
+     else was released over it. On the iPad this is meant to run on, a finger
+     sliding across the unit fired the defibrillator. Nothing ends here unless
+     it began here.
+
+     Leaving and releasing are also not the same gesture. A pointer dragged
+     off a button cancels it, the way every button does; only a release on the
+     key itself is a press. Cancel still has to run onRelease when the hold
+     already fired, or PAUSE would leave pacing at a quarter rate for good. */
+  const down=e=>{ e.preventDefault(); ac(); pressing=true; fired=false; el.classList.add('held');
     timer=setTimeout(()=>{fired=true;onHold&&onHold();},ms); };
-  const up=()=>{ clearTimeout(timer); el.classList.remove('held');
-    if(fired){ onRelease&&onRelease(); } else { onTap&&onTap(); } };
+  const finish=(activate)=>{
+    if(!pressing) return;
+    pressing=false; clearTimeout(timer); el.classList.remove('held');
+    if(fired){ onRelease&&onRelease(); }
+    else if(activate){ onTap&&onTap(); }
+  };
+  const up=()=>finish(true);
+  const cancel=()=>finish(false);
   el.addEventListener('pointerdown',down);
   el.addEventListener('pointerup',up);
-  el.addEventListener('pointerleave',up);
-  el.addEventListener('pointercancel',up);
+  el.addEventListener('pointerleave',cancel);
+  el.addEventListener('pointercancel',cancel);
+  /* These are real buttons and they take focus, but until now they listened
+     for pointers only: Enter on a charged SHOCK fired nothing, and ON and
+     PAUSE were the same. A keyboard press is a press. keydown/keyup map onto
+     pointerdown/pointerup exactly, so holding Enter holds the key — which is
+     the only way to reach the hold actions without a pointer. Auto-repeat has
+     to be dropped or the timer restarts on every repeat and never fires. */
+  el.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'&&e.key!==' ') return;
+    if(e.repeat) return;
+    down(e);
+  });
+  el.addEventListener('keyup',e=>{
+    if(e.key!=='Enter'&&e.key!==' ') return;
+    e.preventDefault(); up();
+  });
+  // Focus leaving mid-hold is the keyboard's version of the pointer leaving:
+  // it cancels, it does not activate.
+  el.addEventListener('blur',cancel);
 }
 
 /* ON, as the key works on the device: a press brings the unit up, and holding
@@ -3766,7 +3823,18 @@ bindHold('kSHOCK',450,
   });
 
 bind('kPACER',()=>{ if(!D.on) return; D.pacer=!D.pacer;
+  // Activating the pacer is one of the four conditions that dump stored energy
+  // — with an energy change, loss of power, and therapy-electrode leads-off.
+  // The reciprocal of CHARGE switching the pacer off: whichever therapy is
+  // asked for last, the other one stands down rather than both being live.
+  if(D.pacer&&(D.charged||D.charging)) disarm('pacing activated');
   logEvent('pacer',D.pacer?'PACER ON':'PACER OFF',D.pacer?D.pacerRate+' ppm · '+D.pacerMa+' mA':''); });
+/* "PAUSED appears on the screen before PPM" (Table 3-2), so the word sits with
+   the rate it is modifying rather than trailing the current at the far end of
+   the line, where it read as a separate annunciator. */
+function pacerBanner(){
+  return 'PACER  '+(D.pacePaused?'PAUSED  ':'')+D.pacerRate+' ppm   '+D.pacerMa+' mA';
+}
 function nudgeRate(d){ if(!D.on||!D.pacer) return;
   D.pacerRate=Math.max(40,Math.min(170,D.pacerRate+d*10));
   logEvent('pacerRate','PACING RATE',D.pacerRate+' ppm'); }
@@ -3781,12 +3849,15 @@ bindHold('kPAUSE',180,()=>{ if(D.pacer){ D.pacePaused=true; logEvent('pacerPause
   ()=>{ D.pacePaused=false; },null);
 
 bind('kNIBP',()=>startNibp());
-bind('kALARMS',()=>{
-  if(!D.on) return;
-  if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }
-  else if(Date.now()<D.silenceUntil){ D.silenceUntil=0; logEvent('alarms','ALARMS UNSILENCED',''); }
-  else { D.silenceUntil=Date.now()+SILENCE_MS; logEvent('alarms','ALARMS SILENCED','2 min'); }
-});
+bindHold('kALARMS',ALARM_MENU_HOLD_MS,
+  ()=>{ if(!D.on) return; clearHomeSel(); openMenu(alarmsMenu()); },
+  null,
+  ()=>{ armAudio();
+    if(!D.on) return;
+    if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }
+    else if(Date.now()<D.silenceUntil){ D.silenceUntil=0; logEvent('alarms','ALARMS UNSILENCED',''); }
+    else { D.silenceUntil=Date.now()+SILENCE_MS; logEvent('alarms','ALARMS SILENCED','15 min'); }
+  });
 bind('kOPTIONS',()=>{ if(!D.on) return; clearHomeSel(); openMenu(D.menu&&D.menu.title==='OPTIONS'?null:optionsMenu()); });
 bind('kEVENT',()=>{ if(!D.on) return; clearHomeSel(); openMenu(D.menu&&D.menu.title==='EVENT'?null:eventMenu()); });
 bind('kHOME',()=>{ if(!D.on) return; closeMenu(); clearHomeSel(); close12Lead(); });
@@ -3805,14 +3876,27 @@ bind('kPRINT',()=>{ if(!D.on) return; printerRun(!D.printing);
 /* Speed dial. Wheel or drag to scroll, press or Enter to select.
    Turning it moves the selection inside an open menu, or the highlight across
    the home screen when none is open — the two halves of Table 3-3. */
+/* Table 3-2 gives the dial a second job on the pacer values: the RATE and
+   CURRENT keys step 10, and the SPEED DIAL steps 5. So a menu item can carry
+   an `edit` handler — press to take the field, turn to change it in fives,
+   press again to let it go. Everything else still scrolls and selects. */
 function dialTurn(dir){
   if(!D.on) return;
-  if(D.menu) menuMove(dir); else homeMove(dir);
+  if(D.menu){
+    const it=D.menu.items[D.menuIx];
+    if(D.editing&&it&&it.edit){ it.edit(dir); renderMenu(); beep(1500,25,.05,'square'); return; }
+    menuMove(dir); return;
+  }
+  homeMove(dir);
 }
 function dialPress(){
   if(!D.on) return;
-  if(D.menu) menuSelect();
-  else homeSelect();
+  if(D.menu){
+    const it=D.menu.items[D.menuIx];
+    if(it&&it.edit){ D.editing=!D.editing; renderMenu(); beep(1800,60,.08,'square'); return; }
+    menuSelect(); return;
+  }
+  homeSelect();
 }
 (function(){
   const dial=document.getElementById('kDIAL'); if(!dial) return;
@@ -3954,10 +4038,10 @@ function devTick(){
   if(en) en.textContent=energy()+'J';
 
   // Pacing readout rides on the banner when nothing louder is showing.
-  if(D.pacer&&!D.banner) banner('PACER  '+D.pacerRate+' ppm   '+D.pacerMa+' mA'+(D.pacePaused?'   PAUSED':''),0);
+  if(D.pacer&&!D.banner) banner(pacerBanner(),0);
   else if(!D.pacer&&D.banner&&D.banner.startsWith('PACER')) banner(null);
   else if(D.pacer&&D.banner&&D.banner.startsWith('PACER')){
-    const want='PACER  '+D.pacerRate+' ppm   '+D.pacerMa+' mA'+(D.pacePaused?'   PAUSED':'');
+    const want=pacerBanner();
     if(want!==D.banner) banner(want,0);
   }
 }

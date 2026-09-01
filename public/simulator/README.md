@@ -396,15 +396,63 @@ the pacer, the printer, the menu and the cuff, but nothing was restoring the
 alarms, so "off" survived a power cycle and left a silent monitor with nothing
 on screen having asked for it. It comes back on with the unit now.
 
-**Not verified: the pacing increments.** `RATE` moves in 10 ppm steps over
-40–170 and `CURRENT` in 10 mA steps over 0–200. The ranges are right; the step
-size is not something this repo has a source for, and every copy of the
-operating instructions is blocked by this session's network egress policy, so
-it was left alone rather than changed from memory. The energy ladder *is*
-confirmed against the manual-mode table, and the AED advisories are clinically
-correct: VF and pulseless VT advise a shock, sinus and asystole do not, and no
-electrodes says `CONNECT ELECTRODES` rather than advising against a shock it
-cannot see.
+The energy ladder is confirmed against the manual-mode table, and the AED
+advisories are clinically correct: VF and pulseless VT advise a shock, sinus
+and asystole do not, and no electrodes says `CONNECT ELECTRODES` rather than
+advising against a shock it cannot see.
+
+### A third pass, against the service manual
+
+A consolidation of the LIFEPAK 15 service manual (2011, MIN 3309059-000)
+settled the open question above and contradicted five other things.
+
+**The worst of them was not a fidelity gap.** `bindHold`'s release ran the tap
+action whenever the hold had not fired — and it is wired to `pointerleave` and
+`blur` as well as `pointerup`, neither of which implies a press ever happened.
+So a charged `SHOCK` delivered when the pointer merely **crossed the key and
+left**, when **focus moved off it**, and when a **drag begun elsewhere was
+released over it**. On the iPad this is meant to run on, a finger sliding
+across the unit fired the defibrillator. Nothing ends on a key now unless it
+began there, and leaving is a cancel rather than a release: pressing `SHOCK`
+and sliding off it is how anyone takes back a press they thought better of. A
+cancel still runs the release handler when the hold had fired, or `PAUSE` would
+leave pacing at a quarter rate for the rest of the code.
+
+**The hold keys were not keys at all from the keyboard.** `ON`, `SHOCK` and
+`PAUSE` are real buttons and take focus, but listened for pointers only, so
+Enter on a charged `SHOCK` did nothing. `keydown`/`keyup` map onto
+`pointerdown`/`pointerup` exactly, so holding Enter now holds the key, which is
+the only way to reach a hold action without a pointer.
+
+| Manual | It was doing |
+| --- | --- |
+| Table 3-1: pressing `CHARGE` while the pacer runs deactivates pacing, then charges | Charged with the pacer still running |
+| p.81: activating pacing is one of the four conditions that dump stored energy | Left the charge sitting in the capacitor |
+| p.51: audible alarms silence for **up to 15 minutes** | Two |
+| Table 3-2: `PAUSED` appears **before** PPM | Trailed the current at the end of the line |
+| Table 3-2: `OPTIONS` lists PATIENT, PACING, DATE/TIME, ALARM VOLUME, ARCHIVES, PRINT, USER TEST | A different five, none of which acted |
+
+The two interlocks are the same rule from both ends — the pacer and the
+defibrillator do not run together, and the unit decides that rather than
+leaving it to the crew.
+
+**The pacing increments were right and incomplete.** Table 3-2 gives the keys
+10 ppm and 10 mA, which is what they did, and the `SPEED DIAL` 5 ppm and 5 mA,
+which nothing did. A menu item can carry an `edit` handler now — press to take
+the field, turn to change it in fives, press again to let it go — and
+`OPTIONS → PACING` is where the dial does it.
+
+`ALARMS` moved with that: the manual gives the key both jobs, "opens alarm
+menu or silences alarms", without saying which press does which. A tap silences
+— the thing wanted in a hurry, mid-code — and a hold opens the menu, following
+`ON` and `PAUSE`, the two keys the manual does describe as press-and-hold. That
+is our reading of an underspecified key, not something the manual states.
+
+**Still unverified**, and listed as unresolved by the brief itself: the
+auto-disarm timer (60s here), the CPR metronome cadence (110/min), the AED
+prompt script and analysis duration, the complete lead and size cycling order,
+and the alarm tone cadences. The service manual states it does not cover
+operation; those need the Operating Instructions.
 
 ### What the keys do
 
@@ -416,7 +464,7 @@ shock it cannot see teaches a crew to trust the one reading that means nothing
 ladder and throws away any charge when it moves · `CHARGE` takes 5.2s with a
 rising tone and disarms itself after 60s · `SHOCK` only fires armed · `PACER`
 with `RATE`, `CURRENT` and hold-to-`PAUSE` · `NIBP` takes the reading away for
-25s while the cuff cycles · `ALARMS` enables, then silences for two minutes ·
+25s while the cuff cycles · `ALARMS` silences on a tap and opens the alarm menu on a hold ·
 `OPTIONS` and `EVENT` open menus the `SPEED DIAL` scrolls and selects, and
 every row in both leads somewhere ·
 `HOME SCREEN` clears any selection and closes menus · the display-mode key toggles **SunVue**, the unit's
