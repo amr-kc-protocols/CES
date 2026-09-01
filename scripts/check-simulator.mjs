@@ -39,6 +39,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { skip } from './lib/check-kit.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const PAGE = join(here, '..', 'public', 'simulator', 'control_panel.html')
@@ -48,11 +49,11 @@ let JSDOM
 try {
   ;({ JSDOM } = await import('jsdom'))
 } catch {
-  // Not an error. The page ships as static HTML and does not need jsdom to
-  // run; a checkout that has not installed dev dependencies should not fail
-  // the aggregate check over it.
-  console.log('check-simulator: jsdom not installed — skipping (npm install to enable)')
-  process.exit(0)
+  // Not an error by default. The page ships as static HTML and does not need
+  // jsdom to run, and a checkout that has not installed dev dependencies
+  // should not fail the aggregate check over it. It is not a pass either —
+  // see scripts/lib/check-kit.mjs.
+  skip('check-simulator', 'jsdom not installed', 'npm install to enable')
 }
 
 const failures = []

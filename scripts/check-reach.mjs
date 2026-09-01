@@ -28,6 +28,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { skip, unmatched } from './lib/check-kit.mjs'
 import { createServer } from 'node:http'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -37,8 +38,7 @@ let chromium
 try {
   ;({ chromium } = await import('playwright'))
 } catch {
-  console.log('check-reach: playwright not installed — skipping')
-  process.exit(0)
+  skip('check-reach', 'playwright not installed', 'npm i playwright')
 }
 
 // Which Chromium to drive. Playwright normally finds its own, but a machine
@@ -65,16 +65,14 @@ async function launch() {
   } catch (e) {
     const exe = findChromium()
     if (!exe) {
-      console.log('check-reach: no usable chromium — run `npx playwright install chromium`, skipping')
       console.log('  (' + String(e).split('\n')[0] + ')')
-      return null
+      skip('check-reach', 'no usable chromium', 'npx playwright install chromium')
     }
     return chromium.launch({ executablePath: exe })
   }
 }
 if (!existsSync(join(DIST, 'control_panel.html'))) {
-  console.log('check-reach: no dist/ — run `npm run build` first, skipping')
-  process.exit(0)
+  skip('check-reach', 'no dist/ to serve', 'npm run build first')
 }
 
 const failures = []
@@ -113,6 +111,7 @@ const ORIGIN = `http://127.0.0.1:${server.address().port}/simulator`
 const PROBE = ({ touchFloor, floorOnly }) => {
   const SEL = 'button, [role="button"], input, select, textarea, a[href], [onclick]'
   const out = []
+  const matched = []
   const label = (el) =>
     el.id || (el.getAttribute('onclick') || '').slice(0, 40) ||
     (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) || String(el.className)
@@ -201,7 +200,16 @@ const PROBE = ({ touchFloor, floorOnly }) => {
     }
     const native = /^(button|input|select|textarea|a)$/.test(rec.tag)
     if (!(native || el.hasAttribute('tabindex'))) { rec.kind = 'no way in from the keyboard'; out.push(rec); continue }
-    const floored = touchFloor && (!floorOnly || el.matches(floorOnly))
+    // Which of the floor's own selectors this control answers to. Recorded
+    // even when there is no floor at this viewport, because the question the
+    // caller asks afterwards is "is this selector describing anything at all",
+    // and a name that matches nothing anywhere is the failure being guarded.
+    let mine = null
+    if (floorOnly) {
+      mine = floorOnly.filter((sel) => el.matches(sel))
+      for (const sel of mine) matched.push(sel)
+    }
+    const floored = touchFloor && (!floorOnly || mine.length > 0)
     if (floored && Math.min(rec.w, rec.h) < touchFloor) {
       const hb = hitBox(el, touchFloor)
       rec.hitW = Math.round(hb.w * 10) / 10; rec.hitH = Math.round(hb.h * 10) / 10
@@ -216,7 +224,7 @@ const PROBE = ({ touchFloor, floorOnly }) => {
     out.push(rec)
   }
   window.scrollTo(0, 0)
-  return out
+  return { out, matched: [...new Set(matched)] }
 }
 
 const MONITOR_STATES = {
@@ -240,6 +248,14 @@ const PANEL_STATES = {
     onDeviceEvent({ type: 'pacerCurrent', label: 'PACING CURRENT', detail: '70 mA' }) },
   'run finished': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0); endRun() },
   'lines up': () => { toggleArt(); toggleSG() },
+  // A megacode is graded on the sheet; a quarterly simulation is graded on the
+  // per-state action list, which is a different set of controls and the only
+  // thing .act is on. Every state above loads megacode1, so until this one the
+  // sweep never rendered that list at all — the selector guard below is what
+  // said so.
+  'quarterly sim running': () => {
+    document.getElementById('simScenarioSel').value = 'drowning_initial'; applySimScenario()
+  },
 }
 // Reachability is checked everywhere. The 44pt floor is checked where a
 // finger is actually plausible, which is the sizes an iPad presents — not
@@ -254,9 +270,9 @@ const PANEL_VPS = [[1920, 1080], [1440, 900], [1366, 768], [1280, 800], [1180, 8
 const isIpad = (w, h) => IPAD_VPS.some(([a, b]) => a === w && b === h)
 
 const browser = await launch()
-if (!browser) { server.close(); process.exit(0) }
 async function sweep(label, url, states, vps, seed, touchAt, floorOnly) {
   const bad = []
+  const seen = new Set()
   for (const [w, h] of vps) {
     const touch = touchAt(w, h) ? 44 : 0
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch > 0 })
@@ -272,7 +288,8 @@ async function sweep(label, url, states, vps, seed, touchAt, floorOnly) {
       await p.goto(url, { waitUntil: 'load' })
       await p.evaluate(fn).catch((e) => errs.push('setup: ' + e))
       await p.waitForTimeout(300)
-      const rows = await p.evaluate(PROBE, { touchFloor: touch, floorOnly: floorOnly || null })
+      const { out: rows, matched } = await p.evaluate(PROBE, { touchFloor: touch, floorOnly: floorOnly || null })
+      for (const sel of matched) seen.add(sel)
       if (process.env.REACH_DEBUG) {
         const r = rows.find((x) => x.id === process.env.REACH_DEBUG)
         if (r) console.error(`  [debug] ${w}x${h}/${name} floor=${touch} ${JSON.stringify(r)}`)
@@ -283,7 +300,7 @@ async function sweep(label, url, states, vps, seed, touchAt, floorOnly) {
     }
     await ctx.close()
   }
-  return bad
+  return { bad, seen }
 }
 
 const seedPatient = () =>
@@ -291,7 +308,7 @@ const seedPatient = () =>
     patientConnected: true, hr: 72, rhythm: 'nsr', spo2: 96, etco2: 36, rr: 14, etco2On: true,
   }))
 
-const monBad = await sweep('monitor', `${ORIGIN}/patient_monitor_display.html`, MONITOR_STATES, MONITOR_VPS, seedPatient, isIpad)
+const { bad: monBad } = await sweep('monitor', `${ORIGIN}/patient_monitor_display.html`, MONITOR_STATES, MONITOR_VPS, seedPatient, isIpad)
 // The panel is the facilitator's laptop, and compact on purpose — every pixel
 // above the cards is a pixel of the scenario they cannot see. So the floor is
 // not applied to all of it. It is applied to the controls tapped *while a code
@@ -303,10 +320,16 @@ const monBad = await sweep('monitor', `${ORIGIN}/patient_monitor_display.html`, 
 // it is a check that stopped running. The sheet's own controls take their
 // place: the tick rows, the CPR-quality fields, and the identity and result
 // fields at its head and foot.
-const GRADING = '.act, .sh-row, .sh-write input, .sh-meta input, .sh-foot input, ' +
-  '.res-btn, .end-btn, .pp-btn, .state-btn'
-const panelBad = await sweep('panel', `${ORIGIN}/control_panel.html`, PANEL_STATES, PANEL_VPS, null,
-  (w) => w <= 1180, GRADING)
+// A list, not a comma-joined string, so that each name can be held to
+// describing something. As a string this was three dead names long — the
+// .cl-* classes went with the UI they described, and `el.matches()` on a
+// selector that matches nothing raises nothing, so the panel's grading
+// controls stopped being measured while this check went on reporting a pass.
+// The assertion after the sweep is what makes that loud.
+const GRADING = ['.act', '.sh-row', '.sh-write input', '.sh-meta input', '.sh-foot input',
+  '.res-btn', '.end-btn', '.pp-btn', '.state-btn']
+const { bad: panelBad, seen: panelSeen } = await sweep('panel', `${ORIGIN}/control_panel.html`,
+  PANEL_STATES, PANEL_VPS, null, (w) => w <= 1180, GRADING)
 await browser.close()
 server.close()
 
@@ -328,6 +351,19 @@ function report(label, bad) {
 }
 const nMon = report('monitor', monBad)
 const nPanel = report('control panel', panelBad)
+
+// The list above is the whole of what the 44pt floor applies to on the panel.
+// A name in it that no state and no viewport ever put on a control is not a
+// control that passed — it is a control the check has lost track of, and it
+// reads identically to coverage from the outside.
+const dead = unmatched(GRADING, panelSeen)
+ok(
+  'every selector in the panel\'s 44pt list still describes a control',
+  dead.length === 0,
+  dead.length ? `\n      matched nothing in ${Object.keys(PANEL_STATES).length} states ` +
+    `x ${PANEL_VPS.length} viewports: ${dead.join(', ')}` +
+    '\n      (renamed or deleted? a selector that matches nothing reports a pass)' : '',
+)
 
 if (failures.length) {
   console.error(`check-reach: ${failures.length} of ${checks} checks failed\n`)
