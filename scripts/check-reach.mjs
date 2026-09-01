@@ -224,7 +224,23 @@ const PROBE = ({ touchFloor, floorOnly }) => {
     out.push(rec)
   }
   window.scrollTo(0, 0)
-  return { out, matched: [...new Set(matched)] }
+  // Page-level, not per-control: a layout that will not narrow past a floor
+  // pushes content off the side of the window, and body is a centred flex
+  // column here so it goes off *both* edges rather than merely overflowing
+  // right. Name the widest offenders — the floor is usually one of them.
+  const vw = document.documentElement.clientWidth
+  const spill = []
+  for (const el of document.querySelectorAll('body *')) {
+    if (!el.checkVisibility || !el.checkVisibility()) continue
+    const b = el.getBoundingClientRect()
+    if (b.width === 0) continue
+    if (b.right > vw + 1 || b.left < -1) spill.push(`${label(el)} [${Math.round(b.left)}..${Math.round(b.right)}]`)
+  }
+  const over = document.documentElement.scrollWidth > vw + 1 || spill.length > 0
+  return {
+    out, matched: [...new Set(matched)],
+    overflow: over ? { sw: document.documentElement.scrollWidth, vw, spill: [...new Set(spill)].slice(0, 3) } : null,
+  }
 }
 
 const MONITOR_STATES = {
@@ -266,7 +282,13 @@ const IPAD_VPS = [
   [1366, 1024], [1194, 834], [1180, 820], [1133, 744], [1112, 834], [1080, 810], [1024, 768],
 ]
 const MONITOR_VPS = [[1366, 1024], [1180, 820], [1024, 768], [1366, 768], [960, 720], [820, 1180]]
-const PANEL_VPS = [[1920, 1080], [1440, 900], [1366, 768], [1280, 800], [1180, 820], [820, 1180]]
+// Down to a phone. The panel is a facilitator's console and not something
+// carried, so the floor below is about layout rather than fitness for a phone
+// — but a console that will not narrow is a console that hides its own
+// controls off the edge of a small laptop window too, and 390 is where that
+// shows up unmistakably.
+const PANEL_VPS = [[1920, 1080], [1440, 900], [1366, 768], [1280, 800], [1180, 820],
+  [820, 1180], [600, 900], [390, 844]]
 const isIpad = (w, h) => IPAD_VPS.some(([a, b]) => a === w && b === h)
 
 const browser = await launch()
@@ -288,8 +310,13 @@ async function sweep(label, url, states, vps, seed, touchAt, floorOnly) {
       await p.goto(url, { waitUntil: 'load' })
       await p.evaluate(fn).catch((e) => errs.push('setup: ' + e))
       await p.waitForTimeout(300)
-      const { out: rows, matched } = await p.evaluate(PROBE, { touchFloor: touch, floorOnly: floorOnly || null })
+      const { out: rows, matched, overflow } = await p.evaluate(PROBE, { touchFloor: touch, floorOnly: floorOnly || null })
       for (const sel of matched) seen.add(sel)
+      if (overflow) bad.push({
+        id: '(page)', tag: 'body',
+        kind: `${overflow.sw}px of content in a ${overflow.vw}px window — ${overflow.spill.join('; ')}`,
+        where: `${w}x${h} / ${name}`,
+      })
       if (process.env.REACH_DEBUG) {
         const r = rows.find((x) => x.id === process.env.REACH_DEBUG)
         if (r) console.error(`  [debug] ${w}x${h}/${name} floor=${touch} ${JSON.stringify(r)}`)

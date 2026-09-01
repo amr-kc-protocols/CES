@@ -531,6 +531,55 @@ sweep catches it per configuration and reports it as a defect, so the dead
 
 `scripts/lib/check-kit.mjs` holds the skip helper and the strict flag.
 
+`npm run check:strict` runs through `scripts/check-strict.mjs` rather than
+setting the variable inline. `CES_CHECK_STRICT=1 npm run check` is POSIX shell
+syntax, and npm hands scripts to cmd.exe on Windows, where that is a command
+named `CES_CHECK_STRICT=1` and not an assignment. cross-env is the usual answer
+and is deliberately not used: this is the command that says whether the checks
+really ran, so putting it behind a dependency reproduces the failure it exists
+to catch. npm sets `npm_execpath`, so the wrapper re-enters through this node
+binary and needs neither `npm.cmd` nor a shell.
+
+## Narrowing the panel
+
+The panel is authored against a 960px canvas with breakpoints at 860 and 600.
+The breakpoints were right and one line defeated them: the Swan-Ganz card
+carried `style="grid-column:span 3"` inline, duplicating the rule already in
+the stylesheet. A media query cannot override an inline declaration without
+`!important` — the drugs card has the same inline placement and the 860px block
+does say `!important` there — so below 600px that one card went on spanning
+three tracks, and the two implicit columns it created dragged the whole grid
+with it. `grid-template-columns: 1fr` was applying the whole time. The used
+value was `213px 209px 232px` because a grid item is entitled to build tracks
+the template never declared.
+
+The measurement that gives it away: `scrollWidth` was **698px at every viewport
+below 600** — 600, 540, 430, 390, 360 all identical. A layout that has stopped
+responding to width is not a layout with a breakpoint missing; it has a floor
+under it. Two more floors were behind that one: `.run-inline` does not wrap and
+declares 120px on each of its two inputs, and Advance declares 200px, which
+held the run card at 573px. `body` is a centred flex column, so on a 390px
+phone that hung 91px off *both* edges rather than merely overflowing right.
+
+A third one had no overflow to give it away. `.connect-bar` turns
+`flex-direction: column` below 600px, and the block holding PHYS LOCK carried
+an inline `flex: 0 0 180px`. Flex-basis is along the main axis, so the 180px
+that set its *width* in a row set its *height* in a column: the bar stood 254px
+tall on a phone with an empty band under the button. Inline again, so again
+unreachable — it is a `.phys-wrap` class now, and 147px.
+
+That is the pattern worth remembering from all three: an inline style is the
+one declaration a media query cannot answer, and every layout rule that has to
+change with the viewport therefore has to live in the stylesheet. The drugs
+card shows the alternative — the 860px block spends an `!important` on it — but
+moving the declaration is better than out-shouting it.
+
+The sweep asserts it now, at 600 and 390 as well as the sizes it already
+covered, and reports the widest offenders when it trips — the floor is usually
+among them. Panel coverage went from 54 configurations to 72. The height case
+above is the reminder that it is a floor check and not a layout review: no
+content left the window, so nothing failed.
+
 ## Facilitating and grading
 
 One person drives the scenario and grades the crew, so the layout is measured
@@ -832,12 +881,11 @@ improvement.
 - **The 12-lead is a snapshot.** It renders the rhythm as it stands when the
   window opens and does not follow later changes, which is what a printed
   acquisition is. Re-acquiring re-renders it.
-- **The control panel assumes a wide screen.** Its grid is authored against
-  960px with breakpoints below that, so it works on a laptop or a landscape
-  iPad and not on a phone. The monitor no longer has this problem — it is a
-  fixed layout scaled to the window, with a rotate prompt in portrait — but the
-  panel has not had the same treatment. It is a facilitator's console rather
-  than something carried, so this has not been worth the rework yet.
+- **The control panel is dense on a phone.** It narrows correctly now — see
+  below — but it is a facilitator's console with eleven cards on it, and at
+  390px that is a long column whatever the layout does. It is meant for a
+  laptop or a landscape iPad. What is fixed is that it no longer hides its own
+  controls off the edge of the window.
 - **Three LEDs are stated rather than simulated.** AC and BATTERY are held
   illuminated — a trainer on mains with full batteries — and SERVICE stays dark
   because there is no fault model behind it.

@@ -402,6 +402,16 @@ select:focus{border-color:var(--accent);}
 .run-mini .rm-num.all-done{color:#7fe0a5;}
 .run-mini .rm-end{padding:8px 14px;min-height:44px;}
 @media (max-width:520px){ .run-mini .rm-name{display:none;} }
+/* .rm-sp is flex:0 0 auto — it holds the clock, the tally, Advance and END,
+   and it does not shrink, so below ~400px END hung off the right edge of a bar
+   that is itself fixed to the viewport. It takes its own row there. The bar
+   grows to two rows, which is fine: the space reserved for it is measured, not
+   assumed. */
+@media (max-width:400px){
+  .run-mini{flex-wrap:wrap;row-gap:6px;}
+  .run-mini .rm-sp{margin-left:0;width:100%;justify-content:space-between;}
+  .run-card.condensed .adv-btn.adv-mini{max-width:none;}
+}
 .run-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;
   padding-bottom:9px;border-bottom:1px solid var(--border);}
 .run-head .rh-name{font-size:.76rem;color:var(--amber);font-weight:bold;line-height:1.3;}
@@ -694,6 +704,9 @@ body.run-mode .card.bp{grid-row:1/3;}
   width:100%;max-width:960px;margin-bottom:14px;
   display:flex;gap:12px;align-items:stretch;
 }
+/* Was an inline style on the element. A media query cannot override one, and
+   the narrow-screen rule needs to: see @media (max-width:600px) below. */
+.phys-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 180px;}
 /* Once the patient is connected this is a status line, not a call to action,
    so it stops taking a fifth of the first screen. */
 .connect-bar.compact{margin-bottom:10px;}
@@ -755,6 +768,22 @@ body.run-mode .card.bp{grid-row:1/3;}
   .grid{grid-template-columns:1fr;}
   .connect-bar{flex-direction:column;}
   .phys-btn{flex:none;}
+  /* flex-basis is along the main axis, and the rule above turns that axis
+     vertical: the 180px that sets this block's width in a row became 180px of
+     *height* in a column, and the connect bar stood 254px tall with an empty
+     band under PHYS LOCK. It was an inline style, so no media query could have
+     reached it — hence the class. */
+  .phys-wrap{flex:0 0 auto;width:100%;}
+  /* The run card had the last floor under it. .run-inline does not wrap and
+     its two inputs declare 120px each, and Advance declares 200px, so the card
+     could not go below ~573px however narrow the window got — body is a
+     centred flex column, so on a 390px phone it hung 91px off *both* edges
+     rather than merely overflowing right. Let the row wrap and let the inputs
+     give up their floor; Advance takes its own line, which is where a control
+     that ends the phase belongs anyway. */
+  .run-inline{flex-wrap:wrap;}
+  .run-inline input{min-width:0;flex:1 1 140px;}
+  .adv-btn.adv-head{min-width:0;flex:1 1 100%;}
 }
 /* A visible focus ring on every interactive control, so the panel is usable
    from the keyboard at the back of the room without hunting for where focus is. */
@@ -776,7 +805,7 @@ body.run-mode .card.bp{grid-row:1/3;}
     <span class="connect-dot" id="connectDot"></span>
     <span id="connectLabel">NOT CONNECTED — Click to Connect</span>
   </button>
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 180px;">
+  <div class="phys-wrap">
     <button class="phys-btn on" id="physLockBtn2" onclick="togglePhysLock()" title="Prevents impossible vital sign combinations" style="width:100%;flex:none;">
       <span id="physLockIcon">🔒 PHYS LOCK</span>&nbsp;<span id="physLockLbl2">ON</span>
     </button>
@@ -1217,7 +1246,7 @@ body.run-mode .card.bp{grid-row:1/3;}
 </div>
 
 <!-- Swan-Ganz Catheter (PA Catheter) -->
-<div class="card art" style="grid-column:span 3;margin-top:0;">
+<div class="card art" style="margin-top:0;">
   <h2 style="color:var(--accent);">Swan-Ganz / PA Catheter (P2)</h2>
   <div class="art-toggle">
     <div class="art-btn" id="sgBtn" onclick="toggleSG()" style="border-color:var(--t-dim);color:var(--t-dim);">
@@ -3051,7 +3080,14 @@ function applyRunCondense(){
   // The rail costs no vertical space, so there is nothing to collapse there.
   const want=hasBar&&!railMode()&&runCollapsed;
   const wrap=document.getElementById('runWrap');
-  if(want===card.classList.contains('condensed')) return;
+  if(want===card.classList.contains('condensed')){
+    // Already in the right mode, so nothing to toggle — but this also runs on
+    // resize, and the bar's height is not fixed: it wraps to two rows below
+    // 400px. Re-measure the space reserved for it rather than leaving the
+    // header half-covered by a bar that grew.
+    if(want) document.body.style.paddingTop=card.offsetHeight+'px';
+    return;
+  }
   // Measured before the class changes, because after it the card is 52px.
   if(want&&wrap) wrap.style.height=card.offsetHeight+'px';
   card.classList.toggle('condensed',want);
