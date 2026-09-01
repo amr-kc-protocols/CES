@@ -348,10 +348,23 @@ body.lp-skin #devUnder{display:flex;}
    the smallest things on the screen — 23pt on an iPad Pro. */
 .updown{display:flex;align-items:stretch;justify-content:space-between;gap:0;padding:0;min-height:48px;}
 .updown .ud{
+  position:relative;
   background:none;border:none;color:#f2f2f2;font-size:13px;line-height:1;cursor:pointer;
   flex:0 0 48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
   touch-action:manipulation;
 }
+/* The arrow's hit area, which is not the same thing as its box.
+   The 48px floor above was only ever the arrow's *width*: its height comes
+   from the key it sits in, which is 48px including a border, so the arrow
+   itself stretches to 46. That was fine at the scale this chassis was measured
+   at and is not fine at the ones it actually reaches — the unit is scaled to
+   fit, and k falls to 0.946 on a 1024x768 iPad and 0.886 in a 960x720 window,
+   which put ENERGY, RATE and CURRENT at 43.5pt and 40.8pt. They are the
+   controls a crew taps most.
+   Growing the key would move the replica off the manufacturer's dimensions, so
+   the hit area grows instead: 4px above and below, inside the 5-6px gap
+   between rows, so no two controls end up sharing a pixel. */
+.updown .ud::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px;}
 
 .updown .ud:active{background:#000;}
 .updown .udlbl{font:700 11.5px/1.05 'Arial Narrow',Arial,sans-serif;letter-spacing:.4px;text-align:center;
@@ -3189,7 +3202,13 @@ function fitDevice(){
   const k=Math.min(vw/DEV_W, vh/(compact?DEV_H_COMPACT:DEV_H));
   // Portrait is not a shape this unit has. Rather than shrink it to 70% and
   // put every control below the touch minimum, say so — see #rotate.
-  document.body.classList.toggle('portrait', vh>vw*1.05);
+  const portrait=vh>vw*1.05;
+  document.body.classList.toggle('portrait', portrait);
+  // #rotate covers the unit in portrait, but covering is only paint: without
+  // this the whole chassis stays in the tab order behind it, so SHOCK can be
+  // reached and fired from a keyboard while the screen says to turn the iPad
+  // round. inert takes it out of the tab order and out of hit-testing together.
+  if(portrait) el.setAttribute('inert',''); else el.removeAttribute('inert');
   const dh=compact?DEV_H_COMPACT:DEV_H;
   el.style.width=DEV_W+'px'; el.style.height=dh+'px';
   el.style.transform='translate('+Math.round((vw-DEV_W*k)/2)+'px,'+Math.round((vh-dh*k)/2)+'px) scale('+k+')';

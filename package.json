@@ -38,7 +38,9 @@
     "doc:objectives": "node scripts/build-objectives.mjs",
     "doc:policies": "node scripts/build-forms.mjs policies",
     "doc:forms": "node scripts/build-forms.mjs forms",
-    "doc:all": "npm run doc:application && npm run doc:syllabus && npm run doc:curriculum && npm run doc:objectives && npm run doc:policies && npm run doc:forms && npm run doc:student"
+    "doc:all": "npm run doc:application && npm run doc:syllabus && npm run doc:curriculum && npm run doc:objectives && npm run doc:policies && npm run doc:forms && npm run doc:student",
+    "check:reach": "node scripts/check-reach.mjs",
+    "check:all": "npm run check && npm run build && npm run check:reach"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
