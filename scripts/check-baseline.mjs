@@ -173,10 +173,73 @@ ok(
 // This measures what a student ARRIVES with. An item that needs the course to
 // answer measures nothing on day one.
 
-const AEMT_ONLY = /\b(intraosseous|\bIO\b|venipuncture|IV (bolus|infusion|catheter)|supraglottic|King LT|i-gel|CPAP|capnograph|12-lead|epinephrine 1:|dextrose 50|naloxone (dose|mg))\b/i
-const tooAdvanced = ITEMS.filter((i) => AEMT_ONLY.test(i.stem) || i.options.some((o) => AEMT_ONLY.test(o)))
+// The rule is that the item must be ANSWERABLE at EMT level, which constrains
+// the stem and the key. A distractor naming something above scope is not a
+// flaw — it is often the best distractor available, because choosing it is
+// exactly the error a candidate at the boundary makes. The first version of
+// this check read the distractors too, and would have rejected the subject
+// matter reviewer's own replacement for BD-42, where CPAP is the tempting
+// wrong answer.
+const AEMT_ONLY = /\b(intraosseous|\bIO\b|venipuncture|IV (bolus|infusion|catheter)|supraglottic|King LT|i-gel|capnograph|12-lead|epinephrine 1:|dextrose 50)\b/i
+const tooAdvanced = ITEMS.filter((i) => AEMT_ONLY.test(i.stem) || AEMT_ONLY.test(i.options[i.answer]))
 ok(tooAdvanced.length === 0, 'no item needs AEMT scope to answer — this is an EMT-level baseline',
   tooAdvanced.map((i) => i.code).join(', '))
+
+// American terminology. This is a Kansas program sitting a United States
+// certification exam, and the draft was written through in British spellings.
+const BRITISH = /\b\w*(aemia|aemic|oedema|oesophag|haemo|haemat|paediatr|anaesth|generalis|recognis|organis|minimis|standardis|manoeuvr|litre|centre|catheteris|utilis)\w*\b/i
+const british = ITEMS.filter(
+  (i) => BRITISH.test(i.stem) || i.options.some((o) => BRITISH.test(o)) || BRITISH.test(i.rationale),
+)
+ok(british.length === 0, 'every item is written in American spelling',
+  british.map((i) => i.code).join(', '))
+
+// Pediatric content is integrated through the certification exam rather than
+// carved into a domain, so it has to be integrated here too. Two items out of
+// fifty is not integration.
+const PEDS = /\b(child|children|infant|toddler|neonat|pediatric|newborn|year-old (boy|girl)|two-year|five-year|eight-year|month-old)\b/i
+const peds = ITEMS.filter((i) => PEDS.test(i.stem) || i.options.some((o) => PEDS.test(o)))
+ok(peds.length >= 6, `pediatric content runs through the paper, got ${peds.length} items`)
+
+// Administering medication is on the EMT test plan. A diagnostic with no
+// medication decision on it does not sample what an EMT is expected to do.
+const MEDS = /\b(aspirin|epinephrine|auto-injector|bronchodilator|albuterol|inhaler|naloxone|oral glucose|nitroglycerin|activated charcoal)\b/i
+const meds = ITEMS.filter((i) => MEDS.test(i.stem) || i.options.some((o) => MEDS.test(o)))
+ok(meds.length >= 5, `EMT medication decisions are sampled, got ${meds.length} items`)
+
+// A domain too small to express as a percentage must not be given one. Four
+// items is what the blueprint bands allow for Trauma and Operations in a
+// 50-item paper, and on four items one wrong answer moves the reported score
+// twenty-five points.
+{
+  const perfect = Object.fromEntries(ITEMS.map((i) => [i.code, i.answer]))
+  const scored = m.scoreByDomain(perfect)
+  ok(
+    scored.every((d) => d.correct === d.items),
+    'a perfect paper scores every domain complete',
+    scored.filter((d) => d.correct !== d.items).map((d) => d.domain).join(', '),
+  )
+  const small = scored.filter((d) => d.items < m.STABLE_DOMAIN_ITEMS)
+  ok(small.length > 0, 'there are small domains, so the guard has work to do')
+  ok(
+    small.every((d) => d.provisional && d.percent === undefined),
+    'a domain below the stability floor reports a count, not a percentage',
+    small.map((d) => `${d.domain}: ${d.items} items, percent ${d.percent}`).join(', '),
+  )
+  ok(
+    scored.filter((d) => d.items >= m.STABLE_DOMAIN_ITEMS).every((d) => typeof d.percent === 'number'),
+    'a domain at or above it does report a percentage',
+  )
+  // One wrong answer in a small domain must not read as a large drop.
+  const oneWrong = { ...perfect }
+  const victim = ITEMS.find((i) => i.domain === 'trauma')
+  oneWrong[victim.code] = (victim.answer + 1) % 4
+  const after = m.scoreByDomain(oneWrong).find((d) => d.domain === 'trauma')
+  ok(
+    after.percent === undefined && after.correct === after.items - 1,
+    `one missed trauma item reports as ${after.correct}/${after.items}, not a percentage`,
+  )
+}
 
 // ----- report ----------------------------------------------------------------
 
