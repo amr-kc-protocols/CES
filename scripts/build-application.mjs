@@ -186,10 +186,16 @@ const scheduleRows = [...m.KC_SCHEDULE]
             spacing: { after: 0 },
             children: [
               new TextRun({
-                text:
-                  r.delivery === 'aha'
-                    ? 'AHA-certified instructor'
-                    : `${staff.name}, ${staff.credential}`,
+                // Per row. The joint cohort splits the week between the two
+                // instructors of record, and a filed schedule naming one of
+                // them against every session tells the board something untrue.
+                text: (() => {
+                  const who =
+                    r.instructor === 'co'
+                      ? m.COURSE_STAFF.find((x) => x.role !== 'primary')
+                      : m.COURSE_STAFF.find((x) => x.role === 'primary')
+                  return who ? `${who.name}, ${who.credential}` : '—'
+                })(),
                 size: 20,
               }),
             ],

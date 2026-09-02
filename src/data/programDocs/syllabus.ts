@@ -67,6 +67,23 @@ export function phaseTargets(targets: Partial<Record<PH.PhaseTargetKey, number>>
     .join(', ')}.`
 }
 
+/**
+ * Who teaches a session, from the row rather than from the primary instructor.
+ *
+ * The joint cohort splits the week — Mondays are the primary instructor's,
+ * Thursdays the co-instructor's — and the printed schedule is where a student
+ * finds out who is in the room. Printing one name against every session, as
+ * this did, was accurate on a single-instructor course and became a false
+ * statement on this one.
+ */
+function instructorFor(r: { instructor?: 'primary' | 'co' }): string {
+  const who =
+    r.instructor === 'co'
+      ? COURSE_STAFF.find((s) => s.role !== 'primary')
+      : COURSE_STAFF.find((s) => s.role === 'primary')
+  return who ? `${who.name}, ${who.credential}` : '—'
+}
+
 export function syllabusBlocks(): Block[] {
   const totals = scheduleTotals()
   const staff = PRIMARY_INSTRUCTOR
@@ -88,7 +105,7 @@ export function syllabusBlocks(): Block[] {
         : [r.title],
       String(r.didacticHours),
       String(r.labHours),
-      r.delivery === 'aha' ? 'AHA-certified instructor' : `${staff.name}, ${staff.credential}`,
+      instructorFor(r),
     ])
 
   return [
@@ -101,7 +118,7 @@ export function syllabusBlocks(): Block[] {
     // --- 1. Course description, goals and objectives ---------------------
     h1('Course description'),
     p(
-      `A Kansas-approved initial course of instruction for the Advanced Emergency Medical Technician, delivered jointly by AMR Kansas City and AMR Wichita as one class. ${KC_COURSE_WEEKS} instructional weeks across ${KC_CALENDAR_WEEKS} calendar weeks, Tuesdays and Thursdays 0900–1300, with a two-week break over the holidays. Classroom and laboratory sessions are held at AMR Kansas City headquarters with AMR Wichita joining by Teams; clinical and field internship placements are local to each student's own operation.`,
+      `A Kansas-approved initial course of instruction for the Advanced Emergency Medical Technician, delivered jointly by AMR Kansas City and AMR Wichita as one class. ${KC_COURSE_WEEKS} instructional weeks across ${KC_CALENDAR_WEEKS} calendar weeks, Mondays and Thursdays 0800–1200, with a two-week break over the holidays. Classroom and laboratory sessions are held at AMR Kansas City headquarters with AMR Wichita joining by Teams; clinical and field internship placements are local to each student's own operation.`,
     ),
     p(
       `Successful completion makes the student eligible to sit the National Registry cognitive examination and, on passing, to be certified by the Kansas Board of Emergency Medical Services.`,
@@ -157,7 +174,7 @@ export function syllabusBlocks(): Block[] {
     // --- 3. Attendance ----------------------------------------------------
     h1('Attendance policy'),
     p(
-      `Classroom, lecture and laboratory sessions run every Tuesday and Thursday 0900–1300. Students are required to attend all scheduled meeting times. Where an absence is unavoidable it is the student's responsibility to contact the instructor and obtain the missed material.`,
+      `Classroom, lecture and laboratory sessions run every Monday and Thursday 0800–1200. Students are required to attend all scheduled meeting times. Where an absence is unavoidable it is the student's responsibility to contact the instructor and obtain the missed material.`,
     ),
     p(
       `Missing more than ${MAX_ABSENT_HOURS} hours of scheduled class time triggers a documented make-up requirement: ${ABSENCE_MAKEUP.requirement} ${ABSENCE_MAKEUP.note} A student who does not complete the make-up has not met the course objectives and does not complete the course.`,
@@ -289,6 +306,13 @@ export function syllabusBlocks(): Block[] {
     p(
       `Every session with its date, time, subject, laboratory hours and instructor, per K.A.R. 109-11-1a(b3). Class location unless otherwise noted: AMR Kansas City headquarters, with AMR Wichita joining by Teams.`,
     ),
+    p(
+      `The week is split between the two instructors of record: ${
+        COURSE_STAFF.find((s) => s.role === 'primary')?.name ?? ''
+      } teaches the Mondays and ${
+        COURSE_STAFF.find((s) => s.role !== 'primary')?.name ?? ''
+      } teaches the Thursdays. Both markets attend both days.`,
+    ),
     spacer(120),
     table(SCHED_COLS, ['Date', 'Topic / assignment', 'Didactic hrs', 'Lab hrs', 'Instructor'], scheduleRows),
     spacer(),
@@ -297,7 +321,7 @@ export function syllabusBlocks(): Block[] {
       { bold: true },
     ),
     p(
-      `No session falls on a holiday. The calendar absorbs them rather than extending the course: week 8 runs Tuesday only, and a two-week break runs ${longDate(WINTER_BREAK.start)} to ${longDate(WINTER_BREAK.end)}. The break is not a pause — students complete concentrated clinical and field shifts across it together with three dated retrieval assignments.`,
+      `No session falls on a holiday. The calendar absorbs them rather than extending the course: week 8 runs Monday only, and a two-week break runs ${longDate(WINTER_BREAK.start)} to ${longDate(WINTER_BREAK.end)}. The break is not a pause — students complete concentrated clinical and field shifts across it together with three dated retrieval assignments.`,
     ),
     ...KC_HOLIDAYS.map((h) => bullet(`${longDate(h.date)} — ${h.name}. ${h.absorbedBy}`)),
     spacer(),

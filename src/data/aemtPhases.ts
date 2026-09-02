@@ -196,7 +196,7 @@ export const PHASE_TEMPLATE: PhaseTemplate[] = [
     ordinal: 4,
     name: 'Integration & team lead',
     startOffsetDays: 90,
-    endOffsetDays: 121,
+    endOffsetDays: 122,
     requiresClearance: null,
     shiftsRequired: 5,
     hospitalShifts: 2,

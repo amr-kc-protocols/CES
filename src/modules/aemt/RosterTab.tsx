@@ -200,7 +200,7 @@ function StudentForm({
           already work twelve. */}
       <div className="section-title">Regular AMR work line</div>
       <div className="help-text" style={{ marginTop: 0, marginBottom: 8 }}>
-        Class runs Tuesday and Thursday 0900–1300 and the rotation is 12-hour shifts on top of
+        Class runs Monday and Thursday 0800–1200 and the rotation is 12-hour shifts on top of
         both. Recording the line is how that arithmetic gets done before the course starts rather
         than in week six.
       </div>
@@ -380,7 +380,7 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
             {overCap.length} student{overCap.length === 1 ? '' : 's'} cannot attend this schedule on
             their current line
           </strong>{' '}
-          — class is Tuesday and Thursday 0900–1300, and their shifts cover it:
+          — class is Monday and Thursday 0800–1200, and their shifts cover it:
           <div style={{ marginTop: 6 }}>
             {overCap.map((c) => (
               <div key={c.student.id}>

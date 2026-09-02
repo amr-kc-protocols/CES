@@ -78,11 +78,74 @@ export function rotationWeek(p: AemtWorkPattern, iso: string): 1 | 2 {
   return (((week % 2) + 2) % 2) === 0 ? 1 : 2
 }
 
-/** Does this line have the student on shift on this date? */
-export function worksOn(p: AemtWorkPattern | undefined, iso: string): boolean {
+/**
+ * Does the roster START a shift on this date?
+ *
+ * The calendar answer — what an operations schedule marks with the student's
+ * name on it. NOT the same as "are they on duty that day", which is the
+ * question everything here actually wants, and the difference is a whole
+ * morning wide on a 24-hour line.
+ */
+export function startsShiftOn(p: AemtWorkPattern | undefined, iso: string): boolean {
   if (!p) return false
   const days = rotationWeek(p, iso) === 1 ? p.weekOne : p.weekTwo
   return days.includes(dayIndex(iso))
+}
+
+/** A stretch of one calendar day, in minutes from that day's midnight. */
+export interface DutySpan {
+  start: number
+  end: number
+  /** This is the tail of a shift that began the day before. */
+  carriedOver: boolean
+}
+
+/**
+ * When this student is on duty during one calendar day.
+ *
+ * Two shifts can touch a single day: the one that starts on it, and the tail of
+ * the one that started yesterday and ran past midnight. The second is the one
+ * that kept getting missed. A 1200-0000 line ends exactly at midnight and
+ * bleeds nothing, which is why the first version of this got away with only
+ * asking whether a shift started today — and then Wichita's students turned up
+ * on 24-hour lines, where a Monday shift occupies Tuesday until 0900 and the
+ * roster does not mark Tuesday at all.
+ *
+ * Reporting that Tuesday as free is the worst answer available: it is not a
+ * near miss, it is the tool confidently clearing a student to be in a
+ * classroom while they are still on an ambulance.
+ */
+export function dutySpansOn(p: AemtWorkPattern | undefined, iso: string): DutySpan[] {
+  if (!p) return []
+  const out: DutySpan[] = []
+  const { start, end } = shiftSpan(p)
+
+  if (startsShiftOn(p, iso)) {
+    out.push({ start, end: Math.min(end, 24 * 60), carriedOver: false })
+  }
+  if (end > 24 * 60 && startsShiftOn(p, addDays(iso, -1))) {
+    out.push({ start: 0, end: end - 24 * 60, carriedOver: true })
+  }
+  return out
+}
+
+/**
+ * Is the student on duty at any point on this date?
+ *
+ * Any duty, not just a shift starting — so a placement booked on the morning
+ * after a 24 is caught, and so is one booked on the day it starts.
+ */
+export function worksOn(p: AemtWorkPattern | undefined, iso: string): boolean {
+  return dutySpansOn(p, iso).length > 0
+}
+
+/** ISO date `n` days from `iso`, negative for earlier. */
+export function addDays(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d) + n * 86_400_000)
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(
+    t.getUTCDate(),
+  ).padStart(2, '0')}`
 }
 
 export interface SessionClash {
@@ -91,7 +154,29 @@ export interface SessionClash {
   overlapHours: number
   /** The whole session is lost, rather than part of it. */
   whole: boolean
+  /** The overlap is the tail of a shift that started the day before. */
+  carriedOver: boolean
+  /**
+   * The session butts against a shift without overlapping it — off duty just
+   * before it starts, or on duty just after it ends.
+   *
+   * Not an absence. They can be in the room, the clock does not overlap, and
+   * the attendance cap has nothing to say about it. It is here because a
+   * student who comes off a twelve-hour shift and walks into a classroom, or
+   * walks out of one straight onto an ambulance with no gap to travel in, is a
+   * real scheduling fact — and reporting that day as clean is technically true
+   * and practically useless.
+   *
+   * Three of the six students on this cohort finish class at 1200 and start a
+   * shift at 1200. That is zero minutes to get across town, which is the sort
+   * of thing worth seeing on a screen before somebody is late twice and it
+   * becomes an attendance conversation.
+   */
+  tightAgainstShift?: 'off-before' | 'on-after'
 }
+
+/** A gap this small between a class and a shift is no gap at all. */
+export const TIGHT_GAP_HOURS = 2
 
 /**
  * Where a line and a class session overlap on the clock.
@@ -106,18 +191,50 @@ export function sessionClash(
   session: AemtSession,
 ): SessionClash | undefined {
   if (!p || !session.date || !session.startTime || !session.endTime) return undefined
-  if (!worksOn(p, session.date)) return undefined
 
-  const shift = shiftSpan(p)
+  const spans = dutySpansOn(p, session.date)
+  if (!spans.length) return undefined
+
   const klass = shiftSpan({ startTime: session.startTime, endTime: session.endTime })
-  const overlap = Math.min(shift.end, klass.end) - Math.max(shift.start, klass.start)
-  if (overlap <= 0) return undefined
+  const klassLength = klass.end - klass.start
 
-  const hours = Math.round((overlap / 60) * 100) / 100
+  // A day can hold two spans — the shift starting today and yesterday's tail —
+  // so take the worst of them rather than the first.
+  let best: { overlap: number; carriedOver: boolean } | undefined
+  for (const sp of spans) {
+    const overlap = Math.min(sp.end, klass.end) - Math.max(sp.start, klass.start)
+    if (overlap > 0 && (!best || overlap > best.overlap)) {
+      best = { overlap, carriedOver: sp.carriedOver }
+    }
+  }
+
+  if (!best) {
+    // No overlap on the clock. A shift may still end just before the session
+    // starts, or start just after it ends, which is not an absence and is not
+    // nothing either.
+    const endsBefore = spans
+      .map((sp) => klass.start - sp.end)
+      .filter((gap) => gap >= 0 && gap <= TIGHT_GAP_HOURS * 60)
+    const startsAfter = spans
+      .map((sp) => sp.start - klass.end)
+      .filter((gap) => gap >= 0 && gap <= TIGHT_GAP_HOURS * 60)
+    if (!endsBefore.length && !startsAfter.length) return undefined
+    return {
+      session,
+      overlapHours: 0,
+      whole: false,
+      carriedOver: spans.some((sp) => sp.carriedOver),
+      // Coming off a shift into class is the worse of the two — they have been
+      // awake for twelve hours — so it wins when a day somehow has both.
+      tightAgainstShift: endsBefore.length ? 'off-before' : 'on-after',
+    }
+  }
+
   return {
     session,
-    overlapHours: hours,
-    whole: overlap >= klass.end - klass.start,
+    overlapHours: Math.round((best.overlap / 60) * 100) / 100,
+    whole: best.overlap >= klassLength,
+    carriedOver: best.carriedOver,
   }
 }
 
@@ -128,6 +245,11 @@ export interface WorkConflictSummary {
   clashes: SessionClash[]
   /** Class hours the line covers across the whole course. */
   hoursLost: number
+  /**
+   * Sessions that butt against a shift without overlapping it. Counted apart
+   * from hoursLost because they cost no hours and are a different problem.
+   */
+  tight: SessionClash[]
   /** Class days they are rostered on, whether or not the clock overlaps. */
   daysWorkingClass: number
   /** Over the program's absence cap on the line alone, before anything else. */
@@ -161,7 +283,10 @@ export function workConflicts(
   return {
     student,
     pattern: p,
-    clashes,
+    // `clashes` is the hours question. A session that only butts against a
+    // shift belongs in `tight`, not in a list the absence cap is measured from.
+    clashes: clashes.filter((c) => c.overlapHours > 0),
+    tight: clashes.filter((c) => c.overlapHours === 0),
     hoursLost,
     daysWorkingClass,
     overCap: hoursLost > maxAbsentHours,
@@ -173,7 +298,7 @@ const DAY_LABEL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const daysLabel = (days: number[]): string =>
   [...days].sort((a, b) => a - b).map((d) => DAY_LABEL[d]).join(', ')
 
-/** "KC105 · 1000–2000 · wk1 Tue, Wed, Thu, Fri / wk2 Tue, Wed, Thu, Fri". */
+/** "KC105 · 1000–2000 (10 h) · Tue, Wed, Thu, Fri". */
 export function patternLabel(p: AemtWorkPattern): string {
   const same = daysLabel(p.weekOne) === daysLabel(p.weekTwo)
   const days = same
@@ -181,7 +306,7 @@ export function patternLabel(p: AemtWorkPattern): string {
     : `wk1 ${daysLabel(p.weekOne)} / wk2 ${daysLabel(p.weekTwo)}`
   return [
     p.line,
-    `${p.startTime}–${p.endTime}`,
+    `${p.startTime}–${p.endTime} (${shiftHours(p)} h)`,
     days,
     p.shiftType ? `type ${p.shiftType}` : '',
   ]

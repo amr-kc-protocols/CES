@@ -212,7 +212,7 @@ export function curriculumBlocks(): Block[] {
 
     h1('The standard session'),
     p(
-      `Every Tuesday and Thursday runs to the same shape unless it is a gate examination or a full-length simulation. The 0930–1100 block is explicitly NOT lecture — the lecture was the Navigate module the student completed beforehand, and re-delivering it in the room is how a flipped course collapses back into an ordinary one.`,
+      `Every Monday and Thursday runs to the same shape unless it is a gate examination or a full-length simulation. The middle block is explicitly NOT lecture — the lecture was the Navigate module the student completed beforehand, and re-delivering it in the room is how a flipped course collapses back into an ordinary one.`,
     ),
     spacer(120),
     table(

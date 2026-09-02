@@ -72,8 +72,8 @@ const near = (a, b) => Math.abs(a - b) < 0.01
 // ----- the agreed calendar ---------------------------------------------------
 
 check(
-  m.KC_START_DATE === '2026-10-06',
-  'the course starts Tuesday 6 October 2026',
+  m.KC_START_DATE === '2026-10-05',
+  'the course starts Monday 5 October 2026',
   m.KC_START_DATE,
 )
 check(
@@ -97,8 +97,16 @@ const dayOf = (iso) => {
 // Class is Tuesday/Thursday. The AHA provider courses are the deliberate
 // exception and are marked `standalone`, so they are checked separately rather
 // than being an unexplained hole in the assertion.
+// Exactly one session is off the Monday/Thursday pattern, and it is a decision
+// rather than a slip: Martin Luther King Jr. Day falls on the Monday of week
+// 14, and that week's multisystem trauma didactic is what its own trauma lab
+// and Gate 3 are built on. Named by date so a SECOND stray row still fails.
+const MOVED_FOR_A_HOLIDAY = ['2027-01-19']
 const offPattern = m.KC_SCHEDULE.filter(
-  (r) => !r.standalone && !m.KC_CLASS_PATTERN.days.includes(dayOf(r.date)),
+  (r) =>
+    !r.standalone &&
+    !MOVED_FOR_A_HOLIDAY.includes(r.date) &&
+    !m.KC_CLASS_PATTERN.days.includes(dayOf(r.date)),
 )
 check(
   offPattern.length === 0,
@@ -134,13 +142,13 @@ check(
   onHoliday.map((h) => `${h.date} ${h.holiday}`).join(', '),
 )
 
-// Week 8 is the Thanksgiving week and runs Tuesday only. This is the single
-// most load-bearing irregularity in the calendar: it is why ACLS is on a
-// Saturday, and a later edit that "restores" the Thursday breaks both.
+// Week 8 is the Thanksgiving week and runs Monday only — Thanksgiving takes
+// its Thursday. A later edit that "restores" that Thursday puts a session on
+// 26 November.
 const week8f2f = m.KC_SCHEDULE.filter((r) => r.week === 8 && r.delivery === 'f2f')
 check(
-  week8f2f.length === 1 && week8f2f[0].date === '2026-11-24',
-  'week 8 is a single Tuesday session — Thanksgiving is surrendered, not fought',
+  week8f2f.length === 1 && week8f2f[0].date === '2026-11-23',
+  'week 8 is a single Monday session — Thanksgiving is surrendered, not fought',
   week8f2f.map((r) => r.date).join(', '),
 )
 
@@ -363,6 +371,39 @@ check(
   `${t.f2f} h`,
 )
 
+// ----- who teaches which day -------------------------------------------------
+//
+// The two instructors of record split the week: Mondays are the primary
+// instructor's, Thursdays the co-instructor's. It is filed per row rather than
+// derived, so the thing worth checking is that the rows and the agreement still
+// say the same thing — a printed schedule naming the wrong person is a promise
+// broken in front of students.
+
+const unstaffed = m.KC_SCHEDULE.filter((r) => r.delivery === 'f2f' && !r.instructor)
+check(
+  unstaffed.length === 0,
+  'every classroom session names the instructor who teaches it',
+  unstaffed.map((r) => `${r.label} ${r.date}`).join(', '),
+)
+const MOVED = ['2027-01-19']
+const misStaffed = m.KC_SCHEDULE.filter(
+  (r) =>
+    r.delivery === 'f2f' &&
+    !MOVED.includes(r.date) &&
+    (dayOf(r.date) === 1) !== (r.instructor === 'primary'),
+)
+check(
+  misStaffed.length === 0,
+  'Mondays are the primary instructor’s and Thursdays the co-instructor’s',
+  misStaffed.map((r) => `${r.date} ${WEEKDAY[dayOf(r.date)]} -> ${r.instructor}`).join(', '),
+)
+const staffed = new Set(m.KC_SCHEDULE.filter((r) => r.instructor).map((r) => r.instructor))
+check(
+  staffed.size === 2,
+  'both instructors of record actually teach',
+  `only ${[...staffed].join(', ')} appears on the schedule`,
+)
+
 // ----- the hours ------------------------------------------------------------
 
 check(near(t.lab, 52), 'lab totals 52 h, as the plan states', `${t.lab} h`)
@@ -478,8 +519,8 @@ check(
 
 check(
   A.MASTERY_GATES.length === 3 &&
-    A.MASTERY_GATES.map((g) => g.date).join(',') === '2026-10-29,2026-12-01,2027-01-21',
-  'three gates, on 29 October, 1 December and 21 January',
+    A.MASTERY_GATES.map((g) => g.date).join(',') === '2026-10-29,2026-11-30,2027-01-21',
+  'three gates, on 29 October, 30 November and 21 January',
   A.MASTERY_GATES.map((g) => g.date).join(', '),
 )
 check(

@@ -352,7 +352,7 @@ function SeedModal({
   const plan = scheduleTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
-  // The plan lays KC_COURSE_WEEKS of Tue/Thu sessions from the first Tuesday on
+  // The plan lays KC_COURSE_WEEKS of Mon/Thu sessions from the first Monday on
   // or after the start date. A course whose own end date falls sooner gets a
   // schedule that runs past it, and every session beyond gets flagged as
   // outside the course dates — better said before building than discovered
@@ -468,8 +468,8 @@ function SeedModal({
         are the agreement, not a projection, which is why re-seeding cannot quietly move them.
         <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
           <li>
-            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Tuesday only. Absorbing it
-            rather than chasing it protects the Tuesday/Thursday rhythm.
+            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Monday only. Absorbing it
+            rather than chasing it protects the Monday/Thursday rhythm.
           </li>
           <li>
             <strong>A deliberate two-week break</strong>, {formatDate(WINTER_BREAK.start)} to{' '}
@@ -736,7 +736,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
         {manageAcademy && sessions.length === 0 && (
           <button
             className="btn"
-            title={`Create Tue/Thu sessions for ${KC_COURSE_WEEKS} weeks from the AMR KC content plan. Adjust for another program.`}
+            title={`Create Mon/Thu sessions for ${KC_COURSE_WEEKS} weeks from the AMR KC content plan. Adjust for another program.`}
             onClick={() => setSeeding(true)}
           >
             ⚡ Build AMR KC {KC_COURSE_WEEKS}-week plan

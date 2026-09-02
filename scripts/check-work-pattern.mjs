@@ -54,11 +54,20 @@ const check = (ok, label, detail) => {
 // these lines, so the anchor does not change the answer here — which is why the
 // rotation itself is checked separately below, on a line where it does.
 const ANCHOR = '2026-10-04'
+/** The Sunday that begins week one of the Wichita Pitman, off their calendar. */
+const PITMAN_ANCHOR = '2026-09-27'
 const LINES = {
+  // Kansas City — bid lines off the KC Metro master schedule, both weeks alike.
   'Miranda Burgoon': { line: 'KC105', los: 'ALS', startTime: '10:00', endTime: '20:00', shiftType: '1040', weekOne: [2, 3, 4, 5], weekTwo: [2, 3, 4, 5], anchorSunday: ANCHOR },
   'Abby Schmelzle': { line: 'KC107', los: 'ALS', startTime: '12:00', endTime: '00:00', shiftType: '1236', weekOne: [4, 5, 6], weekTwo: [4, 5, 6], anchorSunday: ANCHOR },
   'Spencer Mayes': { line: 'CM101', los: 'BLS', startTime: '12:00', endTime: '00:00', shiftType: '1236', weekOne: [3, 4, 5], weekTwo: [3, 4, 5], anchorSunday: ANCHOR },
   'Jessica Sexton': { line: 'AD101', los: 'Dedicated', startTime: '06:00', endTime: '18:00', shiftType: '1339', weekOne: [3, 4, 5], weekTwo: [3, 4, 5], anchorSunday: ANCHOR },
+  // Wichita — a Pitman 2-2-3 on twelve-hour shifts. Read off the operation's
+  // own calendar: Sun/Wed/Thu one week, Mon/Tue/Fri/Sat the next, which is an
+  // exact fourteen-day cycle and therefore fits weekOne/weekTwo without
+  // remainder. Seven shifts a fortnight, on/off blocks of 2-2-3.
+  'Kara (Wichita)': { line: 'Pitman', startTime: '09:00', endTime: '21:00', weekOne: [0, 3, 4], weekTwo: [1, 2, 5, 6], anchorSunday: PITMAN_ANCHOR },
+  'Alex (Wichita)': { line: 'Pitman', startTime: '12:00', endTime: '00:00', weekOne: [0, 3, 4], weekTwo: [1, 2, 5, 6], anchorSunday: PITMAN_ANCHOR },
 }
 
 // ----- the midnight shift ----------------------------------------------------
@@ -115,65 +124,112 @@ const results = Object.entries(LINES).map(([name, workPattern]) => ({
   ...m.workConflicts({ id: name, name, workPattern }, sessions, D.MAX_ABSENT_HOURS),
 }))
 
+// Every line has to produce SOME signal — an overlap, or a session butting
+// against a shift. A line that produces neither on a six-day-a-fortnight
+// rotation against a two-day-a-week class is the engine having silently
+// stopped working, which is the failure mode worth guarding: three of these
+// students genuinely have no overlap now, and "no overlap" and "not computed"
+// look identical from the outside.
 for (const r of results) {
   check(
-    r.clashes.length > 0,
-    `${r.name}'s line collides with the class schedule`,
-    'if this passes as "no conflict" the midnight or rotation handling has regressed',
+    r.clashes.length + r.tight.length > 0,
+    `${r.name}'s line is actually being compared against the schedule`,
+    'no overlap AND no tight gap — the rotation or midnight handling has regressed',
   )
 }
 
-/** Only the Tuesday/Thursday 0900-1300 rows, where the arithmetic is uniform. */
-const classroom = (r) => r.clashes.filter((c) => c.session.delivery === 'f2f')
+// The schedule moved to Mondays and Thursdays 0800-1200 BECAUSE of these
+// numbers, so the assertions below are the after picture. Three students came
+// out clean; the three who did not are the ones whose shifts start before noon.
 
-// Miranda's 1000-2000 covers 0900-1300 from 1000, on both class days.
-const miranda = results.find((r) => r.name === 'Miranda Burgoon')
+const of = (name) => results.find((r) => r.name === name)
+
+// Monday is the whole point of the move: none of the four Kansas City students
+// works one, and it is inside the primary instructor's filed availability.
+const mondayClashes = results.flatMap((r) =>
+  r.clashes.filter((c) => new Date(c.session.date + 'T00:00:00').getDay() === 1),
+)
 check(
-  classroom(miranda).every((c) => c.overlapHours === 3 && !c.whole),
-  'a 1000-2000 line loses three of the four class hours, not all four',
-  classroom(miranda).slice(0, 2).map((c) => `${c.session.date} ${c.overlapHours}h whole=${c.whole}`).join(' · '),
+  mondayClashes.every((c) => c.session.date >= '2026-10-05'),
+  'every Monday clash that remains is real, not an artefact of the anchor',
+)
+check(
+  !['Miranda Burgoon', 'Abby Schmelzle', 'Spencer Mayes', 'Jessica Sexton'].some((n) =>
+    of(n).clashes.some((c) => new Date(c.session.date + 'T00:00:00').getDay() === 1),
+  ),
+  'no Kansas City student loses a Monday hour — that is why the class day moved',
+  mondayClashes.map((c) => c.session.date).join(', '),
 )
 
-// Jessica's 0600-1800 swallows the session whole.
-const jessica = results.find((r) => r.name === 'Jessica Sexton')
-check(
-  classroom(jessica).every((c) => c.whole && c.overlapHours === 4),
-  'a 0600-1800 line loses the whole four-hour session',
-  classroom(jessica).slice(0, 2).map((c) => `${c.session.date} ${c.overlapHours}h whole=${c.whole}`).join(' · '),
-)
-
-// Abby and Spencer start at noon: one hour of a 0900-1300 session.
-for (const name of ['Abby Schmelzle', 'Spencer Mayes']) {
-  const r = results.find((x) => x.name === name)
+// Three students the move cleared outright. Worth asserting by name: if a
+// future schedule change puts hours back on them, it should have to be noticed.
+for (const name of ['Abby Schmelzle', 'Spencer Mayes', 'Alex (Wichita)']) {
+  const r = of(name)
   check(
-    classroom(r).every((c) => c.overlapHours === 1 && !c.whole),
-    `${name}'s noon start loses the last hour of each classroom session it lands on`,
-    classroom(r).slice(0, 2).map((c) => `${c.session.date} ${c.overlapHours}h`).join(' · '),
+    r.hoursLost === 0 && !r.overCap,
+    `${name} loses no class hours on the Monday/Thursday schedule`,
+    `${r.hoursLost} h across ${r.clashes.length} sessions`,
   )
 }
 
-// Taking ACLS and PALS out of the filed schedule cost Abby's Saturdays their
-// only collision — ten of her twenty-five hours. It is the one thing that
-// change improved for anybody, and it is worth holding onto: if a weekend
-// session is ever filed again, this stops being true and somebody should have
-// to notice.
-const abbyWeekend = results
-  .find((r) => r.name === 'Abby Schmelzle')
-  .clashes.filter((c) => [0, 6].includes(new Date(c.session.date + 'T00:00:00').getDay()))
+// ...and all three finish class at 1200 and start a shift at 1200. Zero
+// overlap, zero minutes to travel. Not an absence, and not nothing.
+for (const name of ['Abby Schmelzle', 'Spencer Mayes', 'Alex (Wichita)']) {
+  const r = of(name)
+  check(
+    r.tight.length > 0 && r.tight.every((c) => c.tightAgainstShift === 'on-after'),
+    `${name} is flagged as going straight from class onto a shift`,
+    `${r.tight.length} tight sessions — a day reported clean here would be the tool missing the handover`,
+  )
+}
+
+// The three the move did not fix, and by how much. Each is a Thursday problem:
+// a shift that starts before class ends.
+const REMAINING = {
+  'Jessica Sexton': { hours: 60, why: '0600-1800 swallows every Thursday session whole' },
+  'Kara (Wichita)': { hours: 45, why: '0900 start takes three of the four hours, alternating Mon and Thu' },
+  // 15 Thursdays at two hours, plus the one session moved to Tuesday 19
+  // January off MLK Day — she works Tuesdays too, which is the cost of that
+  // move and the reason it is worth seeing rather than assuming.
+  'Miranda Burgoon': { hours: 32, why: 'a 1000 start takes the last two hours of every Thursday, and of the Tuesday moved off MLK Day' },
+}
+for (const [name, exp] of Object.entries(REMAINING)) {
+  const r = of(name)
+  check(
+    r.hoursLost === exp.hours,
+    `${name} still loses ${exp.hours} h — ${exp.why}`,
+    `${r.hoursLost} h`,
+  )
+}
+
+// Jessica's is the only one where the whole session goes.
 check(
-  abbyWeekend.length === 0,
-  'a Thu/Fri/Sat line no longer collides with anything at the weekend',
-  abbyWeekend.map((c) => `${c.session.date} ${c.overlapHours}h`).join(' · '),
+  of('Jessica Sexton').clashes.every((c) => c.whole),
+  'a 0600-1800 line loses the whole four-hour session, not part of it',
+)
+check(
+  of('Miranda Burgoon').clashes.every((c) => !c.whole && c.overlapHours === 2),
+  'a 1000 start loses exactly the two hours between 1000 and 1200',
+)
+// The session moved off MLK Day lands on a Tuesday, and Miranda works those.
+// Two hours is what that decision cost; naming it here is what stops it being
+// re-litigated from memory.
+check(
+  of('Miranda Burgoon').clashes.some((c) => c.session.date === '2027-01-19'),
+  'the session moved off MLK Day costs Miranda two hours, and the roster says so',
 )
 
-// The finding this was written for.
-for (const r of results) {
-  check(
-    r.overCap,
-    `${r.name} is over the ${D.MAX_ABSENT_HOURS}-hour absence cap on their line alone`,
-    `${r.hoursLost} h — if this ever passes, either the line changed or the check has stopped working`,
-  )
-}
+// The Pitman alternates, so Kara loses a Monday one fortnight and a Thursday
+// the next — which a pattern flattened to a single week would get wrong half
+// the time, and is the reason the rotation is anchored rather than guessed.
+const karaDays = new Set(
+  of('Kara (Wichita)').clashes.map((c) => new Date(c.session.date + 'T00:00:00').getDay()),
+)
+check(
+  karaDays.has(1) && karaDays.has(4),
+  'the Pitman costs Kara both a Monday and a Thursday across the fortnight',
+  `weekdays hit: ${[...karaDays].join(', ')}`,
+)
 
 // A student with no line recorded reports as unknown, not as clean.
 const blank = m.workConflicts({ id: 'x', name: 'No line recorded' }, sessions, D.MAX_ABSENT_HOURS)
@@ -184,7 +240,7 @@ check(
 )
 
 console.log(`
-  ${sessions.length} dated classroom sessions students must attend — Tuesdays and Thursdays
+  ${sessions.length} dated classroom sessions — Mondays and Thursdays, 0800-1200
 ${results
   .map(
     (r) =>
