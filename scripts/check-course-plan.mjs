@@ -796,6 +796,43 @@ const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.ch
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
 
+// ----- the printed book, as against the modules --------------------------------
+//
+// Page extents come off the book's own table of contents. They are the only
+// measure of what a student is actually holding: module run time says how long
+// the Navigate lecture plays, and the two disagree by a lot — chapter 5 is
+// eleven minutes of module against 36 pages of text.
+{
+  const byNum = [...m.N.CHAPTER_ASSETS].sort((a, b) => a.chapter - b.chapter)
+  check(byNum.length === 42, `all 42 chapters carry page extents, got ${byNum.length}`)
+  const bad = byNum.filter((c) => !(c.startPage > 0) || !(c.pages > 0))
+  check(bad.length === 0, 'every chapter has a start page and an extent', bad.map((c) => c.chapter).join(', '))
+
+  // The extents have to CHAIN: each chapter starts where the last one ended.
+  // A mistyped page number is invisible on its own and obvious here.
+  const gaps = []
+  for (let i = 1; i < byNum.length; i++) {
+    const prevEnd = byNum[i - 1].startPage + byNum[i - 1].pages
+    if (prevEnd !== byNum[i].startPage) {
+      gaps.push(`ch${byNum[i - 1].chapter} ends p${prevEnd}, ch${byNum[i].chapter} starts p${byNum[i].startPage}`)
+    }
+  }
+  check(gaps.length === 0, 'the chapter page extents chain without gap or overlap', gaps.join('; '))
+  check(byNum[0].startPage === 2, `chapter 1 starts on page 2, got ${byNum[0].startPage}`)
+  const lastEnd = byNum[41].startPage + byNum[41].pages
+  check(lastEnd === 2027, `chapter 42 ends where the glossary begins, p2027, got p${lastEnd}`)
+
+  // pageRange collapses a contiguous run, which is the whole reason it exists.
+  check(
+    m.N.pageRange([30, 31, 32]) === '1395-1530',
+    `three consecutive chapters read as one range, got "${m.N.pageRange([30, 31, 32])}"`,
+  )
+  check(
+    m.N.pageRange([5, 7]).includes(','),
+    `two chapters that are not adjacent read as two ranges, got "${m.N.pageRange([5, 7])}"`,
+  )
+}
+
 // ----- instruments that exist, and instruments that do not --------------------
 //
 // gradingComponent says where a SCORE goes. It says nothing about whether the

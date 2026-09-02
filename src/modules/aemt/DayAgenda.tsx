@@ -7,7 +7,7 @@ import {
   type ScheduleRow,
 } from '../../data/aemt'
 import { assessment, SESSION_TEMPLATE } from '../../data/aemtAssessments'
-import { chapterAssets, skillDrills } from '../../data/navigateAssets'
+import { chapterAssets, chapterPages, pageRange, skillDrills } from '../../data/navigateAssets'
 import { standardLabel } from '../../data/aemtStandards'
 import { skillSheet } from '../../data/aemtSkills'
 import type { AemtSession } from '../../types'
@@ -108,7 +108,8 @@ function SessionBlock({ session, allRows }: { session: AemtSession; allRows: Sch
             What they were told to do first
           </div>
           <div className="help-text" style={{ marginTop: 0 }}>
-            Chapters {chapters.join(', ')} — read, module, flashcards and practice activity
+            Chapters {chapters.join(', ')} (pp. {pageRange(chapters)}, {chapterPages(chapters)} pp)
+            {' '}— read, module, flashcards and practice activity
             {moduleMinutes ? `, ${moduleMinutes} minutes of module time` : ''}.{' '}
             <strong>Assume they have met this material; do not re-deliver it.</strong>
           </div>
