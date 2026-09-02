@@ -20,7 +20,7 @@
 // way to never ship it twice.
 //
 // Run: node scripts/check-course-plan.mjs
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -795,6 +795,42 @@ check(
 const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.chapters ?? []), 0)
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
+
+// ----- pre-class work must not read as a class, in any render path -----------
+//
+// Pre-class reading is FILED as didactic, because the filed didactic total
+// includes it. On a screen that made 12 October read as two classes the same
+// morning: the Navigate reading and the four-hour session, both stamped
+// "Didactic".
+//
+// It was fixed once in the read-only row and missed in the editable card,
+// which is the path a coordinator actually sees — so the bug survived the fix
+// and was reported again. This reads the source because the defect is in the
+// rendering, and what it guards is that NO path prints a session's raw kind
+// where a reader will take it for what the session is.
+{
+  const tab = readFileSync(join(SRC, 'modules/aemt/SessionsTab.tsx'), 'utf8')
+  const labelled = (tab.match(/sessionKindLabel\(/g) ?? []).length
+  check(
+    labelled >= 2,
+    `both the read-only row and the editable card label the session — ${labelled} call(s)`,
+  )
+  // The pattern that caused it: reading the label straight off KINDS by kind,
+  // which cannot tell homework from a classroom hour because both are
+  // 'didactic'. One use is legitimate — inside sessionKindLabel itself, which
+  // is where the assignment case is handled first — so that body is removed
+  // before looking. Anywhere else is a render path that will print "Didactic"
+  // on a student's reading.
+  const helper = /function sessionKindLabel\([\s\S]*?\n\}/.exec(tab)
+  check(!!helper, 'sessionKindLabel is where the label is decided')
+  const elsewhere = tab.replace(helper?.[0] ?? '', '')
+  const raw = (elsewhere.match(/KINDS\.find\(\(k\) => k\.value === session\.kind\)/g) ?? []).length
+  check(
+    raw === 0,
+    'no render path outside that helper takes its label straight from the session kind',
+    `${raw} occurrence(s) of the pattern that stamped "Didactic" on pre-class reading`,
+  )
+}
 
 // ----- the printed book, as against the modules --------------------------------
 //

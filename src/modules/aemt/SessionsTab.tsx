@@ -98,8 +98,24 @@ function SessionRow({
     )
   }
 
+  const assignment = session.delivery === 'assignment'
+
   return (
     <div className="card" style={{ padding: 12 }}>
+      {/*
+        The editable card is what a coordinator sees, and it showed nothing but
+        a Kind dropdown reading "Didactic" — the same word on the pre-class
+        reading and on the class itself, so 12 October read as two classes the
+        same morning. The read-only row was fixed and this one was not.
+      */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span className={`pill ${sessionKindCls(session)}`}>{sessionKindLabel(session)}</span>
+        {assignment && (
+          <span className="meta">
+            Student work — nobody is in a room for this
+          </span>
+        )}
+      </div>
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
         <label className="subtle" style={{ fontSize: 12 }}>
           Date
@@ -153,7 +169,7 @@ function SessionRow({
           />
         </label>
         <label className="subtle" style={{ fontSize: 12 }}>
-          Kind
+          {assignment ? 'Hour column' : 'Kind'}
           <select
             value={session.kind}
             onChange={(e) => updateSession(session.id, { kind: e.target.value as AemtSessionKind })}
@@ -165,6 +181,13 @@ function SessionRow({
               </option>
             ))}
           </select>
+          {assignment && (
+            <span className="meta" style={{ display: 'block', marginTop: 2 }}>
+              Reads Didactic because the filed didactic total includes the
+              Navigate modules — 107.5 h is 72 h in a room plus 35.5 h at home.
+              It is the hour column, not what the session is.
+            </span>
+          )}
         </label>
         <label className="subtle" style={{ fontSize: 12 }}>
           Instructor
