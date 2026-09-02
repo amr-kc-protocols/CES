@@ -796,6 +796,52 @@ const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.ch
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
 
+// ----- prerequisites that have been settled ----------------------------------
+//
+// A closed prerequisite stays on the page rather than being deleted: what was
+// settled, and when, is part of the filing record. So it has to carry a real
+// date, and the sentence must not ALSO say "done" in prose — two conventions
+// for the same fact is how one of them goes stale.
+{
+  const all = m.KBEMS_DEADLINES.flatMap((d) =>
+    (d.prerequisites ?? []).map((p) => [d.id, m.prerequisite(p)]),
+  )
+  const badDate = all.filter(
+    ([, p]) => p.done !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(p.done),
+  )
+  check(
+    badDate.length === 0,
+    'every settled prerequisite carries an ISO date',
+    badDate.map(([id, p]) => `${id}: ${p.done}`).join(', '),
+  )
+  // Nothing is settled in the future, and nothing before this work began.
+  const outOfRange = all.filter(([, p]) => p.done && (p.done > new Date().toISOString().slice(0, 10) || p.done < '2026-01-01'))
+  check(
+    outOfRange.length === 0,
+    'no prerequisite is settled on a date that has not happened',
+    outOfRange.map(([id, p]) => `${id}: ${p.done}`).join(', '),
+  )
+  const prosaic = all.filter(([, p]) => /\b(done|complete|signed|confirmed)\b[^.]{0,20}\d{4}/i.test(p.what))
+  check(
+    prosaic.length === 0,
+    'no prerequisite records being settled in its own sentence instead of in `done`',
+    prosaic.map(([id, p]) => `${id}: "${p.what.slice(0, 70)}"`).join('\n        '),
+  )
+  // The application asserts lab-simulated IO satisfies the regulation. It may
+  // only do that while the requirement actually allows the lab setting.
+  const io = m.CLINICAL_REQUIREMENTS.find((r) => r.id === 'io')
+  const ioAnswered = all.find(([, p]) => /intraosseous/i.test(p.what))?.[1]
+  check(
+    !ioAnswered?.done || (io && io.allowedSettings.includes('lab')),
+    'the IO question is only closed while the requirement still allows the lab setting',
+    io ? `io allows ${io.allowedSettings.join(', ')}` : 'no io requirement',
+  )
+  check(
+    !ioAnswered?.done || !!ioAnswered.evidence,
+    'a prerequisite closed on someone’s answer says what is retained as the record of it',
+  )
+}
+
 // ----- every authored date, everywhere ----------------------------------------
 //
 // The narrow checks above each guard one field that went stale once. This

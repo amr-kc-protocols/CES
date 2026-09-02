@@ -303,6 +303,43 @@ check(
   unreadable.join('; '),
 )
 
+// ----- the deadlines the panel shows against the ones the filing states ------
+//
+// Two things compute when the KBEMS application is due: deadlineDates(), which
+// the application document prints, and useDeadlines(), which the panel shows.
+// They disagreed. The panel anchored to the earliest SESSION ROW, and the
+// earliest row is the pre-course reading block — assigned before the course
+// opens, carrying no classroom time. Every deadline landed a week early, so
+// the panel said the filing was due "in 3 days" directly beneath its own note
+// saying the 11th, which is nine. K.A.R. 109-11-1a(c) counts from the first
+// scheduled course session, and homework is not a session.
+{
+  const shown = m.useDeadlines().filter((d) => d.course.id === course.id)
+  check(shown.length === D.KBEMS_DEADLINES.length, 'the panel shows every deadline')
+  const wrong = []
+  for (const d of shown) {
+    const { due } = D.deadlineDates(d.deadline)
+    if (d.dueDate !== due) wrong.push(`${d.deadline.id}: panel ${d.dueDate}, filing states ${due}`)
+  }
+  check(
+    wrong.length === 0,
+    'the deadline panel and the filed application compute the same dates',
+    wrong.join('; '),
+  )
+  const approval = shown.find((d) => d.deadline.id === 'course-approval')
+  check(
+    approval?.dueDate === '2026-09-12',
+    `the application is due 30 days before the first class, got ${approval?.dueDate}`,
+  )
+  // The pre-course block is in the course and must stay out of the anchor.
+  const pre = m.useSessions(course.id).filter((s) => s.preCourse)
+  check(pre.length > 0, 'the seeded course really does carry a pre-course block')
+  check(
+    pre.every((s) => s.date < D.KC_START_DATE),
+    'the pre-course block is dated before the course opens, which is why it cannot anchor',
+  )
+}
+
 const classSessions = m.useSessions(course.id).filter((s) => s.kind !== 'assignment')
 const missed = classSessions.slice(2, 4)
 for (const s of missed) m.setAttendance(course.id, student.id, s.id, 'absent')

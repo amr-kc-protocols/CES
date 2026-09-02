@@ -2398,8 +2398,27 @@ export interface KbemsDeadline {
    * Conditions that must already hold before this can be submitted. The portal
    * enforces these by refusing to finalize, which surfaces them on the day of
    * filing — too late to fix the ones that need another person to act.
+   *
+   * A closed item carries `done` rather than being deleted: what has been
+   * settled, and when, is as much a part of the filing record as what has
+   * not. It was previously recorded by appending "— done, 28 August 2026" to
+   * the sentence, which read correctly and counted wrongly — the panel offers
+   * "six things that must already be true" whether six are open or one is.
    */
-  prerequisites?: string[]
+  prerequisites?: (string | Prerequisite)[]
+}
+
+export interface Prerequisite {
+  what: string
+  /** When it was settled. Absent means still open. */
+  done?: string
+  /** What is retained as evidence, where the item needs a document. */
+  evidence?: string
+}
+
+/** A prerequisite in one shape, whichever way it was written. */
+export function prerequisite(p: string | Prerequisite): Prerequisite {
+  return typeof p === 'string' ? { what: p } : p
 }
 
 /**
@@ -2436,7 +2455,10 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
       'Every instructor is set up as INSTRUCTIONAL STAFF. This is the step people think the roster covers and it does not: a personnel-roster entry makes someone visible to the service, and only the Instructional Staff assignment makes them selectable on a course. Finalize is what surfaces the gap, on the day of filing.',
       'Both markets’ instructors are attached to THIS course, not only to their own operation.',
       'Every instructor has a Kansas Licensure system account of their own.',
-      'Every instructor appears on the service personnel roster — done, 28 August 2026.',
+      {
+        what: 'Every instructor appears on the service personnel roster.',
+        done: '2026-08-28',
+      },
     ],
   },
   {
@@ -2447,10 +2469,18 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     basis: 'program',
     note: 'None of this is same-day work and all of it blocks the filing. A CES planning target set ahead of the approval deadline so the items that need another person to act have somewhere to fail early rather than on the day of filing.',
     prerequisites: [
-      'Medical director signature.',
+      {
+        what: 'Medical director signature.',
+        done: '2026-09-02',
+      },
       'Letters or contracts from the ambulance service directors and the clinical facility administrators — for both markets.',
       'Instructor-of-record and lab-instructor roster, both markets.',
-      'Written KBEMS answer on whether lab-simulated intraosseous infusion satisfies K.A.R. 109-11-8(a)(4). The answer changes what the clinical section of the application says, so it has to come before the application, not after it.',
+      {
+        what: 'Written KBEMS answer on whether lab-simulated intraosseous infusion satisfies K.A.R. 109-11-8(a)(4). The answer changes what the clinical section of the application says, so it has to come before the application, not after it.',
+        done: '2026-09-02',
+        evidence:
+          'ANSWERED: lab-simulated reps are sufficient, which is what CLINICAL_REQUIREMENTS has said all along — the `io` requirement allows the lab setting and counts simulation and live reps equally. File the board’s written answer against the course record: the application asserts this, and an audit three years out will ask what it was asserted on.',
+      },
       'Navigate Fourth Edition course shell built: modules assigned by week, practice activities released, TestPrep configured, gradebook weighted to the revised model.',
       'Hospital student onboarding started — badging, EHR access, immunisation verification and background checks commonly run four to six weeks at a 504-bed teaching hospital. Waiting for the course start slips Phase 2 and everything downstream of it.',
     ],

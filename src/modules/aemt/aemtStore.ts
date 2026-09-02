@@ -1430,11 +1430,17 @@ export function useDeadlines(): DueDeadline[] {
     for (const course of courses) {
       const mine = sessions
         .filter((s) => s.courseId === course.id && s.date)
-        .map((s) => s.date)
-        .sort()
+        .sort((a, b) => (a.date < b.date ? -1 : 1))
+      // K.A.R. 109-11-1a(c) counts back from the first scheduled course
+      // SESSION. The pre-course block is assigned reading, carries no
+      // classroom time and is dated before the course opens on purpose — it
+      // is not a session, and anchoring to it moved every KBEMS deadline a
+      // week early. The filing deadline read "in 3 days" beside its own note
+      // saying the 11th, which is nine.
+      const inCourse = mine.filter((s) => !s.preCourse)
       // Fall back to the course's own dates before any session exists.
-      const first = mine[0] ?? course.startDate
-      const last = mine[mine.length - 1] ?? course.endDate
+      const first = inCourse[0]?.date ?? course.startDate
+      const last = mine[mine.length - 1]?.date ?? course.endDate
       for (const deadline of KBEMS_DEADLINES) {
         const anchor = deadline.anchor === 'first-session' ? first : last
         if (!anchor) continue

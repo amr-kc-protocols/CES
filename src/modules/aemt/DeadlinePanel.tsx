@@ -5,6 +5,7 @@ import { formatDate, todayISO } from '../../lib/date'
 import { useDeadlines, setDeadlineSubmission, useRecordSafety } from './aemtStore'
 import type { DueDeadline } from './aemtStore'
 import { useCan } from '../../lib/role'
+import { prerequisite } from '../../data/aemt'
 import type { AemtDeadlineRecord } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -236,23 +237,36 @@ function TimelineItem({
 
           <div className="help-text">{d.deadline.note}</div>
 
-          {d.deadline.prerequisites && !d.done && (
-            <details
-              className="tl-prereqs help-text"
-              open={prereqsOpen}
-              onToggle={(e) => setPrereqsOpen(e.currentTarget.open)}
-            >
-              <summary>
-                {d.deadline.prerequisites.length} things that must already be true before this can
-                be filed
-              </summary>
-              <ul>
-                {d.deadline.prerequisites.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
-            </details>
-          )}
+          {d.deadline.prerequisites && !d.done && (() => {
+            // Count what is OPEN, not what was ever listed. A settled item
+            // stays on the page — what has been closed, and when, is part of
+            // the filing record — but it must not be counted as outstanding
+            // nine days before a deadline.
+            const all = d.deadline.prerequisites.map(prerequisite)
+            const open = all.filter((p) => !p.done)
+            return (
+              <details
+                className="tl-prereqs help-text"
+                open={prereqsOpen}
+                onToggle={(e) => setPrereqsOpen(e.currentTarget.open)}
+              >
+                <summary>
+                  {open.length === 0
+                    ? `all ${all.length} settled`
+                    : `${open.length} of ${all.length} still to be true before this can be filed`}
+                </summary>
+                <ul>
+                  {all.map((p) => (
+                    <li key={p.what} style={p.done ? { opacity: 0.6 } : undefined}>
+                      {p.done && <strong>✓ {formatDate(p.done)} — </strong>}
+                      {p.what}
+                      {p.evidence && <div className="meta">{p.evidence}</div>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )
+          })()}
         </div>
 
         {manageAcademy && (
