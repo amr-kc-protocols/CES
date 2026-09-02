@@ -133,7 +133,7 @@ export function syllabusBlocks(): Block[] {
       'No hours for either are filed here and neither appears in the schedule. Both are still expected of you: each operation runs its own American Heart Association classes, and you take them there — Kansas City students with AMR Kansas City, Wichita students with AMR Wichita. Arrange yours through your own operation, and ask the primary instructor if you are not sure who to speak to.',
     ),
     p(
-      'The Navigate cardiovascular module assigned over the Thanksgiving week and the pediatric module in week 13 double as pre-course reading for them, so the timing works if you take them alongside this course.',
+      'The Navigate cardiovascular module in week 8 and the pediatric module in week 13 double as pre-course reading for them, so the timing works if you take them alongside this course.',
     ),
 
     h1('Goals and objectives'),
@@ -321,7 +321,7 @@ export function syllabusBlocks(): Block[] {
       { bold: true },
     ),
     p(
-      `No session falls on a holiday. The calendar absorbs them rather than extending the course: week 8 runs Monday only, and a two-week break runs ${longDate(WINTER_BREAK.start)} to ${longDate(WINTER_BREAK.end)}. The break is not a pause — students complete concentrated clinical and field shifts across it together with three dated retrieval assignments.`,
+      `No session falls on a holiday. The calendar absorbs them rather than extending the course: week 7 runs Monday only, and a two-week break runs ${longDate(WINTER_BREAK.start)} to ${longDate(WINTER_BREAK.end)}. The break is not a pause — students complete concentrated clinical and field shifts across it together with three dated retrieval assignments.`,
     ),
     ...KC_HOLIDAYS.map((h) => bullet(`${longDate(h.date)} — ${h.name}. ${h.absorbedBy}`)),
     spacer(),

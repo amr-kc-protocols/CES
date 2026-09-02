@@ -5,7 +5,7 @@
 // the KC Metro operations roster, are the fixtures below — because the defect
 // this exists to catch is not hypothetical:
 //
-//   Class is Tuesday and Thursday, 0900-1300. Three of the four hold lines that
+//   Class is Monday and Thursday, 0800-1200. Three of the four hold lines that
 //   work Thursdays, and one works both class days. Nobody had put the two
 //   schedules next to each other, so the collision was going to surface as an
 //   attendance-cap failure somewhere around week six.
@@ -115,7 +115,7 @@ check(sessions.length > 0, 'the filed schedule has dated sessions to compare aga
 // AHA courses were still in the schedule.
 check(
   sessions.every((s) => s.delivery === 'f2f'),
-  'every session students must attend is now a Tue/Thu classroom row',
+  'every session students must attend is now a Monday or Thursday classroom row',
   sessions.filter((s) => s.delivery !== 'f2f').map((s) => `${s.date} ${s.delivery}`).join(', '),
 )
 
@@ -254,4 +254,44 @@ console.log(
     ? '\ncheck-work-pattern: the line and the class schedule are compared correctly, midnight included.'
     : `\n${failed} check(s) failed.`,
 )
+
+// ----- the numbers the MLK decision rests on ---------------------------------
+//
+// The schedule note argues Tuesday 19 January is the cheapest day available:
+// "two hours of collision against three on a normal Monday and six on a normal
+// Thursday". Those are claims about these six work lines, written once and
+// never recomputed. Assert them, so moving a date or a line either keeps the
+// argument true or fails here.
+{
+  const byDate = new Map()
+  for (const r of results) {
+    for (const c of r.clashes) byDate.set(c.session.date, (byDate.get(c.session.date) ?? 0) + c.overlapHours)
+  }
+  const cost = (d) => byDate.get(d) ?? 0
+  const dow = (d) => new Date(`${d}T00:00:00Z`).getUTCDay()
+  const dates = sessions.map((s) => s.date)
+  const offPattern = dates.filter((d) => !D.KC_CLASS_PATTERN.days.includes(dow(d)))
+  check(
+    offPattern.length === 1 && offPattern[0] === '2027-01-19',
+    'exactly one session sits off the Monday/Thursday pattern',
+    offPattern.join(', '),
+  )
+  const tuesday = cost('2027-01-19')
+  const mondays = dates.filter((d) => dow(d) === 1).map(cost)
+  const thursdays = dates.filter((d) => dow(d) === 4).map(cost)
+  const cheapestMonday = Math.min(...mondays.filter((h) => h > 0))
+  const cheapestThursday = Math.min(...thursdays)
+  check(tuesday === 2, `the MLK Tuesday costs two hours of collision, got ${tuesday}`)
+  check(
+    cheapestMonday === 3,
+    `a normal Monday that costs anything costs three, got ${cheapestMonday}`,
+  )
+  check(cheapestThursday === 6, `the cheapest Thursday costs six, got ${cheapestThursday}`)
+  check(
+    tuesday < cheapestMonday && tuesday < cheapestThursday,
+    'the Tuesday really is the cheapest day the session could have taken',
+    `Tue ${tuesday} h vs Mon ${cheapestMonday} h vs Thu ${cheapestThursday} h`,
+  )
+}
+
 process.exit(failed === 0 ? 0 : 1)

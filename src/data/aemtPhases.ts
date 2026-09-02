@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------------
 
 import { addDays } from '../lib/date'
+import { WINTER_BREAK } from './aemt'
 import type { AemtClinicalPhase, SkillClearanceCode } from '../types'
 
 // ----- skill clearances ------------------------------------------------------
@@ -215,12 +216,47 @@ export const PLANNED_SHIFTS = PHASE_TEMPLATE.reduce((n, p) => n + p.shiftsRequir
  * an instructor who moves a window because a site changed its availability
  * keeps that edit until they deliberately re-seed.
  */
+/**
+ * The break phase is the WINTER BREAK, not a day-count that happened to land on
+ * it once.
+ *
+ * Phase 3 exists because there is no class for a fortnight — that is the whole
+ * reason it can carry four concentrated field shifts. It was expressed as an
+ * offset from the course start, which was true of the cohort it was written
+ * for and quietly stopped being true the moment the start date moved and the
+ * holidays did not: phase 3 drifted to 27 December while the break stayed on
+ * 21 December, so a plan built from it would have told students to run
+ * concentrated shifts through a week when class had resumed.
+ *
+ * So phases 3 and 4 are anchored to the break instead, and phase 2 ends where
+ * the break begins. Only phases 0 to 2 are counted from day one, which is what
+ * they are actually about — how long before a student is cleared to do
+ * anything.
+ */
+function windowFor(p: PhaseTemplate, startDate: string): { start: string; end: string } {
+  const breakStart = WINTER_BREAK.start
+  const breakEnd = WINTER_BREAK.end
+  if (p.ordinal === 3) return { start: breakStart, end: breakEnd }
+  if (p.ordinal === 4) {
+    return { start: addDays(breakEnd, 1), end: addDays(startDate, p.endOffsetDays) }
+  }
+  if (p.ordinal === 2) {
+    // Ends the Friday before the break: the weekend between belongs to
+    // neither, which is true and better than pretending one of them owns it.
+    return { start: addDays(startDate, p.startOffsetDays), end: addDays(breakStart, -3) }
+  }
+  return {
+    start: addDays(startDate, p.startOffsetDays),
+    end: addDays(startDate, p.endOffsetDays),
+  }
+}
+
 export function seedPhases(startDate: string): AemtClinicalPhase[] {
   return PHASE_TEMPLATE.map((p) => ({
     ordinal: p.ordinal,
     name: p.name,
-    windowStart: addDays(startDate, p.startOffsetDays),
-    windowEnd: addDays(startDate, p.endOffsetDays),
+    windowStart: windowFor(p, startDate).start,
+    windowEnd: windowFor(p, startDate).end,
     requiresClearance: p.requiresClearance,
     shiftsRequired: p.shiftsRequired,
     hospitalShifts: p.hospitalShifts,
@@ -272,9 +308,9 @@ export interface DeficitCheckpoint {
 
 export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
   {
-    id: 'wk8',
-    offsetDays: 49,
-    courseAnchor: 'Week 8 — the Tuesday before Thanksgiving',
+    id: 'wk7',
+    offsetDays: 42,
+    courseAnchor: 'Week 7 — the last class before Thanksgiving',
     shiftsFloor: 3,
     floors: { venipuncture: 6, assessment: 2, pcr: 2, calls: 2 },
     clearances: ['ecg'],
@@ -282,9 +318,9 @@ export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
       'Assign one added shift before 5 December. If the shortfall is site availability rather than the student, escalate to the site now — that is a lead-time problem and it does not fix itself.',
   },
   {
-    id: 'wk11',
-    offsetDays: 72,
-    courseAnchor: 'Week 11 — the last class before the winter break',
+    id: 'wk10',
+    offsetDays: 66,
+    courseAnchor: 'Week 10 — the last class before the winter break',
     shiftsFloor: 9,
     floors: {
       venipuncture: 16,
@@ -300,8 +336,8 @@ export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
   },
   {
     id: 'wk12',
-    offsetDays: 93,
-    courseAnchor: 'Week 12 — return from the break, the day after Simulation #1',
+    offsetDays: 94,
+    courseAnchor: 'Week 12 — the class after Simulation #1',
     shiftsFloor: 13,
     floors: { venipuncture: 20, infusion: 10, assessment: 12, pcr: 7, calls: 10 },
     actionIfBelow:
@@ -309,7 +345,7 @@ export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
   },
   {
     id: 'wk14',
-    offsetDays: 107,
+    offsetDays: 108,
     courseAnchor: 'Week 14 — Gate 3',
     shiftsFloor: 16,
     floors: {},
@@ -319,8 +355,8 @@ export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
   },
   {
     id: 'end',
-    offsetDays: 121,
-    courseAnchor: 'Course end',
+    offsetDays: 122,
+    courseAnchor: 'Week 16 — the last class day',
     shiftsFloor: 18,
     floors: {},
     allMinimumsExcept: [],

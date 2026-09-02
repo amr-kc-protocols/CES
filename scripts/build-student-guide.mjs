@@ -345,7 +345,7 @@ const doc = new Document({
 
         H1('How this course works'),
         P_(
-          `Sixteen instructional weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks, Tuesdays and Thursdays 0900–1300, with two American Heart Association provider courses on Saturdays and a two-week break over the holidays. Kansas City and Wichita run this as one class: one schedule, one standard, one set of exams. Your clinical and field shifts are at your own operation's sites.`,
+          `Sixteen instructional weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks, ${m.classPatternSentence()}, with a two-week break over the holidays. Kansas City and Wichita run this as one class: one schedule, one standard, one set of exams. Your clinical and field shifts are at your own operation's sites.`,
         ),
         H2('The lecture is not in the classroom'),
         P_(

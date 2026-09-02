@@ -32,6 +32,7 @@ import {
   KC_START_DATE,
   scheduleTotals,
   WINTER_BREAK,
+  KC_HOLIDAYS,
 } from '../../data/aemt'
 import ScheduleCalendar from './ScheduleCalendar'
 import { addDays } from '../../lib/date'
@@ -468,19 +469,26 @@ function SeedModal({
         are the agreement, not a projection, which is why re-seeding cannot quietly move them.
         <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
           <li>
-            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Monday only. Absorbing it
-            rather than chasing it protects the Monday/Thursday rhythm.
-          </li>
-          <li>
             <strong>A deliberate two-week break</strong>, {formatDate(WINTER_BREAK.start)} to{' '}
             {formatDate(WINTER_BREAK.end)}, replaces four sessions that would have been half empty.
             Christmas Eve, Christmas Day, New Year's Eve and New Year's Day all fall inside it. The
             break is loaded, not idle — concentrated clinical and field shifts plus three dated
             TestPrep sets.
           </li>
-          <li>
-            MLK Day and Presidents' Day are Mondays and never touch the pattern.
-          </li>
+          {/*
+            Written out by hand this read "MLK Day and Presidents' Day are
+            Mondays and never touch the pattern" — true on the Tuesday/Thursday
+            calendar it was written for, and false the moment class moved to
+            Mondays. The holidays outside the break say for themselves how they
+            are handled.
+          */}
+          {KC_HOLIDAYS.filter(
+            (h) => h.date < WINTER_BREAK.start || h.date > WINTER_BREAK.end,
+          ).map((h) => (
+            <li key={h.date}>
+              <strong>{h.name}</strong>, {formatDate(h.date)}. {h.absorbedBy}
+            </li>
+          ))}
         </ul>
       </div>
 

@@ -1005,8 +1005,8 @@ export interface AemtStudent {
  * fact about the person that decides three things the program otherwise finds
  * out the hard way:
  *
- *   WHICH CLASS SESSIONS THEY CANNOT ATTEND. Class runs Tuesday and Thursday
- *   0900-1300. A 1236 line working Thursdays noon-to-midnight loses the last
+ *   WHICH CLASS SESSIONS THEY CANNOT ATTEND. Class runs Monday and Thursday
+ *   0800-1200. A 1236 line working Thursdays noon-to-midnight loses the last
  *   hour of every Thursday — sixteen hours across the course, against an
  *   eight-hour absence cap. That is a course failure arranged in advance, and
  *   it is knowable in week 0 instead of week 6.

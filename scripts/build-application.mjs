@@ -394,7 +394,7 @@ const doc = new Document({
 
         H2('Student Attendance Policies'),
         P(
-          `Classroom, lecture, and lab skill performance are scheduled every Tuesday and Thursday from 9am to 1pm, with two American Heart Association provider courses delivered on Saturdays as shown in the schedule. Students are required to attend all scheduled meeting times to successfully meet the course objectives. In the event of an unavoidable absence, it is the student’s responsibility to contact the instructor to obtain the missed information.`,
+          `Classroom, lecture, and lab skill performance are scheduled ${m.classPatternSentence()}, as shown in the schedule. Students are required to attend all scheduled meeting times to successfully meet the course objectives. In the event of an unavoidable absence, it is the student’s responsibility to contact the instructor to obtain the missed information.`,
         ),
         P(
           `Missing more than ${m.MAX_ABSENT_HOURS} hours of the scheduled meeting time triggers a documented make-up requirement: ${m.ABSENCE_MAKEUP.requirement} A student who does not complete the make-up has not met the course objectives and does not complete the course. ${m.ABSENCE_MAKEUP.note}`,
@@ -522,7 +522,7 @@ const doc = new Document({
         P(
           `Class location (unless otherwise noted): AMR Kansas City headquarters, with AMR Wichita joining by Teams. Class dates ${longDate(
             m.KC_START_DATE,
-          )} to ${longDate(m.KC_END_DATE)}. F2F — 0900 to 1300, Tuesday and Thursday. The two American Heart Association provider courses are delivered on the Saturdays shown. The first row of the table is prerequisite work assigned before the course opens and carries no classroom time; it is dated ${longDate(
+          )} to ${longDate(m.KC_END_DATE)}. F2F — ${m.classPatternSentence()}. Sessions outside that pattern are marked in the table. The first row of the table is prerequisite work assigned before the course opens and carries no classroom time; it is dated ${longDate(
             m.PRE_COURSE.date,
           )} because that is when it falls due, and it sits inside the table rather than outside it so the schedule accounts for every hour the student is assigned.`,
         ),
@@ -563,13 +563,22 @@ const doc = new Document({
 
         H1('(c) Application Submission'),
         BULLET(
-          `The first scheduled course session is ${longDate(
-            m.KC_START_DATE,
-          )}. K.A.R. 109-11-1a(c) requires this application in the board office not later than 30 calendar days before it — ${longDate(
-            '2026-09-06',
-          )}. That is a Sunday and the following Monday is Labor Day, so the application is submitted by ${longDate(
-            '2026-09-04',
-          )}.`,
+          (() => {
+            const approval = m.KBEMS_DEADLINES.find((d) => d.id === 'course-approval')
+            const { due, filedBy } = m.deadlineDates(approval)
+            const opening = `The first scheduled course session is ${longDate(
+              m.KC_START_DATE,
+            )}. K.A.R. 109-11-1a(c) requires this application in the board office not later than ${-approval.offsetDays} calendar days before it — ${longDate(
+              due,
+            )}.`
+            // Only say why the filing date differs when it does. The sentence
+            // was written out by hand and outlived the start date it described.
+            return filedBy === due
+              ? opening
+              : `${opening} That is a ${weekdayOf(due)}, so the application is submitted by ${weekdayOf(
+                  filedBy,
+                )} ${longDate(filedBy)}.`
+          })(),
         ),
 
         H1('(d) Approved Initial Course Shall Meet the Following Conditions'),

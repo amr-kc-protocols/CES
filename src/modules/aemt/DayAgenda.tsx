@@ -47,7 +47,7 @@ function SessionBlock({ session, allRows }: { session: AemtSession; allRows: Sch
   const row = ROW_BY_TITLE[session.title]
   const assignment = session.delivery === 'assignment'
   const teacher = instructorName(row) ?? session.instructor
-  const pre = preClassFor(row?.week, allRows)
+  const pre = preClassFor(row?.preClassWeek ?? row?.week, allRows)
   const chapters = pre?.chapters ?? []
   const drills = chapters.length ? skillDrills(chapters) : []
   const events = (row?.assessmentIds ?? []).map((id) => assessment(id)).filter(Boolean)

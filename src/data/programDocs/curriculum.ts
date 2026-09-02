@@ -82,7 +82,9 @@ export function curriculumBlocks(): Block[] {
         st.code,
         st.label,
         weeks.map((w) => (w === 0 ? 'Pre-course' : `Week ${w}`)).join(', '),
-        classDays.length ? classDays.map((c) => dayDate(c.date)).join(', ') : 'Pre-course, before 6 Oct',
+        classDays.length
+          ? classDays.map((c) => dayDate(c.date)).join(', ')
+          : `Pre-course, before ${dayDate(KC_START_DATE)}`,
       ])
     }
   }
@@ -90,7 +92,7 @@ export function curriculumBlocks(): Block[] {
   // ----- lesson plans ----------------------------------------------------------
   
   function lessonPlan(r: ScheduleRow): Block[] {
-    const pre = preClassFor(r.week)
+    const pre = preClassFor(r.preClassWeek ?? r.week)
     const chapters = pre?.chapters ?? []
     const drills = N.skillDrills(chapters)
     const events = (r.assessmentIds ?? [])

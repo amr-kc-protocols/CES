@@ -19,6 +19,7 @@
 import { useMemo, useState } from 'react'
 import { formatDate, fromISODate, monthKey, monthLabel, todayISO, toISODate } from '../../lib/date'
 import { BLOCK_SHORT_BY_TITLE, KC_SCHEDULE, holidayOn } from '../../data/aemt'
+import { toTheMinute } from './aemtStore'
 import DayAgenda from './DayAgenda'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
 
@@ -253,7 +254,7 @@ export default function ScheduleCalendar({
           <strong>
             {unplaced.length} session{unplaced.length === 1 ? '' : 's'} with no date
           </strong>{' '}
-          cannot appear on a calendar — {unplaced.reduce((n, s) => n + s.hours, 0)} h carried by
+          cannot appear on a calendar — {toTheMinute(unplaced.reduce((n, s) => n + s.hours, 0))} h carried by
           sessions nobody has placed yet. They are listed in the list view.
         </div>
       )}

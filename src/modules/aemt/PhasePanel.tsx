@@ -205,7 +205,7 @@ export default function PhasePanel({
         in the rotation a date falls; a checkpoint is a DATE ON WHICH SOMEONE
         LOOKS, tied to a class the instructor is already standing in. That
         pairing is what makes it happen — nobody remembers to read a tally on
-        24 November, but everybody is in the room that morning for the week 8
+        23 November, but everybody is in the room that morning for the week 7
         quiz.
  
         Future checkpoints are shown too. "Four shifts short of the 17 December

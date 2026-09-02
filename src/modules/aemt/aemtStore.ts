@@ -380,6 +380,20 @@ export function parseClock(t: string | undefined): number | undefined {
 }
 
 /** Minutes past midnight back to 'HH:MM'. Returns undefined past the day's end. */
+/**
+ * Round an hour figure to the nearest minute.
+ *
+ * These are quarter- and tenth-hour figures summed in floating point and
+ * printed straight to the screen, which is how a course totalling exactly
+ * 107.5 didactic hours came to display 107.49999999999999. Every place that
+ * sums `hours` and shows the result has to go through this — it lived inside
+ * one such function, and the seeding toast, which sums separately, printed the
+ * raw figure to the instructor on the very first thing they do to a course.
+ */
+export function toTheMinute(hours: number): number {
+  return Math.round(hours * 60) / 60
+}
+
 export function formatClock(minutes: number): string | undefined {
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 24 * 60) return undefined
   const h = Math.floor(minutes / 60)
@@ -549,7 +563,7 @@ export function deleteSession(id: string): void {
  *
  * Hours are placed exactly as the proposal states them — didactic on Tuesday,
  * lab on Thursday, split evenly across the weeks a block spans. Blocks whose
- * week does not add up to the Tue/Thu 4+4 structure are reproduced faithfully
+ * week does not add up to the Monday/Thursday 4+4 structure are reproduced faithfully
  * rather than smoothed, so the reconciliation panel surfaces the mismatch
  * instead of this function hiding it.
  *
@@ -760,8 +774,8 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
   return {
     sessions: created.length,
-    didactic: created.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0),
-    lab: created.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0),
+    didactic: toTheMinute(created.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0)),
+    lab: toTheMinute(created.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0)),
   }
 }
 
@@ -1693,18 +1707,18 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
           else makeUpOwed.push(s)
         }
       }
-      const classAbsentHours = missed
-        .filter((s) => isClassroomSession(s.kind))
-        .reduce((sum, s) => sum + s.hours, 0)
+      const classAbsentHours = toTheMinute(
+        missed.filter((s) => isClassroomSession(s.kind)).reduce((sum, s) => sum + s.hours, 0),
+      )
       const totals = shiftHourTotals(shifts.filter((s) => s.studentId === student.id))
       return {
         student,
-        earned,
+        earned: toTheMinute(earned),
         clinicalHours: totals.hospital,
         fieldHours: totals.field,
         unattestedShiftHours: totals.unattested,
-        totalHours: earned + totals.hospital + totals.field,
-        missedHours: missed.reduce((sum, s) => sum + s.hours, 0),
+        totalHours: toTheMinute(earned + totals.hospital + totals.field),
+        missedHours: toTheMinute(missed.reduce((sum, s) => sum + s.hours, 0)),
         missed,
         makeUpOwed,
         makeUpsDone,
@@ -1850,7 +1864,7 @@ export function useCourseTotals(courseId: string | undefined): {
     () => ({
       students: students.filter((s) => s.status !== 'withdrawn').length,
       sessions: sessions.length,
-      scheduledHours: sessions.reduce((sum, s) => sum + s.hours, 0),
+      scheduledHours: toTheMinute(sessions.reduce((sum, s) => sum + s.hours, 0)),
     }),
     [students, sessions],
   )
@@ -2122,9 +2136,11 @@ export function shiftHourTotals(shifts: AemtClinicalShift[]): {
 } {
   const done = shifts.filter(attestationIsEvidence)
   return {
-    hospital: done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0),
-    field: done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0),
-    unattested: shifts.filter((s) => !attestationIsEvidence(s)).reduce((n, s) => n + s.hours, 0),
+    hospital: toTheMinute(done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0)),
+    field: toTheMinute(done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0)),
+    unattested: toTheMinute(
+      shifts.filter((s) => !attestationIsEvidence(s)).reduce((n, s) => n + s.hours, 0),
+    ),
   }
 }
 
@@ -3024,12 +3040,8 @@ export function courseHourTotals(sessions: AemtSession[]): {
     byKind[s.kind] += s.hours
     total += s.hours
   }
-  // To the minute. These are quarter- and tenth-hour figures summed in floating
-  // point and printed straight to the screen, which is how a course totalling
-  // exactly 107.5 didactic hours came to display 107.49999999999999.
-  const minute = (n: number) => Math.round(n * 60) / 60
-  for (const k of Object.keys(byKind) as AemtSessionKind[]) byKind[k] = minute(byKind[k])
-  return { total: minute(total), byKind }
+  for (const k of Object.keys(byKind) as AemtSessionKind[]) byKind[k] = toTheMinute(byKind[k])
+  return { total: toTheMinute(total), byKind }
 }
 
 // ----- completion readiness --------------------------------------------------

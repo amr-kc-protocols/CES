@@ -267,7 +267,42 @@ check(evalCheck().status === 'met', 'the gate passes once every instrument is ac
 
 // ----- make-ups ---------------------------------------------------------------
 
-m.seedKcSchedule(course.id, D.KC_START_DATE)
+const seeded = m.seedKcSchedule(course.id, D.KC_START_DATE)
+
+// ----- hours a person reads ---------------------------------------------------
+//
+// Every figure below is quarter- and tenth-hour values summed in floating
+// point. The seeding toast is the first thing an instructor sees after
+// building the plan, and it read "Created 49 sessions (107.49999999999999 h
+// didactic, 52 h lab)". Nothing was wrong with the schedule; the number was
+// simply printed raw. Assert it of every hour figure that reaches a screen —
+// a value that is not a whole number of minutes is one nobody can read.
+// Exact equality, not a tolerance. The error being caught is a value one part
+// in 10^14 away from the right one; any tolerance wide enough to feel safe
+// accepts it, which is how the first version of this check passed the bug it
+// was written for.
+const readable = (n) => n === Math.round(n * 60) / 60
+const unreadable = []
+const watch = (label, n) => {
+  if (!readable(n)) unreadable.push(`${label} = ${n}`)
+}
+watch('seed didactic', seeded.didactic)
+watch('seed lab', seeded.lab)
+const totals = m.courseHourTotals(m.useSessions(course.id))
+watch('courseHourTotals.total', totals.total)
+for (const [k, v] of Object.entries(totals.byKind)) watch(`courseHourTotals.${k}`, v)
+for (const h of m.useStudentHours(course.id)) {
+  watch(`${h.student.name} earned`, h.earned)
+  watch(`${h.student.name} total`, h.totalHours)
+  watch(`${h.student.name} missed`, h.missedHours)
+  watch(`${h.student.name} class absent`, h.classAbsentHours)
+}
+check(
+  unreadable.length === 0,
+  'every hour figure shown to a person is a whole number of minutes',
+  unreadable.join('; '),
+)
+
 const classSessions = m.useSessions(course.id).filter((s) => s.kind !== 'assignment')
 const missed = classSessions.slice(2, 4)
 for (const s of missed) m.setAttendance(course.id, student.id, s.id, 'absent')

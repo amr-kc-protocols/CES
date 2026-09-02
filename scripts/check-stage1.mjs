@@ -44,7 +44,7 @@ await build({
       export * from ${JSON.stringify(join(SRC, 'modules/aemt/aemtStore'))}
       export * from ${JSON.stringify(join(SRC, 'data/aemtPhases'))}
       export { getState } from ${JSON.stringify(join(SRC, 'lib/store'))}
-      export { CLINICAL_REQUIREMENTS, KC_START_DATE } from ${JSON.stringify(join(SRC, 'data/aemt'))}
+      export { CLINICAL_REQUIREMENTS, KC_START_DATE, KC_END_DATE, KC_SCHEDULE } from ${JSON.stringify(join(SRC, 'data/aemt'))}
     `,
     resolveDir: SRC,
     loader: 'ts',
@@ -104,6 +104,8 @@ const {
   CLINICAL_REQUIREMENTS,
   DEFICIT_CHECKPOINTS,
   KC_START_DATE,
+  KC_END_DATE,
+  KC_SCHEDULE,
 } = m
 
 let checks = 0
@@ -117,7 +119,7 @@ const COURSE = {
   id: 'c1',
   label: 'AEMT Oct 2026',
   startDate: KC_START_DATE,
-  endDate: '2027-02-04',
+  endDate: KC_END_DATE,
   createdAt: '',
   updatedAt: '',
 }
@@ -138,7 +140,7 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
 
 {
   const phases = seedPhases(KC_START_DATE)
-  ok(KC_START_DATE === '2026-10-05', `the cohort starts ${KC_START_DATE}`)
+  ok(KC_START_DATE === '2026-10-12', `the cohort starts ${KC_START_DATE}`)
   ok(phases.length === 5, `five phases, got ${phases.length}`)
   // Derived from the template offsets rather than a list of ISO dates. The
   // dates were hardcoded, and when the class day moved from Tuesday to Monday
@@ -195,15 +197,31 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
   ok(dated.length === 5, `five checkpoints, got ${dated.length}`)
   ok(
     dated.map((c) => c.date).join(',') ===
-      '2026-11-23,2026-12-16,2027-01-06,2027-01-20,2027-02-03',
+      '2026-11-23,2026-12-17,2027-01-14,2027-01-28,2027-02-11',
     `the tracker's dates come back exactly, got ${dated.map((c) => c.date).join(', ')}`,
   )
   // Each one is a day the instructor is already standing in a classroom. A
-  // checkpoint on a day nobody is in the room is a checkpoint nobody reads.
+  // checkpoint on a day nobody is in the room is a checkpoint nobody reads —
+  // and offsets counted in days drift off the room the moment the class
+  // pattern or the start date moves, silently, unless something checks.
+  const classDays = new Set(KC_SCHEDULE.filter((r) => r.delivery === 'f2f').map((r) => r.date))
+  for (const c of dated) {
+    ok(classDays.has(c.date), `checkpoint ${c.id} (${c.date}) falls on a face-to-face class day`)
+  }
   ok(
     dated.every((c) => !!c.courseAnchor),
     'every checkpoint names the class it is tied to',
   )
+  // The anchor prose has to name the week the date actually lands in, or the
+  // instructor reads "Week 8" off a page and looks at the wrong Monday.
+  for (const c of dated) {
+    const wk = KC_SCHEDULE.find((r) => r.date === c.date && r.delivery === 'f2f')?.week
+    const claimed = /Week (\d+)/.exec(c.courseAnchor)
+    ok(
+      !claimed || Number(claimed[1]) === wk,
+      `checkpoint ${c.id} says "${c.courseAnchor}" but ${c.date} is week ${wk}`,
+    )
+  }
   ok(
     dated.every((c, i) => i === 0 || c.shiftsFloor > dated[i - 1].shiftsFloor),
     'the shift floors only ever rise',
@@ -213,7 +231,7 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
     `the last floor is the whole plan, ${PLANNED_SHIFTS}`,
   )
   ok(
-    checkpointDates('2027-03-02')[0].date === '2027-04-20',
+    checkpointDates('2027-03-02')[0].date === '2027-04-13',
     'and a later cohort re-dates rather than needing a code change',
   )
 
@@ -221,7 +239,7 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
   // name what — "assign an added shift" needs somewhere to book it.
   const bare = { id: 'cp-1', courseId: 'c1', name: 'Nobody', status: 'active' }
   const zero = checkpointStanding(
-    { id: 'c1', startDate: KC_START_DATE, endDate: '2027-02-04' },
+    { id: 'c1', startDate: KC_START_DATE, endDate: KC_END_DATE },
     bare,
     progressFor([], bare, []),
     [],
@@ -236,7 +254,7 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
   )
   ok(
     zero[0].missingClearances.includes('ecg'),
-    'the ECG check-off is one of the things the week 8 review is looking for',
+    'the ECG check-off is one of the things the week 7 review is looking for',
   )
   ok(zero.every((c) => !c.clear), 'nothing logged is clear at no checkpoint')
 
@@ -272,7 +290,7 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
   ok(phasesFor(undefined).length === 0, 'no course, no phases — not a crash')
   ok(phaseOn(COURSE, '2026-11-20')?.ordinal === 2, 'a November date is in phase 2')
   ok(phaseOn(COURSE, KC_START_DATE)?.ordinal === 0, 'the first day is in phase 0')
-  ok(phaseOn(COURSE, '2027-02-04')?.ordinal === 4, 'the last day is in phase 4')
+  ok(phaseOn(COURSE, KC_END_DATE)?.ordinal === 4, 'the last day is in phase 4')
   // The gap before the break block is real, and saying so is better than
   // silently attaching the shift to whichever phase is nearest.
   ok(phaseOn(COURSE, '2026-12-19') === undefined, 'a date in the plan gap belongs to no phase')
@@ -286,7 +304,7 @@ const seeded = (ordinal) => seedPhases(KC_START_DATE).find((p) => p.ordinal === 
   const course = m.createCourse({
     label: 'AEMT Oct 2026',
     startDate: KC_START_DATE,
-    endDate: '2027-02-04',
+    endDate: KC_END_DATE,
   })
   const read = () => m.getState().aemtCourses.find((c) => c.id === course.id)
   ok(read().phases === undefined, 'an untouched course stores no plan of its own')

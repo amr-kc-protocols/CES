@@ -56,6 +56,7 @@ const formTitles = F.AEMT_FORMS.map((f) => f.title)
 const karLabels = m.CLINICAL_REQUIREMENTS.filter((r) => r.basis === 'kar').map((r) => r.label)
 const scheduleDates = [...new Set(m.KC_SCHEDULE.map((r) => shortDate(r.date)))]
 const pass = `${m.MIN_PASSING_PERCENT}%`
+const approvalDue = m.deadlineDates(m.KBEMS_DEADLINES.find((d) => d.id === 'course-approval')).due
 
 const DOCS = [
   {
@@ -122,7 +123,12 @@ const DOCS = [
     script: 'build-application.mjs',
     label: 'KBEMS course approval application',
     sections: ['(b2) Course Policies', '(b3) Course Schedule', '(c) Application Submission', 'Appendices'],
-    contains: [...scheduleDates],
+    // The meeting pattern and the filing deadline are the two sentences on
+    // this document that a reader acts on, and both were written out by hand.
+    // Both survived a start-date move: it told the board the class met
+    // Tuesdays and Thursdays 0900-1300, and that the application was due eight
+    // days before the date the regulation actually gives.
+    contains: [...scheduleDates, m.classPatternSentence(), longDate(approvalDue)],
   },
 ]
 
@@ -355,6 +361,50 @@ check(notChained.length === 0, 'doc:all builds every document', notChained.join(
 
 const notChecked = docScripts.filter((s) => !DOCS.some((d) => d.npm === s))
 check(notChecked.length === 0, 'every document is checked here', notChecked.join(', '))
+
+// ----- no document describes a class that is not this one --------------------
+//
+// The pattern sentences are prose. A document that spells out a clock the
+// course record does not have is describing a different course to whoever
+// reads it, and nothing above would notice: every section is present, every
+// date is real, the wrong four hours are simply asserted alongside them.
+{
+  const twelve = (hhmm) => {
+    const h = Number(hhmm.slice(0, 2))
+    const mm = hhmm.slice(2)
+    return `${((h + 11) % 12) + 1}${mm === '00' ? '' : `:${mm}`}\\s*${h < 12 ? '[ap]' : '[ap]'}\\.?m\\.?`
+  }
+  const realClock = new RegExp(
+    `\\b(?:${m.CLASS_CLOCK.start}\\s*(?:to|[–—-])\\s*${m.CLASS_CLOCK.end}` +
+      `|${twelve(m.CLASS_CLOCK.start)}\\s*(?:to|[–—-])\\s*${twelve(m.CLASS_CLOCK.end)})\\b`,
+    'i',
+  )
+  // Both spellings a document has used: "0900-1300" and "9am to 1pm". The
+  // second is how the stale sentence in the application survived the first
+  // version of this check.
+  const anyClock =
+    /\b(?:([01]\d|2[0-3])[0-5]\d\s*(?:to|[–—-])\s*([01]\d|2[0-3])[0-5]\d|\d{1,2}(?::\d\d)?\s*[ap]\.?m\.?\s*(?:to|[–—-])\s*\d{1,2}(?::\d\d)?\s*[ap]\.?m\.?)\b/gi
+  // Documents legitimately print clocks that are not class: instructor office
+  // hours, clinical shift spans. It is the sentence claiming class meets then
+  // that is the defect, so only clocks in a sentence about class are read.
+  const NOT_CLASS = /\b(office hour|available|reply|shift|rotation|clinical|internship|on-call)/i
+  for (const d of built) {
+    if (!d.text) continue
+    const wrong = [...d.text.matchAll(anyClock)]
+      .filter((x) => {
+        const before = d.text.slice(0, x.index).split(/[\n.]/).pop() ?? ''
+        const after = d.text.slice(x.index + x[0].length).split(/[\n.]/)[0] ?? ''
+        return !NOT_CLASS.test(before + x[0] + after)
+      })
+      .map((x) => x[0])
+      .filter((x) => !realClock.test(x))
+    check(
+      wrong.length === 0,
+      `${d.npm} states no class time other than the one the course record keeps`,
+      `${[...new Set(wrong)].join(', ')} — the pattern is ${m.CLASS_CLOCK.start} to ${m.CLASS_CLOCK.end}`,
+    )
+  }
+}
 
 rmSync(dir, { recursive: true, force: true })
 
