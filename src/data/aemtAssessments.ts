@@ -202,9 +202,9 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     items: 50,
     covers: 'Incoming EMT-level knowledge across all six domains.',
     gradingComponent: null,
-    source: 'unsourced',
+    source: 'program',
     sourceNote:
-      'NOT IN HAND. The plan calls for a 50-item baseline and no such form has been located — Navigate ships chapter quizzes and TestPrep banks, not a pre-course diagnostic. Three ways to close it before day one: build a 50-item form from the TestPrep bank across the six domains, run a shorter Navigate TestPrep set as the baseline instead, or drop it and let Quiz A in week 2 be the first measurement. Dropping it costs the tracker its zero point, not the course its hours: this is ungraded, so nothing in the grading model depends on it.',
+      'BUILT. Navigate ships chapter quizzes and TestPrep banks, not a pre-course diagnostic, so this one was written: 50 items in src/data/aemtBaseline.ts, sampling the six certification-exam domains at their own blueprint weights, at EMT scope so it measures what a student arrives with rather than what the course has yet to teach. Loaded from supabase/aemt_baseline_diagnostic_seed.sql. Still needs a subject-matter review before day one — check-baseline.mjs verifies how the items are written, not whether the medicine is right.',
     proctored: true,
     note: 'Ungraded. Seeds the per-student domain tracker on day one so every later measurement has something to move against.',
   },
