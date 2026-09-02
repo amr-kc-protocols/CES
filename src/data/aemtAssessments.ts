@@ -314,7 +314,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     covers: 'Every domain taught to date.',
     gradingComponent: 'retrieval-quizzes',
     proctored: true,
-    note: 'The last class before the break. Sets the mark that the three TestPrep sets and the 5 January simulation are measured against.',
+    note: 'The last class before the break. Sets the mark that the three TestPrep sets and the re-entry simulation are measured against.',
   },
   {
     id: 'testprep-1',

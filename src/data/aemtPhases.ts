@@ -315,7 +315,7 @@ export const DEFICIT_CHECKPOINTS: DeficitCheckpoint[] = [
     floors: { venipuncture: 6, assessment: 2, pcr: 2, calls: 2 },
     clearances: ['ecg'],
     actionIfBelow:
-      'Assign one added shift before 5 December. If the shortfall is site availability rather than the student, escalate to the site now — that is a lead-time problem and it does not fix itself.',
+      'Assign one added shift before the next checkpoint. If the shortfall is site availability rather than the student, escalate to the site now — that is a lead-time problem and it does not fix itself.',
   },
   {
     id: 'wk10',

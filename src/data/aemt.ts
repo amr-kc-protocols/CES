@@ -2290,6 +2290,34 @@ export interface GradingComponent {
   rationale: string
 }
 
+/**
+ * The dates the schedule sits an assessment on, as "29 Oct".
+ *
+ * The grading model used to spell these out: "Gate exams — 3 (29 Oct, 1 Dec,
+ * 21 Jan)" and "Final comprehensive exam, 2 February". Every one of them was
+ * wrong after the cohort moved — and wrong in the way that is hardest to spot,
+ * since each named a real class day, just not the day of the exam. The grading
+ * model is what a student reads to know when they are examined, so it reads
+ * the schedule instead.
+ *
+ * Read off KC_SCHEDULE rather than the assessment record because the schedule
+ * is where the assessment is actually sat, and because aemtAssessments.ts
+ * imports from this file.
+ */
+export function assessmentDates(...ids: string[]): string[] {
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return [...KC_SCHEDULE]
+    .filter((r) => ids.some((id) => (r.assessmentIds ?? []).includes(id)))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((r) => {
+      const [, mo, d] = r.date.split('-').map(Number)
+      return `${d} ${MON[mo - 1]}`
+    })
+}
+
+const GATE_DATES = assessmentDates('gate-1', 'gate-2', 'gate-3')
+const FINAL_DATE = assessmentDates('final')[0] ?? '[no final on the schedule]'
+
 export const GRADING_MODEL: GradingComponent[] = [
   {
     id: 'retrieval-quizzes',
@@ -2302,7 +2330,7 @@ export const GRADING_MODEL: GradingComponent[] = [
   {
     id: 'gates',
     short: 'Three proctored gate exams',
-    label: 'Gate exams — 3 (29 Oct, 1 Dec, 21 Jan), proctored, blueprint-weighted',
+    label: `Gate exams — ${GATE_DATES.length} (${GATE_DATES.join(', ')}), proctored, blueprint-weighted`,
     weight: 35,
     rationale:
       'Replaces the untimed online exams. Blueprint-weighted so the grade reflects the certification exam rather than chapter count.',
@@ -2310,7 +2338,7 @@ export const GRADING_MODEL: GradingComponent[] = [
   {
     id: 'final',
     short: 'Final comprehensive exam',
-    label: 'Final comprehensive exam, 2 February (135-item full-length mock)',
+    label: `Final comprehensive exam, ${FINAL_DATE} (135-item full-length mock)`,
     weight: 25,
     rationale:
       'Trains pacing and stamina under the no-backtracking rule — a distinct skill from content mastery.',

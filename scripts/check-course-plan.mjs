@@ -36,7 +36,8 @@ await build({
       `export * from ${JSON.stringify(join(SRC, 'data/aemt'))}\n` +
       `export * as A from ${JSON.stringify(join(SRC, 'data/aemtAssessments'))}\n` +
       `export * as N from ${JSON.stringify(join(SRC, 'data/navigateAssets'))}\n` +
-      `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n`,
+      `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n` +
+      `export * as PH from ${JSON.stringify(join(SRC, 'data/aemtPhases'))}\n`,
     resolveDir: SRC,
     loader: 'ts',
   },
@@ -794,6 +795,98 @@ check(
 const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.chapters ?? []), 0)
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
+
+// ----- every authored date, everywhere ----------------------------------------
+//
+// The narrow checks above each guard one field that went stale once. This
+// sweeps every string the course record holds and asks the same question of
+// all of them: does this spelled-out date exist in this cohort?
+//
+// It is here because the narrow checks kept being written one bug too late.
+// The grading model — the table a student reads to know when they sit an exam
+// — said "Gate exams — 3 (29 Oct, 1 Dec, 21 Jan)" and "Final comprehensive
+// exam, 2 February". All four were wrong, and all four named a real class day,
+// so nothing that compared against the calendar would have caught them.
+{
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const known = new Set([
+    ...m.KC_SCHEDULE.map((r) => spell(r.date)),
+    ...A.COURSE_ASSESSMENTS.filter((a) => a.date).map((a) => spell(a.date)),
+    ...A.COURSE_ASSESSMENTS.filter((a) => a.retestBy).map((a) => spell(a.retestBy)),
+    ...m.KC_HOLIDAYS.map((h) => spell(h.date)),
+    ...m.KBEMS_DEADLINES.flatMap((d) => {
+      const x = m.deadlineDates(d)
+      return [spell(x.due), spell(x.filedBy)]
+    }),
+    spell(m.KC_START_DATE),
+    spell(m.KC_END_DATE),
+    spell(m.WINTER_BREAK.start),
+    spell(m.WINTER_BREAK.end),
+  ])
+
+  const strings = []
+  const seenObj = new WeakSet()
+  const walk = (v, path, depth) => {
+    if (depth > 6) return
+    if (typeof v === 'string') strings.push([path, v])
+    else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`, depth + 1))
+    else if (v && typeof v === 'object') {
+      if (seenObj.has(v)) return
+      seenObj.add(v)
+      for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`, depth + 1)
+    }
+  }
+  for (const [ns, mod] of [['aemt', m], ['assessments', m.A], ['phases', m.PH]]) {
+    for (const [k, v] of Object.entries(mod)) {
+      if (typeof v === 'function') continue
+      walk(v, `${ns}.${k}`, 0)
+    }
+  }
+
+  // A date carrying its own year cites something outside this cohort — a
+  // regulation's effective date, a certification retired in 2024 — and says
+  // nothing about when this course runs. Only bare dates are calendar claims.
+  // Both spellings the record uses: "2 February" and "29 Oct". The first
+  // version of this sweep matched only full month names, and so passed the
+  // grading model's "Gate exams — 3 (29 Oct, 1 Dec, 21 Jan)" — three wrong
+  // dates — while catching the "2 February" beside it.
+  const MONTH_ALT = MONTHS.flatMap((mo) => [mo, mo.slice(0, 3)]).join('|')
+  const bare = new RegExp(`\\b(\\d{1,2}) (${MONTH_ALT})\\.?(?! \\d{4})\\b`, 'g')
+  const stale = new Set()
+  for (const [path, text] of strings) {
+    for (const said of text.matchAll(bare)) {
+      // Normalise "29 Oct" and "29 October" to the same key before comparing.
+      const full = MONTHS.find((mo) => mo.startsWith(said[2]))
+      const spelled = `${Number(said[1])} ${full}`
+      if (!known.has(spelled)) stale.add(`${said[0]} — ${path.slice(0, 70)}`)
+    }
+  }
+  check(
+    stale.size === 0,
+    'no authored string names a date this cohort does not have',
+    [...stale].join('\n        '),
+  )
+
+  // And a weekday written next to a date has to be that date's weekday.
+  const withDay = /\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday) (\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December)\b/g
+  const wrongDay = new Set()
+  const years = [...new Set([m.KC_START_DATE, m.KC_END_DATE].map((d) => Number(d.slice(0, 4))))]
+  for (const [path, text] of strings) {
+    for (const said of text.matchAll(withDay)) {
+      const day = Number(said[2])
+      const mon = MONTHS.indexOf(said[3]) + 1
+      const ok = years.some((y) => DAYS[new Date(Date.UTC(y, mon - 1, day)).getUTCDay()] === said[1])
+      if (!ok) wrongDay.add(`${said[0]} — ${path.slice(0, 70)}`)
+    }
+  }
+  check(
+    wrongDay.size === 0,
+    'no authored string names a weekday that is not that date’s weekday',
+    [...wrongDay].join('\n        '),
+  )
+}
+
 
 console.log(`
   ${t.weeks} instructional weeks over ${m.KC_CALENDAR_WEEKS} calendar weeks · ${m.KC_START_DATE} to ${m.KC_END_DATE}
