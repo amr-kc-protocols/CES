@@ -267,7 +267,84 @@ check(evalCheck().status === 'met', 'the gate passes once every instrument is ac
 
 // ----- make-ups ---------------------------------------------------------------
 
-m.seedKcSchedule(course.id, D.KC_START_DATE)
+const seeded = m.seedKcSchedule(course.id, D.KC_START_DATE)
+
+// ----- hours a person reads ---------------------------------------------------
+//
+// Every figure below is quarter- and tenth-hour values summed in floating
+// point. The seeding toast is the first thing an instructor sees after
+// building the plan, and it read "Created 49 sessions (107.49999999999999 h
+// didactic, 52 h lab)". Nothing was wrong with the schedule; the number was
+// simply printed raw. Assert it of every hour figure that reaches a screen —
+// a value that is not a whole number of minutes is one nobody can read.
+// Exact equality, not a tolerance. The error being caught is a value one part
+// in 10^14 away from the right one; any tolerance wide enough to feel safe
+// accepts it, which is how the first version of this check passed the bug it
+// was written for.
+let watched = 0
+const readable = (n) => n === Math.round(n * 60) / 60
+const unreadable = []
+const watch = (label, n) => {
+  watched++
+  if (!readable(n)) unreadable.push(`${label} = ${n}`)
+}
+watch('seed didactic', seeded.didactic)
+watch('seed lab', seeded.lab)
+const totals = m.courseHourTotals(m.useSessions(course.id))
+watch('courseHourTotals.total', totals.total)
+for (const [k, v] of Object.entries(totals.byKind)) watch(`courseHourTotals.${k}`, v)
+for (const h of m.useStudentHours(course.id)) {
+  watch(`${h.student.name} earned`, h.earned)
+  watch(`${h.student.name} total`, h.totalHours)
+  watch(`${h.student.name} missed`, h.missedHours)
+  watch(`${h.student.name} class absent`, h.classAbsentHours)
+}
+// This loops over students and session kinds; with neither it passes having
+// asked nothing. Name the count so an empty fixture fails loudly instead.
+check(watched > 8, `there were hour figures to check — ${watched}`)
+check(
+  unreadable.length === 0,
+  'every hour figure shown to a person is a whole number of minutes',
+  unreadable.join('; '),
+)
+
+// ----- the deadlines the panel shows against the ones the filing states ------
+//
+// Two things compute when the KBEMS application is due: deadlineDates(), which
+// the application document prints, and useDeadlines(), which the panel shows.
+// They disagreed. The panel anchored to the earliest SESSION ROW, and the
+// earliest row is the pre-course reading block — assigned before the course
+// opens, carrying no classroom time. Every deadline landed a week early, so
+// the panel said the filing was due "in 3 days" directly beneath its own note
+// saying the 11th, which is nine. K.A.R. 109-11-1a(c) counts from the first
+// scheduled course session, and homework is not a session.
+{
+  const shown = m.useDeadlines().filter((d) => d.course.id === course.id)
+  check(shown.length === D.KBEMS_DEADLINES.length, 'the panel shows every deadline')
+  const wrong = []
+  for (const d of shown) {
+    const { due } = D.deadlineDates(d.deadline)
+    if (d.dueDate !== due) wrong.push(`${d.deadline.id}: panel ${d.dueDate}, filing states ${due}`)
+  }
+  check(
+    wrong.length === 0,
+    'the deadline panel and the filed application compute the same dates',
+    wrong.join('; '),
+  )
+  const approval = shown.find((d) => d.deadline.id === 'course-approval')
+  check(
+    approval?.dueDate === '2026-09-12',
+    `the application is due 30 days before the first class, got ${approval?.dueDate}`,
+  )
+  // The pre-course block is in the course and must stay out of the anchor.
+  const pre = m.useSessions(course.id).filter((s) => s.preCourse)
+  check(pre.length > 0, 'the seeded course really does carry a pre-course block')
+  check(
+    pre.every((s) => s.date < D.KC_START_DATE),
+    'the pre-course block is dated before the course opens, which is why it cannot anchor',
+  )
+}
+
 const classSessions = m.useSessions(course.id).filter((s) => s.kind !== 'assignment')
 const missed = classSessions.slice(2, 4)
 for (const s of missed) m.setAttendance(course.id, student.id, s.id, 'absent')

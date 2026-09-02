@@ -293,7 +293,7 @@ check(
 // course never gave them a chance to perform.
 const DRILLS_WITHOUT_LAB = {
   0: 'Pre-course chapter 2 carries handwashing, glove removal and exposure prevention. BLS carry-forward — standard precautions the student already uses on every shift, and there is no pre-course lab by design.',
-  8: 'Chapter 18 carries nitroglycerin, AED/CPR and cardiac monitoring. Week 8 is the Thanksgiving week and runs Tuesday only; monitoring was checked off in the week 6 ECG lab and the resuscitation drills belong to the ACLS Saturday that follows.',
+  7: 'Week 7 is the Thanksgiving week and runs Monday only. Chapter 17 assigns the respiratory drills, and its laboratory did not vanish with the Thursday — it moved to the Monday of week 8, where the CPAP check-off happens four days later than planned rather than not at all.',
 }
 const labWeeks = new Set(m.KC_SCHEDULE.filter((r) => r.labHours > 0).map((r) => r.week))
 const drillsWithoutLab = m.KC_SCHEDULE.filter(

@@ -253,7 +253,7 @@ function weekSection(w) {
   return out
 }
 
-// ----- standalone rows: the AHA Saturdays and the break ----------------------
+// ----- standalone rows: the winter break, and any weekend provider course ----
 
 function standaloneSection(r) {
   const out = [
@@ -345,7 +345,7 @@ const doc = new Document({
 
         H1('How this course works'),
         P_(
-          `Sixteen instructional weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks, Tuesdays and Thursdays 0900–1300, with two American Heart Association provider courses on Saturdays and a two-week break over the holidays. Kansas City and Wichita run this as one class: one schedule, one standard, one set of exams. Your clinical and field shifts are at your own operation's sites.`,
+          `Sixteen instructional weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks, ${m.classPatternSentence()}, with a two-week break over the holidays. Kansas City and Wichita run this as one class: one schedule, one standard, one set of exams. Your clinical and field shifts are at your own operation's sites.`,
         ),
         H2('The lecture is not in the classroom'),
         P_(
@@ -413,7 +413,7 @@ const doc = new Document({
           for (let w = 1; w <= m.KC_COURSE_WEEKS; w++) {
             out.push(...weekSection(w))
             // Anything standalone that falls after this week's last session and
-            // before the next week's first — the AHA Saturdays and the break.
+            // before the next week's first — the winter break block.
             const lastOfWeek = classesOf(w).slice(-1)[0]?.date
             const firstOfNext = classesOf(w + 1)[0]?.date
             for (const r of standalone) {

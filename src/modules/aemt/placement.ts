@@ -39,6 +39,7 @@
 
 import { fromISODate, toISODate } from '../../lib/date'
 import { siteCampus } from '../../data/aemtSites'
+import { worksOn } from './workPattern'
 import { CAMPUS_LABEL } from '../../data/aemt'
 import type { Market } from '../../lib/market'
 import type {
@@ -217,6 +218,24 @@ export function placementIssues(
           severity: 'block',
         })
       }
+    }
+  }
+
+  // Right student, right day. The board books twelve-hour rotations and the
+  // students are working EMTs on twelve-hour lines; until the line was
+  // recorded there was nothing here to stop it putting one on top of the
+  // other. A warning rather than a block — a student can take the day, trade
+  // it, or work it off a night shift — but not something to discover when they
+  // do not turn up, or turn up having been awake for twenty hours.
+  if (input.studentId && input.date && ctx.students) {
+    const student = ctx.students.find((st) => st.id === input.studentId)
+    const p = student?.workPattern
+    if (student && p && worksOn(p, input.date)) {
+      issues.push({
+        field: 'date',
+        message: `${student.name} works ${p.line ? `${p.line} ` : ''}${p.startTime}–${p.endTime} that day. A ${input.hours}-hour rotation on top of that needs the shift traded or taken off first.`,
+        severity: 'note',
+      })
     }
   }
 

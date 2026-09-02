@@ -126,8 +126,8 @@ const headerRow = new TableRow({
 
 // Rows in date order. K.A.R. 109-11-1a(b3) wants the date AND time of each
 // session, so the time goes in the date cell rather than being implied by a
-// note under the table — the two Saturday AHA courses do not run 0900-1300 and
-// a reviewer reading down the column should not have to know that.
+// note under the table: a reviewer reading down the column should not have to
+// know which rows keep the standard hours and which do not.
 const scheduleRows = [...m.KC_SCHEDULE]
   .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))
   .map((r) => {
@@ -186,10 +186,16 @@ const scheduleRows = [...m.KC_SCHEDULE]
             spacing: { after: 0 },
             children: [
               new TextRun({
-                text:
-                  r.delivery === 'aha'
-                    ? 'AHA-certified instructor'
-                    : `${staff.name}, ${staff.credential}`,
+                // Per row. The joint cohort splits the week between the two
+                // instructors of record, and a filed schedule naming one of
+                // them against every session tells the board something untrue.
+                text: (() => {
+                  const who =
+                    r.instructor === 'co'
+                      ? m.COURSE_STAFF.find((x) => x.role !== 'primary')
+                      : m.COURSE_STAFF.find((x) => x.role === 'primary')
+                  return who ? `${who.name}, ${who.credential}` : '—'
+                })(),
                 size: 20,
               }),
             ],
@@ -223,15 +229,19 @@ const totalRow = new TableRow({
             }),
           ],
         }),
-        // The didactic column sums to more than the didactic total quoted
-        // below it, because the two AHA provider courses are counted in their
-        // own bucket. Said here rather than left for a reviewer to find: a
-        // column that does not add up is the first thing anyone checks.
+        // A column that does not add up is the first thing anyone checks, so
+        // the split is stated rather than left to be worked out. The AHA line
+        // appears only on a cohort that files provider courses; this one runs
+        // ACLS and PALS through each operation's own classes.
         new Paragraph({
           spacing: { before: 40, after: 0 },
           children: [
             new TextRun({
-              text: `Of the didactic total, ${totals.aha} h are the two AHA provider courses and are reported separately below; the remaining ${totals.didactic} h are ${totals.f2fDidactic} h face-to-face and ${totals.assignment} h pre-class.`,
+              text:
+                (totals.aha > 0
+                  ? `Of the didactic total, ${totals.aha} h are provider courses and are reported separately below; the remaining ${totals.didactic} h are `
+                  : `The ${totals.didactic} h didactic total is `) +
+                `${totals.f2fDidactic} h face-to-face and ${totals.assignment} h pre-class.`,
               size: 17,
               italics: true,
             }),
@@ -384,7 +394,7 @@ const doc = new Document({
 
         H2('Student Attendance Policies'),
         P(
-          `Classroom, lecture, and lab skill performance are scheduled every Tuesday and Thursday from 9am to 1pm, with two American Heart Association provider courses delivered on Saturdays as shown in the schedule. Students are required to attend all scheduled meeting times to successfully meet the course objectives. In the event of an unavoidable absence, it is the student’s responsibility to contact the instructor to obtain the missed information.`,
+          `Classroom, lecture, and lab skill performance are scheduled ${m.classPatternSentence()}, as shown in the schedule. Students are required to attend all scheduled meeting times to successfully meet the course objectives. In the event of an unavoidable absence, it is the student’s responsibility to contact the instructor to obtain the missed information.`,
         ),
         P(
           `Missing more than ${m.MAX_ABSENT_HOURS} hours of the scheduled meeting time triggers a documented make-up requirement: ${m.ABSENCE_MAKEUP.requirement} A student who does not complete the make-up has not met the course objectives and does not complete the course. ${m.ABSENCE_MAKEUP.note}`,
@@ -512,18 +522,22 @@ const doc = new Document({
         P(
           `Class location (unless otherwise noted): AMR Kansas City headquarters, with AMR Wichita joining by Teams. Class dates ${longDate(
             m.KC_START_DATE,
-          )} to ${longDate(m.KC_END_DATE)}. F2F — 0900 to 1300, Tuesday and Thursday. The two American Heart Association provider courses are delivered on the Saturdays shown. The first row of the table is prerequisite work assigned before the course opens and carries no classroom time; it is dated ${longDate(
+          )} to ${longDate(m.KC_END_DATE)}. F2F — ${m.classPatternSentence()}. Sessions outside that pattern are marked in the table. The first row of the table is prerequisite work assigned before the course opens and carries no classroom time; it is dated ${longDate(
             m.PRE_COURSE.date,
           )} because that is when it falls due, and it sits inside the table rather than outside it so the schedule accounts for every hour the student is assigned.`,
         ),
         P(
           `Total hours: ${
             m.KC_TOTAL_TARGET
-          } (Didactic ${totals.didactic}; Lab ${totals.lab}; AHA provider courses ${totals.aha}; Clinicals ${m.KC_CLINICAL_TARGET}; Field Internship ${m.KC_FIELD_TARGET}).`,
+          } (Didactic ${totals.didactic}; Lab ${totals.lab}${
+            totals.aha > 0 ? `; AHA provider courses ${totals.aha}` : ''
+          }; Clinicals ${m.KC_CLINICAL_TARGET}; Field Internship ${m.KC_FIELD_TARGET}).`,
           { bold: true },
         ),
         P(
-          `Of the ${totals.classroom} classroom hours, ${totals.f2f} are face-to-face across ${totals.f2fWeeks} class weeks, ${totals.aha} are the two AHA provider courses, and ${totals.assignment} are completed by the student through the Navigate online course materials before the session they belong to.`,
+          `Of the ${totals.classroom} classroom hours, ${totals.f2f} are face-to-face across ${totals.f2fWeeks} class weeks${
+            totals.aha > 0 ? `, ${totals.aha} are provider courses` : ''
+          }, and ${totals.assignment} are completed by the student through the Navigate online course materials before the session they belong to. ACLS and PALS are not part of this course: each sponsoring operation runs its own American Heart Association classes and students complete them there, so no hours for them are filed here.`,
         ),
         P(
           `The course delivers ${totals.weeks} instructional weeks across ${m.KC_CALENDAR_WEEKS} calendar weeks. No class session falls on a holiday. Rather than moving class weeks around the holidays and extending the course, the calendar absorbs them: week 8 runs on the Tuesday only and the ACLS provider course moves to Saturday ${shortDate(
@@ -549,13 +563,22 @@ const doc = new Document({
 
         H1('(c) Application Submission'),
         BULLET(
-          `The first scheduled course session is ${longDate(
-            m.KC_START_DATE,
-          )}. K.A.R. 109-11-1a(c) requires this application in the board office not later than 30 calendar days before it — ${longDate(
-            '2026-09-06',
-          )}. That is a Sunday and the following Monday is Labor Day, so the application is submitted by ${longDate(
-            '2026-09-04',
-          )}.`,
+          (() => {
+            const approval = m.KBEMS_DEADLINES.find((d) => d.id === 'course-approval')
+            const { due, filedBy } = m.deadlineDates(approval)
+            const opening = `The first scheduled course session is ${longDate(
+              m.KC_START_DATE,
+            )}. K.A.R. 109-11-1a(c) requires this application in the board office not later than ${-approval.offsetDays} calendar days before it — ${longDate(
+              due,
+            )}.`
+            // Only say why the filing date differs when it does. The sentence
+            // was written out by hand and outlived the start date it described.
+            return filedBy === due
+              ? opening
+              : `${opening} That is a ${weekdayOf(due)}, so the application is submitted by ${weekdayOf(
+                  filedBy,
+                )} ${longDate(filedBy)}.`
+          })(),
         ),
 
         H1('(d) Approved Initial Course Shall Meet the Following Conditions'),

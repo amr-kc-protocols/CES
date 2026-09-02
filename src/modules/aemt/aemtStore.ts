@@ -380,6 +380,20 @@ export function parseClock(t: string | undefined): number | undefined {
 }
 
 /** Minutes past midnight back to 'HH:MM'. Returns undefined past the day's end. */
+/**
+ * Round an hour figure to the nearest minute.
+ *
+ * These are quarter- and tenth-hour figures summed in floating point and
+ * printed straight to the screen, which is how a course totalling exactly
+ * 107.5 didactic hours came to display 107.49999999999999. Every place that
+ * sums `hours` and shows the result has to go through this — it lived inside
+ * one such function, and the seeding toast, which sums separately, printed the
+ * raw figure to the instructor on the very first thing they do to a course.
+ */
+export function toTheMinute(hours: number): number {
+  return Math.round(hours * 60) / 60
+}
+
 export function formatClock(minutes: number): string | undefined {
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 24 * 60) return undefined
   const h = Math.floor(minutes / 60)
@@ -549,7 +563,7 @@ export function deleteSession(id: string): void {
  *
  * Hours are placed exactly as the proposal states them — didactic on Tuesday,
  * lab on Thursday, split evenly across the weeks a block spans. Blocks whose
- * week does not add up to the Tue/Thu 4+4 structure are reproduced faithfully
+ * week does not add up to the Monday/Thursday 4+4 structure are reproduced faithfully
  * rather than smoothed, so the reconciliation panel surfaces the mismatch
  * instead of this function hiding it.
  *
@@ -579,10 +593,17 @@ export function seedShortfall(targets: AemtHourTargets | undefined): {
 } {
   const plan = scheduleTotals()
   if (!targets) return { didactic: 0, lab: 0, aha: 0, total: 0 }
-  const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
-  const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
-  const aha = Math.max(0, (targets.aha ?? plan.aha) - plan.aha)
-  return { didactic, lab, aha, total: didactic + lab + aha }
+  // Rounded to the minute before comparison. Hours are quarter- and tenth-hour
+  // figures summed in floating point, so a schedule that exactly meets its
+  // filed target came out 1.4e-14 h short — and the screen said so, in those
+  // words, with an "Add 1.4210854715202004e-14 h of didactic to place" button
+  // under it. A shortfall smaller than a minute is not a shortfall.
+  const gap = (target: number | undefined, scheduled: number) =>
+    Math.max(0, Math.round(((target ?? scheduled) - scheduled) * 60) / 60)
+  const didactic = gap(targets.didactic, plan.didactic)
+  const lab = gap(targets.lab, plan.lab)
+  const aha = gap(targets.aha, plan.aha)
+  return { didactic, lab, aha, total: Math.round((didactic + lab + aha) * 60) / 60 }
 }
 
 /**
@@ -753,8 +774,8 @@ export function seedKcSchedule(courseId: string, startISO: string): SeedOutcome 
   setState((db) => ({ ...db, aemtSessions: [...db.aemtSessions, ...created] }))
   return {
     sessions: created.length,
-    didactic: created.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0),
-    lab: created.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0),
+    didactic: toTheMinute(created.filter((s) => s.kind === 'didactic').reduce((n, s) => n + s.hours, 0)),
+    lab: toTheMinute(created.filter((s) => s.kind === 'lab').reduce((n, s) => n + s.hours, 0)),
   }
 }
 
@@ -791,7 +812,14 @@ export function reconcileHours(
     { id: 'aha', label: 'AHA provider courses', target: targets.aha, scheduled: byKind.aha },
   ]
     .filter((r): r is HourReconciliation & { target: number } => typeof r.target === 'number')
-    .map((r) => ({ ...r, delta: r.scheduled - r.target }))
+    // Both figures and the delta rounded to the minute. Class hours are
+    // quarter- and tenth-hour values summed in floating point, and an exact
+    // match printed as "107.49999999999999 vs 107.5, gap -1.4e-14 h".
+    .map((r) => ({
+      ...r,
+      scheduled: Math.round(r.scheduled * 60) / 60,
+      delta: Math.round((r.scheduled - r.target) * 60) / 60,
+    }))
 }
 
 /** AMR KC's filed commitments, offered as the default when creating a course. */
@@ -1402,11 +1430,17 @@ export function useDeadlines(): DueDeadline[] {
     for (const course of courses) {
       const mine = sessions
         .filter((s) => s.courseId === course.id && s.date)
-        .map((s) => s.date)
-        .sort()
+        .sort((a, b) => (a.date < b.date ? -1 : 1))
+      // K.A.R. 109-11-1a(c) counts back from the first scheduled course
+      // SESSION. The pre-course block is assigned reading, carries no
+      // classroom time and is dated before the course opens on purpose — it
+      // is not a session, and anchoring to it moved every KBEMS deadline a
+      // week early. The filing deadline read "in 3 days" beside its own note
+      // saying the 11th, which is nine.
+      const inCourse = mine.filter((s) => !s.preCourse)
       // Fall back to the course's own dates before any session exists.
-      const first = mine[0] ?? course.startDate
-      const last = mine[mine.length - 1] ?? course.endDate
+      const first = inCourse[0]?.date ?? course.startDate
+      const last = mine[mine.length - 1]?.date ?? course.endDate
       for (const deadline of KBEMS_DEADLINES) {
         const anchor = deadline.anchor === 'first-session' ? first : last
         if (!anchor) continue
@@ -1679,18 +1713,18 @@ export function useStudentHours(courseId: string | undefined): StudentHours[] {
           else makeUpOwed.push(s)
         }
       }
-      const classAbsentHours = missed
-        .filter((s) => isClassroomSession(s.kind))
-        .reduce((sum, s) => sum + s.hours, 0)
+      const classAbsentHours = toTheMinute(
+        missed.filter((s) => isClassroomSession(s.kind)).reduce((sum, s) => sum + s.hours, 0),
+      )
       const totals = shiftHourTotals(shifts.filter((s) => s.studentId === student.id))
       return {
         student,
-        earned,
+        earned: toTheMinute(earned),
         clinicalHours: totals.hospital,
         fieldHours: totals.field,
         unattestedShiftHours: totals.unattested,
-        totalHours: earned + totals.hospital + totals.field,
-        missedHours: missed.reduce((sum, s) => sum + s.hours, 0),
+        totalHours: toTheMinute(earned + totals.hospital + totals.field),
+        missedHours: toTheMinute(missed.reduce((sum, s) => sum + s.hours, 0)),
         missed,
         makeUpOwed,
         makeUpsDone,
@@ -1836,7 +1870,7 @@ export function useCourseTotals(courseId: string | undefined): {
     () => ({
       students: students.filter((s) => s.status !== 'withdrawn').length,
       sessions: sessions.length,
-      scheduledHours: sessions.reduce((sum, s) => sum + s.hours, 0),
+      scheduledHours: toTheMinute(sessions.reduce((sum, s) => sum + s.hours, 0)),
     }),
     [students, sessions],
   )
@@ -2108,9 +2142,11 @@ export function shiftHourTotals(shifts: AemtClinicalShift[]): {
 } {
   const done = shifts.filter(attestationIsEvidence)
   return {
-    hospital: done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0),
-    field: done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0),
-    unattested: shifts.filter((s) => !attestationIsEvidence(s)).reduce((n, s) => n + s.hours, 0),
+    hospital: toTheMinute(done.filter((s) => s.setting === 'hospital').reduce((n, s) => n + s.hours, 0)),
+    field: toTheMinute(done.filter((s) => s.setting === 'field').reduce((n, s) => n + s.hours, 0)),
+    unattested: toTheMinute(
+      shifts.filter((s) => !attestationIsEvidence(s)).reduce((n, s) => n + s.hours, 0),
+    ),
   }
 }
 
@@ -3010,7 +3046,8 @@ export function courseHourTotals(sessions: AemtSession[]): {
     byKind[s.kind] += s.hours
     total += s.hours
   }
-  return { total, byKind }
+  for (const k of Object.keys(byKind) as AemtSessionKind[]) byKind[k] = toTheMinute(byKind[k])
+  return { total: toTheMinute(total), byKind }
 }
 
 // ----- completion readiness --------------------------------------------------

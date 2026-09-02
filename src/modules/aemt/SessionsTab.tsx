@@ -32,6 +32,7 @@ import {
   KC_START_DATE,
   scheduleTotals,
   WINTER_BREAK,
+  KC_HOLIDAYS,
 } from '../../data/aemt'
 import ScheduleCalendar from './ScheduleCalendar'
 import { addDays } from '../../lib/date'
@@ -352,7 +353,7 @@ function SeedModal({
   const plan = scheduleTotals()
   const short = seedShortfall(course.targets)
   const [alsoPlace, setAlsoPlace] = useState(short.total > 0)
-  // The plan lays KC_COURSE_WEEKS of Tue/Thu sessions from the first Tuesday on
+  // The plan lays KC_COURSE_WEEKS of Mon/Thu sessions from the first Monday on
   // or after the start date. A course whose own end date falls sooner gets a
   // schedule that runs past it, and every session beyond gets flagged as
   // outside the course dates — better said before building than discovered
@@ -417,7 +418,8 @@ function SeedModal({
         <strong>
           {plan.didactic} didactic + {plan.lab} lab
         </strong>
-        , plus {plan.aha} h of AHA provider courses. {plan.classroom} hours in total.
+        {plan.aha > 0 && <>, plus {plan.aha} h of AHA provider courses</>}. {plan.classroom} hours
+        in total.
       </p>
       <p style={{ lineHeight: 1.55 }} className="subtle">
         <strong>{plan.f2f} h of that is face-to-face</strong>, across {plan.f2fWeeks} class weeks —{' '}
@@ -425,7 +427,7 @@ function SeedModal({
         {CLASS_HOURS_PER_WEEK} h a week) from{' '}
         {String(Math.floor(KC_CLASS_PATTERN.startMinute / 60)).padStart(2, '0')}:
         {String(KC_CLASS_PATTERN.startMinute % 60).padStart(2, '0')}. The other {plan.assignment} h
-        is Navigate modules, flashcards, practice activities and AHA pre-course reading the student
+        is Navigate modules, flashcards and practice activities the student
         completes on their own, so it costs no class time. {KC_COURSE_WEEKS} instructional weeks
         over {KC_CALENDAR_WEEKS} calendar weeks, ending {formatDate(KC_END_DATE)}.
       </p>
@@ -467,20 +469,26 @@ function SeedModal({
         are the agreement, not a projection, which is why re-seeding cannot quietly move them.
         <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
           <li>
-            <strong>Thanksgiving is surrendered.</strong> Week 8 runs Tuesday only, and ACLS moves
-            out to Saturday 5 December. Pulling the two AHA courses onto Saturdays protects the
-            Tuesday/Thursday rhythm.
-          </li>
-          <li>
             <strong>A deliberate two-week break</strong>, {formatDate(WINTER_BREAK.start)} to{' '}
             {formatDate(WINTER_BREAK.end)}, replaces four sessions that would have been half empty.
             Christmas Eve, Christmas Day, New Year's Eve and New Year's Day all fall inside it. The
             break is loaded, not idle — concentrated clinical and field shifts plus three dated
             TestPrep sets.
           </li>
-          <li>
-            MLK Day and Presidents' Day are Mondays and never touch the pattern.
-          </li>
+          {/*
+            Written out by hand this read "MLK Day and Presidents' Day are
+            Mondays and never touch the pattern" — true on the Tuesday/Thursday
+            calendar it was written for, and false the moment class moved to
+            Mondays. The holidays outside the break say for themselves how they
+            are handled.
+          */}
+          {KC_HOLIDAYS.filter(
+            (h) => h.date < WINTER_BREAK.start || h.date > WINTER_BREAK.end,
+          ).map((h) => (
+            <li key={h.date}>
+              <strong>{h.name}</strong>, {formatDate(h.date)}. {h.absorbedBy}
+            </li>
+          ))}
         </ul>
       </div>
 
@@ -736,7 +744,7 @@ export default function SessionsTab({ course }: { course: AemtCourse }) {
         {manageAcademy && sessions.length === 0 && (
           <button
             className="btn"
-            title={`Create Tue/Thu sessions for ${KC_COURSE_WEEKS} weeks from the AMR KC content plan. Adjust for another program.`}
+            title={`Create Mon/Thu sessions for ${KC_COURSE_WEEKS} weeks from the AMR KC content plan. Adjust for another program.`}
             onClick={() => setSeeding(true)}
           >
             ⚡ Build AMR KC {KC_COURSE_WEEKS}-week plan

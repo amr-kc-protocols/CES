@@ -27,7 +27,7 @@
 // something that should move because an offset changed.
 // ---------------------------------------------------------------------------
 
-import { MIN_PASSING_PERCENT } from './aemt'
+import { KC_CLASS_PATTERN, MIN_PASSING_PERCENT } from './aemt'
 
 // ----- the exam blueprint ----------------------------------------------------
 
@@ -84,7 +84,13 @@ export const EXAM_BLUEPRINT: BlueprintDomain[] = [
     examMax: 15,
     priorHours: 13,
     priorShare: 12,
-    verdict: 'Appropriate. ACLS carries much of it.',
+    // The prior verdict read "Appropriate. ACLS carries much of it." — which
+    // stopped being true the moment ACLS came out of the filed schedule. The
+    // hours did not change; what changed is that they are now the only
+    // cardiology this course delivers, so the allocation has to stand on its
+    // own rather than lean on a provider course taught somewhere else.
+    verdict:
+      'Appropriate, and now load-bearing: with ACLS run separately by each operation, these are the only cardiology hours this course files.',
   },
   {
     id: 'airway',
@@ -168,7 +174,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'baseline',
     kind: 'diagnostic',
     label: 'Baseline diagnostic',
-    date: '2026-10-06',
+    date: '2026-10-12',
     items: 50,
     covers: 'Incoming EMT-level knowledge across all six domains.',
     gradingComponent: null,
@@ -179,7 +185,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-a',
     kind: 'retrieval-quiz',
     label: 'Quiz A',
-    date: '2026-10-13',
+    date: '2026-10-19',
     items: 10,
     minutes: 15,
     covers: 'Week 1',
@@ -190,7 +196,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-b',
     kind: 'retrieval-quiz',
     label: 'Quiz B',
-    date: '2026-10-20',
+    date: '2026-10-26',
     items: 10,
     minutes: 15,
     covers: 'Weeks 1-2',
@@ -201,7 +207,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-c',
     kind: 'retrieval-quiz',
     label: 'Quiz C',
-    date: '2026-10-27',
+    date: '2026-11-02',
     items: 10,
     minutes: 15,
     covers: 'Weeks 1-3',
@@ -212,11 +218,11 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'gate-1',
     kind: 'gate',
     label: 'Gate 1 — Foundations + Airway',
-    date: '2026-10-29',
+    date: '2026-11-05',
     minutes: 90,
     covers: 'Preparatory, A&P, pathophysiology, patient assessment, airway.',
     mps: MIN_PASSING_PERCENT,
-    retestBy: '2026-11-05',
+    retestBy: '2026-11-12',
     gradingComponent: 'gates',
     proctored: true,
   },
@@ -224,7 +230,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-d',
     kind: 'retrieval-quiz',
     label: 'Quiz D',
-    date: '2026-11-03',
+    date: '2026-11-09',
     items: 10,
     minutes: 15,
     covers: 'Weeks 2-4, plus spiral items from week 1',
@@ -235,7 +241,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-e',
     kind: 'retrieval-quiz',
     label: 'Quiz E',
-    date: '2026-11-10',
+    date: '2026-11-16',
     items: 10,
     minutes: 15,
     covers: 'Weeks 3-5, plus spiral',
@@ -246,7 +252,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-f',
     kind: 'retrieval-quiz',
     label: 'Quiz F',
-    date: '2026-11-17',
+    date: '2026-11-23',
     items: 10,
     minutes: 15,
     covers: 'Weeks 4-6, plus spiral',
@@ -257,7 +263,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-g',
     kind: 'retrieval-quiz',
     label: 'Quiz G',
-    date: '2026-11-24',
+    date: '2026-12-03',
     items: 10,
     minutes: 15,
     covers: 'Weeks 5-7, plus spiral',
@@ -268,11 +274,11 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'gate-2',
     kind: 'gate',
     label: 'Gate 2 — Airway + Cardiology + Pharmacology/Vascular Access',
-    date: '2026-12-01',
+    date: '2026-12-07',
     minutes: 90,
     covers: 'Airway, cardiovascular, pharmacology, vascular access and medication administration.',
     mps: MIN_PASSING_PERCENT,
-    retestBy: '2026-12-10',
+    retestBy: '2026-12-17',
     gradingComponent: 'gates',
     proctored: true,
     note: 'Deliberately placed AFTER Thanksgiving rather than before it, so nobody is trying to remediate over a holiday weekend.',
@@ -281,7 +287,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-h',
     kind: 'retrieval-quiz',
     label: 'Quiz H',
-    date: '2026-12-08',
+    date: '2026-12-14',
     items: 10,
     minutes: 15,
     covers: 'Weeks 6-9, plus spiral',
@@ -292,7 +298,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-i',
     kind: 'retrieval-quiz',
     label: 'Quiz I',
-    date: '2026-12-15',
+    date: '2027-01-04',
     items: 10,
     minutes: 15,
     covers: 'Weeks 7-10, plus spiral',
@@ -303,12 +309,12 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'bridge',
     kind: 'bridge-quiz',
     label: 'Bridge quiz',
-    date: '2026-12-17',
+    date: '2027-01-07',
     items: 30,
     covers: 'Every domain taught to date.',
     gradingComponent: 'retrieval-quizzes',
     proctored: true,
-    note: 'The last class before the break. Sets the mark that the three TestPrep sets and the 5 January simulation are measured against.',
+    note: 'The last class before the break. Sets the mark that the three TestPrep sets and the re-entry simulation are measured against.',
   },
   {
     id: 'testprep-1',
@@ -342,7 +348,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'sim-1',
     kind: 'simulation',
     label: 'Full-length simulation #1',
-    date: '2027-01-05',
+    date: '2027-01-11',
     items: 135,
     minutes: 180,
     covers: 'Blueprint-weighted, all six domains, exam conditions, no backtracking.',
@@ -354,7 +360,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-j',
     kind: 'retrieval-quiz',
     label: 'Quiz J',
-    date: '2027-01-12',
+    date: '2027-01-19',
     items: 10,
     minutes: 15,
     covers: 'Weeks 9-12, plus spiral',
@@ -365,7 +371,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-k',
     kind: 'retrieval-quiz',
     label: 'Quiz K',
-    date: '2027-01-19',
+    date: '2027-01-25',
     items: 10,
     minutes: 15,
     covers: 'Weeks 10-13, plus spiral',
@@ -376,11 +382,11 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'gate-3',
     kind: 'gate',
     label: 'Gate 3 — Medical/OB + Trauma',
-    date: '2027-01-21',
+    date: '2027-01-28',
     minutes: 90,
     covers: 'Medical, obstetric and gynaecologic emergencies; trauma.',
     mps: MIN_PASSING_PERCENT,
-    retestBy: '2027-01-28',
+    retestBy: '2027-02-04',
     gradingComponent: 'gates',
     proctored: true,
   },
@@ -388,7 +394,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'quiz-l',
     kind: 'retrieval-quiz',
     label: 'Quiz L',
-    date: '2027-01-26',
+    date: '2027-02-01',
     items: 10,
     minutes: 15,
     covers: 'Weeks 11-14, plus spiral',
@@ -399,7 +405,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     id: 'final',
     kind: 'final',
     label: 'Final comprehensive exam (simulation #2)',
-    date: '2027-02-02',
+    date: '2027-02-08',
     items: 135,
     minutes: 180,
     covers: 'Blueprint-weighted, all six domains, no backtracking.',
@@ -447,56 +453,65 @@ export interface SessionBlock {
 }
 
 /**
- * The shape of an ordinary Tuesday or Thursday.
+ * The shape of an ordinary class day.
  *
- * Applies to every session that is not an AHA course, a gate exam or a
- * full-length simulation. The 09:00-09:15 quiz is the highest-yield fifteen
- * minutes in the course and it is first on purpose: a quiz that slips to the
- * end of a session is a quiz that gets dropped when the session runs long.
+ * Applies to every session that is not a gate exam or a full-length simulation.
+ * The opening quiz is the highest-yield fifteen minutes in the course and it is
+ * first on purpose: a quiz that slips to the end of a session is a quiz that
+ * gets dropped when the session runs long.
  *
- * The 09:30-11:00 block is explicitly NOT lecture. The lecture was the Navigate
- * module the student did before class. Re-delivering it in the room is the
- * single most common way a flipped classroom collapses back into a normal one,
- * and the benefit collapses with it.
+ * The ninety-minute application block is explicitly NOT lecture. The lecture was
+ * the Navigate module the student did before class. Re-delivering it in the room
+ * is the single most common way a flipped classroom collapses back into a normal
+ * one, and the benefit collapses with it.
+ *
+ * THE CLOCK TIMES ARE DERIVED, not typed. They were typed, against a 0900 start,
+ * and when the class day moved to 0800 the printed agenda went on saying 0900 —
+ * a session header reading 08:00-12:00 above a timetable starting at 09:00, in
+ * the one document an instructor reads on the way into the room. The lengths are
+ * the decision; the clock is arithmetic from whatever time the class pattern
+ * says the day begins.
  */
-export const SESSION_TEMPLATE: SessionBlock[] = [
+const BLOCK_PLAN: { minutes: number; label: string; what: string }[] = [
   {
-    start: '09:00',
-    end: '09:15',
     minutes: 15,
     label: 'Cumulative retrieval quiz',
     what: '10 items, closed book, no notes, no phones. Roughly 4 items from last session, 3 from two to four sessions back, 3 spiral items from the earliest material.',
   },
   {
-    start: '09:15',
-    end: '09:30',
     minutes: 15,
     label: 'Quiz debrief',
     what: 'Missed items only. Have the student reconstruct the reasoning aloud before you give the answer. Log every miss against its domain in the tracker.',
   },
   {
-    start: '09:30',
-    end: '11:00',
     minutes: 90,
     label: 'Application block',
     what: 'Not lecture — the lecture was the pre-class module. Worked cases, the progressive case studies from the Navigate chapter placards, and drilling of NREMT item formats: multiple-response, build-list, drag-and-drop, options box, capnography graphics.',
   },
-  { start: '11:00', end: '11:15', minutes: 15, label: 'Break', what: '' },
+  { minutes: 15, label: 'Break', what: '' },
   {
-    start: '11:15',
-    end: '12:45',
     minutes: 90,
     label: 'Lab / scenario',
     what: 'Skill drills or full scenarios. Every debrief runs through the six-step clinical judgment cycle with the student naming each step aloud.',
   },
   {
-    start: '12:45',
-    end: '13:00',
     minutes: 15,
     label: 'Close-out',
     what: 'Three questions previewing the next session’s pre-work. Confirm the Navigate assignment is open and that clinical hour logging is current.',
   },
 ]
+
+const clock = (minutes: number): string =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+
+export const SESSION_TEMPLATE: SessionBlock[] = (() => {
+  let at = KC_CLASS_PATTERN.startMinute
+  return BLOCK_PLAN.map((b) => {
+    const start = at
+    at += b.minutes
+    return { start: clock(start), end: clock(at), minutes: b.minutes, label: b.label, what: b.what }
+  })
+})()
 
 /**
  * The six-step clinical judgment cycle, named in every lab debrief.

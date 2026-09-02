@@ -30,13 +30,18 @@
 
 import {
   CLINICAL_REQUIREMENTS,
+  COURSE_STAFF,
   GRADING_MODEL,
   KC_CALENDAR_WEEKS,
   KC_COURSE_WEEKS,
+  KC_CLASS_PATTERN,
+  KC_SCHEDULE,
+  KC_START_DATE,
   PRE_COURSE_POLICY,
   MAX_ABSENT_HOURS,
   MIN_PASSING_PERCENT,
 } from './aemt'
+import { longDate } from '../lib/docBlocks'
 import { INTERVIEW_QUESTIONS, SELECTION_WEIGHTS } from './aemtSelection'
 import { EXAM_DEADLINE, EXAM_LIMIT_MINUTES } from '../lib/exam'
 import { answerText, type IntakeSubmission, type IntakeStatus } from '../lib/intake'
@@ -56,10 +61,42 @@ export const SERVICE_COMMITMENT_TERMS = ''
 const COMMITMENT_PLACEHOLDER =
   '[INSERT SERVICE COMMITMENT TERMS — length of commitment following certification, and what applies if employment ends before it is met.]'
 
-/** Course logistics. Fill these in once and every email picks them up. */
+/**
+ * What to call the program, to a candidate from either market.
+ *
+ * Every one of these emails said "the AMR Kansas City AEMT Program", which was
+ * true of a Kansas City course and became a false statement the day the cohort
+ * went joint — a Wichita candidate reading their acceptance was being welcomed
+ * to somebody else's program. Built from the operations actually staffing it,
+ * so it cannot go stale the next time that list changes.
+ */
+export const PROGRAM_NAME = (() => {
+  const ops = [...new Set(COURSE_STAFF.map((s) => s.operation))]
+  if (ops.length === 0) return 'the AEMT Program'
+  if (ops.length === 1) return `the ${ops[0]} AEMT Program`
+  return `the AEMT Program run jointly by ${ops.slice(0, -1).join(', ')} and ${ops[ops.length - 1]}`
+})()
+
+/** The first session, which is also orientation — week 1 opens with it. */
+const FIRST_SESSION = [...KC_SCHEDULE]
+  .filter((r) => r.delivery === 'f2f' && r.date && r.startTime)
+  .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))[0]
+
+/**
+ * Course logistics.
+ *
+ * The dates the COURSE RECORD knows are read from it. They were placeholders —
+ * `[START DATE]`, `[ORIENTATION DATE & TIME]` — in an email whose whole job is
+ * to tell somebody when the course starts, next to a schedule that has said so
+ * precisely all along. What stays a placeholder is what genuinely is a
+ * decision: how long a candidate has to accept, when supervisors must reply,
+ * where interviews are held.
+ */
 export const COURSE_INFO = {
-  startDate: '[START DATE]',
-  orientation: '[ORIENTATION DATE & TIME]',
+  startDate: longDate(KC_START_DATE),
+  orientation: FIRST_SESSION
+    ? `${longDate(FIRST_SESSION.date)}, ${FIRST_SESSION.startTime}–${FIRST_SESSION.endTime} — the first session opens with it`
+    : '[ORIENTATION DATE & TIME]',
   /** How long an accepted candidate has to confirm their seat. */
   acceptBy: '[REPLY-BY DATE]',
   /** How long supervisors have to come back on the candidate check. */
@@ -80,9 +117,30 @@ export const SENDER = {
 export const EXAM_URL = 'https://ces-nu.vercel.app/exam'
 
 /** The shape of the program, without committing to an hour count. */
+const CLASS_DAYS = (() => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const named = KC_CLASS_PATTERN.days.map((d) => `${days[d]}s`)
+  const start = KC_CLASS_PATTERN.startMinute
+  const end = start + KC_CLASS_PATTERN.hoursPerDay * 60
+  const clock = (mins: number) =>
+    `${String(Math.floor(mins / 60)).padStart(2, '0')}${String(mins % 60).padStart(2, '0')}`
+  return `${named.join(' and ')} ${clock(start)}–${clock(end)}`
+})()
+
+/**
+ * The shape of the program, without committing to an hour count.
+ *
+ * THE CLASS DAYS ARE IN IT NOW, and they are the most load-bearing sentence
+ * here. Every student on the current cohort holds a full-time twelve-hour bid
+ * line, and when those lines were finally compared against the class schedule
+ * not one of them could attend — the schedule had to move. A candidate deciding
+ * whether to accept a seat needs the days and times in front of them, against
+ * their own line, before they answer rather than after.
+ */
 const PROGRAM_SHAPE = [
   `The AEMT course is a Kansas-approved (KBEMS) certification program that runs for ${KC_CALENDAR_WEEKS} calendar weeks, delivering ${KC_COURSE_WEEKS} instructional weeks with a two-week break over the holidays.`,
-  `It is run jointly with AMR Wichita: one class, one schedule, one standard. Classroom and lab sessions are held at AMR Kansas City headquarters, with Wichita joining by Teams. Hospital clinical and field internship hours are completed at partner sites in your own operation's area — you will not be travelling for them.`,
+  `Class is ${CLASS_DAYS}. CHECK THAT AGAINST YOUR LINE BEFORE YOU ANSWER — most of the cohort works a full-time twelve-hour rotation, and a shift that covers class time has to be traded or moved.`,
+  `It is one class run by ${[...new Set(COURSE_STAFF.map((s) => s.operation))].join(' and ')}: one schedule, one standard. Classroom and lab sessions are held at AMR Kansas City headquarters, with the other market joining by Teams. Hospital clinical and field internship hours are completed at partner sites in your own operation's area — you will not be travelling for them.`,
 ].join(' ')
 
 /**
@@ -133,13 +191,23 @@ function firstName(full: string): string {
   return n && n !== '—' ? n : 'there'
 }
 
+/**
+ * The documented minimums, label first.
+ *
+ * It read "${minimum} ${label.toLowerCase()}", which lower-cased the acronyms
+ * into "5 io infusions" and "8 ecg application & interpretation", and put a
+ * plural label behind a count of one: "1 nebulized breathing treatments".
+ * Naming the requirement and then its count sidesteps both — the labels are
+ * already written as a program would write them, and a count after a label
+ * never has to agree with it.
+ */
 function clinicalMinimums(): string {
   return CLINICAL_REQUIREMENTS.map((r) => {
     const sub = r.subRequirement
-      ? ` (including ${r.subRequirement.minimum} ${r.subRequirement.label})`
+      ? `, of which ${r.subRequirement.minimum} ${r.subRequirement.label}`
       : ''
-    return `${r.minimum} ${r.label.toLowerCase()}${sub}`
-  }).join(', ')
+    return `${r.label} — ${r.minimum}${sub}`
+  }).join('; ')
 }
 
 /**
@@ -203,7 +271,7 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
   return {
     subject: 'AEMT Program — Your Next Step (Selection Exam) & What to Expect',
     lines: [
-      `Thank you for submitting your interest in the AMR Kansas City AEMT Program. This email covers three things: your next step, an overview of the program, and the expectations that come with a seat in it. Please read it in full before you take the exam.`,
+      `Thank you for submitting your interest in ${PROGRAM_NAME}. This email covers three things: your next step, an overview of the program, and the expectations that come with a seat in it. Please read it in full before you take the exam.`,
       ``,
       ...(notes.length ? [...notes, ``] : []),
       `YOUR NEXT STEP — THE SELECTION EXAM`,
@@ -277,7 +345,7 @@ function interview(d: Record<string, unknown>): { subject: string; lines: string
   return {
     subject: 'AEMT Program — Interview Invitation',
     lines: [
-      `You cleared the selection exam, and I would like to invite you to the structured interview for the AMR Kansas City AEMT Program.`,
+      `You cleared the selection exam, and I would like to invite you to the structured interview for ${PROGRAM_NAME}.`,
       ``,
       `SCHEDULING`,
       ``,
@@ -319,7 +387,7 @@ function notSelected(): { subject: string; lines: string[] } {
   return {
     subject: 'AEMT Program — Selection Decision',
     lines: [
-      `Thank you for putting your name forward for the AMR Kansas City AEMT Program, and for the time you gave to the intake form and the selection exam.`,
+      `Thank you for putting your name forward for ${PROGRAM_NAME}, and for the time you gave to the intake form and the selection exam.`,
       ``,
       `This cohort had more qualified applicants than we have seats. After reviewing exam results, interviews, QA chart review and attendance records, I am sorry to tell you that you were not selected for this course.`,
       ``,
@@ -341,7 +409,7 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
   return {
     subject: 'AEMT Program — You Have Been Selected',
     lines: [
-      `Congratulations. You have been selected for the AMR Kansas City AEMT Program.`,
+      `Congratulations. You have been selected for ${PROGRAM_NAME}.`,
       ``,
       `This was a competitive cohort and you earned your seat on your exam, your interview and your record here. I am glad to have you in the course.`,
       ``,
@@ -377,7 +445,7 @@ function accepted(d: Record<string, unknown>): { subject: string; lines: string[
       `  • Confirm your seat by replying to this email`,
       `  • Make sure your certification and required credentials are current in Ninth Brain`,
       `  • Talk to your supervisor about your schedule for the next ${KC_CALENDAR_WEEKS} weeks`,
-      `  • REQUIRED PRE-COURSE WORK: ${PRE_COURSE_POLICY.requirement} Due ${PRE_COURSE_POLICY.dueBy}.`,
+      `  • REQUIRED PRE-COURSE WORK: ${PRE_COURSE_POLICY.requirement} Due ${longDate(PRE_COURSE_POLICY.dueBy)}.`,
       ``,
       `That pre-course block is chapters 1 to 4 — EMS systems, workforce safety, medical-legal and documentation. It is the material you already work inside every shift, so we are not spending a classroom day on it. Doing it before you arrive is what lets the first session open on medical terminology and the second get into anatomy and physiology. ${PRE_COURSE_POLICY.checkedAt} ${PRE_COURSE_POLICY.ifIncomplete}`,
       ``,
@@ -426,7 +494,7 @@ export function buildSupervisorEmail(rows: IntakeSubmission[]): GeneratedEmail {
   const body = [
     `Supervisors,`,
     ``,
-    `The people below have applied for the next AMR Kansas City AEMT cohort. Before we finalise selection I need your input on anyone who reports to you.`,
+    `The people below have applied for the next AEMT cohort. Before we finalise selection I need your input on anyone who reports to you.`,
     ``,
     `THE CANDIDATES`,
     ``,

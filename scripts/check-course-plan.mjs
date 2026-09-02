@@ -36,7 +36,8 @@ await build({
       `export * from ${JSON.stringify(join(SRC, 'data/aemt'))}\n` +
       `export * as A from ${JSON.stringify(join(SRC, 'data/aemtAssessments'))}\n` +
       `export * as N from ${JSON.stringify(join(SRC, 'data/navigateAssets'))}\n` +
-      `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n`,
+      `export * as STD from ${JSON.stringify(join(SRC, 'data/aemtStandards'))}\n` +
+      `export * as PH from ${JSON.stringify(join(SRC, 'data/aemtPhases'))}\n`,
     resolveDir: SRC,
     loader: 'ts',
   },
@@ -72,13 +73,13 @@ const near = (a, b) => Math.abs(a - b) < 0.01
 // ----- the agreed calendar ---------------------------------------------------
 
 check(
-  m.KC_START_DATE === '2026-10-06',
-  'the course starts Tuesday 6 October 2026',
+  m.KC_START_DATE === '2026-10-12',
+  'the course starts Monday 12 October 2026',
   m.KC_START_DATE,
 )
 check(
-  m.KC_END_DATE === '2027-02-04',
-  'the course ends Thursday 4 February 2027',
+  m.KC_END_DATE === '2027-02-11',
+  'the course ends Thursday 11 February 2027',
   m.KC_END_DATE,
 )
 check(t.weeks === 16, '16 instructional weeks', `${t.weeks}`)
@@ -97,8 +98,16 @@ const dayOf = (iso) => {
 // Class is Tuesday/Thursday. The AHA provider courses are the deliberate
 // exception and are marked `standalone`, so they are checked separately rather
 // than being an unexplained hole in the assertion.
+// Exactly one session is off the Monday/Thursday pattern, and it is a decision
+// rather than a slip: Martin Luther King Jr. Day falls on the Monday of week
+// 14, and that week's multisystem trauma didactic is what its own trauma lab
+// and Gate 3 are built on. Named by date so a SECOND stray row still fails.
+const MOVED_FOR_A_HOLIDAY = ['2027-01-19']
 const offPattern = m.KC_SCHEDULE.filter(
-  (r) => !r.standalone && !m.KC_CLASS_PATTERN.days.includes(dayOf(r.date)),
+  (r) =>
+    !r.standalone &&
+    !MOVED_FOR_A_HOLIDAY.includes(r.date) &&
+    !m.KC_CLASS_PATTERN.days.includes(dayOf(r.date)),
 )
 check(
   offPattern.length === 0,
@@ -106,17 +115,87 @@ check(
   offPattern.map((r) => `${r.label} ${r.date} (${WEEKDAY[dayOf(r.date)]})`).join(', '),
 )
 
+// ACLS and PALS came out of the filed schedule: both operations run them
+// through their own AHA classes, so the sixteen hours are not this course's to
+// file and the two Saturdays are gone. What is worth asserting now is that they
+// are gone CLEANLY — a leftover row would be sixteen hours filed against a
+// course nobody here is teaching, and a leftover promise in the syllabus would
+// be worse, which is what the document checks cover.
 const ahaRows = m.KC_SCHEDULE.filter((r) => r.delivery === 'aha')
 check(
-  ahaRows.length === 2 && ahaRows.every((r) => dayOf(r.date) === 6),
-  'both AHA provider courses are Saturdays',
-  ahaRows.map((r) => `${r.short} ${r.date} (${WEEKDAY[dayOf(r.date)]})`).join(', '),
+  ahaRows.length === 0,
+  'no AHA provider course is filed on this cohort',
+  ahaRows.map((r) => `${r.short} ${r.date}`).join(', '),
 )
+// Which leaves the winter break as the only row outside the Monday/Thursday pattern.
+const standalone = m.KC_SCHEDULE.filter((r) => r.standalone)
 check(
-  ahaRows.map((r) => r.date).join(',') === '2026-12-05,2027-01-09',
-  'ACLS is Saturday 5 December and PALS Saturday 9 January',
-  ahaRows.map((r) => r.date).join(', '),
+  standalone.every((r) => r.delivery === 'assignment'),
+  'every remaining standalone row is student work, not a session in a room',
+  standalone.filter((r) => r.delivery !== 'assignment').map((r) => r.label).join(', '),
 )
+
+// A session displaced out of its teaching week points at the reading it was
+// actually built on. The respiratory laboratory moved a week forward to clear
+// Thanksgiving; before this it inherited week 8's cardiovascular chapter, and
+// the agenda told whoever ran the lab to assume the cohort had read it.
+const displaced = m.KC_SCHEDULE.filter((r) => r.preClassWeek !== undefined)
+const badDisplaced = displaced.filter((r) => {
+  if (r.preClassWeek === r.week) return true
+  const reading = m.KC_SCHEDULE.find(
+    (x) => x.week === r.preClassWeek && x.delivery === 'assignment' && !x.standalone,
+  )
+  return !reading
+})
+check(
+  badDisplaced.length === 0,
+  'every session that borrows another week’s reading names a week that has some',
+  badDisplaced.map((r) => `${r.label}: preClassWeek ${r.preClassWeek}`).join(', '),
+)
+// And the converse: a face-to-face session whose short name is carried by a
+// different week's block is displaced whether or not anyone said so.
+const respiratoryLab = m.KC_SCHEDULE.find((r) => r.short === 'Respiratory lab')
+const respiratoryDidactic = m.KC_SCHEDULE.find((r) => r.short === 'Respiratory')
+check(
+  !respiratoryLab ||
+    !respiratoryDidactic ||
+    respiratoryLab.week === respiratoryDidactic.week ||
+    respiratoryLab.preClassWeek === respiratoryDidactic.week,
+  'the respiratory laboratory reads the respiratory week’s chapter, not the week it landed in',
+  respiratoryLab
+    ? `lab is week ${respiratoryLab.week}, reading week ${respiratoryLab.preClassWeek}, didactic is week ${respiratoryDidactic?.week}`
+    : 'no respiratory lab',
+)
+
+// A session off the Monday/Thursday pattern is a decision, and the row that
+// carries it has to be the row that explains it. The MLK note spent a version
+// attached to the Monday one week later: the calendar was right, and the only
+// page that said WHY the cohort was in a room on a Tuesday pointed at a
+// different day.
+{
+  const pattern = new Set(m.KC_CLASS_PATTERN.days)
+  const offPattern = m.KC_SCHEDULE.filter(
+    (r) => r.delivery === 'f2f' && !pattern.has(new Date(`${r.date}T00:00:00Z`).getUTCDay()),
+  )
+  const unexplained = offPattern.filter((r) => !r.note)
+  check(
+    unexplained.length === 0,
+    'every session off the Monday/Thursday pattern carries its own explanation',
+    unexplained.map((r) => `${r.label} ${r.date}`).join(', '),
+  )
+  // And no session ON the pattern claims to be the exception.
+  const misplaced = m.KC_SCHEDULE.filter(
+    (r) =>
+      r.delivery === 'f2f' &&
+      pattern.has(new Date(`${r.date}T00:00:00Z`).getUTCDay()) &&
+      /not on a Monday or a Thursday|the one session not on/i.test(r.note ?? ''),
+  )
+  check(
+    misplaced.length === 0,
+    'no session on the pattern carries the off-pattern explanation',
+    misplaced.map((r) => `${r.label} ${r.date}`).join(', '),
+  )
+}
 
 // The whole point of absorbing the holidays instead of pushing past them.
 const onHoliday = m.holidayCollisions()
@@ -126,14 +205,19 @@ check(
   onHoliday.map((h) => `${h.date} ${h.holiday}`).join(', '),
 )
 
-// Week 8 is the Thanksgiving week and runs Tuesday only. This is the single
-// most load-bearing irregularity in the calendar: it is why ACLS is on a
-// Saturday, and a later edit that "restores" the Thursday breaks both.
-const week8f2f = m.KC_SCHEDULE.filter((r) => r.week === 8 && r.delivery === 'f2f')
+// Week 8 is the Thanksgiving week and runs Monday only — Thanksgiving takes
+// its Thursday. A later edit that "restores" that Thursday puts a session on
+// 26 November.
+// Week 7 is the Thanksgiving week now that the course starts a week later, and
+// it runs Monday only. The respiratory laboratory that would have been its
+// Thursday moved to the Monday after rather than being surrendered — a CPAP
+// check-off is not a thing to give up to a holiday — so week 8 carries three
+// f2f-shaped rows' worth of content across two days.
+const week7f2f = m.KC_SCHEDULE.filter((r) => r.week === 7 && r.delivery === 'f2f')
 check(
-  week8f2f.length === 1 && week8f2f[0].date === '2026-11-24',
-  'week 8 is a single Tuesday session — Thanksgiving is surrendered, not fought',
-  week8f2f.map((r) => r.date).join(', '),
+  week7f2f.length === 1 && week7f2f[0].date === '2026-11-23',
+  'week 7 is a single Monday session — Thanksgiving is surrendered, not fought',
+  week7f2f.map((r) => r.date).join(', '),
 )
 
 // Nothing is scheduled inside the winter break except the break block itself.
@@ -239,14 +323,16 @@ check(
     .map((r) => `${r.short} ${r.startTime}-${r.endTime} vs ${m.rowHours(r)} h`)
     .join(', '),
 )
-// The AHA Saturdays are the only rows with a break, and publishing the real
-// end time is the point: 16:00 would have reconciled the arithmetic by telling
-// students the course finishes an hour before it does.
+// No row declares a break any more — the AHA Saturdays were the only ones long
+// enough to need one. The rule stays because the arithmetic it protects is the
+// point: a row whose clock span exceeds its filed hours must declare the
+// difference as a break rather than publish a false end time, which is how a
+// student ends up told the day finishes an hour before it does.
 check(
   m.KC_SCHEDULE.filter((r) => r.breakMinutes).every(
-    (r) => r.delivery === 'aha' && r.endTime === '17:00',
+    (r) => m.rowHours(r) > 0 && r.endTime && r.startTime,
   ),
-  'the AHA courses publish their real 17:00 end time and declare the lunch hour',
+  'any row declaring a break still publishes its real end time',
   m.KC_SCHEDULE.filter((r) => r.breakMinutes).map((r) => `${r.short} ${r.endTime}`).join(', '),
 )
 
@@ -353,10 +439,170 @@ check(
   `${t.f2f} h`,
 )
 
+// ----- the dates the prose states --------------------------------------------
+//
+// KBEMS deadlines are stored as offsets from the first or last session, so they
+// recompute when the course moves. Their NOTES are prose, and prose does not
+// recompute: moving the start from Tuesday 6 October to Monday 5 October left
+// two notes explaining that thirty days before the first session is "Sunday 6
+// September", which had become Saturday 5 September. Same practical deadline,
+// wrong arithmetic, in the note about the one date that can sink the cohort.
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+const spell = (iso) => {
+  const [y, mo, d] = iso.split('-').map(Number)
+  return `${d} ${MONTHS[mo - 1]}`
+}
+const offsetDate = (d) => {
+  const anchorISO = d.anchor === 'last-session' ? m.KC_END_DATE : m.KC_START_DATE
+  const [y, mo, dd] = anchorISO.split('-').map(Number)
+  const t = new Date(Date.UTC(y, mo - 1, dd) + d.offsetDays * 86_400_000)
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`
+}
+
+// Any note that spells out a date must spell out one this cohort actually has.
+const KNOWN_DATES = new Set([
+  ...m.KBEMS_DEADLINES.map(offsetDate).map(spell),
+  spell(m.KC_START_DATE),
+  spell(m.KC_END_DATE),
+  spell(m.PRE_COURSE_POLICY.dueBy),
+])
+const staleNotes = []
+for (const d of m.KBEMS_DEADLINES) {
+  // A date carrying its own year is a citation of something outside this
+  // cohort — "NREMT retired the ALS psychomotor examination on 30 June 2024" —
+  // and has nothing to do with when this course runs. Only bare dates are
+  // claims about this cohort's calendar.
+  for (const said of d.note.matchAll(
+    /\b(\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December)(?! \d{4})\b/g,
+  )) {
+    const spelled = `${Number(said[1])} ${said[2]}`
+    // A practical deadline pulled back off a weekend is a real date this cohort
+    // has too, so a computed date and the working day before it both pass. Three
+    // days covers a Sunday pulled back to Friday; a week was loose enough to
+    // accept the very error this was written to catch.
+    const near = [...KNOWN_DATES].some((k) => {
+      const [kd, km] = k.split(' ')
+      const drift = Number(kd) - Number(said[1])
+      return km === said[2] && drift >= 0 && drift <= 3
+    })
+    if (!near) staleNotes.push(`${d.id}: "${spelled}"`)
+  }
+}
+check(
+  staleNotes.length === 0,
+  'no deadline note spells out a date this cohort does not have',
+  staleNotes.join(', '),
+)
+
+// The same rule for the holiday notes, which say how each holiday is absorbed
+// and are read straight onto the Sessions tab. One of them said the course
+// ended on 4 February for a fortnight after it ended on the 11th.
+const HOLIDAY_DATES = new Set([
+  ...m.KC_HOLIDAYS.map((h) => spell(h.date)),
+  ...m.KC_SCHEDULE.map((r) => spell(r.date)),
+  spell(m.WINTER_BREAK.start),
+  spell(m.WINTER_BREAK.end),
+])
+const SPELLED = /\b(\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December)(?! \d{4})\b/g
+const staleHolidays = []
+for (const h of m.KC_HOLIDAYS) {
+  for (const said of h.absorbedBy.matchAll(SPELLED)) {
+    const spelled = `${Number(said[1])} ${said[2]}`
+    if (!HOLIDAY_DATES.has(spelled)) staleHolidays.push(`${h.name}: "${spelled}"`)
+  }
+}
+check(
+  staleHolidays.length === 0,
+  'no holiday note spells out a date this cohort does not have',
+  staleHolidays.join(', '),
+)
+
+// A date is a real cohort date and still the wrong one: "after the 4 February
+// course end" named a real class day while the course ran to the 11th. Where a
+// note dates the end of the course, it has to be the end of the course.
+const misdatedEnd = []
+for (const [where, text] of [
+  ...m.KC_HOLIDAYS.map((h) => [h.name, h.absorbedBy]),
+  ...m.KBEMS_DEADLINES.map((d) => [d.id, d.note]),
+]) {
+  for (const said of text.matchAll(SPELLED)) {
+    const around = text.slice(Math.max(0, said.index - 40), said.index + said[0].length + 40)
+    if (!/course end|end of the course|course ends|last class/i.test(around)) continue
+    const spelled = `${Number(said[1])} ${said[2]}`
+    if (spelled !== spell(m.KC_END_DATE)) misdatedEnd.push(`${where}: "${spelled}"`)
+  }
+}
+check(
+  misdatedEnd.length === 0,
+  `every note that dates the end of the course names ${spell(m.KC_END_DATE)}`,
+  misdatedEnd.join(', '),
+)
+
+const approval = m.KBEMS_DEADLINES.find((d) => d.id === 'course-approval')
+check(
+  approval && approval.note.includes(spell(offsetDate(approval))),
+  'the filing deadline note states the date the offset actually computes',
+  approval ? `note does not mention ${spell(offsetDate(approval))} (30 days before ${m.KC_START_DATE})` : 'no course-approval deadline',
+)
+
+// ----- who teaches which day -------------------------------------------------
+//
+// The two instructors of record split the week: Mondays are the primary
+// instructor's, Thursdays the co-instructor's. It is filed per row rather than
+// derived, so the thing worth checking is that the rows and the agreement still
+// say the same thing — a printed schedule naming the wrong person is a promise
+// broken in front of students.
+
+const unstaffed = m.KC_SCHEDULE.filter((r) => r.delivery === 'f2f' && !r.instructor)
+check(
+  unstaffed.length === 0,
+  'every classroom session names the instructor who teaches it',
+  unstaffed.map((r) => `${r.label} ${r.date}`).join(', '),
+)
+// A row may depart from the weekday split, but it has to say why. An exception
+// list living in this file would grow until nobody remembered which entries
+// were decisions; a reason on the row travels with it.
+const MOVED = ['2027-01-19']
+const offPatternStaffing = m.KC_SCHEDULE.filter(
+  (r) =>
+    r.delivery === 'f2f' &&
+    !MOVED.includes(r.date) &&
+    (dayOf(r.date) === 1) !== (r.instructor === 'primary'),
+)
+const unexplainedSwap = offPatternStaffing.filter((r) => !r.instructorNote?.trim())
+check(
+  unexplainedSwap.length === 0,
+  'every session that departs from the Monday/Thursday split says why',
+  unexplainedSwap.map((r) => `${r.date} ${WEEKDAY[dayOf(r.date)]} -> ${r.instructor}`).join(', '),
+)
+check(
+  m.KC_SCHEDULE.every((r) => !r.instructorNote || r.instructor),
+  'no row explains a swap it did not make',
+)
+const staffed = new Set(m.KC_SCHEDULE.filter((r) => r.instructor).map((r) => r.instructor))
+check(
+  staffed.size === 2,
+  'both instructors of record actually teach',
+  `only ${[...staffed].join(', ')} appears on the schedule`,
+)
+
 // ----- the hours ------------------------------------------------------------
 
 check(near(t.lab, 52), 'lab totals 52 h, as the plan states', `${t.lab} h`)
-check(near(t.aha, 16), 'AHA provider courses total 16 h, as the plan states', `${t.aha} h`)
+check(near(t.aha, 0), 'no AHA hours are filed', `${t.aha} h`)
+// The joint plan's own summary counted 16 h of AHA. That number is still in
+// FILED_SUMMARY because it records what the source document said; the distance
+// from it is now deliberate rather than drift, and saying so here is what stops
+// somebody "fixing" the schedule back.
+check(
+  m.FILED_SUMMARY.aha === 16 && t.aha === 0,
+  'the 16 h the source document filed for AHA is recorded as a deliberate departure',
+  `filed ${m.FILED_SUMMARY.aha} h, scheduled ${t.aha} h`,
+)
 check(
   near(t.f2fDidactic + t.lab, t.f2f),
   'face-to-face splits exactly into didactic and lab',
@@ -368,10 +614,14 @@ check(
   `${t.didactic} vs ${t.f2fDidactic} + ${t.assignment}`,
 )
 check(
-  near(m.KC_HOUR_TARGETS.find((h) => h.id === 'didactic').hours, t.didactic) &&
-    near(m.KC_HOUR_TARGETS.find((h) => h.id === 'lab').hours, t.lab) &&
-    near(m.KC_HOUR_TARGETS.find((h) => h.id === 'aha').hours, t.aha),
-  'filed targets equal the schedule',
+  ['didactic', 'lab', 'aha'].every((id) => {
+    const target = m.KC_HOUR_TARGETS.find((h) => h.id === id)
+    // A category the cohort does not file has no target row, and that is the
+    // right answer rather than a row reading zero — but it has to agree with a
+    // schedule that lays out none of it.
+    return target ? near(target.hours, t[id]) : t[id] === 0
+  }),
+  'filed targets equal the schedule, and a category with no target lays out none',
 )
 check(
   near(m.KC_CLASSROOM_TARGET, t.classroom),
@@ -455,8 +705,8 @@ check(
 
 check(
   A.MASTERY_GATES.length === 3 &&
-    A.MASTERY_GATES.map((g) => g.date).join(',') === '2026-10-29,2026-12-01,2027-01-21',
-  'three gates, on 29 October, 1 December and 21 January',
+    A.MASTERY_GATES.map((g) => g.date).join(',') === '2026-11-05,2026-12-07,2027-01-28',
+  'three gates, on 5 November, 7 December and 28 January',
   A.MASTERY_GATES.map((g) => g.date).join(', '),
 )
 check(
@@ -545,6 +795,162 @@ check(
 const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.chapters ?? []), 0)
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
+
+// ----- prerequisites that have been settled ----------------------------------
+//
+// A closed prerequisite stays on the page rather than being deleted: what was
+// settled, and when, is part of the filing record. So it has to carry a real
+// date, and the sentence must not ALSO say "done" in prose — two conventions
+// for the same fact is how one of them goes stale.
+{
+  const all = m.KBEMS_DEADLINES.flatMap((d) =>
+    (d.prerequisites ?? []).map((p) => [d.id, m.prerequisite(p)]),
+  )
+  check(all.length > 10, `there are prerequisites to check — ${all.length}`)
+  check(
+    all.some(([, p]) => p.done),
+    'and at least one is settled, so the settled-item assertions below are not vacuous',
+  )
+  const badDate = all.filter(
+    ([, p]) => p.done !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(p.done),
+  )
+  check(
+    badDate.length === 0,
+    'every settled prerequisite carries an ISO date',
+    badDate.map(([id, p]) => `${id}: ${p.done}`).join(', '),
+  )
+  // Nothing is settled in the future, and nothing before this work began.
+  const outOfRange = all.filter(([, p]) => p.done && (p.done > new Date().toISOString().slice(0, 10) || p.done < '2026-01-01'))
+  check(
+    outOfRange.length === 0,
+    'no prerequisite is settled on a date that has not happened',
+    outOfRange.map(([id, p]) => `${id}: ${p.done}`).join(', '),
+  )
+  const prosaic = all.filter(([, p]) => /\b(done|complete|signed|confirmed)\b[^.]{0,20}\d{4}/i.test(p.what))
+  check(
+    prosaic.length === 0,
+    'no prerequisite records being settled in its own sentence instead of in `done`',
+    prosaic.map(([id, p]) => `${id}: "${p.what.slice(0, 70)}"`).join('\n        '),
+  )
+  // The application asserts lab-simulated IO satisfies the regulation. It may
+  // only do that while the requirement actually allows the lab setting.
+  const io = m.CLINICAL_REQUIREMENTS.find((r) => r.id === 'io')
+  const ioAnswered = all.find(([, p]) => /intraosseous/i.test(p.what))?.[1]
+  check(
+    !ioAnswered?.done || (io && io.allowedSettings.includes('lab')),
+    'the IO question is only closed while the requirement still allows the lab setting',
+    io ? `io allows ${io.allowedSettings.join(', ')}` : 'no io requirement',
+  )
+  check(
+    !ioAnswered?.done || !!ioAnswered.evidence,
+    'a prerequisite closed on someone’s answer says what is retained as the record of it',
+  )
+}
+
+// ----- every authored date, everywhere ----------------------------------------
+//
+// The narrow checks above each guard one field that went stale once. This
+// sweeps every string the course record holds and asks the same question of
+// all of them: does this spelled-out date exist in this cohort?
+//
+// It is here because the narrow checks kept being written one bug too late.
+// The grading model — the table a student reads to know when they sit an exam
+// — said "Gate exams — 3 (29 Oct, 1 Dec, 21 Jan)" and "Final comprehensive
+// exam, 2 February". All four were wrong, and all four named a real class day,
+// so nothing that compared against the calendar would have caught them.
+{
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const known = new Set([
+    ...m.KC_SCHEDULE.map((r) => spell(r.date)),
+    ...A.COURSE_ASSESSMENTS.filter((a) => a.date).map((a) => spell(a.date)),
+    ...A.COURSE_ASSESSMENTS.filter((a) => a.retestBy).map((a) => spell(a.retestBy)),
+    ...m.KC_HOLIDAYS.map((h) => spell(h.date)),
+    ...m.KBEMS_DEADLINES.flatMap((d) => {
+      const x = m.deadlineDates(d)
+      return [spell(x.due), spell(x.filedBy)]
+    }),
+    spell(m.KC_START_DATE),
+    spell(m.KC_END_DATE),
+    spell(m.WINTER_BREAK.start),
+    spell(m.WINTER_BREAK.end),
+  ])
+
+  const strings = []
+  const seenObj = new WeakSet()
+  const walk = (v, path, depth) => {
+    if (depth > 6) return
+    if (typeof v === 'string') strings.push([path, v])
+    else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`, depth + 1))
+    else if (v && typeof v === 'object') {
+      if (seenObj.has(v)) return
+      seenObj.add(v)
+      for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`, depth + 1)
+    }
+  }
+  for (const [ns, mod] of [['aemt', m], ['assessments', m.A], ['phases', m.PH]]) {
+    for (const [k, v] of Object.entries(mod)) {
+      if (typeof v === 'function') continue
+      walk(v, `${ns}.${k}`, 0)
+    }
+  }
+
+  // A date carrying its own year cites something outside this cohort — a
+  // regulation's effective date, a certification retired in 2024 — and says
+  // nothing about when this course runs. Only bare dates are calendar claims.
+  // Both spellings the record uses: "2 February" and "29 Oct". The first
+  // version of this sweep matched only full month names, and so passed the
+  // grading model's "Gate exams — 3 (29 Oct, 1 Dec, 21 Jan)" — three wrong
+  // dates — while catching the "2 February" beside it.
+  const MONTH_ALT = MONTHS.flatMap((mo) => [mo, mo.slice(0, 3)]).join('|')
+  const bare = new RegExp(`\\b(\\d{1,2}) (${MONTH_ALT})\\.?(?! \\d{4})\\b`, 'g')
+  const stale = new Set()
+  for (const [path, text] of strings) {
+    for (const said of text.matchAll(bare)) {
+      // Normalise "29 Oct" and "29 October" to the same key before comparing.
+      const full = MONTHS.find((mo) => mo.startsWith(said[2]))
+      const spelled = `${Number(said[1])} ${full}`
+      if (!known.has(spelled)) stale.add(`${said[0]} — ${path.slice(0, 70)}`)
+    }
+  }
+  // A sweep is worth exactly what it walked. If an import shape changes and
+  // the modules come back empty, every assertion below is vacuously true and
+  // the check goes on reporting a pass — the failure main's check-kit was
+  // written about. Floor it well under the real figure, so it catches "almost
+  // nothing" without breaking every time a note is added.
+  check(
+    strings.length > 400,
+    `the sweep walked the course record, not an empty object — ${strings.length} strings`,
+  )
+  check(
+    strings.some(([, t]) => bare.test(t)) || (bare.lastIndex = 0) === 0,
+    'and at least one of them spells out a date, so the pattern still matches',
+  )
+  check(
+    stale.size === 0,
+    'no authored string names a date this cohort does not have',
+    [...stale].join('\n        '),
+  )
+
+  // And a weekday written next to a date has to be that date's weekday.
+  const withDay = /\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday) (\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December)\b/g
+  const wrongDay = new Set()
+  const years = [...new Set([m.KC_START_DATE, m.KC_END_DATE].map((d) => Number(d.slice(0, 4))))]
+  for (const [path, text] of strings) {
+    for (const said of text.matchAll(withDay)) {
+      const day = Number(said[2])
+      const mon = MONTHS.indexOf(said[3]) + 1
+      const ok = years.some((y) => DAYS[new Date(Date.UTC(y, mon - 1, day)).getUTCDay()] === said[1])
+      if (!ok) wrongDay.add(`${said[0]} — ${path.slice(0, 70)}`)
+    }
+  }
+  check(
+    wrongDay.size === 0,
+    'no authored string names a weekday that is not that date’s weekday',
+    [...wrongDay].join('\n        '),
+  )
+}
+
 
 console.log(`
   ${t.weeks} instructional weeks over ${m.KC_CALENDAR_WEEKS} calendar weeks · ${m.KC_START_DATE} to ${m.KC_END_DATE}

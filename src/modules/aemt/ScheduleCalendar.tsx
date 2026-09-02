@@ -6,13 +6,21 @@
 // a holiday. A month grid answers those at a glance, which is the point.
 //
 // Read-only by design. Editing stays in the list view, where every field is
-// reachable and a mis-drag cannot silently move a filed session; clicking a day
-// here jumps you there.
+// reachable and a mis-drag cannot silently move a filed session.
+//
+// Tapping a day opens its AGENDA — what is being taught, by whom, what the
+// students were told to do beforehand, what gets checked off and what is
+// graded. That is the question somebody has standing in front of the calendar
+// at 0700, and answering it here saves opening the printed lesson plan on a
+// phone. It reads the same filed rows the plan prints from, so the two cannot
+// give different answers.
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from 'react'
 import { formatDate, fromISODate, monthKey, monthLabel, todayISO, toISODate } from '../../lib/date'
-import { BLOCK_SHORT_BY_TITLE, holidayOn } from '../../data/aemt'
+import { BLOCK_SHORT_BY_TITLE, KC_SCHEDULE, holidayOn } from '../../data/aemt'
+import { toTheMinute } from './aemtStore'
+import DayAgenda from './DayAgenda'
 import type { AemtCourse, AemtSession, AemtSessionKind } from '../../types'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -84,6 +92,7 @@ export default function ScheduleCalendar({
   // opening a course that runs next spring wants to see the course, not an
   // empty grid for this month.
   const [month, setMonth] = useState(() => monthKey(course.startDate || todayISO()))
+  const [openDay, setOpenDay] = useState<string | null>(null)
   const today = todayISO()
 
   const byDate = useMemo(() => {
@@ -189,16 +198,37 @@ export default function ScheduleCalendar({
           // The day badge counts class time only — an assignment logged against
           // this date is not four more hours in the room.
           const hours = day.reduce((n, s) => n + (s.delivery === 'assignment' ? 0 : s.hours), 0)
+          // A day with nothing on it opens an empty sheet, which is noise —
+          // only days carrying something are tappable, and the cursor says so.
+          const openable = day.length > 0 || !!holiday
           return (
             <div
               key={iso}
               role="gridcell"
+              tabIndex={openable ? 0 : undefined}
+              aria-label={
+                openable
+                  ? `${formatDate(iso)} — ${day.length} entr${day.length === 1 ? 'y' : 'ies'}, open agenda`
+                  : undefined
+              }
+              onClick={openable ? () => setOpenDay(iso) : undefined}
+              onKeyDown={
+                openable
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setOpenDay(iso)
+                      }
+                    }
+                  : undefined
+              }
               className={[
                 'cal-day',
                 inMonth ? '' : 'other-month',
                 iso === today ? 'is-today' : '',
                 day.length > 0 && outside ? 'is-outside' : '',
                 holiday ? 'is-holiday' : '',
+                openable ? 'is-openable' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -224,7 +254,7 @@ export default function ScheduleCalendar({
           <strong>
             {unplaced.length} session{unplaced.length === 1 ? '' : 's'} with no date
           </strong>{' '}
-          cannot appear on a calendar — {unplaced.reduce((n, s) => n + s.hours, 0)} h carried by
+          cannot appear on a calendar — {toTheMinute(unplaced.reduce((n, s) => n + s.hours, 0))} h carried by
           sessions nobody has placed yet. They are listed in the list view.
         </div>
       )}
@@ -232,8 +262,17 @@ export default function ScheduleCalendar({
       {course.startDate && course.endDate && (
         <div className="help-text" style={{ marginTop: 10 }}>
           Course runs {formatDate(course.startDate)} – {formatDate(course.endDate)}. Shaded days fall
-          outside that range.
+          outside that range. Tap any day with something on it for that day&rsquo;s agenda.
         </div>
+      )}
+
+      {openDay && (
+        <DayAgenda
+          date={openDay}
+          sessions={byDate.get(openDay) ?? []}
+          allRows={KC_SCHEDULE}
+          onClose={() => setOpenDay(null)}
+        />
       )}
     </div>
   )

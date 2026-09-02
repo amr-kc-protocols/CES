@@ -89,7 +89,7 @@ export const RULE_SETS: RuleSet[] = [
     citation: 'K.A.R. 109-11-1a(c)',
     effectiveDate: '2024-11-01',
     scope:
-      'The course approval application must be in the board office no later than 30 calendar days before the first session. For a 6 October 2026 start that is Sunday 6 September; the Monday after is Labor Day, so the practical deadline is Friday 4 September 2026.',
+      'The course approval application must be in the board office no later than 30 calendar days before the first session. For the 12 October 2026 start that is Saturday 12 September, so the practical deadline is Friday 11 September 2026.',
     verifiedAgainst:
       'AEMT_Course_Oct2026_Cohort.docx §2, agreed by both primary instructors. RE-VERIFY against the current regulation text before filing — this supersedes a 15-day figure this file previously carried, and the two disagree by a fortnight.',
   },
@@ -645,26 +645,57 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
  * a template, and Kansas City's own draft on top of it — are merged here into
  * a single schedule that both primary instructors have agreed to.
  *
- * Transcribed from AEMT_Course_Oct2026_Cohort.docx: Tuesday 6 October 2026
- * through Thursday 4 February 2027, Tuesdays and Thursdays 09:00-13:00, with
- * the two AHA provider courses pulled out onto Saturdays.
+ * Transcribed from AEMT_Course_Oct2026_Cohort.docx and then MOVED. The source
+ * document ran Tuesdays and Thursdays 09:00-13:00; this cohort runs MONDAYS AND
+ * THURSDAYS 08:00-12:00, Monday 12 October 2026 through Thursday 11 February
+ * 2027, because that is what fits the students and Wichita.
+ *
+ * WHY MONDAY. Every one of the six students holds a full-time twelve-hour line,
+ * and the two schedules were never put next to each other until they were. On
+ * the Tuesday/Thursday pattern not one of them could attend: the best case was
+ * fifteen hours of class lost to a bid line against an eight-hour absence cap,
+ * the worst was ninety-three. Monday is the only weekday none of the four
+ * Kansas City students works, and it is inside the primary instructor's filed
+ * availability. Thursday stays because moving both days would have meant
+ * rebuilding the whole calendar; it is the day that still costs people hours,
+ * and the roster says exactly how many.
+ *
+ * WHO TEACHES WHICH. Mondays are the primary instructor's, Thursdays are the
+ * co-instructor's. Recorded per session rather than assumed from the weekday,
+ * so a swap is a data change instead of a broken promise on a printed
+ * schedule.
+ *
+ * THE TWO AHA PROVIDER COURSES ARE NOT IN IT. ACLS and PALS were originally
+ * filed as two Saturdays inside this course, sixteen hours on AHA's curriculum
+ * and AHA's certificate. Both operations run their own AHA classes and will
+ * put these students through those instead, so they are out of the filed
+ * schedule and out of the filed hours. Students still take them — the syllabus
+ * says so — but as their operation's course rather than as part of this one,
+ * which is the honest way to file hours nobody here is teaching.
  *
  * WHAT CHANGED, AND WHY IT IS NOT A GENERATED CALENDAR ANY MORE.
  *
  * The previous version held sixteen undated course weeks and laid them onto
- * Tuesdays and Thursdays at seed time, pushing any face-to-face week that
+ * class days at seed time, pushing any face-to-face week that
  * collided with a holiday into the next clear week — which extended the course
  * past sixteen calendar weeks and moved every later date with it. The joint
  * plan does the opposite, deliberately: the holidays are ABSORBED rather than
  * fought, and the resulting calendar is the agreement.
  *
- *   - Thanksgiving (Thu 26 Nov) is surrendered. Week 8 is a single Tuesday
- *     session, and ACLS moves out to Saturday 5 December.
+ *   - Thanksgiving (Thu 26 Nov) is surrendered. Week 7 is a single Monday
+ *     session, and the respiratory laboratory that would have been its Thursday
+ *     moves to the Monday after — a CPAP check-off is not a thing to give up to
+ *     a holiday. The cardiovascular didactic it displaces moves to that week's
+ *     Thursday, which swaps which instructor teaches each of them.
  *   - A deliberate two-week break, 21 Dec - 3 Jan, replaces four sessions that
  *     would have been half empty. Christmas Eve, Christmas Day, New Year's Eve
  *     and New Year's Day all fall inside it.
- *   - MLK Day (Mon 18 Jan) and Presidents' Day (Mon 15 Feb) never touch a
- *     Tuesday or a Thursday.
+ *   - MLK Day (Mon 18 Jan) is the one holiday the move to Mondays created a
+ *     collision with. Week 13's session goes to Tuesday 19 January rather than
+ *     being surrendered: it is the trauma didactic the same week's laboratory
+ *     is built on, and Tuesday costs the cohort two
+ *     hours of shift collision against three on a normal Monday and six on a
+ *     normal Thursday. Presidents' Day (Mon 15 Feb) falls after the course.
  *
  * So no session needs pushing, and a planner that pushed them would break the
  * agreed dates. Every row below carries its own date and the plan is a
@@ -699,25 +730,28 @@ export function taughtChaptersIn(chapters: number[]): TextbookChapter[] {
 /**
  * How a session reaches the student.
  *
- * `f2f`        — Tuesday/Thursday 09:00-13:00 class. Costs instructor time and
+ * `f2f`        — Monday/Thursday 08:00-12:00 class. Costs instructor time and
  *                room time, and is what the eight-hour weekly cap is about.
- * `assignment` — Navigate modules, flashcards, practice activities and the AHA
- *                pre-course work, done by the student on their own.
- * `aha`        — an AHA provider course: a Saturday, eight hours, taught to
- *                AHA's curriculum rather than ours and certificated by them.
- *                Counted in its own bucket because the joint plan counts it
- *                that way ("plus 52 lab and 16 hours of AHA courses"), and
- *                because it is the one thing on the calendar that legitimately
- *                exceeds four hours in a day.
+ * `assignment` — Navigate modules, flashcards, practice activities, done by the
+ *                student on their own.
+ * `aha`        — an AHA provider course: taught to AHA's curriculum rather than
+ *                ours and certificated by them. THIS COHORT FILES NONE — both
+ *                operations run ACLS and PALS through their own AHA classes —
+ *                but the kind stays, because a course that does file one needs
+ *                somewhere to put it and it is counted apart from didactic and
+ *                lab wherever it appears — the joint plan counted it that way
+ *                ("plus 52 lab and 16 hours of AHA courses") and so does this,
+ *                for whatever course files one next.
  */
 export type Delivery = 'f2f' | 'assignment' | 'aha'
 
 export interface ScheduleRow {
   order: number
   /**
-   * Instructional week, 1-16. The two AHA Saturdays and the winter break carry
-   * the week they sit alongside; `standalone` marks them as not part of that
-   * week's Tuesday/Thursday pair.
+   * Instructional week, 1-16. A row that sits alongside a week rather than
+   * inside its Monday/Thursday pair — the winter break block, or a weekend
+   * provider course on a cohort that files one — carries the week it is
+   * adjacent to and is marked `standalone`.
    */
   week: number
   /** Row label as the joint plan writes it. */
@@ -740,11 +774,12 @@ export interface ScheduleRow {
   /**
    * Unpaid break inside the clock span, in minutes.
    *
-   * The AHA provider courses run 08:00-17:00 and are eight instructional
-   * hours: nine on the clock, one of them lunch. Filing 16:00 to make the
-   * arithmetic work would tell a student the course ends an hour before it
-   * does, on the schedule they plan their Saturday around — so the break is
-   * declared instead, and the validator subtracts it.
+   * A day filed 08:00-17:00 that is eight instructional hours is nine on the
+   * clock with one of them lunch. Filing 16:00 to make the arithmetic work
+   * would tell a student the day ends an hour before it does, on the schedule
+   * they plan around — so the break is declared instead, and the validator
+   * subtracts it. No row on this cohort needs it since the AHA Saturdays came
+   * out; it stays because the next full-day session will.
    */
   breakMinutes?: number
   /**
@@ -784,9 +819,41 @@ export interface ScheduleRow {
    */
   taughtNotChecked?: string[]
   /**
-   * Not one of the week's Tuesday/Thursday sessions — a Saturday AHA course or
-   * the winter break block. Excluded from the eight-hour weekly cap check,
-   * which is about the Tue/Thu pattern.
+   * Which instructor of record teaches this session.
+   *
+   * The joint cohort splits the week: Mondays are the primary instructor's and
+   * Thursdays the co-instructor's. Recorded per row rather than derived from
+   * the weekday, because the rule is an agreement between two people and not a
+   * property of the calendar — the day a session moves, or one of them covers
+   * for the other, the schedule should be able to say so without the printed
+   * copy quietly contradicting who was actually in the room.
+   */
+  instructor?: 'primary' | 'co'
+  /**
+   * Why this session departs from the Monday/Thursday split.
+   *
+   * The default is the weekday: Mondays are the primary instructor's, Thursdays
+   * the co-instructor's. A session that swaps does so because one of them wants
+   * to teach that subject, and the reason belongs on the row — the alternative
+   * is an exception list somewhere else that grows until nobody remembers which
+   * entries were decisions. check-course-plan.mjs requires one on every row
+   * that breaks the pattern, so a swap is deliberate or it fails.
+   */
+  instructorNote?: string
+  /**
+   * The week whose pre-class reading this session was built on, when that is
+   * not its own week.
+   *
+   * Thanksgiving displaced the respiratory laboratory a week forward, so it now
+   * sits in week 8 while the material it drills is week 7's. Without this the
+   * agenda tells whoever is running the lab to assume the cohort has read the
+   * cardiovascular chapter, which has nothing to do with it.
+   */
+  preClassWeek?: number
+  /**
+   * Not one of the week's Monday/Thursday sessions — the winter break block,
+   * or a weekend provider course on a cohort that files one. Excluded from the
+   * eight-hour weekly cap check, which is about the Mon/Thu pattern.
    */
   standalone?: boolean
   /**
@@ -804,26 +871,26 @@ export interface ScheduleRow {
   note?: string
 }
 
-const AM = '09:00'
-const PM = '13:00'
+const AM = '08:00'
+const PM = '12:00'
 
 export const KC_SCHEDULE: ScheduleRow[] = [
   // ----- before the course starts -------------------------------------------
   {
     order: 0,
     week: 0,
-    label: 'Pre-course · due before 6 October',
+    label: 'Pre-course · due before 12 October',
     short: 'Pre-course Ch 1-4',
     title:
       'REQUIRED BEFORE THE FIRST SESSION. Navigate Modules 1-4 (Ch 1-4): EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal & Ethical (PR7). Chapter flashcards and practice activities, plus the chapter quizzes.',
     delivery: 'assignment',
     didacticHours: 3.4,
     labHours: 0,
-    date: '2026-09-29',
+    date: '2026-10-05',
     chapters: [1, 2, 3, 4],
     sections: ['PR1', 'PR2', 'PR3', 'PR4', 'PR5', 'PR6', 'PR7'],
     standalone: true,
-    note: 'Moved out of week 1 by decision. These four chapters are the ones an incoming EMT already works inside every shift — systems, safety, medical-legal, documentation and communication — so a classroom day spent re-covering them buys the least of any day in the course. Completing them before 6 October means the first session opens on medical terminology and the course is into A&P by its second day. The trade is that this is now a prerequisite with a completion gate, not a suggestion: a student who arrives having skipped it is behind on the week 1 quiz, which is cumulative from day one.',
+    note: 'Moved out of week 1 by decision. These four chapters are the ones an incoming EMT already works inside every shift — systems, safety, medical-legal, documentation and communication — so a classroom day spent re-covering them buys the least of any day in the course. Completing them before 12 October means the first session opens on medical terminology and the course is into A&P by its second day. The trade is that this is now a prerequisite with a completion gate, not a suggestion: a student who arrives having skipped it is behind on the week 1 quiz, which is cumulative from day one.',
   },
 
   // ----- week 1 -------------------------------------------------------------
@@ -837,21 +904,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.8,
     labHours: 0,
-    date: '2026-10-06',
+    date: '2026-10-12',
     chapters: [5, 7],
     sections: ['PR9', 'PR8'],
   },
   {
     order: 2,
     week: 1,
-    label: 'Week 1 · Tue',
+    label: 'Week 1 · Mon',
     short: 'Orientation & terminology',
     title:
       'Orientation, kept short. How the AEMT cognitive exam actually works: 135 items, linear, no backtracking, all six item types. Baseline 50-item diagnostic. Study-methods brief: why re-reading fails. Then straight into medical terminology — prefixes, suffixes and roots drilled as the vocabulary every later domain is written in.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-10-06',
+    date: '2026-10-12',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['baseline'],
@@ -867,7 +935,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-10-08',
+    date: '2026-10-15',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
   },
@@ -883,21 +952,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.1,
     labHours: 0,
-    date: '2026-10-13',
+    date: '2026-10-19',
     chapters: [8, 9],
     sections: ['PR10', 'PR11'],
   },
   {
     order: 5,
     week: 2,
-    label: 'Week 2 · Tue',
+    label: 'Week 2 · Mon',
     short: 'Pathophysiology',
     title:
       'Pathophysiology: shock states, acid-base, hypoxia vs. hypoxaemia. Life span development where it changes the assessment. Drag-and-drop drill: classify findings by shock type.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-10-13',
+    date: '2026-10-19',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-a'],
@@ -912,7 +982,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-10-15',
+    date: '2026-10-22',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     note: 'The session the pre-course block paid for. Clinical Judgment is 31-35% of the certification exam and the prior course gave it no dedicated instruction at all — it was absorbed into generic review days. This is where the recovered day went, rather than into compressing the course, because every gate date after it is a commitment to Wichita and to KBEMS.',
@@ -929,21 +1000,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.8,
     labHours: 0,
-    date: '2026-10-20',
+    date: '2026-10-26',
     chapters: [10, 6],
     sections: ['PA1', 'PA2', 'PA4', 'PA5', 'PA6'],
   },
   {
     order: 8,
     week: 3,
-    label: 'Week 3 · Tue',
+    label: 'Week 3 · Mon',
     short: 'Assessment',
     title:
       'The patient assessment framework laid onto the six-step clinical judgment cycle taught in week 2. Scene size-up, primary and secondary assessment, monitoring devices and reassessment, each named as the step of the cycle it belongs to.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-10-20',
+    date: '2026-10-26',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-b'],
@@ -958,7 +1030,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-10-22',
+    date: '2026-10-29',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     note: 'Patient-assessment check-off. Grants the assessment clearance that opens Phase 1 of the rotation.',
@@ -980,21 +1053,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.5,
     labHours: 0,
-    date: '2026-10-27',
+    date: '2026-11-02',
     chapters: [11],
     sections: ['AM1', 'AM2', 'AM3'],
   },
   {
     order: 11,
     week: 4,
-    label: 'Week 4 · Tue',
+    label: 'Week 4 · Mon',
     short: 'Airway',
     title:
       'Airway, respiration, ventilation. Capnography waveform interpretation drilled as a graphical item type.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-10-27',
+    date: '2026-11-02',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-c'],
@@ -1009,7 +1083,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-10-29',
+    date: '2026-11-05',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['gate-1'],
@@ -1031,21 +1106,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.2,
     labHours: 0,
-    date: '2026-11-03',
+    date: '2026-11-09',
     chapters: [12, 13],
     sections: ['PR13', 'PR14', 'PR15'],
   },
   {
     order: 14,
     week: 5,
-    label: 'Week 5 · Tue',
+    label: 'Week 5 · Mon',
     short: 'Pharmacology',
     title:
       'Pharmacology principles; the AEMT formulary cold; dose calculation drills under time pressure.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-11-03',
+    date: '2026-11-09',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-d'],
@@ -1060,7 +1136,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-11-05',
+    date: '2026-11-12',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     note: 'Vascular-access check-off. Venipuncture, IO and IM/SubQ reps dated before this are refused — see data/aemtPhases.ts.',
@@ -1078,21 +1155,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.9,
     labHours: 0,
-    date: '2026-11-10',
+    date: '2026-11-16',
     chapters: [14, 15, 16],
     sections: ['ST1', 'MT1', 'PR12', 'MT5'],
   },
   {
     order: 17,
     week: 6,
-    label: 'Week 6 · Tue',
+    label: 'Week 6 · Mon',
     short: 'Shock',
     title:
       'Shock differentiated by type and by what the AEMT can actually do about each. Options-box drill.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-11-10',
+    date: '2026-11-16',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-e'],
@@ -1107,7 +1185,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-11-12',
+    date: '2026-11-19',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     note: 'ECG application check-off sits in this week or the next, deliberately ahead of the week 8 cardiology block — see the ECG decoupling note in the rotation plan.',
@@ -1117,7 +1196,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     ],
   },
 
-  // ----- week 7 -------------------------------------------------------------
+  // ----- week 7 — Thanksgiving week, Monday only ---------------------------
   {
     order: 19,
     week: 7,
@@ -1128,36 +1207,42 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1,
     labHours: 0,
-    date: '2026-11-17',
+    date: '2026-11-23',
     chapters: [17],
     sections: ['MT10'],
   },
   {
     order: 20,
     week: 7,
-    label: 'Week 7 · Tue',
+    label: 'Week 7 · Mon',
     short: 'Respiratory',
     title:
       'Respiratory emergencies: pathophysiology → presentation → intervention. Differentiation drills (asthma vs. COPD vs. CHF vs. PE).',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-11-17',
+    date: '2026-11-23',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-f'],
+    note: 'No Thursday this week. Thanksgiving falls on 26 November and is surrendered rather than chased — every later date would have moved to keep it. The respiratory laboratory that would have run that Thursday moves to the Monday after.',
   },
+
+  // ----- week 8 ------------------------------------------------------------
   {
     order: 21,
-    week: 7,
-    label: 'Week 7 · Thu',
+    week: 8,
+    preClassWeek: 7,
+    label: 'Week 8 · Mon',
     short: 'Respiratory lab',
     title:
       'LAB: respiratory scenarios with capnography. CPAP check-off on the Flow-Safe II — the AEMT respiratory intervention the scenarios are built around. Clinical judgment debrief.',
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-11-19',
+    date: '2026-11-30',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     sheetIds: ['cpap-bipap-mask-flow-safe-ii'],
@@ -1165,38 +1250,36 @@ export const KC_SCHEDULE: ScheduleRow[] = [
       'Capnography on the cardiac monitor. Already checked off in week 6 as part of the whole-unit sheet — this session is where the waveform gets used against a patient rather than located on a screen.',
     ],
   },
-
-  // ----- week 8 — Thanksgiving week, Tuesday only ---------------------------
   {
     order: 22,
     week: 8,
     label: 'Week 8 pre-class',
-    short: 'Module 18 · ACLS prep',
+    short: 'Module 18 · Cardiovascular',
     title:
-      'Navigate Module 18 (Ch 18) Cardiovascular Emergencies (MT8). AHA ACLS pre-course work, assigned over the holiday — low-cognitive-load work that survives a break.',
+      'Navigate Module 18 (Ch 18) Cardiovascular Emergencies (MT8). It doubles as ACLS pre-course reading for whoever is taking ACLS with their operation around the same time.',
     delivery: 'assignment',
     didacticHours: 0.9,
     labHours: 0,
-    date: '2026-11-24',
+    date: '2026-11-30',
     chapters: [18],
     sections: ['MT8'],
-    note: 'The AHA pre-course carries no separate hour figure. The joint plan does not quantify it and the provider course itself is counted in the 16-hour AHA block.',
+    note: 'Issued at the Monday laboratory and worked across that week for the Thursday didactic — the first session back from Thanksgiving carries no new reading against it.',
   },
   {
     order: 23,
     week: 8,
-    label: 'Week 8 · Tue',
+    label: 'Week 8 · Thu',
     short: 'Cardiovascular',
     title:
       'Cardiovascular emergencies; ECG monitoring within AEMT scope. Flag explicitly what is ACLS-only and NOT testable at AEMT level.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-11-24',
+    date: '2026-12-03',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-g'],
-    note: 'No Thursday session. Thanksgiving falls on 26 November and is surrendered rather than fought; ACLS moves to Saturday 5 December to protect the Tue/Thu rhythm.',
   },
 
   // ----- week 9 -------------------------------------------------------------
@@ -1210,21 +1293,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.7,
     labHours: 0,
-    date: '2026-12-01',
+    date: '2026-12-07',
     chapters: [19, 21],
     sections: ['MT2', 'MT6', 'MT11'],
   },
   {
     order: 25,
     week: 9,
-    label: 'Week 9 · Tue',
+    label: 'Week 9 · Mon',
     short: 'GATE 2 · Neuro',
     title:
       'GATE 2 exam, first 90 minutes. Then stroke, seizure and altered mental status.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-12-01',
+    date: '2026-12-07',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['gate-2'],
@@ -1239,27 +1323,10 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-12-03',
+    date: '2026-12-10',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
-  },
-
-  // ----- Saturday 5 December — AHA ACLS -------------------------------------
-  {
-    order: 27,
-    week: 9,
-    label: 'Saturday 5 December',
-    short: 'AHA ACLS',
-    title: 'AHA ACLS Provider Course, 8 hours.',
-    delivery: 'aha',
-    didacticHours: 8,
-    labHours: 0,
-    date: '2026-12-05',
-    startTime: '08:00',
-    endTime: '17:00',
-    breakMinutes: 60,
-    standalone: true,
-    note: 'Pulled out of the Tue/Thu rhythm so that Thanksgiving week does not cost the class a session. Most agencies run the AHA courses on Saturdays anyway.',
   },
 
   // ----- week 10 ------------------------------------------------------------
@@ -1273,21 +1340,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.8,
     labHours: 0,
-    date: '2026-12-08',
+    date: '2026-12-14',
     chapters: [20, 22, 23],
     sections: ['MT3', 'MT12', 'MT4', 'MT9'],
   },
   {
     order: 29,
     week: 10,
-    label: 'Week 10 · Tue',
+    label: 'Week 10 · Mon',
     short: 'GI/GU · Anaphylaxis',
     title:
       'GI and GU emergencies, anaphylaxis, toxidromes. High-yield medical content deliberately placed before the break, not after it.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-12-08',
+    date: '2026-12-14',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-h'],
@@ -1301,7 +1369,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-12-10',
+    date: '2026-12-17',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
   },
@@ -1317,21 +1386,24 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 1.5,
     labHours: 0,
-    date: '2026-12-15',
+    date: '2027-01-04',
     chapters: [25, 35],
     sections: ['MT13', 'SP1', 'SP2'],
   },
   {
     order: 32,
     week: 11,
-    label: 'Week 11 · Tue',
+    label: 'Week 11 · Mon',
     short: 'OB & GYN',
     title:
       'OB emergencies, normal and complicated delivery, neonatal resuscitation, gynecologic emergencies.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2026-12-15',
+    date: '2027-01-04',
+    instructor: 'co',
+    instructorNote:
+      'Swapped off the Monday default at the co-instructor\u2019s request — she teaches the OB/GYN block, and the Thursday lab that checks off normal delivery and neonatal resuscitation is already hers. Splitting the block across two instructors would have been the odd choice.',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-i'],
@@ -1346,7 +1418,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2026-12-17',
+    date: '2027-01-07',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['bridge'],
@@ -1356,7 +1429,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
   // ----- winter break -------------------------------------------------------
   {
     order: 34,
-    week: 11,
+    week: 10,
     label: 'Winter break · 21 Dec - 3 Jan',
     short: 'Break block',
     title:
@@ -1376,27 +1449,28 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     order: 35,
     week: 12,
     label: 'Week 12 pre-class',
-    short: 'Module 36 · PALS prep',
+    short: 'Module 36 · Pediatrics',
     title:
-      'Navigate Module 36 (Ch 36) Pediatric Emergencies (SP3). AHA PALS pre-course work.',
+      'Navigate Module 36 (Ch 36) Pediatric Emergencies (SP3). Doubles as PALS pre-course reading for whoever is taking PALS with their operation.',
     delivery: 'assignment',
     didacticHours: 1.8,
     labHours: 0,
-    date: '2027-01-05',
+    date: '2027-01-11',
     chapters: [36],
     sections: ['SP3'],
   },
   {
     order: 36,
     week: 12,
-    label: 'Week 12 · Tue',
+    label: 'Week 12 · Mon',
     short: 'Simulation #1',
     title:
       'FULL-LENGTH SIMULATION #1 — 135 items, 3 hours, proctored, exam conditions, ungraded. Doubles as the re-entry diagnostic: it measures what survived the break, with five weeks left to fix it.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2027-01-05',
+    date: '2027-01-11',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['sim-1'],
@@ -1411,27 +1485,11 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2027-01-07',
+    date: '2027-01-14',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     note: 'Sim #1 item analysis drives every individualised assignment from here forward.',
-  },
-
-  // ----- Saturday 9 January — AHA PALS --------------------------------------
-  {
-    order: 38,
-    week: 12,
-    label: 'Saturday 9 January',
-    short: 'AHA PALS',
-    title: 'AHA PALS Provider Course, 8 hours.',
-    delivery: 'aha',
-    didacticHours: 8,
-    labHours: 0,
-    date: '2027-01-09',
-    startTime: '08:00',
-    endTime: '17:00',
-    breakMinutes: 60,
-    standalone: true,
   },
 
   // ----- week 13 ------------------------------------------------------------
@@ -1445,7 +1503,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 3.2,
     labHours: 0,
-    date: '2027-01-12',
+    date: '2027-01-18',
     chapters: [26, 27, 28, 29],
     sections: ['ST2', 'ST3', 'ST7', 'ST8'],
   },
@@ -1459,10 +1517,12 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2027-01-12',
+    date: '2027-01-19',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-j'],
+    note: 'The one session not on a Monday or a Thursday. Martin Luther King Jr. Day falls on Monday 18 January, and this week carries the trauma didactic that Thursday\u2019s trauma laboratory is built on — too much to surrender. Tuesday 19 January is the cheapest day available: it costs the cohort two hours of collision against three on a normal Monday and six on a normal Thursday.',
   },
   {
     order: 41,
@@ -1473,7 +1533,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2027-01-14',
+    date: '2027-01-21',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     taughtNotChecked: [
@@ -1493,21 +1554,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 5.1,
     labHours: 0,
-    date: '2027-01-19',
+    date: '2027-01-25',
     chapters: [30, 31, 32, 33, 34],
     sections: ['ST9', 'ST4', 'ST5', 'ST6', 'ST11', 'ST10', 'ST12'],
   },
   {
     order: 43,
     week: 14,
-    label: 'Week 14 · Tue',
+    label: 'Week 14 · Mon',
     short: 'Multisystem trauma',
     title:
       'Head/spine, chest, abdominal, orthopaedic and environmental emergencies. Emphasis on multisystem decision-making, not injury taxonomy.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2027-01-19',
+    date: '2027-01-25',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-k'],
@@ -1522,7 +1584,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2027-01-21',
+    date: '2027-01-28',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['gate-3'],
@@ -1542,7 +1605,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 5.8,
     labHours: 0,
-    date: '2027-01-26',
+    date: '2027-02-01',
     chapters: [24, 37, 38, 39, 40, 41, 42],
     sections: [
       'MT7',
@@ -1561,14 +1624,15 @@ export const KC_SCHEDULE: ScheduleRow[] = [
   {
     order: 46,
     week: 15,
-    label: 'Week 15 · Tue',
+    label: 'Week 15 · Mon',
     short: 'Psych · Geri · Ops',
     title:
       'Psychiatric emergencies and de-escalation; geriatrics; patients with special challenges; the full EMS Operations block.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2027-01-26',
+    date: '2027-02-01',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-l'],
@@ -1584,7 +1648,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2027-01-28',
+    date: '2027-02-04',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
   },
@@ -1600,21 +1665,22 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'assignment',
     didacticHours: 0,
     labHours: 0,
-    date: '2027-02-02',
+    date: '2027-02-08',
     informational: true,
     note: 'Per-student, so it carries no common hour figure. What each student is assigned comes out of their own item analysis.',
   },
   {
     order: 49,
     week: 16,
-    label: 'Week 16 · Tue',
+    label: 'Week 16 · Mon',
     short: 'Final exam',
     title:
       'FINAL COMPREHENSIVE EXAM — 135 items, 3 hours, proctored, blueprint-weighted, no backtracking. This is Simulation #2 and it counts toward the 80% completion threshold.',
     delivery: 'f2f',
     didacticHours: 4,
     labHours: 0,
-    date: '2027-02-02',
+    date: '2027-02-08',
+    instructor: 'primary',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['final'],
@@ -1629,7 +1695,8 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     delivery: 'f2f',
     didacticHours: 0,
     labHours: 4,
-    date: '2027-02-04',
+    date: '2027-02-11',
+    instructor: 'co',
     startTime: AM,
     endTime: PM,
   },
@@ -1646,7 +1713,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
  */
 export const PRE_COURSE = KC_SCHEDULE.find((r) => r.week === 0)!
 
-/** Chapters that must be complete before 6 October. */
+/** Chapters that must be complete before the first session. */
 export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
 
 /**
@@ -1660,8 +1727,8 @@ export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
 export const PRE_COURSE_POLICY = {
   dueBy: PRE_COURSE.date,
   /**
-   * No date in the sentence. It carried a hard-coded "before the first session
-   * on 6 October" beside `dueBy`, which is two due dates for one requirement
+   * No date in the sentence. It carried a hard-coded date beside `dueBy`,
+   * which is two due dates for one requirement
    * and wrong for a re-dated cohort — and interpolating the ISO date instead
    * put "by 2026-09-29" in front of students. Callers format `dueBy` for
    * whoever is reading.
@@ -1671,7 +1738,7 @@ export const PRE_COURSE_POLICY = {
   } complete, including the chapter quizzes, before the first session.`,
   checkedAt: 'Confirmed at orientation on day one, off the Navigate gradebook.',
   ifIncomplete:
-    'The student attends, and completes the block inside the first week. It is recorded as a deficiency and reviewed at the week 8 checkpoint alongside their clinical tally — the cumulative retrieval quizzes start drawing on this material in week 1, so arriving without it compounds rather than staying still.',
+    'The student attends, and completes the block inside the first week. It is recorded as a deficiency and reviewed at the week 7 checkpoint alongside their clinical tally — the cumulative retrieval quizzes start drawing on this material in week 1, so arriving without it compounds rather than staying still.',
 }
 
 /**
@@ -1707,9 +1774,9 @@ export interface ScheduleTotals {
   /** didactic + lab + aha. */
   classroom: number
   weeks: number
-  /** Instructor-led Tuesday/Thursday hours — what the eight-hour cap is about. */
+  /** Instructor-led Monday/Thursday hours — what the eight-hour cap is about. */
   f2f: number
-  /** Student self-study: Navigate modules, flashcards, practice activities, AHA pre-course. */
+  /** Student self-study: Navigate modules, flashcards and practice activities. */
   assignment: number
   f2fWeeks: number
   /** Face-to-face didactic only, for the 66/40 split the joint plan quotes. */
@@ -1785,10 +1852,13 @@ export function duplicatedChapters(): number[] {
 /**
  * The shape of a class week.
  *
- * Tuesday and Thursday, 09:00-13:00. Wichita ran that pattern in 2025, Kansas
- * City adopted it, and the joint cohort keeps it — eight instructor-led hours a
- * week is a budget constraint both operations are working inside. The two AHA
- * Saturdays are the deliberate exception and are marked `standalone`.
+ * Monday and Thursday, 08:00-12:00. Wichita ran a Tuesday/Thursday pattern in
+ * 2025 and Kansas City adopted it; the joint cohort moved to Monday and
+ * Thursday mornings because the students' bid lines left no other pair of days
+ * open. Eight instructor-led hours a week is a budget constraint both
+ * operations are working inside. With the AHA Saturdays out of the schedule,
+ * every session on the calendar now sits inside that pattern; the winter break
+ * block is the only `standalone` row left.
  */
 export interface ClassPattern {
   /** Weekdays carrying class, 0 = Sunday. */
@@ -1800,15 +1870,44 @@ export interface ClassPattern {
 }
 
 export const KC_CLASS_PATTERN: ClassPattern = {
-  days: [2, 4],
+  days: [1, 4],
   hoursPerDay: 4,
-  startMinute: 9 * 60,
+  startMinute: 8 * 60,
 }
 
 export const CLASS_HOURS_PER_WEEK = KC_CLASS_PATTERN.days.length * KC_CLASS_PATTERN.hoursPerDay
 
-/** First class session: Tuesday 6 October 2026. */
-export const KC_START_DATE = '2026-10-06'
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/** The class clock as four digits — `{ start: '0800', end: '1200' }`. */
+export const CLASS_CLOCK = (() => {
+  const hhmm = (mins: number) =>
+    `${String(Math.floor(mins / 60)).padStart(2, '0')}${String(mins % 60).padStart(2, '0')}`
+  return {
+    start: hhmm(KC_CLASS_PATTERN.startMinute),
+    end: hhmm(KC_CLASS_PATTERN.startMinute + KC_CLASS_PATTERN.hoursPerDay * 60),
+  }
+})()
+
+/**
+ * The meeting pattern in prose — "Mondays and Thursdays, 0800 to 1200".
+ *
+ * Derived rather than written out, because it is written out in several places
+ * that nobody re-reads. The KBEMS application carried "0900 to 1300, Tuesday
+ * and Thursday" after the class moved to Monday and Thursday mornings: a
+ * sentence filed with the state describing a course that does not exist.
+ */
+export function classPatternSentence(plural = true): string {
+  const named = KC_CLASS_PATTERN.days.map((d) => `${WEEKDAY_NAMES[d]}${plural ? 's' : ''}`)
+  const days =
+    named.length < 2
+      ? named.join('')
+      : `${named.slice(0, -1).join(', ')} and ${named[named.length - 1]}`
+  return `${days}, ${CLASS_CLOCK.start} to ${CLASS_CLOCK.end}`
+}
+
+/** First class session: Monday 12 October 2026. */
+export const KC_START_DATE = '2026-10-12'
 
 /**
  * Days the program does not meet, and what the schedule does about each.
@@ -1824,7 +1923,7 @@ export const KC_HOLIDAYS: { date: string; name: string; absorbedBy: string }[] =
   {
     date: '2026-11-26',
     name: 'Thanksgiving Day',
-    absorbedBy: 'Week 8 runs Tuesday only. ACLS moves to Saturday 5 December.',
+    absorbedBy: 'Week 7 runs Monday only. The respiratory laboratory that would have been its Thursday moves to the Monday after, and the cardiovascular didactic it displaces to that Thursday.',
   },
   {
     date: '2026-11-27',
@@ -1838,12 +1937,13 @@ export const KC_HOLIDAYS: { date: string; name: string; absorbedBy: string }[] =
   {
     date: '2027-01-18',
     name: 'Martin Luther King Jr. Day',
-    absorbedBy: 'A Monday. Does not touch the Tuesday/Thursday pattern.',
+    absorbedBy:
+      'The one holiday this calendar cannot absorb. Week 13\u2019s session goes to Tuesday 19 January rather than being surrendered — it carries the trauma didactic that the same week\u2019s trauma laboratory is built on.',
   },
   {
     date: '2027-02-15',
     name: "Presidents' Day",
-    absorbedBy: 'A Monday, and after the 4 February course end.',
+    absorbedBy: 'A Monday, and after the course ends.',
   },
 ]
 
@@ -1905,7 +2005,7 @@ function daysBetween(fromISO: string, toISO: string): number {
  * shape onto a weekday pattern.
  *
  * `startISO` re-dates a LATER COHORT running the same shape: the offset is
- * rounded to whole weeks so Tuesdays stay Tuesdays and the Saturdays stay
+ * rounded to whole weeks so class days stay on their weekday and the break stays
  * Saturdays. It is not a way to nudge this cohort — the holidays this calendar
  * absorbs are specific to autumn 2026, and a shifted plan has to be re-checked
  * against its own year's holidays. `holidayCollisions` is what answers that.
@@ -2018,6 +2118,20 @@ export const BLOCK_SHORT_BY_TITLE: Record<string, string> = Object.fromEntries(
   KC_SCHEDULE.map((r) => [r.title, r.short]),
 )
 
+/**
+ * The filed row behind a seeded session, keyed by the title it was seeded with.
+ *
+ * A stored AemtSession carries what a course needs to take attendance — date,
+ * hours, kind. The filed row carries what a session IS: the chapters students
+ * were told to read, the sheets checked off in it, what is graded, who teaches
+ * it. The day agenda wants the second, and title is the join the seeder already
+ * uses elsewhere. Absent for a session somebody wrote by hand, which the agenda
+ * says rather than filling in from the nearest match.
+ */
+export const ROW_BY_TITLE: Record<string, ScheduleRow> = Object.fromEntries(
+  KC_SCHEDULE.map((r) => [r.title, r]),
+)
+
 // ----- program hour targets (proposal §2) ------------------------------------
 
 export interface HourTarget {
@@ -2054,12 +2168,20 @@ export const KC_HOUR_TARGETS: HourTarget[] = [
     hours: scheduleTotals().lab,
     note: 'All face-to-face. Minimum 2 instructors required on lab days.',
   },
-  {
-    id: 'aha',
-    label: 'AHA provider courses',
-    hours: scheduleTotals().aha,
-    note: 'ACLS Saturday 5 December and PALS Saturday 9 January, 8 h each. Pulled onto Saturdays so Thanksgiving week does not cost the class a session.',
-  },
+  // AHA appears only on a cohort that files one. This one does not: both
+  // operations run ACLS and PALS through their own AHA classes, and a filed
+  // target of zero hours reads on every screen as a commitment nobody is
+  // meeting rather than a commitment nobody made.
+  ...(scheduleTotals().aha > 0
+    ? [
+        {
+          id: 'aha',
+          label: 'AHA provider courses',
+          hours: scheduleTotals().aha,
+          note: 'Taught to AHA\'s curriculum on AHA\'s certificate, counted apart from didactic and lab.',
+        },
+      ]
+    : []),
   {
     id: 'clinical',
     label: 'Hospital clinical',
@@ -2081,11 +2203,11 @@ export const KC_CLINICAL_TARGET = 72
 export const KC_FIELD_TARGET = 144
 
 /**
- * Classroom time — didactic, lab and the AHA provider courses.
+ * Classroom time — didactic and lab, plus any provider courses a cohort files.
  *
  * Includes the assignment hours: the "~106 didactic" figure the joint plan
  * quotes counts Navigate pre-class work alongside classroom time. Instructor-led
- * Tuesday/Thursday time is the smaller `scheduleTotals().f2f`, and that is the
+ * Monday/Thursday time is the smaller `scheduleTotals().f2f`, and that is the
  * number the eight-hour weekly cap applies to.
  *
  * A PROGRAM DESIGN TARGET, not a Kansas requirement. Kansas prescribes no
@@ -2168,6 +2290,34 @@ export interface GradingComponent {
   rationale: string
 }
 
+/**
+ * The dates the schedule sits an assessment on, as "29 Oct".
+ *
+ * The grading model used to spell these out: "Gate exams — 3 (29 Oct, 1 Dec,
+ * 21 Jan)" and "Final comprehensive exam, 2 February". Every one of them was
+ * wrong after the cohort moved — and wrong in the way that is hardest to spot,
+ * since each named a real class day, just not the day of the exam. The grading
+ * model is what a student reads to know when they are examined, so it reads
+ * the schedule instead.
+ *
+ * Read off KC_SCHEDULE rather than the assessment record because the schedule
+ * is where the assessment is actually sat, and because aemtAssessments.ts
+ * imports from this file.
+ */
+export function assessmentDates(...ids: string[]): string[] {
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return [...KC_SCHEDULE]
+    .filter((r) => ids.some((id) => (r.assessmentIds ?? []).includes(id)))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((r) => {
+      const [, mo, d] = r.date.split('-').map(Number)
+      return `${d} ${MON[mo - 1]}`
+    })
+}
+
+const GATE_DATES = assessmentDates('gate-1', 'gate-2', 'gate-3')
+const FINAL_DATE = assessmentDates('final')[0] ?? '[no final on the schedule]'
+
 export const GRADING_MODEL: GradingComponent[] = [
   {
     id: 'retrieval-quizzes',
@@ -2180,7 +2330,7 @@ export const GRADING_MODEL: GradingComponent[] = [
   {
     id: 'gates',
     short: 'Three proctored gate exams',
-    label: 'Gate exams — 3 (29 Oct, 1 Dec, 21 Jan), proctored, blueprint-weighted',
+    label: `Gate exams — ${GATE_DATES.length} (${GATE_DATES.join(', ')}), proctored, blueprint-weighted`,
     weight: 35,
     rationale:
       'Replaces the untimed online exams. Blueprint-weighted so the grade reflects the certification exam rather than chapter count.',
@@ -2188,7 +2338,7 @@ export const GRADING_MODEL: GradingComponent[] = [
   {
     id: 'final',
     short: 'Final comprehensive exam',
-    label: 'Final comprehensive exam, 2 February (135-item full-length mock)',
+    label: `Final comprehensive exam, ${FINAL_DATE} (135-item full-length mock)`,
     weight: 25,
     rationale:
       'Trains pacing and stamina under the no-backtracking rule — a distinct skill from content mastery.',
@@ -2248,8 +2398,49 @@ export interface KbemsDeadline {
    * Conditions that must already hold before this can be submitted. The portal
    * enforces these by refusing to finalize, which surfaces them on the day of
    * filing — too late to fix the ones that need another person to act.
+   *
+   * A closed item carries `done` rather than being deleted: what has been
+   * settled, and when, is as much a part of the filing record as what has
+   * not. It was previously recorded by appending "— done, 28 August 2026" to
+   * the sentence, which read correctly and counted wrongly — the panel offers
+   * "six things that must already be true" whether six are open or one is.
    */
-  prerequisites?: string[]
+  prerequisites?: (string | Prerequisite)[]
+}
+
+export interface Prerequisite {
+  what: string
+  /** When it was settled. Absent means still open. */
+  done?: string
+  /** What is retained as evidence, where the item needs a document. */
+  evidence?: string
+}
+
+/** A prerequisite in one shape, whichever way it was written. */
+export function prerequisite(p: string | Prerequisite): Prerequisite {
+  return typeof p === 'string' ? { what: p } : p
+}
+
+/**
+ * When a deadline falls, and the last working day on or before it.
+ *
+ * The application document used to spell both of these out as literals. They
+ * survived a start-date move unchanged, so the filed document told the board
+ * the application was due eight days before the date the regulation actually
+ * gives — computed here so it moves when the cohort does.
+ */
+export function deadlineDates(d: KbemsDeadline): { due: string; filedBy: string } {
+  const anchor = d.anchor === 'last-session' ? KC_END_DATE : KC_START_DATE
+  const due = addDaysISO(anchor, d.offsetDays)
+  let filedBy = due
+  // Back off Saturdays, Sundays and the holidays the program already knows
+  // about — the board office is not open on any of them.
+  for (let i = 0; i < 10; i++) {
+    const day = new Date(`${filedBy}T00:00:00Z`).getUTCDay()
+    if (day !== 0 && day !== 6 && !holidayOn(filedBy)) break
+    filedBy = addDaysISO(filedBy, -1)
+  }
+  return { due, filedBy }
 }
 
 export const KBEMS_DEADLINES: KbemsDeadline[] = [
@@ -2264,7 +2455,10 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
       'Every instructor is set up as INSTRUCTIONAL STAFF. This is the step people think the roster covers and it does not: a personnel-roster entry makes someone visible to the service, and only the Instructional Staff assignment makes them selectable on a course. Finalize is what surfaces the gap, on the day of filing.',
       'Both markets’ instructors are attached to THIS course, not only to their own operation.',
       'Every instructor has a Kansas Licensure system account of their own.',
-      'Every instructor appears on the service personnel roster — done, 28 August 2026.',
+      {
+        what: 'Every instructor appears on the service personnel roster.',
+        done: '2026-08-28',
+      },
     ],
   },
   {
@@ -2275,10 +2469,18 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     basis: 'program',
     note: 'None of this is same-day work and all of it blocks the filing. A CES planning target set ahead of the approval deadline so the items that need another person to act have somewhere to fail early rather than on the day of filing.',
     prerequisites: [
-      'Medical director signature.',
+      {
+        what: 'Medical director signature.',
+        done: '2026-09-02',
+      },
       'Letters or contracts from the ambulance service directors and the clinical facility administrators — for both markets.',
       'Instructor-of-record and lab-instructor roster, both markets.',
-      'Written KBEMS answer on whether lab-simulated intraosseous infusion satisfies K.A.R. 109-11-8(a)(4). The answer changes what the clinical section of the application says, so it has to come before the application, not after it.',
+      {
+        what: 'Written KBEMS answer on whether lab-simulated intraosseous infusion satisfies K.A.R. 109-11-8(a)(4). The answer changes what the clinical section of the application says, so it has to come before the application, not after it.',
+        done: '2026-09-02',
+        evidence:
+          'ANSWERED: lab-simulated reps are sufficient, which is what CLINICAL_REQUIREMENTS has said all along — the `io` requirement allows the lab setting and counts simulation and live reps equally. File the board’s written answer against the course record: the application asserts this, and an audit three years out will ask what it was asserted on.',
+      },
       'Navigate Fourth Edition course shell built: modules assigned by week, practice activities released, TestPrep configured, gradebook weighted to the revised model.',
       'Hospital student onboarding started — badging, EHR access, immunisation verification and background checks commonly run four to six weeks at a 504-bed teaching hospital. Waiting for the course start slips Phase 2 and everything downstream of it.',
     ],
@@ -2289,7 +2491,7 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     offsetDays: -30,
     anchor: 'first-session',
     basis: 'kbems',
-    note: 'THE SINGLE ITEM THAT CAN SINK THE COHORT. K.A.R. 109-11-1a(c) requires the application in the board office no later than 30 calendar days before the first session. For a 6 October start that is Sunday 6 September, and the Monday after it is Labor Day — so the practical deadline is Friday 4 September 2026. Filed through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
+    note: 'THE SINGLE ITEM THAT CAN SINK THE COHORT. K.A.R. 109-11-1a(c) requires the application in the board office no later than 30 calendar days before the first session. For the 12 October start that is Saturday 12 September — so the practical deadline is Friday 11 September 2026. Filed through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
     prerequisites: [
       'Filed by an Instructor-Coordinator. No other role can create or finalize a course, so this cannot be delegated to whoever is free that day.',
       'Course schedule uploaded. Finalize is blocked without it.',

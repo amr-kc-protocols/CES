@@ -82,7 +82,9 @@ export function curriculumBlocks(): Block[] {
         st.code,
         st.label,
         weeks.map((w) => (w === 0 ? 'Pre-course' : `Week ${w}`)).join(', '),
-        classDays.length ? classDays.map((c) => dayDate(c.date)).join(', ') : 'Pre-course, before 6 Oct',
+        classDays.length
+          ? classDays.map((c) => dayDate(c.date)).join(', ')
+          : `Pre-course, before ${dayDate(KC_START_DATE)}`,
       ])
     }
   }
@@ -90,7 +92,7 @@ export function curriculumBlocks(): Block[] {
   // ----- lesson plans ----------------------------------------------------------
   
   function lessonPlan(r: ScheduleRow): Block[] {
-    const pre = preClassFor(r.week)
+    const pre = preClassFor(r.preClassWeek ?? r.week)
     const chapters = pre?.chapters ?? []
     const drills = N.skillDrills(chapters)
     const events = (r.assessmentIds ?? [])
@@ -212,7 +214,7 @@ export function curriculumBlocks(): Block[] {
 
     h1('The standard session'),
     p(
-      `Every Tuesday and Thursday runs to the same shape unless it is an AHA provider course, a gate examination or a full-length simulation. The 0930–1100 block is explicitly NOT lecture — the lecture was the Navigate module the student completed beforehand, and re-delivering it in the room is how a flipped course collapses back into an ordinary one.`,
+      `Every Monday and Thursday runs to the same shape unless it is a gate examination or a full-length simulation. The middle block is explicitly NOT lecture — the lecture was the Navigate module the student completed beforehand, and re-delivering it in the room is how a flipped course collapses back into an ordinary one.`,
     ),
     spacer(120),
     table(
