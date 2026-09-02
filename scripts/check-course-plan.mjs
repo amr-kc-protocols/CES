@@ -806,6 +806,11 @@ const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
   const all = m.KBEMS_DEADLINES.flatMap((d) =>
     (d.prerequisites ?? []).map((p) => [d.id, m.prerequisite(p)]),
   )
+  check(all.length > 10, `there are prerequisites to check — ${all.length}`)
+  check(
+    all.some(([, p]) => p.done),
+    'and at least one is settled, so the settled-item assertions below are not vacuous',
+  )
   const badDate = all.filter(
     ([, p]) => p.done !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(p.done),
   )
@@ -908,6 +913,19 @@ const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
       if (!known.has(spelled)) stale.add(`${said[0]} — ${path.slice(0, 70)}`)
     }
   }
+  // A sweep is worth exactly what it walked. If an import shape changes and
+  // the modules come back empty, every assertion below is vacuously true and
+  // the check goes on reporting a pass — the failure main's check-kit was
+  // written about. Floor it well under the real figure, so it catches "almost
+  // nothing" without breaking every time a note is added.
+  check(
+    strings.length > 400,
+    `the sweep walked the course record, not an empty object — ${strings.length} strings`,
+  )
+  check(
+    strings.some(([, t]) => bare.test(t)) || (bare.lastIndex = 0) === 0,
+    'and at least one of them spells out a date, so the pattern still matches',
+  )
   check(
     stale.size === 0,
     'no authored string names a date this cohort does not have',

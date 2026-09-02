@@ -281,9 +281,11 @@ const seeded = m.seedKcSchedule(course.id, D.KC_START_DATE)
 // in 10^14 away from the right one; any tolerance wide enough to feel safe
 // accepts it, which is how the first version of this check passed the bug it
 // was written for.
+let watched = 0
 const readable = (n) => n === Math.round(n * 60) / 60
 const unreadable = []
 const watch = (label, n) => {
+  watched++
   if (!readable(n)) unreadable.push(`${label} = ${n}`)
 }
 watch('seed didactic', seeded.didactic)
@@ -297,6 +299,9 @@ for (const h of m.useStudentHours(course.id)) {
   watch(`${h.student.name} missed`, h.missedHours)
   watch(`${h.student.name} class absent`, h.classAbsentHours)
 }
+// This loops over students and session kinds; with neither it passes having
+// asked nothing. Name the count so an empty fixture fails loudly instead.
+check(watched > 8, `there were hour figures to check — ${watched}`)
 check(
   unreadable.length === 0,
   'every hour figure shown to a person is a whole number of minutes',
