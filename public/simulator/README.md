@@ -418,6 +418,119 @@ been asked for yet. Every auto-tick is labelled **from monitor** in the console
 and comes off on a click, and the click makes it the facilitator's: they remain
 the assessor of record.
 
+## Reachability, and the check that measures it
+
+Every simulator defect reported from a live scenario so far has been the same
+shape. Not one was a missing feature; every one was a control that existed with
+a dead path to it:
+
+- the 12-lead popup had no close button, and HOME SCREEN tested for an in-page
+  element that has never existed;
+- the pacing strip was rendered only inside the graded run card, so on a quick
+  preset there was nothing on the page to press;
+- the condensed run bar shrank in the flow, which fought the scroll and pinned
+  the page near the top;
+- the ENERGY, RATE and CURRENT rockers fell to 43.5pt at the chassis scale a
+  1024x768 iPad reaches, behind a floor that looked correct.
+
+That last one says why `check-simulator.mjs` could never have caught any of
+them. It runs in jsdom, which has no layout, so it can only assert what the
+stylesheet *says* — and the rule was right: `min-height:48px` set the arrow's
+**width**. Its height came from the key around it, landed at 46, and scaled to
+43.5. **A declaration is not a result.**
+
+`scripts/check-reach.mjs` opens the real pages in a real browser and measures
+what a thumb would hit. For every control that is actually displayed, across a
+matrix of viewports and states, it asks: does it have a box, can it be scrolled
+into view, does the page answer with *it* at its own centre, can the keyboard
+get to it, and does it clear 44pt where a finger is plausible. Run it with
+`npm run check:reach` (or `npm run check:all` for everything). It needs a build
+and Playwright's Chromium, and skips cleanly without either — it is not in
+`npm run check`, which stays a three-second command.
+
+Two things it deliberately does *not* flag, both of which it flagged first:
+
+- A control inside a `display:none` ancestor reports its own computed `display`
+  as normal, so testing the element alone lets an entire hidden skin through as
+  "zero-sized". `checkVisibility()` walks the ancestry.
+- A control mid-fade — opacity still 1, `pointer-events` already `none` — fails
+  a hit test while being deliberately out of play.
+
+And one thing it looks for that nothing else would: the inverse. A control with
+no box, or one behind an overlay, that the keyboard can still reach and fire.
+That is how the portrait notice was caught — `#rotate` covers the unit and says
+to turn the iPad round, but covering is only paint, and the whole chassis stayed
+in the tab order behind it, SHOCK included. It is `inert` in portrait now, which
+takes it out of hit-testing and the tab order together.
+
+It then caught the same shape twice more on the panel, in work that landed
+while this check was waiting to merge:
+
+- **"Save this run anyway?" left the page live behind it.** The veil is opaque
+  and the dialog is `aria-modal`, but neither is a barrier: the rhythm buttons,
+  the drug log, the sheet's tick rows and PASS / NR were all still tabbable, so
+  the question could be answered by changing the run it was asked about.
+  `setResult()` and `giveDrug()` fire with nothing on screen to say they did.
+  The page goes `inert` while the prompt is up.
+- **The condensed run card covered the page header.** The bar is fixed at
+  `top:0`, and the header is the one thing that can never be scrolled out from
+  under it — at `scrollY` 0 the monitor chip, CONNECT and PHYS LOCK sit inside
+  its band. Unclickable, still tabbable, still firing. Collapsing now reserves
+  the bar's measured height (it declares 52px and wraps to 116 on a 1440-wide
+  window) so the header starts below it.
+
+Both are the inverse case rather than a small target, and neither is visible to
+a check that cannot lay the page out.
+
+**Where the 44pt floor applies.** On the monitor, at the sizes an iPad presents
+— not every small window. A 960x720 browser window on a laptop is a mouse, and
+holding it to a thumb's minimum would be measuring a room nobody is in. On the
+panel, only the controls tapped *while a code is running*: the expected
+actions, the check-off sheet's own rows and fields, the result, the patient
+states and the way out. The vitals sliders, rhythm buttons and setup selects
+stay at the density a pointer wants — this page is compact on purpose, and
+every pixel above the cards is a pixel of the scenario the facilitator cannot
+see.
+
+## A check that did not run is not a pass
+
+Three things in this repo report success without having verified anything, and
+all three have already cost real coverage.
+
+**A selector that matches nothing.** The panel's 44pt list is held as selectors,
+and `el.matches()` on a name that matches nothing raises nothing — it simply
+floors no controls. When the check-off sheet replaced the collapsed checklist,
+`.cl-head`, `.cl-chk` and `.cl-num input` went with it, and the panel's grading
+controls stopped being measured while `check-reach` went on printing a pass.
+
+The list is an array now, each entry is recorded when it is seen on a control,
+and the sweep ends by asserting that every one of them described something. It
+found a second gap the moment it was written: `.act` matched nothing either.
+Not because it is dead — it is the per-state action list the *quarterly
+simulations* are graded on — but because every panel state loaded `megacode1`,
+which is graded on the sheet instead. That whole grading UI had never been
+swept. There is a `quarterly sim running` state now, and panel coverage went
+from 48 configurations to 54.
+
+**A missing optional dependency.** `check-simulator` and `check-checkoff` skip
+without `jsdom`; `check-reach` skips without `playwright`, without a Chromium
+it can drive, or without a build to serve. All are deliberate — the pages ship
+as static HTML, and a fresh clone should not fail the aggregate check — but all
+exited 0 with a line of output, which is indistinguishable from a pass at a
+glance and identical to one in CI. They now say `SKIPPED`, say that nothing was
+verified, and name what would make them run.
+
+```
+npm run check          # skips are skips, exit 0
+npm run check:strict   # a skip is a failure — CES_CHECK_STRICT=1
+```
+
+**A state whose setup throws** is the one case that was already handled: the
+sweep catches it per configuration and reports it as a defect, so the dead
+`toggleChecklist()` call would have surfaced on its own.
+
+`scripts/lib/check-kit.mjs` holds the skip helper and the strict flag.
+
 ## Facilitating and grading
 
 One person drives the scenario and grades the crew, so the layout is measured
