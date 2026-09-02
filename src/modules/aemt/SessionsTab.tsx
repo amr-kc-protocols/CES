@@ -53,6 +53,24 @@ const KIND_CLS: Record<AemtSessionKind, string> = Object.fromEntries(
   KINDS.map((k) => [k.value, k.cls]),
 ) as Record<AemtSessionKind, string>
 
+/**
+ * What a session IS, as against which hour column it counts in.
+ *
+ * Pre-class work is filed as didactic because the filed didactic total
+ * includes it — 107.5 h is 72 h in a room plus 35.5 h of Navigate modules.
+ * That is right for the KBEMS arithmetic and wrong on a list, where it put two
+ * pills reading "Didactic" on 12 October: 1.8 h of reading at home and the
+ * four-hour class, looking like two lectures the same morning.
+ */
+function sessionKindLabel(session: AemtSession): string {
+  if (session.delivery === 'assignment') return session.preCourse ? 'Pre-course' : 'Pre-class'
+  return KINDS.find((k) => k.value === session.kind)?.label ?? session.kind
+}
+
+function sessionKindCls(session: AemtSession): string {
+  return session.delivery === 'assignment' ? 'subtle' : KIND_CLS[session.kind]
+}
+
 function SessionRow({
   session,
   canEdit,
@@ -71,12 +89,11 @@ function SessionRow({
             {session.date ? `${weekdayLabel(session.date)} ${formatDate(session.date)}` : 'No date'}
             {session.startTime && ` ${session.startTime}${session.endTime ? `–${session.endTime}` : ''}`} ·{' '}
             {session.hours} h
+            {session.delivery === 'assignment' && ' — on their own, no class time'}
             {session.instructor && <> · {session.instructor}</>}
           </div>
         </div>
-        <span className={`pill ${KIND_CLS[session.kind]}`}>
-          {KINDS.find((k) => k.value === session.kind)?.label}
-        </span>
+        <span className={`pill ${sessionKindCls(session)}`}>{sessionKindLabel(session)}</span>
       </div>
     )
   }

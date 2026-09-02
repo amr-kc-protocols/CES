@@ -157,7 +157,31 @@ export interface CourseAssessment {
   gradingComponent: string | null
   /** Closed book, proctored, no notes, no phones. */
   proctored: boolean
+  /**
+   * Where the instrument itself comes from.
+   *
+   * Separate from `gradingComponent`, which says where the SCORE goes. An
+   * assessment can be on the calendar, feed a grade, and not exist yet — the
+   * baseline diagnostic sat on day one for weeks as a 50-item proctored exam
+   * nobody had, because the plan naming it read the same as the plan naming
+   * a Navigate quiz that ships with the course.
+   *
+   *   'navigate' — JB Learning Navigate hosts it and holds the score.
+   *   'program'  — the program writes and administers it.
+   *   'unsourced'— named on the plan and in nobody's hands. Has to be built,
+   *                found, or dropped before the date it is written against.
+   */
+  source: 'navigate' | 'program' | 'unsourced'
+  /** For an unsourced instrument: what closing it would take. */
+  sourceNote?: string
   note?: string
+}
+
+/** Assessments that do not yet exist, soonest first. */
+export function unsourcedAssessments(): CourseAssessment[] {
+  return COURSE_ASSESSMENTS.filter((a) => a.source === 'unsourced').sort((x, y) =>
+    x.date < y.date ? -1 : 1,
+  )
 }
 
 /**
@@ -178,6 +202,9 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     items: 50,
     covers: 'Incoming EMT-level knowledge across all six domains.',
     gradingComponent: null,
+    source: 'unsourced',
+    sourceNote:
+      'NOT IN HAND. The plan calls for a 50-item baseline and no such form has been located — Navigate ships chapter quizzes and TestPrep banks, not a pre-course diagnostic. Three ways to close it before day one: build a 50-item form from the TestPrep bank across the six domains, run a shorter Navigate TestPrep set as the baseline instead, or drop it and let Quiz A in week 2 be the first measurement. Dropping it costs the tracker its zero point, not the course its hours: this is ungraded, so nothing in the grading model depends on it.',
     proctored: true,
     note: 'Ungraded. Seeds the per-student domain tracker on day one so every later measurement has something to move against.',
   },
@@ -190,6 +217,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Week 1',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -201,6 +229,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 1-2',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -212,6 +241,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 1-3',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -224,6 +254,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     mps: MIN_PASSING_PERCENT,
     retestBy: '2026-11-12',
     gradingComponent: 'gates',
+    source: 'program',
     proctored: true,
   },
   {
@@ -235,6 +266,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 2-4, plus spiral items from week 1',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -246,6 +278,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 3-5, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -257,6 +290,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 4-6, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -268,6 +302,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 5-7, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -280,6 +315,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     mps: MIN_PASSING_PERCENT,
     retestBy: '2026-12-17',
     gradingComponent: 'gates',
+    source: 'program',
     proctored: true,
     note: 'Deliberately placed AFTER Thanksgiving rather than before it, so nobody is trying to remediate over a holiday weekend.',
   },
@@ -292,6 +328,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 6-9, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -303,6 +340,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 7-10, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -313,6 +351,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     items: 30,
     covers: 'Every domain taught to date.',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
     note: 'The last class before the break. Sets the mark that the three TestPrep sets and the re-entry simulation are measured against.',
   },
@@ -323,6 +362,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     date: '2026-12-26',
     covers: 'By domain, assigned from the bridge-quiz item analysis.',
     gradingComponent: 'navigate',
+    source: 'navigate',
     proctored: false,
     note: 'An unstructured break causes forgetting; spaced retrieval across a break improves retention. Three dated sets are what makes the fortnight a study block rather than a gap.',
   },
@@ -333,6 +373,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     date: '2026-12-30',
     covers: 'By domain.',
     gradingComponent: 'navigate',
+    source: 'navigate',
     proctored: false,
   },
   {
@@ -342,6 +383,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     date: '2027-01-03',
     covers: 'By domain.',
     gradingComponent: 'navigate',
+    source: 'navigate',
     proctored: false,
   },
   {
@@ -353,6 +395,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 180,
     covers: 'Blueprint-weighted, all six domains, exam conditions, no backtracking.',
     gradingComponent: null,
+    source: 'program',
     proctored: true,
     note: 'UNGRADED, and that is the design. It is the re-entry diagnostic: it measures what survived the break with five weeks left to fix it. Its item analysis drives every individualised assignment from here forward.',
   },
@@ -365,6 +408,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 9-12, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -376,6 +420,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 10-13, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -388,6 +433,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     mps: MIN_PASSING_PERCENT,
     retestBy: '2027-02-04',
     gradingComponent: 'gates',
+    source: 'program',
     proctored: true,
   },
   {
@@ -399,6 +445,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     minutes: 15,
     covers: 'Weeks 11-14, plus spiral',
     gradingComponent: 'retrieval-quizzes',
+    source: 'program',
     proctored: true,
   },
   {
@@ -411,6 +458,7 @@ export const COURSE_ASSESSMENTS: CourseAssessment[] = [
     covers: 'Blueprint-weighted, all six domains, no backtracking.',
     mps: MIN_PASSING_PERCENT,
     gradingComponent: 'final',
+    source: 'program',
     proctored: true,
     note: 'Counts toward the 80% course completion threshold. Trains pacing and stamina under the no-backtracking rule, which is a distinct skill from content mastery.',
   },

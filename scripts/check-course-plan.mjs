@@ -796,6 +796,45 @@ const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.ch
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
 
+// ----- instruments that exist, and instruments that do not --------------------
+//
+// gradingComponent says where a SCORE goes. It says nothing about whether the
+// form exists. The baseline diagnostic sat on day one as a 50-item proctored
+// exam nobody had, under a heading reading "Graded today" — on an event whose
+// own record says it is ungraded. Provenance is now its own field.
+{
+  const bad = A.COURSE_ASSESSMENTS.filter(
+    (a) => !['navigate', 'program', 'unsourced'].includes(a.source),
+  )
+  check(bad.length === 0, 'every assessment says where its instrument comes from', bad.map((a) => a.id).join(', '))
+
+  const unsourced = A.unsourcedAssessments()
+  check(
+    unsourced.every((a) => a.sourceNote),
+    'an instrument nobody has says what closing it would take',
+    unsourced.filter((a) => !a.sourceNote).map((a) => a.id).join(', '),
+  )
+  // An unsourced instrument may not carry weight. A form that does not exist
+  // cannot be a graded component of somebody's course grade.
+  const weighted = unsourced.filter((a) => a.gradingComponent)
+  check(
+    weighted.length === 0,
+    'nothing that does not exist yet counts toward a grade',
+    weighted.map((a) => `${a.id} → ${a.gradingComponent}`).join(', '),
+  )
+  // Navigate holds its own scores. Anything routed to the navigate component
+  // has to actually be a Navigate instrument, or the gradebook is being read
+  // from a system that never saw it.
+  const misrouted = A.COURSE_ASSESSMENTS.filter(
+    (a) => a.gradingComponent === 'navigate' && a.source !== 'navigate',
+  )
+  check(
+    misrouted.length === 0,
+    'every assessment graded in Navigate is an instrument Navigate hosts',
+    misrouted.map((a) => a.id).join(', '),
+  )
+}
+
 // ----- re-dating the plan for a cohort that is not this one -------------------
 //
 // buildClassPlan shifts the filed plan by whole weeks so a later cohort can
