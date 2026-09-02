@@ -833,6 +833,73 @@ const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
   )
 }
 
+// ----- how much reading each week actually carries -----------------------------
+//
+// The filed didactic hours are the publisher's module run time, and that is
+// not what a student is holding. Week 15 filed 5.8 h and ran to 268 PAGES —
+// seven chapters, in the week beside Gate 3 and final preparation, four of
+// them operations material that depends on nothing at all.
+//
+// So the load is asserted in pages as well as hours. The Thanksgiving weeks
+// are light by decision and week 14 is the deliberate trauma block; every
+// other teaching week has to sit inside a band.
+{
+  const assignments = m.KC_SCHEDULE.filter(
+    (r) => r.delivery === 'assignment' && (r.chapters ?? []).length > 0,
+  )
+  check(assignments.length > 12, `there are pre-class rows to weigh — ${assignments.length}`)
+
+  // Every chapter is assigned, exactly once. A chapter read twice is a week
+  // that looks heavy for nothing; one read never is a gap nobody sees.
+  const assigned = m.KC_SCHEDULE.flatMap((r) => r.chapters ?? [])
+  const dupes = [...new Set(assigned.filter((c, i) => assigned.indexOf(c) !== i))]
+  check(dupes.length === 0, 'no chapter is assigned twice', dupes.join(', '))
+  check(
+    new Set(assigned).size === m.N.CHAPTER_ASSETS.length,
+    `every one of the ${m.N.CHAPTER_ASSETS.length} chapters is assigned, got ${new Set(assigned).size}`,
+  )
+  const totalPages = m.N.chapterPages([...new Set(assigned)])
+  check(totalPages === 2025, `the whole book is assigned — 2025 pages, got ${totalPages}`)
+
+  // The band. Week 0 is the pre-course block, weeks 7 and 8 are the
+  // Thanksgiving weeks, week 14 is the trauma block the blueprint compresses
+  // on purpose. Every other week reads between 90 and 160 pages.
+  const EXEMPT = new Set([0, 7, 8, 14])
+  const heavy = assignments
+    .filter((r) => !EXEMPT.has(r.week))
+    .map((r) => ({ week: r.week, pages: m.N.chapterPages(r.chapters) }))
+    .filter((x) => x.pages > 160 || x.pages < 90)
+  check(
+    heavy.length === 0,
+    'no ordinary teaching week reads fewer than 90 or more than 160 pages',
+    heavy.map((x) => `week ${x.week}: ${x.pages} pp`).join(', '),
+  )
+
+  // The operations chapters are read before the week that teaches them. That
+  // is the whole point of moving them, and it is invisible from the hours.
+  const OPS = [39, 40, 41, 42]
+  const readIn = new Map()
+  for (const r of assignments) for (const c of r.chapters ?? []) if (OPS.includes(c)) readIn.set(c, r.week)
+  const taughtIn = m.KC_SCHEDULE.find((r) => r.short === 'Psych · Geri · Ops')?.week
+  const late = OPS.filter((c) => !readIn.has(c) || readIn.get(c) >= taughtIn)
+  check(
+    late.length === 0,
+    `every operations chapter is read before week ${taughtIn} teaches it`,
+    late.map((c) => `ch${c} read in week ${readIn.get(c) ?? 'nowhere'}`).join(', '),
+  )
+  // And the week that teaches them still claims their standards, or the
+  // coverage map reports them delivered in the week they were merely read.
+  const opsRow = m.KC_SCHEDULE.find((r) => r.short === 'Psych · Geri · Ops')
+  const missing = ['OP1', 'OP2', 'OP3', 'OP4', 'OP5', 'OP6', 'OP7'].filter(
+    (c) => !(opsRow?.sections ?? []).includes(c),
+  )
+  check(
+    missing.length === 0,
+    'the session that teaches operations still names the operations standards',
+    missing.join(', '),
+  )
+}
+
 // ----- instruments that exist, and instruments that do not --------------------
 //
 // gradingComponent says where a SCORE goes. It says nothing about whether the
