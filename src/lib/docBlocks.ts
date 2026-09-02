@@ -114,7 +114,7 @@ export const printable = (text: string | undefined): string =>
 //
 // The documents want dates written the way a reader expects them, which is not
 // how the app writes them elsewhere. Kept here rather than in lib/date so the
-// document set has one spelling of "October 6, 2026" across both renderings.
+// document set has one spelling of a date across both renderings.
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',

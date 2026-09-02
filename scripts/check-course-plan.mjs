@@ -371,6 +371,72 @@ check(
   `${t.f2f} h`,
 )
 
+// ----- the dates the prose states --------------------------------------------
+//
+// KBEMS deadlines are stored as offsets from the first or last session, so they
+// recompute when the course moves. Their NOTES are prose, and prose does not
+// recompute: moving the start from Tuesday 6 October to Monday 5 October left
+// two notes explaining that thirty days before the first session is "Sunday 6
+// September", which had become Saturday 5 September. Same practical deadline,
+// wrong arithmetic, in the note about the one date that can sink the cohort.
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+const spell = (iso) => {
+  const [y, mo, d] = iso.split('-').map(Number)
+  return `${d} ${MONTHS[mo - 1]}`
+}
+const offsetDate = (d) => {
+  const anchorISO = d.anchor === 'last-session' ? m.KC_END_DATE : m.KC_START_DATE
+  const [y, mo, dd] = anchorISO.split('-').map(Number)
+  const t = new Date(Date.UTC(y, mo - 1, dd) + d.offsetDays * 86_400_000)
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`
+}
+
+// Any note that spells out a date must spell out one this cohort actually has.
+const KNOWN_DATES = new Set([
+  ...m.KBEMS_DEADLINES.map(offsetDate).map(spell),
+  spell(m.KC_START_DATE),
+  spell(m.KC_END_DATE),
+  spell(m.PRE_COURSE_POLICY.dueBy),
+])
+const staleNotes = []
+for (const d of m.KBEMS_DEADLINES) {
+  // A date carrying its own year is a citation of something outside this
+  // cohort — "NREMT retired the ALS psychomotor examination on 30 June 2024" —
+  // and has nothing to do with when this course runs. Only bare dates are
+  // claims about this cohort's calendar.
+  for (const said of d.note.matchAll(
+    /\b(\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December)(?! \d{4})\b/g,
+  )) {
+    const spelled = `${Number(said[1])} ${said[2]}`
+    // A practical deadline pulled back off a weekend is a real date this cohort
+    // has too, so a computed date and the working day before it both pass. Three
+    // days covers a Sunday pulled back to Friday; a week was loose enough to
+    // accept the very error this was written to catch.
+    const near = [...KNOWN_DATES].some((k) => {
+      const [kd, km] = k.split(' ')
+      const drift = Number(kd) - Number(said[1])
+      return km === said[2] && drift >= 0 && drift <= 3
+    })
+    if (!near) staleNotes.push(`${d.id}: "${spelled}"`)
+  }
+}
+check(
+  staleNotes.length === 0,
+  'no deadline note spells out a date this cohort does not have',
+  staleNotes.join(', '),
+)
+
+const approval = m.KBEMS_DEADLINES.find((d) => d.id === 'course-approval')
+check(
+  approval && approval.note.includes(spell(offsetDate(approval))),
+  'the filing deadline note states the date the offset actually computes',
+  approval ? `note does not mention ${spell(offsetDate(approval))} (30 days before ${m.KC_START_DATE})` : 'no course-approval deadline',
+)
+
 // ----- who teaches which day -------------------------------------------------
 //
 // The two instructors of record split the week: Mondays are the primary

@@ -160,8 +160,11 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
   // arranged to happen, which is the half nobody could see.
   const lineConflicts = students
     .map((st) => workConflicts(st, sessions, MAX_ABSENT_HOURS))
-    .filter((c) => c.clashes.length > 0)
-    .sort((a, b) => b.hoursLost - a.hoursLost)
+    // Zero hours lost is not the same as nothing to see: a student who walks
+    // out of class at 1200 onto a shift starting at 1200 belongs on this list
+    // too, under a heading that says which of the two it is.
+    .filter((c) => c.clashes.length > 0 || c.tight.length > 0)
+    .sort((a, b) => b.hoursLost - a.hoursLost || b.tight.length - a.tight.length)
   const done = hours
     .flatMap((h) => h.makeUpsDone.map((d) => ({ student: h.student, ...d })))
     .sort(bySession)
@@ -451,19 +454,36 @@ export default function HoursTab({ course }: { course: AemtCourse }) {
             {lineConflicts.map((c) => (
               <div
                 key={c.student.id}
-                className={`row left-accent ${c.overCap ? 'acc-crit' : 'acc-warn'}`}
+                className={`row left-accent ${
+                  c.overCap ? 'acc-crit' : c.clashes.length ? 'acc-warn' : ''
+                }`}
               >
                 <div className="grow">
                   <div className="title">{c.student.name}</div>
                   <div className="meta">{c.pattern ? patternLabel(c.pattern) : ''}</div>
                   <div className="meta">
-                    {c.clashes.length} session{c.clashes.length === 1 ? '' : 's'} ·{' '}
-                    {c.clashes.filter((x) => x.whole).length} lost whole · first is{' '}
-                    {formatDate(c.clashes[0].session.date)}
+                    {c.clashes.length > 0 ? (
+                      <>
+                        {c.clashes.length} session{c.clashes.length === 1 ? '' : 's'} ·{' '}
+                        {c.clashes.filter((x) => x.whole).length} lost whole · first is{' '}
+                        {formatDate(c.clashes[0].session.date)}
+                      </>
+                    ) : (
+                      <>
+                        No hours lost. {c.tight.length} session
+                        {c.tight.length === 1 ? '' : 's'}{' '}
+                        {c.tight[0].tightAgainstShift === 'off-before'
+                          ? 'start straight off a shift'
+                          : 'run straight into one — no gap to travel in'}
+                        , first {formatDate(c.tight[0].session.date)}
+                      </>
+                    )}
                   </div>
                 </div>
-                <span className={`pill ${c.overCap ? 'crit' : 'warn'}`}>
-                  {c.hoursLost} h
+                <span
+                  className={`pill ${c.overCap ? 'crit' : c.clashes.length ? 'warn' : 'info'}`}
+                >
+                  {c.clashes.length ? `${c.hoursLost} h` : 'tight'}
                   {c.overCap ? ` · over ${MAX_ABSENT_HOURS} h cap` : ''}
                 </span>
               </div>

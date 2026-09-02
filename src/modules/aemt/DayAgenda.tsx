@@ -59,8 +59,12 @@ function SessionBlock({ session, allRows }: { session: AemtSession; allRows: Sch
   return (
     <div className="card" style={{ padding: 12, marginBottom: 10 }}>
       <div className="title" style={{ fontSize: 15 }}>
+        {/* "Before class" is right for a week's pre-class row and wrong for the
+            winter break, which is not before anything. */}
         {assignment
-          ? 'Before class'
+          ? row?.standalone
+            ? 'Student work'
+            : 'Before class'
           : `${session.startTime ?? ''}${session.endTime ? `–${session.endTime}` : ''}`}
         {!assignment && <> · {session.hours} h</>}
         {row?.short ? ` · ${row.short}` : ''}

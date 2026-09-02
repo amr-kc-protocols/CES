@@ -457,6 +457,19 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
                           {wc.overCap && ` — over the ${MAX_ABSENT_HOURS} h cap`}
                         </>
                       )}
+                      {/* A student whose shift butts against class loses no
+                          hours and is not clean either. Without this line the
+                          three students who finish class at 1200 and start a
+                          shift at 1200 read as having no conflict at all. */}
+                      {wc.clashes.length === 0 && wc.tight.length > 0 && (
+                        <>
+                          {' · no hours lost, but '}
+                          {wc.tight.length} session{wc.tight.length === 1 ? '' : 's'}{' '}
+                          {wc.tight[0].tightAgainstShift === 'off-before'
+                            ? 'start straight off a shift'
+                            : 'run straight into one'}
+                        </>
+                      )}
                     </div>
                   )
                 })()}

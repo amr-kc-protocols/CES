@@ -89,7 +89,7 @@ export const RULE_SETS: RuleSet[] = [
     citation: 'K.A.R. 109-11-1a(c)',
     effectiveDate: '2024-11-01',
     scope:
-      'The course approval application must be in the board office no later than 30 calendar days before the first session. For a 6 October 2026 start that is Sunday 6 September; the Monday after is Labor Day, so the practical deadline is Friday 4 September 2026.',
+      'The course approval application must be in the board office no later than 30 calendar days before the first session. For the 5 October 2026 start that is Saturday 5 September; the Monday after is Labor Day, so the practical deadline is Friday 4 September 2026.',
     verifiedAgainst:
       'AEMT_Course_Oct2026_Cohort.docx §2, agreed by both primary instructors. RE-VERIFY against the current regulation text before filing — this supersedes a 15-day figure this file previously carried, and the two disagree by a fortnight.',
   },
@@ -866,7 +866,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
   {
     order: 0,
     week: 0,
-    label: 'Pre-course · due before 6 October',
+    label: 'Pre-course · due before 5 October',
     short: 'Pre-course Ch 1-4',
     title:
       'REQUIRED BEFORE THE FIRST SESSION. Navigate Modules 1-4 (Ch 1-4): EMS Systems (PR1); Research (PR2); Workforce Safety & Wellness (PR3); Documentation (PR4); EMS Systems Communication (PR5); Therapeutic Communication (PR6); Medical/Legal & Ethical (PR7). Chapter flashcards and practice activities, plus the chapter quizzes.',
@@ -877,7 +877,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     chapters: [1, 2, 3, 4],
     sections: ['PR1', 'PR2', 'PR3', 'PR4', 'PR5', 'PR6', 'PR7'],
     standalone: true,
-    note: 'Moved out of week 1 by decision. These four chapters are the ones an incoming EMT already works inside every shift — systems, safety, medical-legal, documentation and communication — so a classroom day spent re-covering them buys the least of any day in the course. Completing them before 6 October means the first session opens on medical terminology and the course is into A&P by its second day. The trade is that this is now a prerequisite with a completion gate, not a suggestion: a student who arrives having skipped it is behind on the week 1 quiz, which is cumulative from day one.',
+    note: 'Moved out of week 1 by decision. These four chapters are the ones an incoming EMT already works inside every shift — systems, safety, medical-legal, documentation and communication — so a classroom day spent re-covering them buys the least of any day in the course. Completing them before 5 October means the first session opens on medical terminology and the course is into A&P by its second day. The trade is that this is now a prerequisite with a completion gate, not a suggestion: a student who arrives having skipped it is behind on the week 1 quiz, which is cumulative from day one.',
   },
 
   // ----- week 1 -------------------------------------------------------------
@@ -1699,7 +1699,7 @@ export const KC_SCHEDULE: ScheduleRow[] = [
  */
 export const PRE_COURSE = KC_SCHEDULE.find((r) => r.week === 0)!
 
-/** Chapters that must be complete before 6 October. */
+/** Chapters that must be complete before the first session. */
 export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
 
 /**
@@ -1713,8 +1713,8 @@ export const PRE_COURSE_CHAPTERS = PRE_COURSE.chapters ?? []
 export const PRE_COURSE_POLICY = {
   dueBy: PRE_COURSE.date,
   /**
-   * No date in the sentence. It carried a hard-coded "before the first session
-   * on 6 October" beside `dueBy`, which is two due dates for one requirement
+   * No date in the sentence. It carried a hard-coded date beside `dueBy`,
+   * which is two due dates for one requirement
    * and wrong for a re-dated cohort — and interpolating the ISO date instead
    * put "by 2026-09-29" in front of students. Callers format `dueBy` for
    * whoever is reading.
@@ -2368,7 +2368,7 @@ export const KBEMS_DEADLINES: KbemsDeadline[] = [
     offsetDays: -30,
     anchor: 'first-session',
     basis: 'kbems',
-    note: 'THE SINGLE ITEM THAT CAN SINK THE COHORT. K.A.R. 109-11-1a(c) requires the application in the board office no later than 30 calendar days before the first session. For a 6 October start that is Sunday 6 September, and the Monday after it is Labor Day — so the practical deadline is Friday 4 September 2026. Filed through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
+    note: 'THE SINGLE ITEM THAT CAN SINK THE COHORT. K.A.R. 109-11-1a(c) requires the application in the board office no later than 30 calendar days before the first session. For the 5 October start that is Saturday 5 September, and the Monday after it is Labor Day — so the practical deadline is Friday 4 September 2026. Filed through the KBEMS Licensing Portal: Manage → Add a New Course, course type "Initial". Save & Continue holds a draft; Finalize and Confirm Course Creation is what actually files it, and students cannot be enrolled before that.',
     prerequisites: [
       'Filed by an Instructor-Coordinator. No other role can create or finalize a course, so this cannot be delegated to whoever is free that day.',
       'Course schedule uploaded. Finalize is blocked without it.',
