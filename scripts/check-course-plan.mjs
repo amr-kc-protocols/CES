@@ -796,6 +796,47 @@ const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.ch
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
 
+// ----- re-dating the plan for a cohort that is not this one -------------------
+//
+// buildClassPlan shifts the filed plan by whole weeks so a later cohort can
+// run the same shape. seedKcSchedule's own note says a shifted plan has to be
+// re-checked against its year's holidays — and nothing was calling the
+// function that answers that. A course created before this plan moved rebuilds
+// to its OWN start date, which produces a plausible Monday/Thursday calendar,
+// a week wrong, with sessions on Thanksgiving, New Year's Eve and MLK Day.
+{
+  check(
+    m.holidayCollisions().length === 0,
+    'the cohort as filed puts no session on a holiday',
+    m.holidayCollisions().map((c) => `${c.date} ${c.holiday}`).join(', '),
+  )
+  // The shift is real and it does collide — the case the UI has to warn about.
+  // Asserting it means the warning cannot be quietly deleted as unreachable.
+  const shifted = m.holidayCollisions('2026-10-05')
+  check(
+    shifted.length > 0,
+    'a plan re-dated off its own calendar still collides, so the warning has work to do',
+  )
+  const back = m.buildClassPlan('2026-10-05').filter((s) => s.startTime)
+  check(
+    back[0].date === '2026-10-05' && back[0].date !== m.KC_START_DATE,
+    `re-dating moves the first class — ${back[0].date} against the filed ${m.KC_START_DATE}`,
+  )
+  // Whole weeks, so the meeting pattern survives a shift even when the dates
+  // do not. A shift that broke the pattern would be a different bug wearing
+  // the same clothes.
+  const offPattern = back.filter(
+    (s) => !m.KC_CLASS_PATTERN.days.includes(new Date(`${s.date}T00:00:00Z`).getUTCDay()),
+  )
+  check(
+    offPattern.length === m.KC_SCHEDULE.filter(
+      (r) => r.delivery === 'f2f' && !m.KC_CLASS_PATTERN.days.includes(new Date(`${r.date}T00:00:00Z`).getUTCDay()),
+    ).length,
+    're-dating by whole weeks keeps the meeting pattern',
+    offPattern.map((s) => s.date).join(', '),
+  )
+}
+
 // ----- prerequisites that have been settled ----------------------------------
 //
 // A closed prerequisite stays on the page rather than being deleted: what was

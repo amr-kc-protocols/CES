@@ -19,8 +19,10 @@ import {
   addPlaceholderSessions,
   sessionProblems,
   parseClock,
+  updateCourse,
 } from './aemtStore'
 import {
+  buildClassPlan,
   CLASS_HOURS_PER_WEEK,
   duplicatedChapters,
   FILED_SUMMARY,
@@ -363,11 +365,62 @@ function SeedModal({
   const lastSeeded = addDays(course.startDate, (KC_COURSE_WEEKS - 1) * 7 + 9)
   const runsPast = lastSeeded > course.endDate
 
+  // WHAT THIS WILL ACTUALLY LAY.
+  //
+  // buildClassPlan re-dates the filed plan by whole weeks from the course's
+  // own start date, so a course created before the plan moved rebuilds to the
+  // OLD dates — a plausible-looking Monday/Thursday calendar, a week wrong,
+  // with sessions on Thanksgiving, New Year's Eve and MLK Day. Nothing said
+  // so: the seeder's own note says a shifted plan has to be re-checked against
+  // its year's holidays, and nothing was calling the function that does it.
+  const laid = buildClassPlan(course.startDate).filter((s) => s.startTime)
+  const firstClass = laid[0]
+  const lastClass = laid[laid.length - 1]
+  const drifted = course.startDate !== KC_START_DATE
+  const collisions = holidayCollisions(course.startDate)
+
   return (
     <Modal
       title={rebuild ? 'Rebuild the schedule from the filed plan' : `Build the AMR KC ${KC_COURSE_WEEKS}-week plan`}
       onClose={onClose}
     >
+      {(drifted || collisions.length > 0) && (
+        <div className={collisions.length > 0 ? 'banner danger' : 'banner warn'}>
+          <strong>
+            This course starts {formatDate(course.startDate)}; the filed plan starts{' '}
+            {formatDate(KC_START_DATE)}.
+          </strong>{' '}
+          The plan is re-dated by whole weeks to fit, so building here lays{' '}
+          {formatDate(firstClass.date)} to {formatDate(lastClass.date)} — not the dates the KBEMS
+          application, the syllabus and the student guide were built from.
+          {collisions.length > 0 && (
+            <>
+              <div style={{ marginTop: 8 }}>
+                <strong>
+                  {collisions.length} session{collisions.length === 1 ? '' : 's'} would land on a
+                  day the program does not meet:
+                </strong>
+              </div>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+                {collisions.map((c) => (
+                  <li key={c.date}>
+                    {formatDate(c.date)} — {c.holiday}, carrying {c.label}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <div style={{ marginTop: 10 }}>
+            <button
+              className="btn sm primary"
+              onClick={() => updateCourse(course.id, { startDate: KC_START_DATE, endDate: KC_END_DATE })}
+            >
+              Move this course to {formatDate(KC_START_DATE)} – {formatDate(KC_END_DATE)}
+            </button>
+          </div>
+        </div>
+      )}
+
       {preview && (
         <div className={preview.attended.length + preview.manual.length > 0 ? 'banner warn' : 'banner info'}>
           <strong>
