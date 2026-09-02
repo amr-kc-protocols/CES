@@ -385,17 +385,25 @@ check(
   'every classroom session names the instructor who teaches it',
   unstaffed.map((r) => `${r.label} ${r.date}`).join(', '),
 )
+// A row may depart from the weekday split, but it has to say why. An exception
+// list living in this file would grow until nobody remembered which entries
+// were decisions; a reason on the row travels with it.
 const MOVED = ['2027-01-19']
-const misStaffed = m.KC_SCHEDULE.filter(
+const offPatternStaffing = m.KC_SCHEDULE.filter(
   (r) =>
     r.delivery === 'f2f' &&
     !MOVED.includes(r.date) &&
     (dayOf(r.date) === 1) !== (r.instructor === 'primary'),
 )
+const unexplainedSwap = offPatternStaffing.filter((r) => !r.instructorNote?.trim())
 check(
-  misStaffed.length === 0,
-  'Mondays are the primary instructor’s and Thursdays the co-instructor’s',
-  misStaffed.map((r) => `${r.date} ${WEEKDAY[dayOf(r.date)]} -> ${r.instructor}`).join(', '),
+  unexplainedSwap.length === 0,
+  'every session that departs from the Monday/Thursday split says why',
+  unexplainedSwap.map((r) => `${r.date} ${WEEKDAY[dayOf(r.date)]} -> ${r.instructor}`).join(', '),
+)
+check(
+  m.KC_SCHEDULE.every((r) => !r.instructorNote || r.instructor),
+  'no row explains a swap it did not make',
 )
 const staffed = new Set(m.KC_SCHEDULE.filter((r) => r.instructor).map((r) => r.instructor))
 check(

@@ -579,10 +579,17 @@ export function seedShortfall(targets: AemtHourTargets | undefined): {
 } {
   const plan = scheduleTotals()
   if (!targets) return { didactic: 0, lab: 0, aha: 0, total: 0 }
-  const didactic = Math.max(0, (targets.didactic ?? plan.didactic) - plan.didactic)
-  const lab = Math.max(0, (targets.lab ?? plan.lab) - plan.lab)
-  const aha = Math.max(0, (targets.aha ?? plan.aha) - plan.aha)
-  return { didactic, lab, aha, total: didactic + lab + aha }
+  // Rounded to the minute before comparison. Hours are quarter- and tenth-hour
+  // figures summed in floating point, so a schedule that exactly meets its
+  // filed target came out 1.4e-14 h short — and the screen said so, in those
+  // words, with an "Add 1.4210854715202004e-14 h of didactic to place" button
+  // under it. A shortfall smaller than a minute is not a shortfall.
+  const gap = (target: number | undefined, scheduled: number) =>
+    Math.max(0, Math.round(((target ?? scheduled) - scheduled) * 60) / 60)
+  const didactic = gap(targets.didactic, plan.didactic)
+  const lab = gap(targets.lab, plan.lab)
+  const aha = gap(targets.aha, plan.aha)
+  return { didactic, lab, aha, total: Math.round((didactic + lab + aha) * 60) / 60 }
 }
 
 /**
@@ -791,7 +798,14 @@ export function reconcileHours(
     { id: 'aha', label: 'AHA provider courses', target: targets.aha, scheduled: byKind.aha },
   ]
     .filter((r): r is HourReconciliation & { target: number } => typeof r.target === 'number')
-    .map((r) => ({ ...r, delta: r.scheduled - r.target }))
+    // Both figures and the delta rounded to the minute. Class hours are
+    // quarter- and tenth-hour values summed in floating point, and an exact
+    // match printed as "107.49999999999999 vs 107.5, gap -1.4e-14 h".
+    .map((r) => ({
+      ...r,
+      scheduled: Math.round(r.scheduled * 60) / 60,
+      delta: Math.round((r.scheduled - r.target) * 60) / 60,
+    }))
 }
 
 /** AMR KC's filed commitments, offered as the default when creating a course. */
@@ -3010,7 +3024,12 @@ export function courseHourTotals(sessions: AemtSession[]): {
     byKind[s.kind] += s.hours
     total += s.hours
   }
-  return { total, byKind }
+  // To the minute. These are quarter- and tenth-hour figures summed in floating
+  // point and printed straight to the screen, which is how a course totalling
+  // exactly 107.5 didactic hours came to display 107.49999999999999.
+  const minute = (n: number) => Math.round(n * 60) / 60
+  for (const k of Object.keys(byKind) as AemtSessionKind[]) byKind[k] = minute(byKind[k])
+  return { total: minute(total), byKind }
 }
 
 // ----- completion readiness --------------------------------------------------

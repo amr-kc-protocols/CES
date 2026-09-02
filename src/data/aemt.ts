@@ -827,6 +827,17 @@ export interface ScheduleRow {
    */
   instructor?: 'primary' | 'co'
   /**
+   * Why this session departs from the Monday/Thursday split.
+   *
+   * The default is the weekday: Mondays are the primary instructor's, Thursdays
+   * the co-instructor's. A session that swaps does so because one of them wants
+   * to teach that subject, and the reason belongs on the row — the alternative
+   * is an exception list somewhere else that grows until nobody remembers which
+   * entries were decisions. check-course-plan.mjs requires one on every row
+   * that breaks the pattern, so a swap is deliberate or it fails.
+   */
+  instructorNote?: string
+  /**
    * Not one of the week's Monday/Thursday sessions — the winter break block,
    * or a weekend provider course on a cohort that files one. Excluded from the
    * eight-hour weekly cap check, which is about the Mon/Thu pattern.
@@ -1376,7 +1387,9 @@ export const KC_SCHEDULE: ScheduleRow[] = [
     didacticHours: 4,
     labHours: 0,
     date: '2026-12-14',
-    instructor: 'primary',
+    instructor: 'co',
+    instructorNote:
+      'Swapped off the Monday default at the co-instructor\u2019s request — she teaches the OB/GYN block, and the Thursday lab that checks off normal delivery and neonatal resuscitation is already hers. Splitting the block across two instructors would have been the odd choice.',
     startTime: AM,
     endTime: PM,
     assessmentIds: ['quiz-i'],
@@ -2060,6 +2073,20 @@ export function sessionForSheet(
 /** Short calendar labels keyed by the title a seeded session carries. */
 export const BLOCK_SHORT_BY_TITLE: Record<string, string> = Object.fromEntries(
   KC_SCHEDULE.map((r) => [r.title, r.short]),
+)
+
+/**
+ * The filed row behind a seeded session, keyed by the title it was seeded with.
+ *
+ * A stored AemtSession carries what a course needs to take attendance — date,
+ * hours, kind. The filed row carries what a session IS: the chapters students
+ * were told to read, the sheets checked off in it, what is graded, who teaches
+ * it. The day agenda wants the second, and title is the join the seeder already
+ * uses elsewhere. Absent for a session somebody wrote by hand, which the agenda
+ * says rather than filling in from the nearest match.
+ */
+export const ROW_BY_TITLE: Record<string, ScheduleRow> = Object.fromEntries(
+  KC_SCHEDULE.map((r) => [r.title, r]),
 )
 
 // ----- program hour targets (proposal §2) ------------------------------------
