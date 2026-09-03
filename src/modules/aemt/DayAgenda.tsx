@@ -7,7 +7,7 @@ import {
   type ScheduleRow,
 } from '../../data/aemt'
 import { assessment, SESSION_TEMPLATE } from '../../data/aemtAssessments'
-import { chapterAssets, skillDrills } from '../../data/navigateAssets'
+import { chapterAssets, chapterPages, pageRange, skillDrills } from '../../data/navigateAssets'
 import { standardLabel } from '../../data/aemtStandards'
 import { skillSheet } from '../../data/aemtSkills'
 import type { AemtSession } from '../../types'
@@ -108,7 +108,8 @@ function SessionBlock({ session, allRows }: { session: AemtSession; allRows: Sch
             What they were told to do first
           </div>
           <div className="help-text" style={{ marginTop: 0 }}>
-            Chapters {chapters.join(', ')} — read, module, flashcards and practice activity
+            Chapters {chapters.join(', ')} (pp. {pageRange(chapters)}, {chapterPages(chapters)} pp)
+            {' '}— read, module, flashcards and practice activity
             {moduleMinutes ? `, ${moduleMinutes} minutes of module time` : ''}.{' '}
             <strong>Assume they have met this material; do not re-deliver it.</strong>
           </div>
@@ -180,15 +181,26 @@ function SessionBlock({ session, allRows }: { session: AemtSession; allRows: Sch
 
       {events.length > 0 && (
         <>
+          {/*
+            "Graded today" over every assessment on the row put an UNGRADED
+            diagnostic under a heading saying it counted, and the instructor
+            reasonably read that as a test they owed on day one. Two of these
+            are ungraded by design — a diagnostic students protect their score
+            on tells you nothing — so the heading has to follow the event.
+          */}
           <div className="section-title" style={{ marginTop: 10 }}>
-            Graded today
+            {events.some((e) => e!.gradingComponent) ? 'Assessed today' : 'On the calendar today'}
           </div>
           <div className="list">
             {events.map((e) => (
-              <div key={e!.id} className="row left-accent acc-warn">
+              <div
+                key={e!.id}
+                className={`row left-accent ${e!.source === 'unsourced' ? 'acc-bad' : 'acc-warn'}`}
+              >
                 <div className="grow">
                   <div className="title" style={{ fontSize: 13 }}>
                     {e!.label}
+                    {!e!.gradingComponent && <span className="meta"> · ungraded</span>}
                   </div>
                   <div className="meta">
                     {[
@@ -197,10 +209,18 @@ function SessionBlock({ session, allRows }: { session: AemtSession; allRows: Sch
                       e!.minutes ? `${e!.minutes} min` : '',
                       e!.proctored ? 'proctored, closed book' : '',
                       e!.mps ? `MPS ${e!.mps}%` : '',
+                      e!.source === 'navigate' ? 'in Navigate — it holds the score' : '',
+                      e!.source === 'program' ? 'the program administers this' : '',
                     ]
                       .filter(Boolean)
                       .join(' · ')}
                   </div>
+                  {e!.source === 'unsourced' && (
+                    <div className="banner danger" style={{ marginTop: 6 }}>
+                      <strong>This instrument does not exist yet.</strong>{' '}
+                      {e!.sourceNote}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

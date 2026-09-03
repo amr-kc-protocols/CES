@@ -20,7 +20,7 @@
 // way to never ship it twice.
 //
 // Run: node scripts/check-course-plan.mjs
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -795,6 +795,185 @@ check(
 const guideMinutes = m.KC_SCHEDULE.reduce((n, r) => n + m.lectureMinutesFor(r.chapters ?? []), 0)
 const f = m.FILED_SUMMARY
 const delta = (a, b) => `${a > b ? '+' : ''}${Math.round((a - b) * 10) / 10}`
+
+// ----- pre-class work must not read as a class, in any render path -----------
+//
+// Pre-class reading is FILED as didactic, because the filed didactic total
+// includes it. On a screen that made 12 October read as two classes the same
+// morning: the Navigate reading and the four-hour session, both stamped
+// "Didactic".
+//
+// It was fixed once in the read-only row and missed in the editable card,
+// which is the path a coordinator actually sees — so the bug survived the fix
+// and was reported again. This reads the source because the defect is in the
+// rendering, and what it guards is that NO path prints a session's raw kind
+// where a reader will take it for what the session is.
+{
+  const tab = readFileSync(join(SRC, 'modules/aemt/SessionsTab.tsx'), 'utf8')
+  const labelled = (tab.match(/sessionKindLabel\(/g) ?? []).length
+  check(
+    labelled >= 2,
+    `both the read-only row and the editable card label the session — ${labelled} call(s)`,
+  )
+  // The pattern that caused it: reading the label straight off KINDS by kind,
+  // which cannot tell homework from a classroom hour because both are
+  // 'didactic'. One use is legitimate — inside sessionKindLabel itself, which
+  // is where the assignment case is handled first — so that body is removed
+  // before looking. Anywhere else is a render path that will print "Didactic"
+  // on a student's reading.
+  const helper = /function sessionKindLabel\([\s\S]*?\n\}/.exec(tab)
+  check(!!helper, 'sessionKindLabel is where the label is decided')
+  const elsewhere = tab.replace(helper?.[0] ?? '', '')
+  const raw = (elsewhere.match(/KINDS\.find\(\(k\) => k\.value === session\.kind\)/g) ?? []).length
+  check(
+    raw === 0,
+    'no render path outside that helper takes its label straight from the session kind',
+    `${raw} occurrence(s) of the pattern that stamped "Didactic" on pre-class reading`,
+  )
+}
+
+// ----- the printed book, as against the modules --------------------------------
+//
+// Page extents come off the book's own table of contents. They are the only
+// measure of what a student is actually holding: module run time says how long
+// the Navigate lecture plays, and the two disagree by a lot — chapter 5 is
+// eleven minutes of module against 36 pages of text.
+{
+  const byNum = [...m.N.CHAPTER_ASSETS].sort((a, b) => a.chapter - b.chapter)
+  check(byNum.length === 42, `all 42 chapters carry page extents, got ${byNum.length}`)
+  const bad = byNum.filter((c) => !(c.startPage > 0) || !(c.pages > 0))
+  check(bad.length === 0, 'every chapter has a start page and an extent', bad.map((c) => c.chapter).join(', '))
+
+  // The extents have to CHAIN: each chapter starts where the last one ended.
+  // A mistyped page number is invisible on its own and obvious here.
+  const gaps = []
+  for (let i = 1; i < byNum.length; i++) {
+    const prevEnd = byNum[i - 1].startPage + byNum[i - 1].pages
+    if (prevEnd !== byNum[i].startPage) {
+      gaps.push(`ch${byNum[i - 1].chapter} ends p${prevEnd}, ch${byNum[i].chapter} starts p${byNum[i].startPage}`)
+    }
+  }
+  check(gaps.length === 0, 'the chapter page extents chain without gap or overlap', gaps.join('; '))
+  check(byNum[0].startPage === 2, `chapter 1 starts on page 2, got ${byNum[0].startPage}`)
+  const lastEnd = byNum[41].startPage + byNum[41].pages
+  check(lastEnd === 2027, `chapter 42 ends where the glossary begins, p2027, got p${lastEnd}`)
+
+  // pageRange collapses a contiguous run, which is the whole reason it exists.
+  check(
+    m.N.pageRange([30, 31, 32]) === '1395-1530',
+    `three consecutive chapters read as one range, got "${m.N.pageRange([30, 31, 32])}"`,
+  )
+  check(
+    m.N.pageRange([5, 7]).includes(','),
+    `two chapters that are not adjacent read as two ranges, got "${m.N.pageRange([5, 7])}"`,
+  )
+}
+
+// ----- how much reading each week actually carries -----------------------------
+//
+// The filed didactic hours are the publisher's module run time, and that is
+// not what a student is holding. Week 15 filed 5.8 h and ran to 268 PAGES —
+// seven chapters, in the week beside Gate 3 and final preparation, four of
+// them operations material that depends on nothing at all.
+//
+// So the load is asserted in pages as well as hours. The Thanksgiving weeks
+// are light by decision and week 14 is the deliberate trauma block; every
+// other teaching week has to sit inside a band.
+{
+  const assignments = m.KC_SCHEDULE.filter(
+    (r) => r.delivery === 'assignment' && (r.chapters ?? []).length > 0,
+  )
+  check(assignments.length > 12, `there are pre-class rows to weigh — ${assignments.length}`)
+
+  // Every chapter is assigned, exactly once. A chapter read twice is a week
+  // that looks heavy for nothing; one read never is a gap nobody sees.
+  const assigned = m.KC_SCHEDULE.flatMap((r) => r.chapters ?? [])
+  const dupes = [...new Set(assigned.filter((c, i) => assigned.indexOf(c) !== i))]
+  check(dupes.length === 0, 'no chapter is assigned twice', dupes.join(', '))
+  check(
+    new Set(assigned).size === m.N.CHAPTER_ASSETS.length,
+    `every one of the ${m.N.CHAPTER_ASSETS.length} chapters is assigned, got ${new Set(assigned).size}`,
+  )
+  const totalPages = m.N.chapterPages([...new Set(assigned)])
+  check(totalPages === 2025, `the whole book is assigned — 2025 pages, got ${totalPages}`)
+
+  // The band. Week 0 is the pre-course block, weeks 7 and 8 are the
+  // Thanksgiving weeks, week 14 is the trauma block the blueprint compresses
+  // on purpose. Every other week reads between 90 and 160 pages.
+  const EXEMPT = new Set([0, 7, 8, 14])
+  const heavy = assignments
+    .filter((r) => !EXEMPT.has(r.week))
+    .map((r) => ({ week: r.week, pages: m.N.chapterPages(r.chapters) }))
+    .filter((x) => x.pages > 160 || x.pages < 90)
+  check(
+    heavy.length === 0,
+    'no ordinary teaching week reads fewer than 90 or more than 160 pages',
+    heavy.map((x) => `week ${x.week}: ${x.pages} pp`).join(', '),
+  )
+
+  // The operations chapters are read before the week that teaches them. That
+  // is the whole point of moving them, and it is invisible from the hours.
+  const OPS = [39, 40, 41, 42]
+  const readIn = new Map()
+  for (const r of assignments) for (const c of r.chapters ?? []) if (OPS.includes(c)) readIn.set(c, r.week)
+  const taughtIn = m.KC_SCHEDULE.find((r) => r.short === 'Psych · Geri · Ops')?.week
+  const late = OPS.filter((c) => !readIn.has(c) || readIn.get(c) >= taughtIn)
+  check(
+    late.length === 0,
+    `every operations chapter is read before week ${taughtIn} teaches it`,
+    late.map((c) => `ch${c} read in week ${readIn.get(c) ?? 'nowhere'}`).join(', '),
+  )
+  // And the week that teaches them still claims their standards, or the
+  // coverage map reports them delivered in the week they were merely read.
+  const opsRow = m.KC_SCHEDULE.find((r) => r.short === 'Psych · Geri · Ops')
+  const missing = ['OP1', 'OP2', 'OP3', 'OP4', 'OP5', 'OP6', 'OP7'].filter(
+    (c) => !(opsRow?.sections ?? []).includes(c),
+  )
+  check(
+    missing.length === 0,
+    'the session that teaches operations still names the operations standards',
+    missing.join(', '),
+  )
+}
+
+// ----- instruments that exist, and instruments that do not --------------------
+//
+// gradingComponent says where a SCORE goes. It says nothing about whether the
+// form exists. The baseline diagnostic sat on day one as a 50-item proctored
+// exam nobody had, under a heading reading "Graded today" — on an event whose
+// own record says it is ungraded. Provenance is now its own field.
+{
+  const bad = A.COURSE_ASSESSMENTS.filter(
+    (a) => !['navigate', 'program', 'unsourced'].includes(a.source),
+  )
+  check(bad.length === 0, 'every assessment says where its instrument comes from', bad.map((a) => a.id).join(', '))
+
+  const unsourced = A.unsourcedAssessments()
+  check(
+    unsourced.every((a) => a.sourceNote),
+    'an instrument nobody has says what closing it would take',
+    unsourced.filter((a) => !a.sourceNote).map((a) => a.id).join(', '),
+  )
+  // An unsourced instrument may not carry weight. A form that does not exist
+  // cannot be a graded component of somebody's course grade.
+  const weighted = unsourced.filter((a) => a.gradingComponent)
+  check(
+    weighted.length === 0,
+    'nothing that does not exist yet counts toward a grade',
+    weighted.map((a) => `${a.id} → ${a.gradingComponent}`).join(', '),
+  )
+  // Navigate holds its own scores. Anything routed to the navigate component
+  // has to actually be a Navigate instrument, or the gradebook is being read
+  // from a system that never saw it.
+  const misrouted = A.COURSE_ASSESSMENTS.filter(
+    (a) => a.gradingComponent === 'navigate' && a.source !== 'navigate',
+  )
+  check(
+    misrouted.length === 0,
+    'every assessment graded in Navigate is an instrument Navigate hosts',
+    misrouted.map((a) => a.id).join(', '),
+  )
+}
 
 // ----- re-dating the plan for a cohort that is not this one -------------------
 //

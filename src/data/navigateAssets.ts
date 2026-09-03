@@ -29,51 +29,61 @@ export interface ChapterAssets {
   lectureMinutes: number
   slides: number
   outlinePages: number
+  /**
+   * First page of the chapter in the printed text, and how many pages it runs.
+   *
+   * Read off the book's own table of contents. Module run time measures how
+   * long the Navigate lecture plays; pages measure how much reading a student
+   * is actually holding, and the two disagree enough to matter — chapter 5 is
+   * eleven minutes of module against 36 pages of text.
+   */
+  startPage: number
+  pages: number
 }
 
 export const CHAPTER_ASSETS: ChapterAssets[] = [
-  { chapter: 1, title: 'EMS Systems', moduleMinutes: 26, lectureMinutes: 60, slides: 65, outlinePages: 24 },
-  { chapter: 2, title: 'Workforce Safety and Wellness', moduleMinutes: 57, lectureMinutes: 60, slides: 65, outlinePages: 34 },
-  { chapter: 3, title: 'Medical, Legal, and Ethical Issues', moduleMinutes: 40, lectureMinutes: 50, slides: 54, outlinePages: 31 },
-  { chapter: 4, title: 'Communications and Documentation', moduleMinutes: 82, lectureMinutes: 80, slides: 81, outlinePages: 31 },
-  { chapter: 5, title: 'Medical Terminology', moduleMinutes: 11, lectureMinutes: 25, slides: 27, outlinePages: 12 },
-  { chapter: 6, title: 'Lifting and Moving Patients', moduleMinutes: 40, lectureMinutes: 60, slides: 62, outlinePages: 29 },
-  { chapter: 7, title: 'The Human Body', moduleMinutes: 94, lectureMinutes: 145, slides: 149, outlinePages: 42 },
-  { chapter: 8, title: 'Pathophysiology', moduleMinutes: 55, lectureMinutes: 65, slides: 69, outlinePages: 22 },
-  { chapter: 9, title: 'Life Span Development', moduleMinutes: 13, lectureMinutes: 40, slides: 45, outlinePages: 16 },
-  { chapter: 10, title: 'Patient Assessment', moduleMinutes: 67, lectureMinutes: 100, slides: 102, outlinePages: 41 },
-  { chapter: 11, title: 'Airway Management', moduleMinutes: 87, lectureMinutes: 135, slides: 139, outlinePages: 41 },
-  { chapter: 12, title: 'Principles of Pharmacology', moduleMinutes: 23, lectureMinutes: 70, slides: 74, outlinePages: 32 },
-  { chapter: 13, title: 'Vascular Access and Medication Administration', moduleMinutes: 46, lectureMinutes: 125, slides: 128, outlinePages: 41 },
-  { chapter: 14, title: 'Shock', moduleMinutes: 35, lectureMinutes: 50, slides: 52, outlinePages: 19 },
-  { chapter: 15, title: 'BLS Resuscitation', moduleMinutes: 39, lectureMinutes: 60, slides: 65, outlinePages: 29 },
-  { chapter: 16, title: 'Medical Overview', moduleMinutes: 37, lectureMinutes: 50, slides: 53, outlinePages: 19 },
-  { chapter: 17, title: 'Respiratory Emergencies', moduleMinutes: 61, lectureMinutes: 105, slides: 106, outlinePages: 36 },
-  { chapter: 18, title: 'Cardiovascular Emergencies', moduleMinutes: 54, lectureMinutes: 80, slides: 84, outlinePages: 24 },
-  { chapter: 19, title: 'Neurologic Emergencies', moduleMinutes: 42, lectureMinutes: 55, slides: 59, outlinePages: 26 },
-  { chapter: 20, title: 'Gastrointestinal and Urologic Emergencies', moduleMinutes: 31, lectureMinutes: 85, slides: 89, outlinePages: 32 },
-  { chapter: 21, title: 'Endocrine and Hematologic Emergencies', moduleMinutes: 60, lectureMinutes: 65, slides: 67, outlinePages: 28 },
-  { chapter: 22, title: 'Immunologic Emergencies', moduleMinutes: 34, lectureMinutes: 30, slides: 32, outlinePages: 16 },
-  { chapter: 23, title: 'Toxicology', moduleMinutes: 41, lectureMinutes: 75, slides: 80, outlinePages: 37 },
-  { chapter: 24, title: 'Psychiatric Emergencies', moduleMinutes: 43, lectureMinutes: 35, slides: 40, outlinePages: 22 },
-  { chapter: 25, title: 'Gynecologic Emergencies', moduleMinutes: 23, lectureMinutes: 50, slides: 51, outlinePages: 22 },
-  { chapter: 26, title: 'Trauma Overview', moduleMinutes: 30, lectureMinutes: 40, slides: 45, outlinePages: 15 },
-  { chapter: 27, title: 'Bleeding', moduleMinutes: 45, lectureMinutes: 30, slides: 34, outlinePages: 15 },
-  { chapter: 28, title: 'Soft-Tissue Injuries', moduleMinutes: 60, lectureMinutes: 70, slides: 74, outlinePages: 20 },
-  { chapter: 29, title: 'Face and Neck Injuries', moduleMinutes: 54, lectureMinutes: 70, slides: 72, outlinePages: 25 },
-  { chapter: 30, title: 'Head and Spine Injuries', moduleMinutes: 60, lectureMinutes: 70, slides: 74, outlinePages: 27 },
-  { chapter: 31, title: 'Chest Injuries', moduleMinutes: 61, lectureMinutes: 95, slides: 97, outlinePages: 25 },
-  { chapter: 32, title: 'Abdominal and Genitourinary Injuries', moduleMinutes: 37, lectureMinutes: 35, slides: 40, outlinePages: 16 },
-  { chapter: 33, title: 'Orthopaedic Injuries', moduleMinutes: 86, lectureMinutes: 125, slides: 129, outlinePages: 33 },
-  { chapter: 34, title: 'Environmental Emergencies', moduleMinutes: 62, lectureMinutes: 125, slides: 128, outlinePages: 36 },
-  { chapter: 35, title: 'Obstetrics and Neonatal Care', moduleMinutes: 68, lectureMinutes: 125, slides: 126, outlinePages: 28 },
-  { chapter: 36, title: 'Pediatric Emergencies', moduleMinutes: 105, lectureMinutes: 225, slides: 229, outlinePages: 58 },
-  { chapter: 37, title: 'Geriatric Emergencies', moduleMinutes: 107, lectureMinutes: 130, slides: 134, outlinePages: 29 },
-  { chapter: 38, title: 'Patients With Special Challenges', moduleMinutes: 44, lectureMinutes: 55, slides: 59, outlinePages: 22 },
-  { chapter: 39, title: 'Transport Operations', moduleMinutes: 41, lectureMinutes: 40, slides: 43, outlinePages: 20 },
-  { chapter: 40, title: 'Vehicle Extrication, Special Rescue, and Hazardous Materials', moduleMinutes: 60, lectureMinutes: 60, slides: 65, outlinePages: 20 },
-  { chapter: 41, title: 'Incident Management', moduleMinutes: 24, lectureMinutes: 35, slides: 37, outlinePages: 16 },
-  { chapter: 42, title: 'Terrorism Response and Disaster Management', moduleMinutes: 31, lectureMinutes: 55, slides: 58, outlinePages: 23 },
+  { chapter: 1, title: 'EMS Systems', moduleMinutes: 26, lectureMinutes: 60, slides: 65, outlinePages: 24, startPage: 2, pages: 31 },
+  { chapter: 2, title: 'Workforce Safety and Wellness', moduleMinutes: 57, lectureMinutes: 60, slides: 65, outlinePages: 34, startPage: 33, pages: 56 },
+  { chapter: 3, title: 'Medical, Legal, and Ethical Issues', moduleMinutes: 40, lectureMinutes: 50, slides: 54, outlinePages: 31, startPage: 89, pages: 34 },
+  { chapter: 4, title: 'Communications and Documentation', moduleMinutes: 82, lectureMinutes: 80, slides: 81, outlinePages: 31, startPage: 123, pages: 56 },
+  { chapter: 5, title: 'Medical Terminology', moduleMinutes: 11, lectureMinutes: 25, slides: 27, outlinePages: 12, startPage: 179, pages: 36 },
+  { chapter: 6, title: 'Lifting and Moving Patients', moduleMinutes: 40, lectureMinutes: 60, slides: 62, outlinePages: 29, startPage: 215, pages: 47 },
+  { chapter: 7, title: 'The Human Body', moduleMinutes: 94, lectureMinutes: 145, slides: 149, outlinePages: 42, startPage: 262, pages: 105 },
+  { chapter: 8, title: 'Pathophysiology', moduleMinutes: 55, lectureMinutes: 65, slides: 69, outlinePages: 22, startPage: 367, pages: 62 },
+  { chapter: 9, title: 'Life Span Development', moduleMinutes: 13, lectureMinutes: 40, slides: 45, outlinePages: 16, startPage: 429, pages: 23 },
+  { chapter: 10, title: 'Patient Assessment', moduleMinutes: 67, lectureMinutes: 100, slides: 102, outlinePages: 41, startPage: 452, pages: 88 },
+  { chapter: 11, title: 'Airway Management', moduleMinutes: 87, lectureMinutes: 135, slides: 139, outlinePages: 41, startPage: 540, pages: 96 },
+  { chapter: 12, title: 'Principles of Pharmacology', moduleMinutes: 23, lectureMinutes: 70, slides: 74, outlinePages: 32, startPage: 636, pages: 51 },
+  { chapter: 13, title: 'Vascular Access and Medication Administration', moduleMinutes: 46, lectureMinutes: 125, slides: 128, outlinePages: 41, startPage: 687, pages: 79 },
+  { chapter: 14, title: 'Shock', moduleMinutes: 35, lectureMinutes: 50, slides: 52, outlinePages: 19, startPage: 766, pages: 37 },
+  { chapter: 15, title: 'BLS Resuscitation', moduleMinutes: 39, lectureMinutes: 60, slides: 65, outlinePages: 29, startPage: 803, pages: 51 },
+  { chapter: 16, title: 'Medical Overview', moduleMinutes: 37, lectureMinutes: 50, slides: 53, outlinePages: 19, startPage: 854, pages: 27 },
+  { chapter: 17, title: 'Respiratory Emergencies', moduleMinutes: 61, lectureMinutes: 105, slides: 106, outlinePages: 36, startPage: 881, pages: 58 },
+  { chapter: 18, title: 'Cardiovascular Emergencies', moduleMinutes: 54, lectureMinutes: 80, slides: 84, outlinePages: 24, startPage: 939, pages: 52 },
+  { chapter: 19, title: 'Neurologic Emergencies', moduleMinutes: 42, lectureMinutes: 55, slides: 59, outlinePages: 26, startPage: 991, pages: 42 },
+  { chapter: 20, title: 'Gastrointestinal and Urologic Emergencies', moduleMinutes: 31, lectureMinutes: 85, slides: 89, outlinePages: 32, startPage: 1033, pages: 34 },
+  { chapter: 21, title: 'Endocrine and Hematologic Emergencies', moduleMinutes: 60, lectureMinutes: 65, slides: 67, outlinePages: 28, startPage: 1067, pages: 44 },
+  { chapter: 22, title: 'Immunologic Emergencies', moduleMinutes: 34, lectureMinutes: 30, slides: 32, outlinePages: 16, startPage: 1111, pages: 26 },
+  { chapter: 23, title: 'Toxicology', moduleMinutes: 41, lectureMinutes: 75, slides: 80, outlinePages: 37, startPage: 1137, pages: 42 },
+  { chapter: 24, title: 'Psychiatric Emergencies', moduleMinutes: 43, lectureMinutes: 35, slides: 40, outlinePages: 22, startPage: 1179, pages: 34 },
+  { chapter: 25, title: 'Gynecologic Emergencies', moduleMinutes: 23, lectureMinutes: 50, slides: 51, outlinePages: 22, startPage: 1213, pages: 25 },
+  { chapter: 26, title: 'Trauma Overview', moduleMinutes: 30, lectureMinutes: 40, slides: 45, outlinePages: 15, startPage: 1238, pages: 37 },
+  { chapter: 27, title: 'Bleeding', moduleMinutes: 45, lectureMinutes: 30, slides: 34, outlinePages: 15, startPage: 1275, pages: 36 },
+  { chapter: 28, title: 'Soft-Tissue Injuries', moduleMinutes: 60, lectureMinutes: 70, slides: 74, outlinePages: 20, startPage: 1311, pages: 44 },
+  { chapter: 29, title: 'Face and Neck Injuries', moduleMinutes: 54, lectureMinutes: 70, slides: 72, outlinePages: 25, startPage: 1355, pages: 40 },
+  { chapter: 30, title: 'Head and Spine Injuries', moduleMinutes: 60, lectureMinutes: 70, slides: 74, outlinePages: 27, startPage: 1395, pages: 68 },
+  { chapter: 31, title: 'Chest Injuries', moduleMinutes: 61, lectureMinutes: 95, slides: 97, outlinePages: 25, startPage: 1463, pages: 38 },
+  { chapter: 32, title: 'Abdominal and Genitourinary Injuries', moduleMinutes: 37, lectureMinutes: 35, slides: 40, outlinePages: 16, startPage: 1501, pages: 30 },
+  { chapter: 33, title: 'Orthopaedic Injuries', moduleMinutes: 86, lectureMinutes: 125, slides: 129, outlinePages: 33, startPage: 1531, pages: 66 },
+  { chapter: 34, title: 'Environmental Emergencies', moduleMinutes: 62, lectureMinutes: 125, slides: 128, outlinePages: 36, startPage: 1597, pages: 59 },
+  { chapter: 35, title: 'Obstetrics and Neonatal Care', moduleMinutes: 68, lectureMinutes: 125, slides: 126, outlinePages: 28, startPage: 1656, pages: 59 },
+  { chapter: 36, title: 'Pediatric Emergencies', moduleMinutes: 105, lectureMinutes: 225, slides: 229, outlinePages: 58, startPage: 1715, pages: 78 },
+  { chapter: 37, title: 'Geriatric Emergencies', moduleMinutes: 107, lectureMinutes: 130, slides: 134, outlinePages: 29, startPage: 1793, pages: 54 },
+  { chapter: 38, title: 'Patients With Special Challenges', moduleMinutes: 44, lectureMinutes: 55, slides: 59, outlinePages: 22, startPage: 1847, pages: 35 },
+  { chapter: 39, title: 'Transport Operations', moduleMinutes: 41, lectureMinutes: 40, slides: 43, outlinePages: 20, startPage: 1882, pages: 43 },
+  { chapter: 40, title: 'Vehicle Extrication, Special Rescue, and Hazardous Materials', moduleMinutes: 60, lectureMinutes: 60, slides: 65, outlinePages: 20, startPage: 1925, pages: 42 },
+  { chapter: 41, title: 'Incident Management', moduleMinutes: 24, lectureMinutes: 35, slides: 37, outlinePages: 16, startPage: 1967, pages: 27 },
+  { chapter: 42, title: 'Terrorism Response and Disaster Management', moduleMinutes: 31, lectureMinutes: 55, slides: 58, outlinePages: 23, startPage: 1994, pages: 33 },
 ]
 
 const BY_CHAPTER = new Map(CHAPTER_ASSETS.map((c) => [c.chapter, c]))
@@ -94,6 +104,32 @@ export function chapterAssets(n: number): ChapterAssets | undefined {
 export function moduleHours(chapters: number[]): number {
   const mins = chapters.reduce((n, c) => n + (BY_CHAPTER.get(c)?.moduleMinutes ?? 0), 0)
   return Math.round((mins / 60) * 10) / 10
+}
+
+/** Pages of printed text a set of chapters runs to. */
+export function chapterPages(chapters: number[]): number {
+  return chapters.reduce((n, c) => n + (BY_CHAPTER.get(c)?.pages ?? 0), 0)
+}
+
+/**
+ * Page range for a set of chapters, as a reader would write it: "881-938".
+ *
+ * Contiguous runs are collapsed, because "1395-1530" is one thing to find in
+ * a book and "1395-1462, 1463-1500, 1501-1530" is three.
+ */
+export function pageRange(chapters: number[]): string {
+  const sorted = [...chapters]
+    .map((c) => BY_CHAPTER.get(c))
+    .filter((a): a is ChapterAssets => !!a)
+    .sort((a, b) => a.startPage - b.startPage)
+  if (!sorted.length) return ''
+  const runs: [number, number][] = []
+  for (const a of sorted) {
+    const last = runs[runs.length - 1]
+    if (last && last[1] === a.startPage) last[1] = a.startPage + a.pages
+    else runs.push([a.startPage, a.startPage + a.pages])
+  }
+  return runs.map(([s, e]) => `${s}-${e - 1}`).join(', ')
 }
 
 // ----- skill drills ----------------------------------------------------------

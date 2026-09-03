@@ -11,7 +11,7 @@
     "icons": "node scripts/gen-icons.mjs",
     "check:evidence": "node scripts/check-evidence-hash.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:skills && npm run check:review && npm run check:pcr && npm run check:neop && npm run check:sim && npm run check:checkoff && npm run check:nav && npm run check:interview && npm run check:record && npm run check:clearance && npm run check:phi && npm run check:stage1 && npm run check:placement && npm run check:cqmp && npm run check:kpiimport && npm run check:documents && npm run check:records && npm run check:workpattern && npm run check:email",
+    "check": "npm run check:evidence && npm run check:templates && npm run check:plan && npm run check:skills && npm run check:review && npm run check:pcr && npm run check:neop && npm run check:sim && npm run check:checkoff && npm run check:nav && npm run check:interview && npm run check:record && npm run check:clearance && npm run check:phi && npm run check:stage1 && npm run check:placement && npm run check:cqmp && npm run check:kpiimport && npm run check:documents && npm run check:records && npm run check:workpattern && npm run check:email && npm run check:baseline",
     "check:strict": "CES_CHECK_STRICT=1 npm run check",
     "check:plan": "node scripts/check-course-plan.mjs",
     "check:documents": "node scripts/check-documents.mjs",
@@ -43,7 +43,10 @@
     "doc:forms": "node scripts/build-forms.mjs forms",
     "doc:all": "npm run doc:application && npm run doc:syllabus && npm run doc:curriculum && npm run doc:objectives && npm run doc:policies && npm run doc:forms && npm run doc:student",
     "check:reach": "node scripts/check-reach.mjs",
-    "check:all": "npm run check && npm run build && npm run check:reach"
+    "check:all": "npm run check && npm run build && npm run check:reach",
+    "check:baseline": "node scripts/check-baseline.mjs",
+    "sql:baseline": "node scripts/build-baseline-sql.mjs",
+    "print:baseline": "node scripts/build-baseline-review.mjs --key && node scripts/build-baseline-review.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
