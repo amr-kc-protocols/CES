@@ -55,9 +55,23 @@
 // most common, which is folklore rather than a decision anyone makes. Those
 // are the errors a subject-matter reviewer finds and a script never will.
 //
-// READ THIS AGAIN EACH YEAR against current AHA and NREMT guidance. Compression
-// depth, choking management and cannula behaviour have all moved before, and an
-// item bank goes quietly out of date rather than breaking.
+// TWO REVIEWER SUGGESTIONS WERE CONSIDERED AND DECLINED for this cohort, so
+// that neither reads later as an unfinished job:
+//
+//   A STANDING YEARLY RE-REVIEW. Not set up. This is the first cohort to sit
+//   the instrument and there is nothing yet to review against. Worth revisiting
+//   once it has been given and the item statistics exist — compression depth,
+//   choking management and cannula behaviour have all moved before, and a bank
+//   goes quietly out of date rather than breaking. The trigger for that is a
+//   guideline change or a second cohort, not the calendar.
+//
+//   LINKED SCENARIO ITEMS, where several questions progress through one
+//   patient. Better measurement of clinical judgment, and the certification
+//   exam uses them. Declined here because independent items are the right
+//   shape for a DIAGNOSTIC: a candidate who misreads the opening of a linked
+//   scenario loses every item hanging off it, which confounds the one thing
+//   this instrument is for — locating gaps by domain. It would also need work
+//   in the exam engine, which serves independent items today.
 // ---------------------------------------------------------------------------
 
 import { BLUEPRINT_DOMAIN_IDS } from './aemtAssessments'
