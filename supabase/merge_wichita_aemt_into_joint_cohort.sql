@@ -66,9 +66,9 @@ where r.collection = 'aemtCourses'
   and not r.deleted
 order by r.market, starts;
 
--- Who could be the instructor. Her sign-in address is NOT in the course record
--- — COURSE_STAFF carries a name and an operation for her but no email — so
--- take it from here rather than assuming the usual first.last@gmr.net shape.
+-- The instructor accounts on the Wichita side. Her address is not in the course
+-- record — COURSE_STAFF carries a name and an operation for her but no email —
+-- so this is where to confirm it, and to check she has signed in at all.
 select email, market, role
 from public.profiles
 where market in ('wichita', 'all')
@@ -91,10 +91,11 @@ order by market, email;
 
 do $$
 declare
-  -- Her sign-in address, from Part 1. Gets market 'all' so she can reach
-  -- Kansas City. THE VALUE BELOW IS A GUESS AT THE USUAL SHAPE, not something
-  -- read off the course record — confirm it against Part 1 before running.
-  v_instructor_email text := 'cassandra.powell@gmr.net';
+  -- Her sign-in address. Gets market 'all' so she can reach Kansas City.
+  -- Matched case-insensitively below: Supabase auth lowercases the address on
+  -- signup, so an exact match on a capitalised spelling finds nothing and
+  -- reads as "she has no account" when she plainly does.
+  v_instructor_email text := 'Cassandra.powell@gmr.net';
 
   -- The course she built, under 'wichita'. From Part 1.
   v_from_course text := '';
@@ -138,7 +139,8 @@ begin
     raise exception 'The source and destination course are the same id.';
   end if;
 
-  select user_id into v_uid from public.profiles where email = v_instructor_email;
+  select user_id into v_uid from public.profiles
+  where lower(email) = lower(v_instructor_email);
   if v_uid is null then
     raise exception
       'No profile for %. She must have signed in at least once. See add_admin_mary_glover.sql for creating an account.',
