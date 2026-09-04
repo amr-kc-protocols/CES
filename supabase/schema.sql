@@ -464,13 +464,14 @@ declare
   v_name    text := trim(p_name);
   v_sign    text := nullif(trim(coalesce(p_signature, '')), '');
   v_program text := coalesce(nullif(trim(p_program), ''), 'aemt');
-  -- Per-program configuration. The AEMT row is the existing behavior,
-  -- unchanged: 17 August cutoff, 25 minutes, 50 items drawn at random.
-  --
-  -- NEOP has NO CUTOFF because hiring is rolling — a new-hire exam that closes
-  -- on a date is an exam that silently stops working for every applicant after
-  -- it, which is worse than any deadline it was meant to enforce.
-  v_cutoff  timestamptz;
+  -- Per-program configuration: the clock and the draw. NEITHER PROGRAM HAS A
+  -- CLOSING DATE, and there is no v_cutoff here to set one — an exam that
+  -- closes on a constant compiled into this function is an exam that silently
+  -- stops working for everyone after that date, and needs a migration, a paste
+  -- and a client deploy to reopen. That failure has now happened twice. Closing
+  -- the window is done by retiring the bank or taking the link down, where
+  -- somebody can see it has happened. See
+  -- migrations/2026-09-04-2-remove-aemt-exam-cutoff.sql.
   v_limit   int;
   v_draw    int;
   v_clin    int;
@@ -489,18 +490,12 @@ begin
   end if;
 
   if v_program = 'aemt' then
-    v_cutoff := '2026-08-17 17:00:00-05';   -- Aug 17, 5 PM Central
     v_limit  := 25 * 60;
     v_draw   := 50;
   else
-    v_cutoff := null;                       -- rolling
     v_limit  := 35 * 60;
     v_clin   := 12;
     v_ops    := 16;                         -- every preference item is served
-  end if;
-
-  if v_cutoff is not null and now() > v_cutoff then
-    return jsonb_build_object('error', 'closed');
   end if;
 
   select * into v_attempt from public.exam_attempts a
