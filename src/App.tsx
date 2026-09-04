@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import { Empty } from './components/ui'
+import { activeMarket, marketName, setActiveMarket } from './lib/market'
+import { useSyncStatus } from './lib/sync'
 import { useCan } from './lib/role'
 import Layout from './components/Layout'
 import Dashboard from './modules/dashboard/Dashboard'
@@ -72,6 +74,45 @@ function Gated({ allowed, why, children }: { allowed: boolean; why: string; chil
   )
 }
 
+/**
+ * The AEMT program lives in the Kansas City market, and a device working in
+ * Wichita cannot see it.
+ *
+ * That is not a permissions problem and no SQL change fixes it. The local
+ * store is keyed by the device's ACTIVE market (see lib/market.ts), so a
+ * Wichita device reads `ces.db.v1.wichita` while the joint cohort sits in the
+ * unsuffixed Kansas City mirror. Granting an account `all` gives it the market
+ * switcher but deliberately does NOT move it — reconcileMarket only forces
+ * single-market accounts into their market.
+ *
+ * The result was an empty AEMT list that read as "I do not have access", and
+ * the Wichita instructor built a second course under her own market rather
+ * than the joint one. So say what is actually happening, and offer the switch.
+ */
+function AemtMarketNotice() {
+  const { marketAccess } = useSyncStatus()
+  if (activeMarket() === 'kc') return null
+  return (
+    <div className="banner warn" style={{ marginBottom: 12 }}>
+      <strong>The AEMT program is kept on the Kansas City side.</strong> You are
+      working in {marketName(activeMarket())}, so the courses here are that
+      operation's, not the joint cohort's.
+      {marketAccess === 'all' ? (
+        <div style={{ marginTop: 10 }}>
+          <button className="btn sm primary" onClick={() => setActiveMarket('kc')}>
+            Switch to Kansas City
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 8 }}>
+          This account is assigned to one operation. Reaching the joint cohort
+          needs an assignment of <code>all</code> — ask the Clinical Educator.
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AemtOnly({ children }: { children: ReactNode }) {
   const { manageAemt } = useCan()
   return (
@@ -79,6 +120,7 @@ function AemtOnly({ children }: { children: ReactNode }) {
       allowed={manageAemt}
       why="The AEMT program holds Kansas certification records and cohort selection data. Ask the Clinical Educator if you need access."
     >
+      <AemtMarketNotice />
       {children}
     </Gated>
   )
