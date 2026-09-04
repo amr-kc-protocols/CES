@@ -23,11 +23,21 @@
 --      campus = 'wichita' so the placement board still routes them to Sedgwick
 --      and Butler rather than sending them to Merriam for twelve-hour shifts.
 --
--- IT IS NON-DESTRUCTIVE BY CONSTRUCTION. The primary key on `records` is
--- (market, collection, id), so writing her rows under 'kc' creates NEW rows and
--- leaves every Wichita row exactly where it is. If this goes wrong, her
--- original course is still there and still hers. Nothing is deleted and nothing
--- is tombstoned.
+-- NOTHING IS DELETED. The primary key on `records` is (market, collection, id),
+-- so writing her rows under 'kc' creates NEW rows rather than moving anything.
+-- The Wichita AEMT rows are then TOMBSTONED — `deleted = true`, the app's soft
+-- delete — so they stop appearing while staying in the table and staying
+-- recoverable with a single update. The undo at the foot of this file restores
+-- them.
+--
+-- That lock-off is deliberate and it is the point: once her students are on the
+-- joint roster there must be exactly one place to work, or the next fortnight
+-- produces two half-complete rosters and the KBEMS application names one
+-- course.
+--
+-- IT IS SCOPED TO THE AEMT PROGRAM. Wichita's NEOP cohorts, trainees,
+-- evaluations, exit surveys and QA are not read and not written. They stay
+-- that operation's, exactly as they are today.
 --
 -- IT DOES NOT MOVE THE COURSE ITSELF. The joint cohort already exists on the
 -- Kansas City side with its schedule, its gates and its filed hours. Copying
@@ -147,12 +157,24 @@ begin
       v_instructor_email;
   end if;
 
+  -- Three states, and they need different answers. A tombstoned course means
+  -- this file has already run to completion, and saying "no such course" there
+  -- sends someone hunting for an id that is sitting right in front of them.
   if not exists (
     select 1 from public.records
-    where market = 'wichita' and collection = 'aemtCourses'
-      and id = v_from_course and not deleted
+    where market = 'wichita' and collection = 'aemtCourses' and id = v_from_course
   ) then
-    raise exception 'No Wichita course %', v_from_course;
+    raise exception 'No Wichita course %. Check the id against Part 1.', v_from_course;
+  end if;
+
+  if exists (
+    select 1 from public.records
+    where market = 'wichita' and collection = 'aemtCourses'
+      and id = v_from_course and deleted
+  ) then
+    raise exception
+      'Wichita course % is already tombstoned — this merge has already run. Nothing to do. To redo it, un-tombstone first (see the undo at the foot of this file).',
+      v_from_course;
   end if;
 
   if not exists (
@@ -211,6 +233,44 @@ begin
     raise notice '  % — % row(s)', rpad(v_collection, 20), v_n;
   end loop;
 
+  -- ---- lock the Wichita side of the AEMT program off ---------------------
+  --
+  -- Once her students are on the joint roster there must be exactly one place
+  -- to work, or the next fortnight produces two half-complete rosters and the
+  -- KBEMS application names one course. The Wichita AEMT course and its
+  -- sessions are tombstoned: `deleted = true` is the app's soft delete, so the
+  -- rows stay in the table and stay recoverable, they simply stop appearing.
+  --
+  -- SCOPED TO THE AEMT PROGRAM ONLY. Wichita's NEOP cohorts, evaluations,
+  -- surveys and QA are untouched and stay their own operation's, exactly as
+  -- they are today. Nothing outside the collections listed here is written.
+  if v_commit then
+    update public.records
+    set deleted = true
+    where market = 'wichita'
+      and collection in (
+        'aemtCourses', 'aemtSessions', 'aemtDeadlines',
+        'aemtProgramDocs', 'aemtRecordDocs'
+      )
+      and (id = v_from_course or data ->> 'courseId' = v_from_course)
+      and not deleted;
+    get diagnostics v_n = row_count;
+    raise notice '';
+    raise notice 'Locked off % Wichita AEMT row(s). NEOP and everything else there is untouched.', v_n;
+
+    -- Her students' Wichita copies go too, so the roster she opens under
+    -- Wichita is empty rather than a second, diverging list. The Kansas City
+    -- copies made above are the live ones now.
+    update public.records
+    set deleted = true
+    where market = 'wichita'
+      and collection = any(v_collections)
+      and data ->> 'courseId' = v_from_course
+      and not deleted;
+    get diagnostics v_n = row_count;
+    raise notice 'Retired % Wichita student row(s), now live on the joint roster.', v_n;
+  end if;
+
   -- ---- her access --------------------------------------------------------
 
   if v_commit then
@@ -221,11 +281,13 @@ begin
   if v_commit then
     raise notice 'MOVED % row(s) into course %, and % now spans both markets.',
       v_total, v_to_course, v_instructor_email;
-    raise notice 'Her Wichita course % is untouched and still readable there.',
+    raise notice 'Wichita course % is tombstoned — recoverable, but out of the way.',
       v_from_course;
     raise notice 'She should sign out and back in to pick up the market switcher.';
   else
     raise notice 'DRY RUN — nothing was written. % row(s) would move.', v_total;
+    raise notice 'Committing also tombstones the Wichita AEMT course and its rows.';
+    raise notice 'Wichita NEOP, evaluations, surveys and QA are not touched.';
     raise notice 'Set v_commit := true to do it.';
   end if;
 end $$;
@@ -242,8 +304,8 @@ end $$;
 -- 3. Her local device still holds the Wichita mirror. That is correct and it
 --    is the fallback: nothing was removed from Wichita.
 --
--- IF IT NEEDS UNDOING. Delete the copies, which is safe precisely because the
--- originals were never touched:
+-- IF IT NEEDS UNDOING. Delete the Kansas City copies and un-tombstone the
+-- Wichita rows. Safe because nothing was ever really removed:
 --
 --   delete from public.records
 --   where market = 'kc'
@@ -254,3 +316,9 @@ end $$;
 --                where market = 'wichita' and data ->> 'courseId' = 'PASTE_WICHITA_COURSE_ID');
 --
 --   update public.profiles set market = 'wichita' where email = '...';
+--
+-- and un-tombstone the Wichita side:
+--
+--   update public.records set deleted = false
+--   where market = 'wichita'
+--     and (id = 'PASTE_WICHITA_COURSE_ID' or data ->> 'courseId' = 'PASTE_WICHITA_COURSE_ID');
