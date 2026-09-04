@@ -52,7 +52,7 @@ export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
     subtitle: 'AEMT Program — Selection Exam',
     path: '/exam',
     limitMinutes: 25,
-    deadlineIso: '2026-08-17T17:00:00-05:00',
+    deadlineIso: '2026-09-06T23:59:00-05:00',
     contact: 'the AMR KC education team',
     attestation: [
       'I am completing this exam *entirely on my own* — no notes, books, websites, apps, or other people.',
