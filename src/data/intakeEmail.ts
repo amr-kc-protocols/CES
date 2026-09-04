@@ -277,7 +277,10 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       `YOUR NEXT STEP — THE SELECTION EXAM`,
       ``,
       EXAM_URL,
-      `Deadline: ${EXAM_DEADLINE.display}`,
+      // Only printed when the exam actually closes on a date. It ran to a
+      // deadline that expired while this line still advertised it, so the copy
+      // now follows the config rather than restating it.
+      ...(EXAM_DEADLINE ? [`Deadline: ${EXAM_DEADLINE.display}`] : []),
       ``,
       // The question count is withheld deliberately, matching the exam itself:
       // knowing the total and the clock is what makes looking answers up a
@@ -291,7 +294,9 @@ function nextSteps(d: Record<string, unknown>): { subject: string; lines: string
       ``,
       `WHAT HAPPENS AFTER THE EXAM`,
       ``,
-      `  1. Selection exam — by ${EXAM_DEADLINE.display}`,
+      EXAM_DEADLINE
+        ? `  1. Selection exam — by ${EXAM_DEADLINE.display}`
+        : `  1. Selection exam — take it as soon as you can; seats are filled as candidates advance`,
       `  2. Structured interview — invitations go to advancing candidates`,
       `  3. Selection decision — you will be notified either way`,
       ``,

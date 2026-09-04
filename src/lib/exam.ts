@@ -34,10 +34,18 @@ export interface ExamProgramConfig {
   /**
    * The close of the window, or null for a rolling exam.
    *
-   * AEMT selection runs to a cohort deadline. NEOP hiring does not: a new-hire
-   * exam with a date on it is an exam that quietly stops working for every
-   * applicant who comes after it, which is a worse failure than any deadline
-   * it was meant to enforce.
+   * BOTH PROGRAMS ARE NOW ROLLING. An exam with a date on it quietly stops
+   * working for everyone after that date, and reopening it takes a migration,
+   * a paste into the Supabase SQL Editor and a client deploy that all have to
+   * land together — three steps whose failure mode is a shut exam and no
+   * notice that it is shut. AEMT selection ran to a cohort deadline and hit
+   * that twice. The window is closed by retiring the bank or taking the link
+   * down, which is visible to the person doing it.
+   *
+   * The field stays, because the enforcement seam is worth keeping: a future
+   * cohort may want one, and setting this back to a timestamp is how. Whatever
+   * is here must match v_cutoff in exam_start — the server enforces, this only
+   * explains, and they have drifted before.
    */
   deadlineIso: string | null
   /** Who a candidate should contact when something has gone wrong. */
@@ -52,7 +60,7 @@ export const EXAM_PROGRAMS: Record<ExamProgram, ExamProgramConfig> = {
     subtitle: 'AEMT Program — Selection Exam',
     path: '/exam',
     limitMinutes: 25,
-    deadlineIso: '2026-09-06T23:59:00-05:00',
+    deadlineIso: null,
     contact: 'the AMR KC education team',
     attestation: [
       'I am completing this exam *entirely on my own* — no notes, books, websites, apps, or other people.',
@@ -117,8 +125,12 @@ export function examDeadline(program: ExamProgram = 'aemt'): ExamDeadline | null
   return iso ? { iso, display: deadlineDisplay(iso) } : null
 }
 
-/** The AEMT deadline, kept as a named export for the candidate email copy. */
-export const EXAM_DEADLINE = examDeadline('aemt') as ExamDeadline
+/**
+ * The AEMT deadline, kept as a named export for the candidate email copy.
+ * Null while the exam is rolling — the email drops the deadline lines rather
+ * than printing a date that is not enforced.
+ */
+export const EXAM_DEADLINE: ExamDeadline | null = examDeadline('aemt')
 
 /** The AEMT clock, likewise. */
 export const EXAM_LIMIT_MINUTES = EXAM_PROGRAMS.aemt.limitMinutes

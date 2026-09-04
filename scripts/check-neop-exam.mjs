@@ -23,13 +23,20 @@
 //   - The generated seed SQL drifting from the bank it was generated from.
 //
 // Run: node scripts/check-neop-exam.mjs  (or `npm run check:neop`)
-import { readFileSync, rmSync } from 'node:fs'
+import { readdirSync, readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { build } from 'esbuild'
 import { CLINICAL, OPERATIONS, FIT } from './neop-exam-bank.mjs'
-import { buildInstallSql, buildSeedSql, INSTALL_PATH, SEED_PATH, items } from './gen-neop-exam.mjs'
+import {
+  buildInstallSql,
+  buildSeedSql,
+  INSTALL_PARTS,
+  INSTALL_PATH,
+  SEED_PATH,
+  items,
+} from './gen-neop-exam.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC = join(__dirname, '..', 'src')
@@ -40,6 +47,7 @@ await build({
     contents: `
       export { KC_BRIEFING, NEEDS_CONFIRMATION } from ${JSON.stringify(join(SRC, 'data/kcOperation'))}
       export { NEOP_SECTIONS, FIT_ITEMS, NEOP_THRESHOLDS } from ${JSON.stringify(join(SRC, 'data/neopSelection'))}
+      export { EXAM_PROGRAMS } from ${JSON.stringify(join(SRC, 'lib/exam'))}
     `,
     resolveDir: SRC,
     loader: 'ts',
@@ -57,7 +65,7 @@ try {
   rmSync(OUT, { force: true })
 }
 
-const { KC_BRIEFING, NEEDS_CONFIRMATION, NEOP_SECTIONS, FIT_ITEMS } = m
+const { KC_BRIEFING, NEEDS_CONFIRMATION, NEOP_SECTIONS, FIT_ITEMS, EXAM_PROGRAMS } = m
 
 let failures = 0
 const fail = (msg, detail) => {
@@ -252,6 +260,115 @@ if (installed !== buildInstallSql())
     'run: node scripts/gen-neop-exam.mjs — this is the file somebody pastes into a live project',
   )
 else pass('the one-paste installer matches the migrations and the bank')
+
+// ----- what actually closes the exam ---------------------------------------
+// Twice now the exam has been shut when it was meant to be open, and both times
+// the cause was the same shape: the cutoff is a constant compiled into
+// exam_start, several files define exam_start, and only some of them moved.
+//
+// The second time was worse than the first. The reopen migration was written,
+// merged and run, and the exam stayed shut — because neop_install.sql, the file
+// this repo tells you to paste when the exam looks broken, was generated from a
+// list of migrations that had not been told about the reopen. Pasting it put
+// the expired constant back. The obvious remedy re-broke it.
+//
+// So: every migration that redefines exam_start must be in the installer, and
+// the cutoff that ends up installed must be the one the client advertises.
+const MIGRATIONS = join(__dirname, '..', 'supabase', 'migrations')
+// Same-day migrations carry a sequence number (2026-09-04-1-, -2-) precisely so
+// that sorting filenames sorts them in the order they must run.
+const redefines = readdirSync(MIGRATIONS)
+  .filter((f) => f.endsWith('.sql'))
+  .filter((f) => readFileSync(join(MIGRATIONS, f), 'utf8').includes('function public.exam_start'))
+  .sort()
+const listed = INSTALL_PARTS.filter((p) => p[0] === 'migrations').map((p) => p[1])
+const newest = redefines[redefines.length - 1]
+
+// Superseded migrations are deliberately NOT in the installer — it starts at
+// the one that creates the current signature. What matters is only that the
+// definition left standing at the end of the paste is the newest one.
+if (listed[listed.length - 1] !== newest)
+  fail(
+    'the one-paste installer does not end with the newest exam_start migration',
+    `installer ends with ${listed[listed.length - 1] ?? 'nothing'}, newest is ${newest}.\n      ` +
+      'Add it to INSTALL_PARTS in scripts/gen-neop-exam.mjs and run npm run gen:neop — otherwise ' +
+      'pasting neop_install.sql reverts exam_start to an older definition.',
+  )
+else pass(`the one-paste installer ends with ${newest}`)
+
+if (listed.join('|') !== [...listed].sort().join('|'))
+  fail(
+    'the installer lists exam_start migrations out of order',
+    `the LAST definition in the pasted file wins, so they must run oldest to newest: ${listed.join(', ')}`,
+  )
+else pass('the installer runs the exam_start migrations oldest to newest')
+
+/**
+ * The cutoff each program ends up with, read from the LAST exam_start in a
+ * file — which is the definition Postgres is left holding after the paste.
+ */
+const installedCutoffs = (sql) => {
+  // CREATE, not just the name: schema.sql ends with revoke/grant lines naming
+  // the same function, and anchoring on the bare name sliced past the body.
+  // Both cutoffs then read as absent and this check agreed with a client that
+  // advertised no deadline — it passed the exact defect it was written for.
+  const at = sql.lastIndexOf('create or replace function public.exam_start')
+  if (at < 0) return null
+  const body = sql.slice(at)
+  // The aemt branch is the `if`, the neop branch the `else`.
+  const branch = /if v_program = 'aemt' then([\s\S]*?)\n  else([\s\S]*?)\n  end if;/.exec(body)
+  if (!branch) return null
+  // No assignment at all means no cutoff, which is the same thing as null.
+  const lit = (chunk) => {
+    const c = /v_cutoff\s*:=\s*('[^']*'|null)/.exec(chunk)
+    return !c || c[1] === 'null' ? null : c[1].slice(1, -1)
+  }
+  return { aemt: lit(branch[1]), neop: lit(branch[2]) }
+}
+
+const SCHEMA_PATH = join(__dirname, '..', 'supabase', 'schema.sql')
+const cutoffFailures = failures
+for (const [label, path] of [
+  ['supabase/neop_install.sql', INSTALL_PATH],
+  ['supabase/schema.sql', SCHEMA_PATH],
+]) {
+  let sql = ''
+  try {
+    sql = readFileSync(path, 'utf8')
+  } catch {
+    fail(`${label} is missing`)
+    continue
+  }
+  const got = installedCutoffs(sql)
+  // Not finding the function is a failed check, never a quiet pass.
+  if (!got) {
+    fail(
+      `${label}: could not read the per-program branch out of exam_start`,
+      'this check cannot see what it is meant to verify — fix the parser, do not ignore it',
+    )
+    continue
+  }
+  for (const program of ['aemt', 'neop']) {
+    const client = EXAM_PROGRAMS[program].deadlineIso
+    const server = got[program]
+    if (server === null && client === null) continue
+    if (server === null || client === null) {
+      fail(
+        `${label}: ${program} cutoff disagrees with src/lib/exam.ts`,
+        `installed ${server ?? 'no cutoff'}, client advertises ${client ?? 'no deadline'} — ` +
+          'the server is what enforces and the client is what candidates read',
+      )
+      continue
+    }
+    if (new Date(server.replace(' ', 'T')).getTime() !== new Date(client).getTime())
+      fail(
+        `${label}: ${program} cutoff is not the deadline candidates are shown`,
+        `installed ${server}, client advertises ${client}`,
+      )
+  }
+}
+if (failures === cutoffFailures)
+  pass('the installed cutoffs are the deadlines the app advertises')
 
 // ----- the honesty ledger --------------------------------------------------
 const stale = NEEDS_CONFIRMATION.filter((c) => !refs.has(c.ref)).map((c) => c.ref)
