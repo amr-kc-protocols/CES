@@ -349,6 +349,7 @@ check(badScript.length === 0, 'every command a record names is a real npm script
 const NOT_A_RETAINED_RECORD = {
   'doc:application': 'Filed with KBEMS under K.A.R. 109-11-4a. It is a submission, not one of the records 109-17-3 retains.',
   'doc:student': 'Issued to students. The policies it restates are retained under the `policies` record; the guide itself is not a required record.',
+  'doc:calendar': 'Issued to students. It restates dates the course schedule already holds and the publisher\'s own Navigate access steps; the schedule is retained under the course records, the handout is not one.',
 }
 const claimed = new Set(namedCommands)
 const docScripts = Object.keys(pkg.scripts).filter((s) => s.startsWith('doc:') && s !== 'doc:all')
@@ -359,8 +360,30 @@ const inAll = pkg.scripts['doc:all'] ?? ''
 const notChained = docScripts.filter((s) => !inAll.includes(s))
 check(notChained.length === 0, 'doc:all builds every document', notChained.join(', '))
 
-const notChecked = docScripts.filter((s) => !DOCS.some((d) => d.npm === s))
+// A document not built on the shared block tree is checked by its own script
+// rather than here. Naming that script is the point: "checked somewhere else"
+// with no somewhere is how a document ends up checked nowhere.
+const CHECKED_BY = { 'doc:calendar': 'check:calendar' }
+const notChecked = docScripts.filter((s) => !DOCS.some((d) => d.npm === s) && !CHECKED_BY[s])
 check(notChecked.length === 0, 'every document is checked here', notChecked.join(', '))
+
+const missingChecker = Object.entries(CHECKED_BY)
+  .filter(([doc, checker]) => docScripts.includes(doc) && !pkg.scripts[checker])
+  .map(([doc, checker]) => `${doc} -> ${checker}`)
+check(
+  missingChecker.length === 0,
+  'every document checked elsewhere names a check script that exists',
+  missingChecker.join(', '),
+)
+
+const notInChain = Object.entries(CHECKED_BY)
+  .filter(([doc, checker]) => docScripts.includes(doc) && !(pkg.scripts.check ?? '').includes(checker))
+  .map(([doc, checker]) => `${doc} -> ${checker}`)
+check(
+  notInChain.length === 0,
+  'every such check actually runs in npm run check',
+  notInChain.join(', '),
+)
 
 // ----- no document describes a class that is not this one --------------------
 //
