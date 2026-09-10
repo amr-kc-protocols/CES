@@ -48,7 +48,15 @@ export default function AemtCourseView() {
   const [params, setParams] = useSearchParams()
   const raw = params.get('tab') as Tab | null
   const tab: Tab = raw && TABS.includes(raw) ? raw : 'roster'
-  const setTab = (t: Tab) => setParams(t === 'roster' ? {} : { tab: t }, { replace: true })
+  const setTab = (t: Tab) => {
+    // Merge, never replace: `student` is a sibling parameter (see
+    // selectedStudent.ts) and switching tabs must carry the selected student
+    // across rather than dropping everyone back to the first name.
+    const next = new URLSearchParams(params)
+    if (t === 'roster') next.delete('tab')
+    else next.set('tab', t)
+    setParams(next, { replace: true })
+  }
 
   if (!course) {
     return (

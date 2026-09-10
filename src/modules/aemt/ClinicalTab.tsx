@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSelectedStudent } from './selectedStudent'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
 import { formatDate } from '../../lib/date'
 import ReasonModal from './ReasonModal'
@@ -296,7 +297,9 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
   // manageAemt, not editRideWork: the latter is true for FTOs, who must not
   // write to certification records.
   const { manageAemt: canEdit } = useCan()
-  const [selectedId, setSelected] = useState<string | null>(null)
+  // The student is shared with the other tabs through the URL, so working one
+  // person end to end does not mean re-picking them on every arrival.
+  const [selected, setSelected] = useSelectedStudent(students)
   const [logging, setLogging] = useState(false)
   const [voiding, setVoiding] = useState<AemtEncounter | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -310,8 +313,7 @@ export default function ClinicalTab({ course }: { course: AemtCourse }) {
     )
   }
 
-  const studentId = selectedId ?? students[0].id
-  const student = students.find((s) => s.id === studentId) ?? students[0]
+  const student = selected ?? students[0]
   const shifts = allShifts.filter((s) => s.studentId === student.id)
   const progress = progressFor(encounters, student, shifts)
   const mine = encounters.filter((e) => e.studentId === student.id)

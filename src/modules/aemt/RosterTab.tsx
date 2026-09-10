@@ -355,7 +355,14 @@ export default function RosterTab({ course }: { course: AemtCourse }) {
 
   return (
     <div>
-      <CourseSetupPanel course={course} canEdit={manageAcademy} />
+      {/* Folded by default so the tab opens on the roster it is named for —
+          except on a course with nobody enrolled, where setting it up is the
+          only thing there is to do. */}
+      <CourseSetupPanel
+        course={course}
+        canEdit={manageAcademy}
+        defaultOpen={students.length === 0}
+      />
 
       <div className="section-title">Roster</div>
       {campuses.length > 1 && (

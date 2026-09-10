@@ -33,7 +33,11 @@ function CourseRow({ course }: { course: AemtCourse }) {
           {totals.sessions} session{totals.sessions === 1 ? '' : 's'}
         </div>
       </div>
-      <span className="subtle">▶</span>
+      {/* The same chevron every other openable row in the app uses — this one
+          was a play triangle, which a screen reader reads out as one. */}
+      <span className="subtle" aria-hidden>
+        ›
+      </span>
     </Link>
   )
 }

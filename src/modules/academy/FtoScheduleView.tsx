@@ -70,7 +70,7 @@ export default function FtoScheduleView() {
   return (
     <div>
       <Link to="/academy" className="link-btn">
-        ← Back to Academy
+        ← Back to NEOP
       </Link>
 
       <div className="page-head" style={{ marginTop: 8 }}>

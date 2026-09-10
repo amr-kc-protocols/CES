@@ -1427,6 +1427,22 @@ span.att-cell {
   padding: 3px;
   max-width: 100%;
   overflow-x: auto;
+  /* Say when there are tabs off the edge.
+     A strip that holds more than fits just scrolls, silently: the AEMT course
+     view carries nine tabs and a phone shows about five, so Forms and Records
+     did not appear to exist. The two shadow layers scroll with the content and
+     the two cover layers are painted in the track's own colour and pinned to
+     the frame, so a shadow shows only at an end that has something more behind
+     it — and nothing is drawn at all when the tabs fit. */
+  background-image:
+    linear-gradient(to right, var(--muted-bg) 40%, transparent),
+    linear-gradient(to left, var(--muted-bg) 40%, transparent),
+    linear-gradient(to right, rgba(15, 23, 42, 0.17), rgba(15, 23, 42, 0)),
+    linear-gradient(to left, rgba(15, 23, 42, 0.17), rgba(15, 23, 42, 0));
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 26px 100%, 26px 100%, 11px 100%, 11px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .segmented button {
@@ -3043,6 +3059,83 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
 .student-chip .meta {
   display: block;
   margin-bottom: 6px;
+}
+
+/* ---------- NEOP: the trainee card's header ----------
+   The whole line is one control that opens the record below it. Typography is
+   restated here because .title / .meta are scoped to .row, and this one sits
+   in a .card — the names were rendering at body weight. */
+.trainee-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trainee-head .grow { flex: 1; min-width: 0; }
+.trainee-head .title { display: block; font-weight: 700; color: var(--text-strong); line-height: 1.35; }
+.trainee-head .meta { display: block; color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.4; }
+.trainee-head .pill { flex: none; }
+
+/* ---------- Folded section ----------
+   A section that is essential but read once — course setup, sitting on top of
+   the roster people open weekly. Collapsed it is one row; the summary still
+   carries its status, so folding never hides a warning. */
+.fold {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  margin-bottom: var(--sp-4);
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  /* Clears the 44pt touch minimum: this is a control, not a heading. */
+  min-height: 44px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+/* The default disclosure triangle sits at the start; this one belongs at the
+   end, past the status, where the eye finishes the line. */
+.fold > summary::-webkit-details-marker { display: none; }
+
+.fold > summary::after {
+  content: '▸';
+  margin-left: auto;
+  padding-left: 6px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.fold[open] > summary::after { content: '▾'; }
+
+.fold-sub {
+  font-weight: 400;
+  font-size: var(--fs-sm);
+}
+
+.fold-body {
+  padding: 0 14px 14px;
+}
+
+/* On a phone the subtitle is the first thing to go: the name and the status
+   are what the row is for. */
+@media (max-width: 560px) {
+  .fold-sub { display: none; }
 }
 
 /* ---------- AEMT: the encounter log, grouped ----------

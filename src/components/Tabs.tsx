@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,34 @@ export function Tabs<T extends string>({
   style?: CSSProperties
   className?: string
 }) {
+  const strip = useRef<HTMLDivElement>(null)
+
+  // Keep the selected tab in sight.
+  //
+  // A strip with more tabs than fit scrolls — the AEMT course view has nine,
+  // which overflow every phone width — and three things then land you on a
+  // tab you cannot see: a link or a refresh that restores ?tab=records, the
+  // arrow keys wrapping from the last tab to the first, and a rotation that
+  // narrows the strip. Only the strip is scrolled, never the page.
+  useEffect(() => {
+    const el = strip.current
+    if (!el) return
+    const i = tabs.findIndex((t) => t.id === value)
+    const btn = el.children[i] as HTMLElement | undefined
+    if (!btn) return
+    const box = el.getBoundingClientRect()
+    const tab = btn.getBoundingClientRect()
+    // A tab's worth of margin, so the selected one never sits flush against
+    // the edge looking like the end of the list.
+    const margin = 16
+    if (tab.left < box.left + margin) el.scrollLeft -= box.left + margin - tab.left
+    else if (tab.right > box.right - margin) el.scrollLeft += tab.right - (box.right - margin)
+    // Selection only. Re-running on every render would drag the strip back
+    // under someone who had scrolled it to read the tabs either side of the
+    // one they are on, the moment anything else on the screen re-rendered.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
     const i = tabs.findIndex((t) => t.id === value)
     if (i < 0) return
@@ -55,7 +84,14 @@ export function Tabs<T extends string>({
   }
 
   return (
-    <div className={className} style={style} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+    <div
+      ref={strip}
+      className={className}
+      style={style}
+      role="tablist"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+    >
       {tabs.map((t) => {
         const selected = t.id === value
         return (

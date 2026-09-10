@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSelectedStudent } from './selectedStudent'
 import { Empty, Modal, ProgressBar } from '../../components/ui'
 import DebouncedInput from '../../components/DebouncedInput'
 import { confirmAction } from '../../lib/dialog'
@@ -418,7 +419,8 @@ function SheetDetail({
 export default function SkillsTab({ course }: { course: AemtCourse }) {
   const students = useStudents(course.id)
   const checks = useSkillChecks(course.id)
-  const [selectedId, setSelected] = useState<string | null>(null)
+  // Shared with Clinical and Forms through the URL — see selectedStudent.ts.
+  const [selected, setSelected] = useSelectedStudent(students)
   const [openSheet, setOpenSheet] = useState<string | null>(null)
   const [showExcluded, setShowExcluded] = useState(false)
   const sessions = useSessions(course.id)
@@ -434,8 +436,7 @@ export default function SkillsTab({ course }: { course: AemtCourse }) {
     )
   }
 
-  const studentId = selectedId ?? students[0].id
-  const student = students.find((s) => s.id === studentId) ?? students[0]
+  const student = selected ?? students[0]
 
   if (openSheet) {
     return (
