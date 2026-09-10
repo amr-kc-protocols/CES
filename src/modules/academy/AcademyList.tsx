@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Empty, ProgressBar, Stat } from '../../components/ui'
+import Icon from '../../components/Icon'
 import { activeMarket, marketName } from '../../lib/market'
 import { FTO_CREWS } from '../../data/ftoSchedule'
 import { formatDate, todayISO } from '../../lib/date'
@@ -51,6 +52,9 @@ function CohortRow({ cohort }: { cohort: AcademyCohort }) {
           </div>
         )}
       </div>
+      <span className="subtle" aria-hidden>
+        ›
+      </span>
     </Link>
   )
 }
@@ -77,8 +81,11 @@ export default function AcademyList() {
           <div className="subtle">New Employee Orientation Program — cohorts, checklists &amp; FTO release</div>
         </div>
         <div className="btn-row">
+          {/* The same two buttons sit on the Training landing one tap above
+              this one; they carry the drawn icons, so these did too — an
+              emoji and a line icon side by side read as two different apps. */}
           <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
-            🚑 FTO shifts
+            <Icon name="ambulance" /> FTO shifts
           </Link>
           {can.manageAcademy && (
             <Link
@@ -86,7 +93,7 @@ export default function AcademyList() {
               className="btn"
               title="New-hire selection exam — results, section breakdown and interview notes"
             >
-              📝 Selection exam
+              <Icon name="clipboard" /> Selection exam
             </Link>
           )}
           {can.manageAcademy && (

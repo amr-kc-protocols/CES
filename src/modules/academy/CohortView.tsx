@@ -199,12 +199,14 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
 
   return (
     <div className="card" style={{ padding: 14 }}>
-      <div
-        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
-        onClick={() => setOpen(!open)}
-      >
-        <div className="grow" style={{ flex: 1, minWidth: 0 }}>
-          <div className="title">
+      {/* A real button, not a clickable div: this is the only way into a
+          trainee's record, and as a div it was unreachable by keyboard and
+          announced by a screen reader as inert text — nothing said it opened,
+          or that it was already open. It also picks up the row typography,
+          which .title / .meta only carry inside a .row. */}
+      <button type="button" className="trainee-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="grow">
+          <span className="title">
             {trainee.name}
             <span className="subtle" style={{ fontWeight: 500, marginLeft: 8 }}>
               {operationShort(trainee.operation)} · {CREDENTIAL_LABELS[trainee.credential]}
@@ -214,16 +216,18 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                 AMR transfer
               </span>
             )}
-          </div>
-          <div className="meta">
+          </span>
+          <span className="meta">
             {phase === 'academy' && `Checklist ${done}/${modules.length}`}
             {phase === 'fto' && `${trainee.contacts}/${trainee.contactTarget} patient contacts`}
             {phase === 'released' && `Released ${formatDate(trainee.releasedDate)}`}
-          </div>
-        </div>
+          </span>
+        </span>
         <span className={`pill ${PHASE_PILL[phase]}`}>{PHASE_LABELS[phase]}</span>
-        <span className="subtle">{open ? '▾' : '▸'}</span>
-      </div>
+        <span className="subtle" aria-hidden>
+          {open ? '▾' : '▸'}
+        </span>
+      </button>
 
       {phase !== 'released' && (
         <div style={{ marginTop: 10 }}>
@@ -569,7 +573,7 @@ export default function CohortView() {
     return (
       <div>
         <Link to="/academy" className="link-btn">
-          ← Back to Academy
+          ← Back to NEOP
         </Link>
         <Empty icon="🔍" title="Cohort not found" />
       </div>
@@ -581,7 +585,7 @@ export default function CohortView() {
   return (
     <div>
       <Link to="/academy" className="link-btn">
-        ← Back to Academy
+        ← Back to NEOP
       </Link>
 
       <div className="page-head" style={{ marginTop: 8 }}>

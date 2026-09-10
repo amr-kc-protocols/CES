@@ -20,6 +20,7 @@ import type { AemtFormResponse } from '../../types'
 import { useAemtForms, liveAemtForm, aemtFormAtVersion } from '../templates/resolve'
 import type { AemtFormDef, FormField } from '../../data/aemtForms'
 import { useCan } from '../../lib/role'
+import { useSelectedStudent } from './selectedStudent'
 import type { AemtCourse } from '../../types'
 
 type Values = Record<string, string | number | boolean>
@@ -234,7 +235,12 @@ function FillForm({
   const students = useStudents(course.id)
   const responses = useFormResponses(course.id)
   const instructors = instructorsOfRecord(useCourse(course.id))
-  const [studentId, setStudentId] = useState(students[0]?.id ?? '')
+  // Opens on whoever the rest of the course view is showing rather than on
+  // the first name on the roster, and hands the choice back when it changes —
+  // a form filled for one student is the same "who am I working on" the other
+  // tabs mean. See selectedStudent.ts.
+  const [selected, setStudentId] = useSelectedStudent(students)
+  const studentId = selected?.id ?? ''
   const [date, setDate] = useState(todayISO())
   const [values, setValues] = useState<Values>({})
 

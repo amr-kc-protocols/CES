@@ -581,133 +581,158 @@ function DeleteModal({ course, onClose }: { course: AemtCourse; onClose: () => v
 export default function CourseSetupPanel({
   course,
   canEdit,
+  defaultOpen = false,
 }: {
   course: AemtCourse
   canEdit: boolean
+  /** Open on arrival — a course with no roster yet is here to be set up. */
+  defaultOpen?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [site, setSite] = useState<AemtSite | null>(null)
   const [addingSite, setAddingSite] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const gaps = applicationGaps(course)
   const sites = course.sites ?? []
 
+  // Folded, and named what the rest of the app calls it.
+  //
+  // This is read once a course and then almost never — the instructor opening
+  // the Roster tab every week wants the roster — but it was laid out full
+  // height above it: a banner, the course record, every site, and a Delete
+  // course button, so the roster started a screen and a half down on a phone
+  // and the delete sat in the middle of daily work. Folded, it costs one line.
+  //
+  // Its heading said "Approval application", while the course form and the
+  // Skills tab both send you to "Course setup" — a name that appeared nowhere.
+  // The summary carries both, plus the readiness, so what is folded away is
+  // still legible: nothing that was a warning becomes invisible by collapsing.
   return (
-    <>
-      <div className="section-title">Approval application</div>
-
-      {gaps.length > 0 ? (
-        <div className="banner warn">
-          <strong>Not ready to submit.</strong> Still needed: {gaps.join(', ')}.
-        </div>
-      ) : (
-        <div className="banner ok">
-          ✓ Everything K.A.R. 109-11-4a names is on file. The schedule still has to show the date,
-          time, subject, instructor and lab hours of every session.
-        </div>
-      )}
-
-      <div className="list" style={{ marginTop: 10 }}>
-        <div className="row">
-          <div className="grow">
-            <div className="title">Course record</div>
-            <div className="meta">
-              {course.organization || <span style={{ color: 'var(--warn)' }}>no organization</span>}
-              {course.courseNumber && ` · KSBEMS #${course.courseNumber}`}
-            </div>
-            <div className="meta">
-              Primary instructor:{' '}
-              {course.primaryInstructor ? (
-                <>
-                  {course.primaryInstructor}
-                  {course.primaryInstructorCredential &&
-                    ` (${PRECEPTOR_LABELS[course.primaryInstructorCredential as PreceptorCredential]})`}
-                </>
-              ) : (
-                <span style={{ color: 'var(--warn)' }}>not named</span>
-              )}
-            </div>
-            <div className="meta">
-              Medical director: {course.medicalDirector || <span style={{ color: 'var(--warn)' }}>not named</span>}
-            </div>
+    <details className="fold" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <span className="fold-title">Course setup</span>
+        <span className="subtle fold-sub">approval application, instructors &amp; sites</span>
+        {gaps.length > 0 ? (
+          <span className="pill warn">{gaps.length} still needed</span>
+        ) : (
+          <span className="pill ok">Ready to submit</span>
+        )}
+      </summary>
+      <div className="fold-body">
+        {gaps.length > 0 ? (
+          <div className="banner warn">
+            <strong>Not ready to submit.</strong> Still needed: {gaps.join(', ')}.
           </div>
+        ) : (
+          <div className="banner ok">
+            ✓ Everything K.A.R. 109-11-4a names is on file. The schedule still has to show the date,
+            time, subject, instructor and lab hours of every session.
+          </div>
+        )}
+
+        <div className="list" style={{ marginTop: 10 }}>
+          <div className="row">
+            <div className="grow">
+              <div className="title">Course record</div>
+              <div className="meta">
+                {course.organization || <span style={{ color: 'var(--warn)' }}>no organization</span>}
+                {course.courseNumber && ` · KSBEMS #${course.courseNumber}`}
+              </div>
+              <div className="meta">
+                Primary instructor:{' '}
+                {course.primaryInstructor ? (
+                  <>
+                    {course.primaryInstructor}
+                    {course.primaryInstructorCredential &&
+                      ` (${PRECEPTOR_LABELS[course.primaryInstructorCredential as PreceptorCredential]})`}
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--warn)' }}>not named</span>
+                )}
+              </div>
+              <div className="meta">
+                Medical director: {course.medicalDirector || <span style={{ color: 'var(--warn)' }}>not named</span>}
+              </div>
+            </div>
+            {canEdit && (
+              <button className="btn sm" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="toolbar" style={{ marginTop: 10 }}>
+          <span className="subtle">
+            {sites.length} site{sites.length === 1 ? '' : 's'}
+          </span>
+          <div className="spacer" />
           {canEdit && (
-            <button className="btn sm" onClick={() => setEditing(true)}>
-              Edit
+            <button className="btn sm primary" onClick={() => setAddingSite(true)}>
+              + Site
             </button>
           )}
         </div>
-      </div>
 
-      <div className="toolbar" style={{ marginTop: 10 }}>
-        <span className="subtle">
-          {sites.length} site{sites.length === 1 ? '' : 's'}
-        </span>
-        <div className="spacer" />
-        {canEdit && (
-          <button className="btn sm primary" onClick={() => setAddingSite(true)}>
-            + Site
-          </button>
-        )}
-      </div>
-
-      {sites.length === 0 ? (
-        <div className="banner info">
-          No clinical or field sites recorded. The application names them, and each needs an
-          executed agreement first.
-        </div>
-      ) : (
-        <div className="list">
-          {sites.map((s) => {
-            const a = agreementStatus(s, course)
-            return (
-              <div key={s.id} className={`row left-accent ${a.pill === 'ok' ? 'acc-ok' : a.pill === 'crit' ? 'acc-crit' : 'acc-warn'}`}>
-                <div className="grow">
-                  <div className="title">{s.name}</div>
-                  <div className="meta">
-                    {SITE_KINDS.find((k) => k.value === s.kind)?.label}
-                    {s.contact && ` · ${s.contact}`}
-                    {s.agreementRef && ` · ${s.agreementRef}`}
+        {sites.length === 0 ? (
+          <div className="banner info">
+            No clinical or field sites recorded. The application names them, and each needs an
+            executed agreement first.
+          </div>
+        ) : (
+          <div className="list">
+            {sites.map((s) => {
+              const a = agreementStatus(s, course)
+              return (
+                <div key={s.id} className={`row left-accent ${a.pill === 'ok' ? 'acc-ok' : a.pill === 'crit' ? 'acc-crit' : 'acc-warn'}`}>
+                  <div className="grow">
+                    <div className="title">{s.name}</div>
+                    <div className="meta">
+                      {SITE_KINDS.find((k) => k.value === s.kind)?.label}
+                      {s.contact && ` · ${s.contact}`}
+                      {s.agreementRef && ` · ${s.agreementRef}`}
+                    </div>
+                    {a.missing.length > 0 && (
+                      <div className="meta" style={{ color: 'var(--warn)' }}>
+                        Not executed until recorded: {a.missing.join(', ')}
+                      </div>
+                    )}
+                    {a.outOfPeriod && (
+                      <div className="meta" style={{ color: 'var(--crit)' }}>
+                        Signed, but the covered period ({s.effectiveFrom}
+                        {s.effectiveTo ? ` – ${s.effectiveTo}` : ' onward'}) does not span this
+                        course.
+                      </div>
+                    )}
+                    {s.permits && <div className="help-text">Permits: {s.permits}</div>}
                   </div>
-                  {a.missing.length > 0 && (
-                    <div className="meta" style={{ color: 'var(--warn)' }}>
-                      Not executed until recorded: {a.missing.join(', ')}
-                    </div>
+                  <span className={`pill ${a.pill}`}>{a.label}</span>
+                  {canEdit && (
+                    <button className="btn sm" onClick={() => setSite(s)}>
+                      Edit
+                    </button>
                   )}
-                  {a.outOfPeriod && (
-                    <div className="meta" style={{ color: 'var(--crit)' }}>
-                      Signed, but the covered period ({s.effectiveFrom}
-                      {s.effectiveTo ? ` – ${s.effectiveTo}` : ' onward'}) does not span this
-                      course.
-                    </div>
-                  )}
-                  {s.permits && <div className="help-text">Permits: {s.permits}</div>}
                 </div>
-                <span className={`pill ${a.pill}`}>{a.label}</span>
-                {canEdit && (
-                  <button className="btn sm" onClick={() => setSite(s)}>
-                    Edit
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
 
-      {canEdit && (
-        <div className="toolbar" style={{ marginTop: 10 }}>
-          <div className="spacer" />
-          <button className="btn sm danger" onClick={() => setDeleting(true)}>
-            Delete course
-          </button>
-        </div>
-      )}
+        {canEdit && (
+          <div className="toolbar" style={{ marginTop: 10 }}>
+            <div className="spacer" />
+            <button className="btn sm danger" onClick={() => setDeleting(true)}>
+              Delete course
+            </button>
+          </div>
+        )}
 
-      {editing && <EditModal course={course} onClose={() => setEditing(false)} />}
-      {addingSite && <SiteModal course={course} onClose={() => setAddingSite(false)} />}
-      {site && <SiteModal course={course} existing={site} onClose={() => setSite(null)} />}
-      {deleting && <DeleteModal course={course} onClose={() => setDeleting(false)} />}
-    </>
+        {editing && <EditModal course={course} onClose={() => setEditing(false)} />}
+        {addingSite && <SiteModal course={course} onClose={() => setAddingSite(false)} />}
+        {site && <SiteModal course={course} existing={site} onClose={() => setSite(null)} />}
+        {deleting && <DeleteModal course={course} onClose={() => setDeleting(false)} />}
+      </div>
+    </details>
   )
 }
