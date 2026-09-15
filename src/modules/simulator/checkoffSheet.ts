@@ -219,6 +219,35 @@ function provenance(run: SimRun, observed: number, total: number, seconds: numbe
  * question. The note is not lost — it stays on the run in CES, where the
  * debrief is read from.
  */
+/**
+ * What the crew did at the defibrillator, in order, with the clock.
+ *
+ * On the program's own record only. The megacode sheet is a transcription of
+ * the AHA form and gains no rows it does not have — but this record is ours to
+ * shape, and the timeline is the one objective measurement the simulator takes:
+ * how long to the first shock, and whether compressions came straight back
+ * after it. It was on screen in the run detail and nowhere on the paper the
+ * debrief is held from, which is the wrong way round for an arrest case.
+ */
+function deviceBlock(run: SimRun): string {
+  const events = run.device ?? []
+  if (!events.length) return ''
+  const shocks = events.filter((e) => e.type === 'shock').length
+  const rows = events
+    .map(
+      (e) =>
+        `<tr${e.type === 'shock' ? ' class="rec-sec"' : ''}><td>${esc(mmss(e.at))}</td>` +
+        `<td>${esc(e.label)}${e.detail ? ` <span style="color:#4a5260">${esc(e.detail)}</span>` : ''}</td></tr>`,
+    )
+    .join('')
+  return `<table class="aha-t rec" style="margin-top:10px">
+      <tr><th class="steps" style="width:64px">Time</th><th class="steps">At the monitor${
+        shocks ? ` — ${shocks} shock${shocks === 1 ? '' : 's'}` : ''
+      }</th></tr>
+      ${rows}
+    </table>`
+}
+
 function notesBlock(run: SimRun): string {
   if (!run.notes?.trim()) return ''
   return `<div class="rec-notes">
@@ -325,10 +354,10 @@ export function scenarioRecordHTML(run: SimRun): string {
       </table>
       <div class="aha-prov">
         Recorded in CES · run time ${mmss(seconds)} · ${esc(formatDateTime(run.startedAt))} to
-        ${esc(formatDateTime(run.endedAt))}. Expected actions are the scenario's own, as approved
-        for this quarter. This scenario defines no pass mark, so this record states what was
-        observed and nothing more.
+        ${esc(formatDateTime(run.endedAt))}. Expected actions are the scenario's own. This
+        scenario defines no pass mark, so this record states what was observed and nothing more.
       </div>
+      ${deviceBlock(run)}
       ${notesBlock(run)}
     </div>`
 }

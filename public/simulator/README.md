@@ -714,7 +714,7 @@ state therefore carries three program-authored actions, and its trigger text
 says so in capitals so nobody grades a crew against the program's guess at the
 AHA's list. Scenarios 10 and 12 are complete.
 
-### The physiology-lock rule this content corrected
+### Two rules this content corrected
 
 - **V-Tach no longer caps saturation.** It was held at 96%, which is the wrong
   kind of rule: oxygenation is a fact about the lungs and the oxygen being
@@ -724,6 +724,14 @@ AHA's list. Scenarios 10 and 12 are complete.
   protected against the error it appeared to: 96% on a pulseless patient is
   exactly as impossible as 98%. Pulseless VT is still expressible at 0, because
   ceilings do not push a value up.
+- **An authored oxygen target is honoured.** `o2Goal()` capped every target at
+  99, including one a scenario author wrote. The 99 is a fair guess about what
+  oxygen alone buys when nobody has said — it is not a fact to hold a document
+  to. PALS case 9 states "SpO₂ 92% before supplemental oxygen and 100% after",
+  and that case's own converted state carries 100, so the trend stopped a point
+  short of the number the next screen showed. The cap now applies only to the
+  derived target. Same principle as the physiology lock: bounds belong on
+  values we inferred, never on values someone chose.
 
 ## Answering the crew
 
@@ -769,6 +777,20 @@ ask again.
   panel to answer a glucose mid-arrest is the friction this exists to remove.
 
 A new case clears the last patient's result.
+
+### What the printed record carries
+
+A practice-case run prints as the program's own **Simulation performance
+record** — the expected actions with what was observed, the time in each state,
+the debrief note, and **what the crew did at the defibrillator, in order, with
+the clock**. That timeline was on screen in the run detail and nowhere on the
+paper, which is the wrong way round for an arrest case: shock count and timing
+is the one objective measurement this simulator takes, and PALS 12 is built
+around 2 J/kg then 4 J/kg then an antiarrhythmic. The AHA megacode sheet does
+not gain it — that sheet is a transcription of a published form and gains no
+rows it does not have; this record is ours to shape.
+
+The record states no pass mark, because these scenarios define none.
 
 ### What is still the facilitator's to say
 

@@ -3585,7 +3585,17 @@ function o2Goal(){
   const r=st&&st.o2Response;
   if(r&&r.responds===false) return {blocked:true,why:r.why||'This patient will not improve on oxygen alone.'};
   const base=(st&&st.vitals&&typeof st.vitals.spo2==='number')?st.vitals.spo2:S.spo2;
-  const target=Math.min(99,(r&&typeof r.target==='number')?r.target:base+dev.boost);
+  // A target the scenario author wrote is honoured; only the derived one is
+  // capped. The 99 ceiling is a reasonable guess about what oxygen alone
+  // achieves when nobody has said — it is not a fact to hold a document to, and
+  // applied to both it silently rewrote an author. AHA PALS case 9 states
+  // "SpO₂ 92% before supplemental oxygen and 100% after", and that case's own
+  // converted state carries 100, so the trend used to stop a point short of the
+  // number the next screen shows. Same principle as the physiology lock: bounds
+  // belong on values we inferred, never on values someone chose.
+  const target=(r&&typeof r.target==='number')
+    ? Math.max(0,Math.min(100,r.target))
+    : Math.min(99,base+dev.boost);
   const perMin=(r&&r.perMin)||18;
   return {target,perSec:Math.max(0.05,perMin/60)};
 }

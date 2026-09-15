@@ -2238,6 +2238,27 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('and then the saturation does not move on oxygen', S().spo2 === before, `${before} -> ${S().spo2}`)
   ok('and the timeline records that it did not respond', w.eval("deviceFeed.some(e => /NO RESPONSE/.test(e.label))"))
 
+  // A target the scenario author wrote is honoured. The ceiling of 99 is a
+  // guess about what oxygen alone achieves when nobody has said; applied to an
+  // authored target it silently rewrote the document. AHA PALS case 9 states
+  // 100% after supplemental oxygen, and that case's own converted state carries
+  // 100 — the trend used to stop a point short of the next screen.
+  d.getElementById('simScenarioSel').value = 'pals9'
+  w.applySimScenario()
+  w.setIntervention('monitor', true)
+  w.setIntervention('o2', 'nrb15')
+  ok('an authored oxygen target of 100 is honoured', w.o2Goal().target === 100, JSON.stringify(w.o2Goal()))
+  for (let i = 0; i < 400; i++) w.o2Tick()
+  ok('and the saturation reaches it', S().spo2 === 100, String(S().spo2))
+  // The derived target keeps its ceiling: nothing said, so 99 is still the
+  // most oxygen alone is assumed to buy.
+  d.getElementById('scenarioSel').value = 'hypoxia'
+  w.applyScenario()
+  w.setIntervention('monitor', true)
+  w.setIntervention('o2', 'nrb15')
+  const derived = w.o2Goal()
+  ok('a derived target is still capped at 99', !derived || derived.target <= 99, JSON.stringify(derived))
+
   // A pulseless patient never responds — there is no perfusion to carry it.
   w.setR('vfib')
   ok('oxygen does nothing for a pulseless patient', w.eval('o2Goal()') === null, 'an arrest was given an oxygen target')
