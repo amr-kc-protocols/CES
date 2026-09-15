@@ -120,6 +120,34 @@ body.run-active .sess.off{display:none;}
 .card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
 .card.ecg h2{color:var(--ecg);}.card.bp h2{color:var(--danger);}.card.spo2 h2{color:var(--spo2);}.card.etco2 h2{color:var(--co2);}.card.temp h2{color:var(--accent);}.card.alarms h2{color:var(--co2);}
 
+/* Point-of-care results. The card the facilitator answers a question from, and
+   the only control here whose output lands on the crew's screen rather than on
+   the patient — so its buttons read as answers, value included, and the clear
+   is a separate destructive-looking row rather than a third preset. */
+.card.poc h2{color:var(--co2);}
+.poc-help{font-size:.6rem;color:var(--t-dim);line-height:1.4;margin-bottom:10px;}
+.poc-presets{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+/* In the run card it is a row of chips beside the crew-has-done strip, not a
+   stacked list: it shares that line's job of being glanceable mid-code. */
+.poc-inline{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;}
+.poc-inline:empty{display:none;}
+.poc-inline .poc-preset{width:auto;flex:0 1 auto;padding:7px 10px;min-height:38px;font-size:.68rem;}
+.poc-presets:empty{display:none;}
+.poc-preset{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;
+  background:var(--inset);border:1px solid var(--border);border-radius:6px;color:var(--t);
+  padding:9px 10px;min-height:40px;font-family:inherit;font-size:.72rem;text-align:left;cursor:pointer;}
+.poc-preset:hover{border-color:var(--co2);color:#fff;}
+.poc-preset span{font-weight:bold;color:var(--co2);white-space:nowrap;}
+.poc-free{gap:6px;}
+.poc-free input{flex:1;min-width:0;background:var(--inset);border:1px solid var(--border);
+  border-radius:5px;color:#fff;padding:6px 8px;font-size:.75rem;font-family:inherit;outline:none;}
+.poc-free input:focus{border-color:var(--co2);}
+.poc-send{background:var(--inset);border:1px solid var(--co2);border-radius:5px;color:var(--co2);
+  padding:6px 12px;min-height:34px;font-family:inherit;font-size:.7rem;font-weight:bold;cursor:pointer;}
+.poc-clear{width:100%;background:none;border:1px solid var(--border);border-radius:6px;
+  color:var(--t-dim);padding:7px;min-height:36px;font-family:inherit;font-size:.68rem;cursor:pointer;}
+.poc-clear:hover{border-color:var(--danger);color:var(--danger);}
+
 label{display:block;font-size:.7rem;color:var(--t);margin-bottom:4px;margin-top:8px;}
 label:first-of-type{margin-top:0;}
 input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer;}
@@ -1162,6 +1190,23 @@ body.run-mode .card.bp{grid-row:1/3;}
   </select>
 </div>
 
+<!-- Point-of-care results -->
+<div class="card poc">
+  <h2>Point-of-Care Result</h2>
+  <div class="poc-help">
+    What the crew gets back when they test something. It goes on the monitor,
+    where they are already looking — a number read aloud is a number the team
+    leader asks for twice.
+  </div>
+  <div id="pocPresets" class="poc-presets"></div>
+  <div class="row poc-free">
+    <input type="text" id="pocTitle" placeholder="Result" aria-label="Result name">
+    <input type="text" id="pocValue" placeholder="Value" aria-label="Result value">
+    <button class="poc-send" onclick="sendPocFree()">Send</button>
+  </div>
+  <button class="poc-clear" id="pocClear" onclick="clearPoc()" hidden>✕ Clear from the monitor</button>
+</div>
+
 <!-- ART Line -->
 <div class="card art">
   <h2>Arterial Line (A-Line)</h2>
@@ -1441,6 +1486,17 @@ const DEF={
   scenario:'',
   etco2On:false,
   ecg:null,
+  // A point-of-care result the crew asked for, on the screen the crew reads.
+  //
+  // In S rather than as a one-shot command like the 12-lead, and that is the
+  // whole design decision. S is published on all three paths — BroadcastChannel,
+  // localStorage and the Supabase channel — so a result reaches a monitor on an
+  // iPad across the room for free, survives a monitor reload, and cannot leave
+  // the two windows disagreeing about what is on screen. The 12-lead command is
+  // none of those things, and the README lists that disagreement as a known gap.
+  //
+  // Shape: {title, value, unit, detail} or null for nothing showing.
+  poc:null,
 };
 let S={...DEF};
 
@@ -1474,6 +1530,55 @@ function sync12Lead(open){
   cp12Open=open;
   paint12Lead();
 }
+// ── Point-of-care results ────────────────────────────────────────────────────
+// The crew asks for a glucose, a lab, a film. On a real call a device answers
+// them; in this room the facilitator was reading it aloud, which is the one
+// question type the monitor could not answer. These push the answer to the
+// screen the crew is already reading, and stay up until cleared — a result is
+// still true five minutes later, and a crew that looks away should be able to
+// look back rather than ask again.
+function sendPoc(title,value,unit,detail){
+  S.poc={title:title,value:String(value),unit:unit||'',detail:detail||''};
+  paintPoc();
+  save(); flushSave();
+}
+function sendPocFree(){
+  const t=document.getElementById('pocTitle').value.trim();
+  const v=document.getElementById('pocValue').value.trim();
+  if(!t&&!v) return;
+  sendPoc(t||'Result',v,'','');
+  document.getElementById('pocTitle').value='';
+  document.getElementById('pocValue').value='';
+}
+function clearPoc(){
+  S.poc=null;
+  paintPoc();
+  save(); flushSave();
+}
+/* The offered buttons are the active scenario's own results, so answering the
+   crew is one tap rather than typing a number under time pressure. A scenario
+   with none authored keeps the free-text row, which is every scenario's
+   fallback and the only thing that existed before. */
+function paintPoc(){
+  const wraps=document.querySelectorAll('.poc-presets');
+  if(!wraps.length) return;
+  const doc=SCENARIO_DOCS[activeSim];
+  const results=(doc&&doc.results)||[];
+  const html=results.map((r,i)=>
+    `<button class="poc-preset" onclick="sendPocPreset(${i})"${r.note?` title="${esc(r.note)}"`:''}>`+
+    `${esc(r.title)}<span>${esc(String(r.value))}${r.unit?' '+esc(r.unit):''}</span></button>`
+  ).join('');
+  wraps.forEach(w=>{ w.innerHTML=html; });
+  const clear=document.getElementById('pocClear');
+  if(clear) clear.hidden=!S.poc;
+}
+function sendPocPreset(i){
+  const doc=SCENARIO_DOCS[activeSim];
+  const r=doc&&doc.results&&doc.results[i];
+  if(!r) return;
+  sendPoc(r.title,r.value,r.unit,r.detail);
+}
+
 function open12LeadCP(){
   cp12Open=!cp12Open;
   paint12Lead();
@@ -2555,6 +2660,9 @@ const SCENARIO_DOCS={
       labs:'Finger-stick glucose 187 mg/dL (10.4 mmol/L) — only if requested.',
       scene:'Restaurant. Nearest ED 4 minutes; comprehensive stroke centre 12 minutes; cardiac arrest receiving centre 16 minutes.',
     },
+    results:[
+      {title:'Finger-stick glucose',value:'187',unit:'mg/dL',detail:'10.4 mmol/L — only if requested by the Team Leader.'},
+    ],
     states:[
       {trigger:'Sinus bradycardia on the limb leads; the 12-lead is not suspicious for injury or ischaemia.\n\n→ During IV access the patient has a 5-second grand mal seizure and remains unresponsive. Bag-mask ventilation with oxygen is initiated. Shortly after, no respirations and no pulse — the monitor shows VF.'},
       {trigger:'Defibrillate, then 2 minutes of CPR. After the first 2 minutes the rhythm is still VF: another shock, more CPR, epinephrine, advanced airway with EtCO₂ 22 mmHg.\n\n→ Two minutes later the rhythm is asystole, confirmed in 2 leads.'},
@@ -2595,6 +2703,9 @@ const SCENARIO_DOCS={
       labs:'Finger-stick glucose 330 mg/dL (18.3 mmol/L) post-arrest.',
       scene:'Roadside. Nearest ED 7 minutes; tertiary care centre 14 minutes.',
     },
+    results:[
+      {title:'Finger-stick glucose',value:'330',unit:'mg/dL',detail:'18.3 mmol/L — post-arrest.'},
+    ],
     states:[
       {trigger:'The initial rhythm is monomorphic wide-complex tachycardia. Given the overall patient condition the Team Leader should consider cardioversion. A peripheral IV is attempted without success; cardioversion is performed without a change in condition.\n\n→ While preparing to increase the energy, her head slumps and she stops breathing. The monitor now shows VF.'},
       {trigger:'Rapidly moved to the stretcher; CPR, prompt defibrillation, CPR continued. IO access achieved; bag-mask ventilation with mild difficulty. After 2 minutes still VF — defibrillate, CPR, epinephrine, advanced airway with capnography 25 mmHg.\n\n→ After 2 minutes the rhythm is an organized wide-complex rhythm at 70/min with no pulses.'},
@@ -2615,6 +2726,9 @@ const SCENARIO_DOCS={
       labs:'Blood glucose 195 mg/dL (10.8 mmol/L).',
       scene:'Emergency department.',
     },
+    results:[
+      {title:'Blood glucose',value:'195',unit:'mg/dL',detail:'10.8 mmol/L.'},
+    ],
     states:[
       {trigger:'Wide QRS ventricular escape rhythm at 30 with a long QT.\n\n→ His heart rate continues to drop, then he suddenly becomes unresponsive and loses his pulse. The monitor shows VF.'},
       {trigger:'Students should follow the VF pathway of the Adult Cardiac Arrest Algorithm. Advanced students may consider intravenous lipid emulsion therapy and extracorporeal CPR.\n\n→ After the second shock the rhythm changes to asystole.'},
@@ -2645,6 +2759,17 @@ const SCENARIO_DOCS={
       labs:'Point-of-care glucose is checked after conversion. The manual’s diagnostic-assessments band for this case is on page 151, which is not in the scan this was built from.',
       scene:'Prehospital — a house. Runs equally in the ED, a general inpatient unit or the ICU.',
     },
+    // What the crew gets back when they test something, ready to send to the
+    // crew's monitor in one tap.
+    //
+    // `detail` is crew-facing and goes on the monitor with the value. `note` is
+    // the facilitator's own and never leaves this window — it is where a value
+    // that is ours rather than the manual's says so, because a card on the
+    // crew's screen captioned "this number is ours" teaches nothing.
+    results:[
+      {title:'POC glucose',value:'96',unit:'mg/dL',
+       note:'Not stated in the manual. A normal value, so a crew who correctly checks it gets an answer rather than a shrug — send your own if the debrief wants otherwise.'},
+    ],
     states:[
       {actions:[
         'Activate the emergency response system; request additional assistance if needed',
@@ -2685,6 +2810,15 @@ const SCENARIO_DOCS={
       labs:'Blood glucose and electrolytes. A blood gas is not indicated in the immediate management of this infant but could be considered after stabilisation. Imaging is not indicated.',
       scene:'Prehospital, ED, general inpatient unit or ICU.',
     },
+    results:[
+      {title:'POC glucose',value:'88',unit:'mg/dL',
+       note:'Not stated in the manual. Normal, and the manual does ask for it to be checked as soon as reasonable in any critically ill child.'},
+      {title:'Potassium',value:'4.1',unit:'mmol/L',
+       note:'Not stated in the manual. Normal. The case names hypokalaemia and hyperkalaemia as the reversible causes to search for — send a deranged value instead if that is the debrief you want.'},
+      {title:'Blood gas',value:'Not indicated',unit:'',
+       detail:'Could be considered after stabilisation.',
+       note:'The manual: not indicated in the immediate management of this infant. A real answer to give a crew who asks for one.'},
+    ],
     states:[
       {actions:[
         'Activate the emergency response system; request additional assistance if needed',
@@ -2719,6 +2853,10 @@ const SCENARIO_DOCS={
       labs:'Point-of-care glucose 88 mg/dL after conversion.',
       scene:'Prehospital — a house. Runs equally in the ED, a general inpatient unit or the ICU.',
     },
+    results:[
+      {title:'POC glucose',value:'88',unit:'mg/dL',detail:'After conversion.',
+       note:'The manual’s own value.'},
+    ],
     states:[
       {actions:[
         'Activate the emergency response system; request additional assistance if needed',
@@ -2755,6 +2893,15 @@ const SCENARIO_DOCS={
       labs:'After ROSC only: blood glucose 112 mg/dL (6.2 mmol/L); arterial or venous blood gas, electrolytes, calcium, magnesium; chest x-ray showing normal heart and lung fields.',
       scene:'Prehospital — a home, with the babysitter performing CPR. Runs equally as a code team response in hospital.',
     },
+    results:[
+      {title:'Labs / imaging',value:'Not available',unit:'',
+       detail:'Blood work and the chest x-ray are not available during the scenario.',
+       note:'The answer for a crew who asks mid-arrest. The manual withholds both until ROSC, and saying so is the teaching point — send it rather than leaving the question hanging.'},
+      {title:'Blood glucose',value:'112',unit:'mg/dL',detail:'6.2 mmol/L.',
+       note:'After ROSC only. The manual’s own value.'},
+      {title:'Chest x-ray',value:'Normal',unit:'',detail:'Normal heart and lung fields.',
+       note:'After ROSC only. The manual’s own finding.'},
+    ],
     states:[
       {actions:[
         'Activate the emergency response system; request additional assistance if needed',
@@ -2903,6 +3050,7 @@ function applyScenario(){
   // Fallback — no states defined, just apply vitals and clear panel
   activeSim=null; activeStateIdx=-1;
   renderSimPanel(null);
+  paintPoc();
   const sc=SCENARIOS[key];
   if(!sc) return;
   S.scenario=key;
@@ -2927,7 +3075,11 @@ function applySimScenario(){
   // (no approved action list, so no run) reach nothing that would, so they get
   // the clean slate here.
   if(!SCENARIO_DOCS[entry.sim]) resetForNewScenario();
+  // A new case is a new patient — the last one's glucose must not still be on
+  // the crew's screen, and the buttons offered have to become this case's.
+  S.poc=null;
   applySimState(entry.sim,entry.idx);
+  paintPoc();
   // Clear the quick scenario dropdown so it doesn't look selected
   document.getElementById('scenarioSel').value='';
 }
@@ -3627,6 +3779,8 @@ function renderInterventions(){
     `<span class="iv-f">Access ${sel('access',ACCESS,crewDid.access)}</span>`+
     note;
   els.forEach(el=>{ el.innerHTML=html; });
+  // The run card was just rebuilt, so its copy of the result buttons is empty.
+  paintPoc();
 }
 
 // Auto-tick.
@@ -4167,6 +4321,13 @@ function renderSimPanel(simKey){
         </div>
       </div>
       <div class="iv-strip"></div>
+      <!-- The crew's questions, answered from where the facilitator's hands
+           already are. The full control — free text, and the clear — is the
+           Point-of-Care card in the grid below; this is the one-tap half of it,
+           because scrolling the panel to answer a glucose mid-arrest is exactly
+           the friction this was built to remove. Rendered by the same paintPoc()
+           into every .poc-presets on the page. -->
+      <div class="poc-presets poc-inline"></div>
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}${surgeHtml}</div>
         <div>${run&&run.checklist
@@ -4505,6 +4666,7 @@ makeFocusable();
 setSessionUi('off');
 document.getElementById('sgInner').querySelectorAll('input,select').forEach(el=>{el.disabled=true;});
 updateAllUI();
+paintPoc();
 flushSave();
 </script>
 </body>

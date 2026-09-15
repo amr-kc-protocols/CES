@@ -2244,6 +2244,96 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.close()
 }
 
+
+// ---------------------------------------------------------------------------
+// Point-of-care results: the facilitator answering a question on the crew's
+// screen.
+//
+// The gap this closes is the one question type the monitor could not answer.
+// Vitals it has; a glucose the crew asks for after a POC stick it did not, so
+// the facilitator read the number aloud and the team leader asked for it twice.
+// What has to hold is that the panel's result reaches the monitor, that it
+// reaches it through S (so it survives a reload and rides the same paths to a
+// monitor on another device), and that the facilitator's own notes never land
+// on the crew's screen.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  const monitorSrc = readFileSync(MONITOR, 'utf8')
+
+  ok('the panel carries a result in its default state', 'poc' in w.eval('DEF'), Object.keys(w.eval('DEF')).join(','))
+  ok('and it starts empty', w.eval('DEF').poc === null, String(w.eval('DEF').poc))
+  // In S rather than as a one-shot localStorage command. The 12-lead is the
+  // cautionary case: the README lists the two windows disagreeing about whether
+  // it is open as a known gap, precisely because it sits outside S.
+  ok(
+    'a result is published as state, not as a command',
+    !/simCmd(Poc|Result)/.test(readFileSync(PAGE, 'utf8')) && !/simCmd(Poc|Result)/.test(monitorSrc),
+  )
+
+  w.sendPoc('POC glucose', 88, 'mg/dL', 'After conversion.')
+  const sent = S().poc
+  ok('sending puts the result in state', sent && sent.value === '88' && sent.title === 'POC glucose', JSON.stringify(sent))
+  ok('the clear control appears once something is showing', !d.getElementById('pocClear').hidden)
+
+  // The monitor, reading the same state.
+  const m = loadMonitor({ simState: JSON.stringify(S()) })
+  m.w.upPoc()
+  ok('the monitor shows the result', !m.d.getElementById('pocCard').hidden)
+  ok('with the value', m.d.getElementById('pocV').textContent === '88', m.d.getElementById('pocV').textContent)
+  ok('the unit', m.d.getElementById('pocU').textContent === 'mg/dL', m.d.getElementById('pocU').textContent)
+  ok('and the crew-facing detail', m.d.getElementById('pocD').textContent === 'After conversion.')
+
+  w.clearPoc()
+  ok('clearing empties the state', S().poc === null, JSON.stringify(S().poc))
+  const m2 = loadMonitor({ simState: JSON.stringify(S()) })
+  m2.w.upPoc()
+  ok('and takes the card off the monitor', m2.d.getElementById('pocCard').hidden)
+
+  // Authored results, per scenario.
+  const docs = w.eval('SCENARIO_DOCS')
+  const withResults = Object.keys(docs).filter((k) => docs[k].results)
+  ok('scenarios carry their own results', withResults.length > 0, withResults.join(','))
+  for (const key of withResults) {
+    for (const [i, r] of docs[key].results.entries()) {
+      ok(`${key}.results[${i}]: has a title and a value`, !!r.title && r.value !== undefined && r.value !== '', JSON.stringify(r))
+      // A preset that sends a dash is worse than no preset: the crew asked a
+      // question and got a shrug rendered at 40px.
+      ok(`${key}.results[${i}]: sends a real answer`, String(r.value).trim() !== '—' && String(r.value).trim() !== '-', String(r.value))
+      // `note` is the facilitator's; `detail` is the crew's. Saying "the manual
+      // does not state this" on the screen the crew reads teaches nothing.
+      ok(
+        `${key}.results[${i}]: the crew-facing line is not a facilitator note`,
+        !/\bmanual\b|\bours\b|debrief/i.test(r.detail || ''),
+        r.detail || '',
+      )
+    }
+  }
+
+  // Loading a case clears the last patient's result and offers this one's.
+  w.sendPoc('Lactate', '4.2', '', '')
+  d.getElementById('simScenarioSel').value = 'pals12'
+  w.applySimScenario()
+  ok('a new case clears the last patient\u2019s result', S().poc === null, JSON.stringify(S().poc))
+  // Two containers carry these buttons — the card in the grid and the strip in
+  // the run card the facilitator works from mid-code — and one renderer fills
+  // both. Counting the page would hide one of them going stale.
+  const containers = [...d.querySelectorAll('.poc-presets')]
+  ok('the result buttons have a home in the run card as well as the card', containers.length === 2, String(containers.length))
+  for (const [i, c] of containers.entries())
+    ok(
+      `container ${i} offers the new case\u2019s own results`,
+      c.querySelectorAll('.poc-preset').length === docs.pals12.results.length,
+      String(c.querySelectorAll('.poc-preset').length),
+    )
+  w.eval('sendPocPreset(1)')
+  ok('a preset sends the manual\u2019s value', S().poc.value === '112', JSON.stringify(S().poc))
+  w.close()
+  m.w.close()
+  m2.w.close()
+}
+
+
 {
   // Defibrillation transitions: the panel counts the shocks the script is
   // written around and offers the move as one tap. It never moves the patient

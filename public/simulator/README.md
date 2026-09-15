@@ -725,6 +725,61 @@ AHA's list. Scenarios 10 and 12 are complete.
   exactly as impossible as 98%. Pulseless VT is still expressible at 0, because
   ceilings do not push a value up.
 
+## Answering the crew
+
+The rule this platform is built to: **the crew should get every answer from the
+monitor, and only the things a monitor genuinely cannot show should come from
+the facilitator's mouth** — capillary refill, skin colour and temperature to
+touch, work of breathing, pulse quality, breath sounds, level of consciousness.
+Those are the crew looking at and touching a patient. Everything a device would
+report belongs on the screen they are already reading.
+
+Vitals were always there. What was not was the other half of the question list:
+the crew does a point-of-care glucose and asks what it says. Three of the four
+PALS cases ask for exactly that, and so do three ACLS megacodes — and until now
+the facilitator read the number aloud, which is the one kind of answer a team
+leader asks for twice.
+
+`S.poc` is that answer. The facilitator sends a result; it appears on the
+monitor as a card and stays until cleared, because a glucose is still true a
+minute later and a crew that looked away should be able to look back rather than
+ask again.
+
+- **It is state, not a command.** `S` is published on all three paths, so a
+  result reaches a monitor on an iPad across the room for free, survives a
+  monitor reload, and cannot leave the two windows disagreeing about what is on
+  screen. The 12-lead command is none of those things, and this README lists
+  that disagreement as a known gap — the same mistake was available here and
+  was not made.
+- **It is an overlay, not a chassis field.** Neither a ZX nor a LIFEPAK 15 has
+  a glucose readout, and inventing one would teach a screen that does not
+  exist. The card reads as what it is: a separate device's result, put where
+  the crew is looking. It sits clear of the skin switcher and the join tab at
+  every size from a 1024px iPad to a 1920px display.
+- **The answers are authored per scenario.** `SCENARIO_DOCS[key].results` is
+  the case's own results, so answering is one tap rather than typing a number
+  under time pressure. Free text covers anything not authored.
+- **`detail` is the crew's line; `note` is the facilitator's.** The note is the
+  button's tooltip and never leaves the panel — it is where a value that is
+  ours rather than the manual's says so, because a card on the crew's screen
+  captioned "this number is ours" teaches nothing.
+- **It has two homes in the panel.** The full control — presets, free text and
+  the clear — is the Point-of-Care card in the grid. The one-tap half is a chip
+  row in the run card, where the facilitator's hands already are: scrolling the
+  panel to answer a glucose mid-arrest is the friction this exists to remove.
+
+A new case clears the last patient's result.
+
+### What is still the facilitator's to say
+
+Not a gap, a boundary. These are the cues a monitor cannot carry, and the
+scenario notes carry them instead: appearance and the Pediatric Assessment
+Triangle, capillary refill, skin colour and temperature, work of breathing —
+retractions, flaring, grunting, tripoding — pulse quality central and
+peripheral, breath sounds, pupils, GCS and posturing, and what the patient says
+or does. The four PALS cases put all of these in the state note, where the
+facilitator reads them off one screen.
+
 ## Physiology lock
 
 On by default. It exists so an instructor cannot broadcast a combination that

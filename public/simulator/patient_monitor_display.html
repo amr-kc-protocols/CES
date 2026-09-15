@@ -155,6 +155,34 @@ html,body{
 .yl{position:absolute;left:4px;top:22px;bottom:2px;width:24px;display:flex;flex-direction:column;justify-content:space-between;font-size:7px;color:#666;z-index:5;pointer-events:none;line-height:1;}
 /* -- Skin switcher — floats over the corner in both skins, so it never has to
    live inside a status line that is meant to look like the real device. -- */
+/* Point-of-care result card.
+   Sized to be read across a classroom, the same reason the mode banner is 16px:
+   the crew is standing at the foot of the bed, not leaning on the screen. It
+   sits bottom-left, clear of the numerics column on ZX and of the LIFEPAK's
+   key row, and it stays up until the facilitator clears it — a glucose is still
+   true a minute later, and a crew that looked away should be able to look back
+   instead of asking twice. */
+#pocCard{
+  /* Clear of the skin switcher, which is fixed at bottom-left with a 44px
+     touch target: at bottom:16px this card sat on top of it in both skins and
+     the ZX/LP toggles could not be pressed while a result was up. */
+  position:fixed;left:16px;bottom:calc(60px + env(safe-area-inset-bottom));z-index:60;
+  min-width:210px;max-width:min(42vw,340px);
+  background:#0d1b22;border:1px solid #2f6f7f;border-left:5px solid #35c8e8;
+  border-radius:8px;padding:10px 14px 11px;
+  box-shadow:0 10px 30px rgba(0,0,0,.55);
+  font-family:'Courier New',monospace;color:#dbe7ec;
+}
+#pocCard[hidden]{display:none;}
+#pocCard .poc-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#8fb6c2;}
+#pocCard .poc-src{font-size:10px;letter-spacing:2px;color:#4d7c8a;}
+#pocCard .poc-v{display:flex;align-items:baseline;gap:8px;margin-top:2px;}
+#pocCard .poc-v>span:first-child{font-size:40px;line-height:1.1;font-weight:bold;color:#35c8e8;}
+#pocCard .poc-u{font-size:15px;color:#8fb6c2;}
+#pocCard .poc-d{font-size:12px;line-height:1.35;color:#93a6ae;margin-top:3px;}
+#pocCard .poc-d:empty{display:none;}
+
 #joinBox{
   position:fixed;top:calc(58px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
   z-index:94;display:flex;align-items:center;gap:8px;padding:8px 12px;
@@ -939,6 +967,17 @@ body.booting #screen>*{visibility:hidden;}
 <div id="joinBox" class="join off"></div>
 <button id="joinTab" onclick="openJoinPrompt()" title="Join or change the facilitator session">⇄ Join session</button>
 
+<!-- A point-of-care result the facilitator sent back. Deliberately drawn as an
+     overlay card rather than a numeric on the chassis: neither a ZX nor a
+     LIFEPAK 15 has a glucose field, and inventing one would teach the crew a
+     screen that does not exist. This reads as what it is — a separate device's
+     result, put where the crew is already looking. -->
+<div id="pocCard" hidden>
+  <div class="poc-h"><span id="pocT"></span><span class="poc-src">POINT OF CARE</span></div>
+  <div class="poc-v"><span id="pocV"></span><span class="poc-u" id="pocU"></span></div>
+  <div class="poc-d" id="pocD"></div>
+</div>
+
 <div id="skinbar">
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
   <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
@@ -1240,7 +1279,24 @@ function advanceBreath(dt){
 let almBreaching=false;
 let lastSysTxt=null;
 function m3(s,d){return Math.round((s+2*d)/3);}
+
+/* The point-of-care card. Driven from S like everything else on this screen,
+   so it arrives by whichever path the monitor is listening on — two windows on
+   a laptop, or an iPad across the room — and survives a reload. */
+function upPoc(){
+  const card=document.getElementById('pocCard');
+  if(!card) return;
+  const r=S.poc;
+  if(!r||(!r.value&&!r.title)){ card.hidden=true; return; }
+  document.getElementById('pocT').textContent=r.title||'Result';
+  document.getElementById('pocV').textContent=r.value||'';
+  document.getElementById('pocU').textContent=r.unit||'';
+  document.getElementById('pocD').textContent=r.detail||'';
+  card.hidden=false;
+}
+
 function upNums(){
+  upPoc();
   const dead=S.rhythm==='asystole'||S.rhythm==='vfib';
   const nc=!S.patientConnected; // not connected
   // The LIFEPAK blanks the ECG-derived heart rate while it is delivering pacing
