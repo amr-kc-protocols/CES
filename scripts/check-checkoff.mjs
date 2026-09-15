@@ -326,6 +326,32 @@ ok(
 const noted = scenarioRecordHTML({ ...quarterly, notes: 'Slow to suction; coached.' })
 ok(/class="rec-notes"/.test(noted) && /Slow to suction/.test(noted), 'the record carries the debrief note')
 
+// What the crew did at the defibrillator, on the paper the debrief is held
+// from. It was on screen in the run detail and nowhere on the printout, which
+// is the wrong way round for an arrest case: shock count and timing is the one
+// objective measurement this simulator takes.
+const withDevice = scenarioRecordHTML({
+  ...quarterly,
+  device: [
+    { at: 42, type: 'shock', label: 'SHOCK', detail: '16J · 2 J/kg' },
+    { at: 51, type: 'cpr', label: 'CPR RESUMED', detail: '' },
+  ],
+})
+ok(/At the monitor/.test(withDevice), 'the record carries the device timeline')
+ok(/0:42/.test(withDevice) && /16J · 2 J\/kg/.test(withDevice), 'with the clock and the energy')
+ok(/1 shock/.test(withDevice), 'and counts the shocks')
+ok(!/At the monitor/.test(record), 'a run with nothing at the monitor prints no empty timeline')
+// The AHA sheet is a transcription of a published form and gains no rows it
+// does not have; only the program's own record is ours to shape.
+ok(!/At the monitor/.test(sheet), 'the AHA megacode sheet is left as the published form')
+
+// The provenance line used to call every ungraded run a quarterly one. The
+// PALS practice cases are neither quarterly nor ours.
+ok(
+  !/approved\s+for this quarter/.test(record),
+  'the record does not claim every ungraded scenario is a quarterly one',
+)
+
 ok(runSheetHTML(quarterly) === record, 'runSheetHTML picks the record for a quarterly run')
 ok(runSheetHTML(run) === sheet, 'and the AHA sheet for a megacode')
 ok(/Megacode Testing Checklist — A\. Rivera/.test(runSheetTitle(run)), 'the print title names the student')

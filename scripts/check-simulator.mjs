@@ -151,6 +151,13 @@ function endRunSaving(w) {
   w.sv('sbp', 84)
   w.sv('dbp', 54)
   ok('but a perfusing V-Tach is expressible', S().sbp === 84 && S().dbp === 54, `${S().sbp}/${S().dbp}`)
+  // Saturation is not a fact about the rhythm. AHA PALS practice case 10 is a
+  // stable, well-perfused infant in a wide-complex tachycardia at 97%, and the
+  // old ceiling of 96 dragged that patient down the moment anything else moved.
+  w.sv('spo2', 97)
+  ok('a stable wide-complex tachycardia holds its saturation', S().spo2 === 97, String(S().spo2))
+  w.sv('spo2', 0)
+  ok('and a pulseless one is still expressible at 0', S().spo2 === 0, String(S().spo2))
 
   // EtCO2 in arrest reflects compression quality and must stay free.
   w.setR('vfib')
@@ -166,6 +173,8 @@ function endRunSaving(w) {
 {
   const { w, d, S, text } = load()
 
+  const sims = w.eval('SIMULATIONS')
+
   d.getElementById('simScenarioSel').value = 'asthma_initial'
   w.applySimScenario()
   ok('a sim that sets the capnogram moves the select', d.getElementById('co2ShapeSel').value === 'shark')
@@ -173,6 +182,34 @@ function endRunSaving(w) {
   d.getElementById('simScenarioSel').value = 'peds_tbi_initial'
   w.applySimScenario()
   ok('pediatric sims set the patient type', d.getElementById('patientTypeSel').value === 'Pediatric')
+
+  // Every option in the picker has to resolve to something. applySimScenario()
+  // silently returns when it does not, so a typo in a value is a menu entry
+  // that looks live and does nothing when a facilitator taps it mid-class.
+  const options = [...d.querySelectorAll('#simScenarioSel option')]
+    .map((o) => o.value)
+    .filter(Boolean)
+  const simMapKeys = ['drowning_initial', 'asthma_initial', 'abdominal_trauma_initial', 'peds_tbi_initial']
+  for (const value of options) {
+    ok(
+      `the picker entry "${value}" loads a scenario`,
+      !!sims[value] || simMapKeys.includes(value),
+      value,
+    )
+  }
+
+  // The PALS practice cases are children, and the monitor draws pediatric
+  // patients differently. An adult patientType here would put adult reference
+  // ranges on a 3-month-old.
+  for (const key of Object.keys(sims).filter((k) => k.startsWith('pals'))) {
+    ok(`${key}: is a pediatric patient`, sims[key].patientType === 'Pediatric', sims[key].patientType)
+    // A practice case is not a megacode test: it publishes no PASS/NR
+    // instrument, so it must not claim one.
+    ok(`${key}: carries no testing checklist`, !sims[key].checklist, String(sims[key].checklist))
+    d.getElementById('simScenarioSel').value = key
+    w.applySimScenario()
+    ok(`${key}: loads and sets the patient type`, d.getElementById('patientTypeSel').value === 'Pediatric')
+  }
 
   w.toggleArt()
   d.getElementById('scenarioSel').value = 'normal'
@@ -2201,11 +2238,122 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('and then the saturation does not move on oxygen', S().spo2 === before, `${before} -> ${S().spo2}`)
   ok('and the timeline records that it did not respond', w.eval("deviceFeed.some(e => /NO RESPONSE/.test(e.label))"))
 
+  // A target the scenario author wrote is honoured. The ceiling of 99 is a
+  // guess about what oxygen alone achieves when nobody has said; applied to an
+  // authored target it silently rewrote the document. AHA PALS case 9 states
+  // 100% after supplemental oxygen, and that case's own converted state carries
+  // 100 — the trend used to stop a point short of the next screen.
+  d.getElementById('simScenarioSel').value = 'pals9'
+  w.applySimScenario()
+  w.setIntervention('monitor', true)
+  w.setIntervention('o2', 'nrb15')
+  ok('an authored oxygen target of 100 is honoured', w.o2Goal().target === 100, JSON.stringify(w.o2Goal()))
+  for (let i = 0; i < 400; i++) w.o2Tick()
+  ok('and the saturation reaches it', S().spo2 === 100, String(S().spo2))
+  // The derived target keeps its ceiling: nothing said, so 99 is still the
+  // most oxygen alone is assumed to buy.
+  d.getElementById('scenarioSel').value = 'hypoxia'
+  w.applyScenario()
+  w.setIntervention('monitor', true)
+  w.setIntervention('o2', 'nrb15')
+  const derived = w.o2Goal()
+  ok('a derived target is still capped at 99', !derived || derived.target <= 99, JSON.stringify(derived))
+
   // A pulseless patient never responds — there is no perfusion to carry it.
   w.setR('vfib')
   ok('oxygen does nothing for a pulseless patient', w.eval('o2Goal()') === null, 'an arrest was given an oxygen target')
   w.close()
 }
+
+
+// ---------------------------------------------------------------------------
+// Point-of-care results: the facilitator answering a question on the crew's
+// screen.
+//
+// The gap this closes is the one question type the monitor could not answer.
+// Vitals it has; a glucose the crew asks for after a POC stick it did not, so
+// the facilitator read the number aloud and the team leader asked for it twice.
+// What has to hold is that the panel's result reaches the monitor, that it
+// reaches it through S (so it survives a reload and rides the same paths to a
+// monitor on another device), and that the facilitator's own notes never land
+// on the crew's screen.
+// ---------------------------------------------------------------------------
+{
+  const { w, d, S } = load()
+  const monitorSrc = readFileSync(MONITOR, 'utf8')
+
+  ok('the panel carries a result in its default state', 'poc' in w.eval('DEF'), Object.keys(w.eval('DEF')).join(','))
+  ok('and it starts empty', w.eval('DEF').poc === null, String(w.eval('DEF').poc))
+  // In S rather than as a one-shot localStorage command. The 12-lead is the
+  // cautionary case: the README lists the two windows disagreeing about whether
+  // it is open as a known gap, precisely because it sits outside S.
+  ok(
+    'a result is published as state, not as a command',
+    !/simCmd(Poc|Result)/.test(readFileSync(PAGE, 'utf8')) && !/simCmd(Poc|Result)/.test(monitorSrc),
+  )
+
+  w.sendPoc('POC glucose', 88, 'mg/dL', 'After conversion.')
+  const sent = S().poc
+  ok('sending puts the result in state', sent && sent.value === '88' && sent.title === 'POC glucose', JSON.stringify(sent))
+  ok('the clear control appears once something is showing', !d.getElementById('pocClear').hidden)
+
+  // The monitor, reading the same state.
+  const m = loadMonitor({ simState: JSON.stringify(S()) })
+  m.w.upPoc()
+  ok('the monitor shows the result', !m.d.getElementById('pocCard').hidden)
+  ok('with the value', m.d.getElementById('pocV').textContent === '88', m.d.getElementById('pocV').textContent)
+  ok('the unit', m.d.getElementById('pocU').textContent === 'mg/dL', m.d.getElementById('pocU').textContent)
+  ok('and the crew-facing detail', m.d.getElementById('pocD').textContent === 'After conversion.')
+
+  w.clearPoc()
+  ok('clearing empties the state', S().poc === null, JSON.stringify(S().poc))
+  const m2 = loadMonitor({ simState: JSON.stringify(S()) })
+  m2.w.upPoc()
+  ok('and takes the card off the monitor', m2.d.getElementById('pocCard').hidden)
+
+  // Authored results, per scenario.
+  const docs = w.eval('SCENARIO_DOCS')
+  const withResults = Object.keys(docs).filter((k) => docs[k].results)
+  ok('scenarios carry their own results', withResults.length > 0, withResults.join(','))
+  for (const key of withResults) {
+    for (const [i, r] of docs[key].results.entries()) {
+      ok(`${key}.results[${i}]: has a title and a value`, !!r.title && r.value !== undefined && r.value !== '', JSON.stringify(r))
+      // A preset that sends a dash is worse than no preset: the crew asked a
+      // question and got a shrug rendered at 40px.
+      ok(`${key}.results[${i}]: sends a real answer`, String(r.value).trim() !== '—' && String(r.value).trim() !== '-', String(r.value))
+      // `note` is the facilitator's; `detail` is the crew's. Saying "the manual
+      // does not state this" on the screen the crew reads teaches nothing.
+      ok(
+        `${key}.results[${i}]: the crew-facing line is not a facilitator note`,
+        !/\bmanual\b|\bours\b|debrief/i.test(r.detail || ''),
+        r.detail || '',
+      )
+    }
+  }
+
+  // Loading a case clears the last patient's result and offers this one's.
+  w.sendPoc('Lactate', '4.2', '', '')
+  d.getElementById('simScenarioSel').value = 'pals12'
+  w.applySimScenario()
+  ok('a new case clears the last patient\u2019s result', S().poc === null, JSON.stringify(S().poc))
+  // Two containers carry these buttons — the card in the grid and the strip in
+  // the run card the facilitator works from mid-code — and one renderer fills
+  // both. Counting the page would hide one of them going stale.
+  const containers = [...d.querySelectorAll('.poc-presets')]
+  ok('the result buttons have a home in the run card as well as the card', containers.length === 2, String(containers.length))
+  for (const [i, c] of containers.entries())
+    ok(
+      `container ${i} offers the new case\u2019s own results`,
+      c.querySelectorAll('.poc-preset').length === docs.pals12.results.length,
+      String(c.querySelectorAll('.poc-preset').length),
+    )
+  w.eval('sendPocPreset(1)')
+  ok('a preset sends the manual\u2019s value', S().poc.value === '112', JSON.stringify(S().poc))
+  w.close()
+  m.w.close()
+  m2.w.close()
+}
+
 
 {
   // Defibrillation transitions: the panel counts the shocks the script is
@@ -2214,7 +2362,23 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   const { w, d, S } = load()
   const sims = w.eval('SIMULATIONS')
   const withCue = Object.keys(sims).filter((k) => (sims[k].states || []).some((st) => st.advanceOn))
-  ok('the defibrillation scenarios script a shock count', withCue.length === 5, withCue.join(','))
+  // Counted by property rather than by a number: this used to assert "5", which
+  // is a fact about how many scenarios existed the day it was written, and the
+  // first PALS arrest case broke it without anything being wrong. What has to
+  // hold is that a scripted cue is usable — a positive shock count, and a stage
+  // after it to move into.
+  ok('some scenarios script a shock count', withCue.length > 0, withCue.join(','))
+  for (const k of withCue) {
+    sims[k].states.forEach((st, i) => {
+      if (!st.advanceOn) return
+      ok(
+        `${k}[${i}]: the scripted shock count is a positive number`,
+        Number.isInteger(st.advanceOn.shocks) && st.advanceOn.shocks > 0,
+        String(st.advanceOn.shocks),
+      )
+      ok(`${k}[${i}]: there is a stage to advance into`, !!sims[k].states[i + 1])
+    })
+  }
 
   d.getElementById('simScenarioSel').value = 'megacode1'
   w.applySimScenario()

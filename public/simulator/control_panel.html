@@ -120,6 +120,34 @@ body.run-active .sess.off{display:none;}
 .card h2{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
 .card.ecg h2{color:var(--ecg);}.card.bp h2{color:var(--danger);}.card.spo2 h2{color:var(--spo2);}.card.etco2 h2{color:var(--co2);}.card.temp h2{color:var(--accent);}.card.alarms h2{color:var(--co2);}
 
+/* Point-of-care results. The card the facilitator answers a question from, and
+   the only control here whose output lands on the crew's screen rather than on
+   the patient — so its buttons read as answers, value included, and the clear
+   is a separate destructive-looking row rather than a third preset. */
+.card.poc h2{color:var(--co2);}
+.poc-help{font-size:.6rem;color:var(--t-dim);line-height:1.4;margin-bottom:10px;}
+.poc-presets{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+/* In the run card it is a row of chips beside the crew-has-done strip, not a
+   stacked list: it shares that line's job of being glanceable mid-code. */
+.poc-inline{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;}
+.poc-inline:empty{display:none;}
+.poc-inline .poc-preset{width:auto;flex:0 1 auto;padding:7px 10px;min-height:38px;font-size:.68rem;}
+.poc-presets:empty{display:none;}
+.poc-preset{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;
+  background:var(--inset);border:1px solid var(--border);border-radius:6px;color:var(--t);
+  padding:9px 10px;min-height:40px;font-family:inherit;font-size:.72rem;text-align:left;cursor:pointer;}
+.poc-preset:hover{border-color:var(--co2);color:#fff;}
+.poc-preset span{font-weight:bold;color:var(--co2);white-space:nowrap;}
+.poc-free{gap:6px;}
+.poc-free input{flex:1;min-width:0;background:var(--inset);border:1px solid var(--border);
+  border-radius:5px;color:#fff;padding:6px 8px;font-size:.75rem;font-family:inherit;outline:none;}
+.poc-free input:focus{border-color:var(--co2);}
+.poc-send{background:var(--inset);border:1px solid var(--co2);border-radius:5px;color:var(--co2);
+  padding:6px 12px;min-height:34px;font-family:inherit;font-size:.7rem;font-weight:bold;cursor:pointer;}
+.poc-clear{width:100%;background:none;border:1px solid var(--border);border-radius:6px;
+  color:var(--t-dim);padding:7px;min-height:36px;font-family:inherit;font-size:.68rem;cursor:pointer;}
+.poc-clear:hover{border-color:var(--danger);color:var(--danger);}
+
 label{display:block;font-size:.7rem;color:var(--t);margin-bottom:4px;margin-top:8px;}
 label:first-of-type{margin-top:0;}
 input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer;}
@@ -824,6 +852,12 @@ body.run-mode .card.bp{grid-row:1/3;}
       <option value="megacode4">4 — Unstable VT → VF → PEA</option>
       <option value="megacode5">5 — ED Bradycardia (CCB overdose) → VF → Asystole</option>
     </optgroup>
+    <optgroup label="PALS practice cases">
+      <option value="pals9">9 — SVT (adolescent; unstable)</option>
+      <option value="pals10">10 — Wide-complex tachycardia (infant; stable)</option>
+      <option value="pals11">11 — Wide-complex tachycardia (child; unstable)</option>
+      <option value="pals12">12 — Pulseless arrest, pulseless VT (infant)</option>
+    </optgroup>
   </select>
   <button class="apply-btn" onclick="applySimScenario()">Apply</button>
 </div>
@@ -1156,6 +1190,23 @@ body.run-mode .card.bp{grid-row:1/3;}
   </select>
 </div>
 
+<!-- Point-of-care results -->
+<div class="card poc">
+  <h2>Point-of-Care Result</h2>
+  <div class="poc-help">
+    What the crew gets back when they test something. It goes on the monitor,
+    where they are already looking — a number read aloud is a number the team
+    leader asks for twice.
+  </div>
+  <div id="pocPresets" class="poc-presets"></div>
+  <div class="row poc-free">
+    <input type="text" id="pocTitle" placeholder="Result" aria-label="Result name">
+    <input type="text" id="pocValue" placeholder="Value" aria-label="Result value">
+    <button class="poc-send" onclick="sendPocFree()">Send</button>
+  </div>
+  <button class="poc-clear" id="pocClear" onclick="clearPoc()" hidden>✕ Clear from the monitor</button>
+</div>
+
 <!-- ART Line -->
 <div class="card art">
   <h2>Arterial Line (A-Line)</h2>
@@ -1435,6 +1486,17 @@ const DEF={
   scenario:'',
   etco2On:false,
   ecg:null,
+  // A point-of-care result the crew asked for, on the screen the crew reads.
+  //
+  // In S rather than as a one-shot command like the 12-lead, and that is the
+  // whole design decision. S is published on all three paths — BroadcastChannel,
+  // localStorage and the Supabase channel — so a result reaches a monitor on an
+  // iPad across the room for free, survives a monitor reload, and cannot leave
+  // the two windows disagreeing about what is on screen. The 12-lead command is
+  // none of those things, and the README lists that disagreement as a known gap.
+  //
+  // Shape: {title, value, unit, detail} or null for nothing showing.
+  poc:null,
 };
 let S={...DEF};
 
@@ -1468,6 +1530,55 @@ function sync12Lead(open){
   cp12Open=open;
   paint12Lead();
 }
+// ── Point-of-care results ────────────────────────────────────────────────────
+// The crew asks for a glucose, a lab, a film. On a real call a device answers
+// them; in this room the facilitator was reading it aloud, which is the one
+// question type the monitor could not answer. These push the answer to the
+// screen the crew is already reading, and stay up until cleared — a result is
+// still true five minutes later, and a crew that looks away should be able to
+// look back rather than ask again.
+function sendPoc(title,value,unit,detail){
+  S.poc={title:title,value:String(value),unit:unit||'',detail:detail||''};
+  paintPoc();
+  save(); flushSave();
+}
+function sendPocFree(){
+  const t=document.getElementById('pocTitle').value.trim();
+  const v=document.getElementById('pocValue').value.trim();
+  if(!t&&!v) return;
+  sendPoc(t||'Result',v,'','');
+  document.getElementById('pocTitle').value='';
+  document.getElementById('pocValue').value='';
+}
+function clearPoc(){
+  S.poc=null;
+  paintPoc();
+  save(); flushSave();
+}
+/* The offered buttons are the active scenario's own results, so answering the
+   crew is one tap rather than typing a number under time pressure. A scenario
+   with none authored keeps the free-text row, which is every scenario's
+   fallback and the only thing that existed before. */
+function paintPoc(){
+  const wraps=document.querySelectorAll('.poc-presets');
+  if(!wraps.length) return;
+  const doc=SCENARIO_DOCS[activeSim];
+  const results=(doc&&doc.results)||[];
+  const html=results.map((r,i)=>
+    `<button class="poc-preset" onclick="sendPocPreset(${i})"${r.note?` title="${esc(r.note)}"`:''}>`+
+    `${esc(r.title)}<span>${esc(String(r.value))}${r.unit?' '+esc(r.unit):''}</span></button>`
+  ).join('');
+  wraps.forEach(w=>{ w.innerHTML=html; });
+  const clear=document.getElementById('pocClear');
+  if(clear) clear.hidden=!S.poc;
+}
+function sendPocPreset(i){
+  const doc=SCENARIO_DOCS[activeSim];
+  const r=doc&&doc.results&&doc.results[i];
+  if(!r) return;
+  sendPoc(r.title,r.value,r.unit,r.detail);
+}
+
 function open12LeadCP(){
   cp12Open=!cp12Open;
   paint12Lead();
@@ -1667,7 +1778,17 @@ function enforcePhysiology(changedKey){
     if(S.dbp>70) setVital('dbp',70);
     if(S.artSbp>110) setVital('artSbp',110);
     if(S.artDbp>70) setVital('artDbp',70);
-    if(S.spo2>96) setVital('spo2',96);
+    // Saturation is NOT capped here, and the cap that used to sit at 96 was
+    // wrong in kind rather than in degree. Oxygenation is a fact about the
+    // lungs and the oxygen being delivered, not about the rhythm: AHA PALS
+    // practice case 10 is a 3-month-old in a wide-complex tachycardia who is
+    // stable, well perfused, and saturating 97% — the whole point of the case
+    // is that this patient does not need electricity. The old ceiling dragged
+    // that infant to 96% the moment any other slider moved, and it never
+    // protected against the error it looked like it was protecting against:
+    // 96% on a pulseless patient is exactly as impossible as 98%. Pulseless VT
+    // stays expressible because a scenario setting SpO2 0 keeps it — these are
+    // ceilings, and they do not push a value up.
   }
   // Rate bounds apply only while the instructor is dragging the HR slider.
   // Applied unconditionally they rewrote authored scenario states — the
@@ -2199,6 +2320,93 @@ const SIMULATIONS={
        display:'HR 36 | ROSC | BP 72/44 | EtCO₂ 36',
        note:'ROSC after several rounds of CPR. Ventricular escape bradycardia with hypotension. Consider the toxicological differential and calcium channel blocker overdose treatment.'},
     ]},
+
+  // ── PALS practice cases ────────────────────────────────────────────────────
+  // AHA PALS practice case scenarios 9-12, © 2025 American Heart Association /
+  // American Academy of Pediatrics, as used by this AHA Training Center.
+  //
+  // These are PRACTICE cases, not megacode tests. They publish learning
+  // objectives and an Intervene list but no PASS/NR instrument, so a run here
+  // records what the crew did and prints as a performance record, the same way
+  // the quarterly simulations do. Nothing invents an outcome the AHA did not
+  // define; grading a PALS run would need the PALS Megacode Testing Checklist,
+  // which is a separate published instrument and is not transcribed here.
+  //
+  // Where the manual leaves a vital blank — EtCO₂ in every case, temperature on
+  // the two infants — the value below is ours, inferred from the rhythm and the
+  // described state, and SCENARIO_DOCS says so in the brief.
+  pals9:{
+    name:'PALS 9 — Supraventricular Tachycardia',
+    subtitle:'Adolescent; Unstable · 12 y · 50 kg',
+    patientType:'Pediatric',
+    states:[
+      {id:'svt',label:'Unstable SVT',color:'var(--amber)',
+       vitals:{hr:235,rhythm:'svt',sbp:70,dbp:40,spo2:92,etco2:32,rr:34,temp:37.6},
+       display:'HR 235 | SVT | BP 70/40 | SpO₂ 92% | RR 34',
+       o2Response:{target:100,perMin:12,why:'The manual states SpO₂ 92% before supplemental oxygen and 100% after.'},
+       note:'PAT — moaning, minimal response to caregivers; increased rate and effort with nasal flaring; pale and mottled. Immediate intervention needed. Primary: airway clear; crackles throughout the lung fields; weak central and thready peripheral pulses; cool mottled skin; capillary refill about 6 seconds; measured BP 75/55. Disability deferred until after rhythm conversion.',
+       coach:'Unstable SVT with poor perfusion — hypotension, new lethargy and signs of shock. Adenosine 0.1 mg/kg (max 6 mg) rapid bolus ONLY if a functional IV/IO is already in place or can be established immediately; otherwise synchronized cardioversion 0.5-1 J/kg, then 2 J/kg. Do not delay cardioversion to obtain access or to try adenosine. Routine sedation is not recommended in a hemodynamically unstable patient.'},
+      {id:'no_conversion',label:'No Conversion — Adenosine or Cardioversion Delayed',color:'#ff3333',
+       vitals:{hr:235,rhythm:'svt',sbp:72,dbp:54,spo2:93,etco2:30,rr:34,temp:37.6},
+       display:'HR 235 | SVT | BP 72/54 | SpO₂ 93% on 100% O₂ | RR 34',
+       note:'The manual’s "if no rhythm conversion or delay in administering adenosine or cardioversion": weak central pulses, peripheral pulses barely palpable, capillary refill about 6 seconds, crackles throughout the lung fields, SpO₂ 93% despite 100% oxygen by non-rebreathing mask.'},
+      {id:'converted',label:'Converted — Sinus Rhythm',color:'#00cc44',
+       vitals:{hr:104,rhythm:'nsr',sbp:100,dbp:60,spo2:100,etco2:36,rr:28,temp:37.6},
+       display:'HR 104 | Sinus | BP 100/60 | SpO₂ 100% on NRB | RR 28',
+       note:'Repeat vital signs after successful rhythm conversion. Moans with cardioversion; opens eyes and moves spontaneously, answering questions with single words or short phrases. Central and peripheral pulses strong, capillary refill 3 seconds, fine scattered crackles at the bases, liver palpable 2-3 cm below the costal margin, cool peripherally.'},
+    ]},
+  pals10:{
+    name:'PALS 10 — Wide-Complex Tachycardia, Possible VT',
+    subtitle:'Infant; Stable · 3 mo · 6 kg',
+    patientType:'Pediatric',
+    states:[
+      {id:'wct',label:'Stable Wide-Complex Tachycardia',color:'var(--amber)',
+       vitals:{hr:220,rhythm:'vtach',sbp:96,dbp:54,spo2:90,etco2:36,rr:36,temp:36.8},
+       display:'HR 220 | Wide-complex | BP 96/54 | SpO₂ 90% RA | RR 36',
+       o2Response:{target:97,perMin:12,why:'The manual states SpO₂ 90% on room air and 97% while receiving supplemental oxygen by face mask.'},
+       note:'PAT — awake and crying; spontaneous breathing with nasal congestion and no increased work of breathing apparent; pale skin. NO immediate intervention needed: proceed to the primary assessment. Upper airway congestion, bilateral air entry, no accessory muscle use, no nasal flaring. Capillary refill 3 seconds, strong central pulses, palpable peripheral pulses. QRS complexes monomorphic and at regular intervals.',
+       coach:'This infant is STABLE — adequate perfusion — so urgent electrical therapy and antiarrhythmics are not indicated. Search for and treat reversible causes (hypokalaemia, hyperkalaemia). A regular monomorphic wide-complex rhythm may be given adenosine, which can be diagnostic as well as therapeutic. Expert pediatric cardiology consultation is strongly advised in any wide-complex tachycardia regardless of stability, because of the potential for hemodynamic decline.'},
+      {id:'persists',label:'Adenosine Has No Effect — Rhythm Persists',color:'var(--drug)',
+       vitals:{hr:218,rhythm:'vtach',sbp:96,dbp:56,spo2:97,etco2:36,rr:24,temp:36.8},
+       display:'HR 218 | Wide-complex persists | BP 96/56 | SpO₂ 97% RA | RR 24',
+       note:'Repeat vital signs — adenosine has no effect and the wide-complex tachycardia persists. No murmur, gallop or rub; lungs clear; capillary refill 3 seconds; peripheral pulses weak; no hepatomegaly; cool hands and feet; pupils equal and reactive. Persistent stable wide-complex tachycardia with a pulse and adequate perfusion.'},
+    ]},
+  pals11:{
+    name:'PALS 11 — Wide-Complex Tachycardia With a Pulse and Poor Perfusion',
+    subtitle:'Child; Unstable · 10 y · 30 kg',
+    patientType:'Pediatric',
+    states:[
+      {id:'wct',label:'Unstable Wide-Complex Tachycardia',color:'var(--amber)',
+       vitals:{hr:210,rhythm:'vtach',sbp:74,dbp:35,spo2:82,etco2:30,rr:46,temp:37.6},
+       display:'HR 210 | Wide-complex | BP 74/35 | SpO₂ 82% RA | RR 46',
+       o2Response:{target:94,perMin:12,why:'The manual states SpO₂ 82%, improving to 94% with 100% oxygen via non-rebreathing mask.'},
+       note:'PAT — lethargic, opens eyes to voice but not talking spontaneously; spontaneous rapid breathing with significant retractions and grunting; pale and mottled. Immediate intervention needed. Primary: subcostal and intercostal retractions with nasal flaring; central pulses weak and peripheral pulses very weak; cool peripherally; capillary refill 4-5 seconds; intermittently moaning.',
+       coach:'Hypotension, acutely altered mental status and signs of shock in a wide-complex tachycardia WITH a pulse — those are the indications for immediate synchronized cardioversion at 0.5-1 J/kg, then 2 J/kg if the first is unsuccessful. Obtain IV/IO access but do not delay cardioversion for it. Sedation is not routinely recommended in hemodynamic instability, and giving one here needs expertise.'},
+      {id:'no_cardioversion',label:'No Cardioversion — Worsening Perfusion',color:'#ff3333',
+       vitals:{hr:210,rhythm:'vtach',sbp:68,dbp:33,spo2:94,etco2:28,rr:46,temp:37.6},
+       display:'HR 210 | Wide-complex | BP 68/33 | worsening perfusion',
+       note:'The manual’s "if no cardioversion": heart rate 210, blood pressure 68/33, worsening perfusion with weak central and very faint peripheral pulses, capillary refill 6-7 seconds. Saturation is not restated for this branch — it holds the 94% the non-rebreathing mask achieved.'},
+      {id:'converted',label:'Cardioverted — Sinus Rhythm',color:'#00cc44',
+       vitals:{hr:124,rhythm:'nsr',sbp:105,dbp:78,spo2:97,etco2:36,rr:28,temp:37.6},
+       display:'HR 124 | Sinus | BP 105/78 | SpO₂ 97% on NRB | RR 28',
+       note:'Repeat vital signs if cardioversion is correctly performed. Subcostal and intercostal retractions less pronounced; breath sounds equal bilaterally with no wheezes or crackles; central pulses now strong; capillary refill 3 seconds; extremities warming; opens eyes, moves all extremities spontaneously and answers questions. Point-of-care glucose 88 mg/dL.'},
+    ]},
+  pals12:{
+    name:'PALS 12 — Pulseless Arrest, Pulseless VT',
+    subtitle:'Infant; Arrest · 6 mo · 8 kg',
+    patientType:'Pediatric',
+    states:[
+      {id:'pvt',label:'Pulseless VT — CPR in Progress',color:'#cc0000',
+       vitals:{hr:220,rhythm:'vtach',sbp:0,dbp:0,spo2:0,etco2:18,rr:0,temp:36.4},
+       display:'Pulseless VT | CPR in progress | BP 0/0 | EtCO₂ 18',
+       note:'PAT — extremities limp, no spontaneous movement, no visible reaction to noise; no spontaneous breathing; cyanotic/pale extremities and lips, overall gray. No response, no breathing and no brachial pulse on the simultaneous check. Weight 8 kg by colour-coded length-based resuscitation tape. The monitor reveals pulseless VT. If no shock is delivered, pulseless VT continues.',
+       coach:'Shockable rhythm. First shock 2 J/kg, second 4 J/kg, subsequent at least 4 J/kg (maximum 10 J/kg or the standard adult dose for that defibrillator). CPR resumes immediately after every shock. Epinephrine 0.01 mg/kg (0.1 mg/mL concentration, maximum 1 mg) IV/IO every 3-5 minutes. At the third rhythm check add an antiarrhythmic — amiodarone 5 mg/kg or lidocaine 1 mg/kg; the 2025 Guidelines treat the two as equally acceptable, and amiodarone is avoided in long QT syndrome.',
+       advanceOn:{shocks:3,note:'The manual returns spontaneous circulation after three shocks with high-quality CPR, one dose of epinephrine and one antiarrhythmic.'}},
+      {id:'rosc',label:'ROSC',color:'#00cc44',
+       vitals:{hr:140,rhythm:'nsr',sbp:84,dbp:50,spo2:98,etco2:38,rr:30,temp:36.4},
+       display:'HR 140 | ROSC | BP 84/50 | SpO₂ 98% | RR 30 (BVM)',
+       note:'Vital signs after ROSC following high-quality CPR, a total of 3 shocks, 1 dose of epinephrine and 1 dose of antiarrhythmic. Sinus rhythm with bag-mask ventilation at 30/min. Blood glucose 112 mg/dL and a normal chest x-ray are available after ROSC only — neither is available during the scenario. Insertion of an advanced airway and post-ROSC care are beyond the scope of this practice case.'},
+    ]},
 };
 // ── Scenario reference and grading content ────────────────────────────────────
 // Transcribed from the approved Word scenarios (Medical Director reviewed).
@@ -2452,6 +2660,9 @@ const SCENARIO_DOCS={
       labs:'Finger-stick glucose 187 mg/dL (10.4 mmol/L) — only if requested.',
       scene:'Restaurant. Nearest ED 4 minutes; comprehensive stroke centre 12 minutes; cardiac arrest receiving centre 16 minutes.',
     },
+    results:[
+      {title:'Finger-stick glucose',value:'187',unit:'mg/dL',detail:'10.4 mmol/L — only if requested by the Team Leader.'},
+    ],
     states:[
       {trigger:'Sinus bradycardia on the limb leads; the 12-lead is not suspicious for injury or ischaemia.\n\n→ During IV access the patient has a 5-second grand mal seizure and remains unresponsive. Bag-mask ventilation with oxygen is initiated. Shortly after, no respirations and no pulse — the monitor shows VF.'},
       {trigger:'Defibrillate, then 2 minutes of CPR. After the first 2 minutes the rhythm is still VF: another shock, more CPR, epinephrine, advanced airway with EtCO₂ 22 mmHg.\n\n→ Two minutes later the rhythm is asystole, confirmed in 2 leads.'},
@@ -2492,6 +2703,9 @@ const SCENARIO_DOCS={
       labs:'Finger-stick glucose 330 mg/dL (18.3 mmol/L) post-arrest.',
       scene:'Roadside. Nearest ED 7 minutes; tertiary care centre 14 minutes.',
     },
+    results:[
+      {title:'Finger-stick glucose',value:'330',unit:'mg/dL',detail:'18.3 mmol/L — post-arrest.'},
+    ],
     states:[
       {trigger:'The initial rhythm is monomorphic wide-complex tachycardia. Given the overall patient condition the Team Leader should consider cardioversion. A peripheral IV is attempted without success; cardioversion is performed without a change in condition.\n\n→ While preparing to increase the energy, her head slumps and she stops breathing. The monitor now shows VF.'},
       {trigger:'Rapidly moved to the stretcher; CPR, prompt defibrillation, CPR continued. IO access achieved; bag-mask ventilation with mild difficulty. After 2 minutes still VF — defibrillate, CPR, epinephrine, advanced airway with capnography 25 mmHg.\n\n→ After 2 minutes the rhythm is an organized wide-complex rhythm at 70/min with no pulses.'},
@@ -2512,11 +2726,203 @@ const SCENARIO_DOCS={
       labs:'Blood glucose 195 mg/dL (10.8 mmol/L).',
       scene:'Emergency department.',
     },
+    results:[
+      {title:'Blood glucose',value:'195',unit:'mg/dL',detail:'10.8 mmol/L.'},
+    ],
     states:[
       {trigger:'Wide QRS ventricular escape rhythm at 30 with a long QT.\n\n→ His heart rate continues to drop, then he suddenly becomes unresponsive and loses his pulse. The monitor shows VF.'},
       {trigger:'Students should follow the VF pathway of the Adult Cardiac Arrest Algorithm. Advanced students may consider intravenous lipid emulsion therapy and extracorporeal CPR.\n\n→ After the second shock the rhythm changes to asystole.'},
       {trigger:'Follow the asystole pathway with special attention to high-quality CPR and good team communication.\n\n→ After several rounds of CPR and ACLS the patient has ROSC.'},
       {trigger:'The rhythm is a ventricular escape bradycardia with hypotension. Consider the toxicological aspects of the case and the differential diagnosis; a discussion of calcium channel blocker overdose treatment may be included for advanced learners.'},
+    ],
+  },
+  // ── PALS practice cases ──────────────────────────────────────────────────
+  // Brief and expected actions from the AHA PALS practice case scenarios,
+  // © 2025 American Heart Association / American Academy of Pediatrics.
+  //
+  // `actions` are the manual's own Intervene bullets. Where a branch has no
+  // Intervene list of its own — the "what happens if they do not act" states —
+  // the actions are the manual's bullets that apply to that branch, and the
+  // trigger says so. Two of the four cases were transcribed from the first two
+  // pages of the case only; those briefs say which page is missing and what
+  // was written in its place, so a partial case is never read as a whole one.
+  pals9:{
+    brief:{
+      patient:'Adolescent boy · 12 y · 50 kg · history of SVT about 4 years ago',
+      dispatch:'Prehospital: You are dispatched to a house where a 12-year-old boy has lethargy, tachypnea and a racing heart.\n\nThe manual also runs this case from the ED, a general inpatient unit and the ICU — same patient, same vitals, different lead-in.',
+      hpi:'Acute onset 30 minutes ago of a racing heart with lethargy and tachypnea. Known SVT about 4 years ago.\n\nDerived values: the manual gives HR 235, BP 70/40, RR 34, SpO₂ 92% on room air, temperature 37.6 °C and weight 50 kg. EtCO₂ is blank in the manual throughout — the 32 → 30 → 36 used here is ours, inferred from the described perfusion. Note also that the manual’s Vital Signs box reads 70/40 while its primary assessment reads 75/55; the monitor carries the box value and the primary-assessment figure is in the state note.',
+      handoff:'',
+      withhold:'Disability is deferred until after successful rhythm conversion.',
+      sample:[['Signs / symptoms','Tachycardia; lethargy; hypotension'],['Allergies','None known'],['Medications','None'],['Past history','History of SVT about 4 years ago'],['Last oral intake','Ate 6 hours ago'],['Events','Acute onset 30 minutes ago']],
+      primary:'Airway: clear. Breathing: respiratory rate 34/min; SpO₂ 92% before supplemental oxygen and 100% after; crackles throughout the lung fields. Circulation: heart rate 235/min; weak central pulses, thready peripheral pulses; cool/mottled skin; capillary refill about 6 seconds; blood pressure 75/55 mmHg. Disability: deferred until after successful rhythm conversion. Exposure: temperature 37.6 °C; weight 50 kg.',
+      secondary:'Deferred until after rhythm conversion. After conversion: HEENT clear, no audible breath sounds; sinus rhythm with strong central and peripheral pulses, capillary refill 3 seconds, no murmur, gallop or rub, fine scattered crackles at the bases; liver palpable 2-3 cm below the costal margin; extremities cool peripherally; back unremarkable; moans with cardioversion, then opens eyes and moves spontaneously, answering in single words or short phrases.',
+      labs:'Point-of-care glucose is checked after conversion. The manual’s diagnostic-assessments band for this case is on page 151, which is not in the scan this was built from.',
+      scene:'Prehospital — a house. Runs equally in the ED, a general inpatient unit or the ICU.',
+    },
+    // What the crew gets back when they test something, ready to send to the
+    // crew's monitor in one tap.
+    //
+    // `detail` is crew-facing and goes on the monitor with the value. `note` is
+    // the facilitator's own and never leaves this window — it is where a value
+    // that is ours rather than the manual's says so, because a card on the
+    // crew's screen captioned "this number is ours" teaches nothing.
+    results:[
+      {title:'POC glucose',value:'96',unit:'mg/dL',
+       note:'Not stated in the manual. A normal value, so a crew who correctly checks it gets an answer rather than a shrug — send your own if the debrief wants otherwise.'},
+    ],
+    states:[
+      {actions:[
+        'Activate the emergency response system; request additional assistance if needed',
+        'Administer 100% oxygen by nonrebreathing face mask',
+        'Apply cardiac monitor, blood pressure cuff and pulse oximeter',
+        'Establish IV/IO access close to the heart (eg, antecubital fossa) — but do not delay cardioversion if access is not readily available',
+        'Only if a functional IV is in place or established immediately: adenosine 0.1 mg/kg (max 6 mg) IV/IO rapid bolus followed by rapid saline flush, recording a continuous rhythm strip',
+        'If the first dose is unsuccessful, adenosine 0.2 mg/kg rapid bolus (max 12 mg) — only if it can be given more rapidly than synchronized cardioversion',
+        'Deliver synchronized cardioversion (0.5-1 J/kg) as soon as it is available; 2 J/kg if there is no rhythm change',
+        'Prepare to assist ventilation with a bag-mask device if needed',
+      ],trigger:'Rapid adenosine or synchronized cardioversion converts the rhythm → Converted.\n\nDelay in administering adenosine or cardioversion, or no rhythm change → No Conversion.'},
+      {actions:[
+        'Provide immediate cardioversion if adenosine is ineffective or if there is any delay in the ability to administer adenosine',
+        '"Clear" and perform synchronized cardioversion (0.5-1 J/kg)',
+        'If synchronized cardioversion results in no rhythm change, "clear" and perform synchronized cardioversion with 2 J/kg',
+        'Re-evaluate–identify–intervene after each intervention',
+      ],trigger:'The manual: SVT with poor perfusion converts to sinus rhythm if rapid adenosine or cardioversion is provided. Correct the delay and cardiovert → Converted.'},
+      {actions:[
+        'Reassess and monitor the patient’s cardiorespiratory status',
+        'Evaluate for signs of heart failure (enlarged liver, extra heart sounds or murmurs, crackles/rales)',
+        'Prepare to insert an advanced airway if needed',
+        'Wean supplemental oxygen as tolerated if the child stabilises',
+        'Obtain a 12-lead electrocardiogram',
+        'Check glucose with point-of-care testing',
+      ],trigger:'Post-conversion care above, then hand over. End the simulation once report is given.'},
+    ],
+  },
+  pals10:{
+    brief:{
+      patient:'Infant · 3 months · 6 kg · delivery at 39 weeks, no problems',
+      dispatch:'Prehospital: You are en route to a call for a 3-month-old infant with irritability and cold-like symptoms.\n\nThe manual also runs this case from the ED, a general inpatient unit and the ICU.',
+      hpi:'Fussy and agitated since early morning, with cold-like symptoms. Admitted to the floor 6 hours ago.\n\nDerived values: the manual gives HR 220, BP 96/54, RR 36, SpO₂ 90% on room air and 97% on supplemental oxygen by face mask, and weight 6 kg, and records the infant as afebrile. EtCO₂ (36) and the temperature (36.8 °C) used here are ours.',
+      handoff:'Admitted to the floor 6 hours ago with fussiness, agitation and cold-like symptoms. Delivery at 39 weeks with no problems. One ounce of formula 4 hours ago.',
+      withhold:'',
+      sample:[['Signs / symptoms','Fussy; agitated since early morning'],['Allergies','None'],['Medications','None'],['Past history','Delivery at 39 weeks; no problems'],['Last oral intake','1 oz formula 4 hours ago'],['Events','Admitted to floor 6 hours ago with fussiness, agitation and cold-like symptoms']],
+      primary:'Airway: crying. Breathing: upper airway congestion; bilateral air entry; no use of accessory muscles; no nasal flaring; respiratory rate 36/min; SpO₂ 97% when receiving supplemental oxygen by face mask. Circulation: heart rate 220/min; blood pressure 96/54 mmHg; pale skin; capillary refill 3 seconds; strong central pulses, palpable peripheral pulses; QRS complexes monomorphic and at regular intervals. Disability: awake, fussy, eyes open. Exposure: afebrile; weight 6 kg.',
+      secondary:'Repeat vital signs (adenosine has no effect): heart rate 218/min with the wide-complex tachycardia persisting; blood pressure 96/56 mmHg; respiratory rate 24/min; SpO₂ 97% on room air. HEENT normal. No murmur, gallop or rub; lungs clear; capillary refill 3 seconds; peripheral pulses weak. Abdomen nondistended, nontender, no masses, normal bowel sounds, no hepatomegaly. No oedema or rash; cool hands and feet. Back normal. Pupils equal and reactive.',
+      labs:'Blood glucose and electrolytes. A blood gas is not indicated in the immediate management of this infant but could be considered after stabilisation. Imaging is not indicated.',
+      scene:'Prehospital, ED, general inpatient unit or ICU.',
+    },
+    results:[
+      {title:'POC glucose',value:'88',unit:'mg/dL',
+       note:'Not stated in the manual. Normal, and the manual does ask for it to be checked as soon as reasonable in any critically ill child.'},
+      {title:'Potassium',value:'4.1',unit:'mmol/L',
+       note:'Not stated in the manual. Normal. The case names hypokalaemia and hyperkalaemia as the reversible causes to search for — send a deranged value instead if that is the debrief you want.'},
+      {title:'Blood gas',value:'Not indicated',unit:'',
+       detail:'Could be considered after stabilisation.',
+       note:'The manual: not indicated in the immediate management of this infant. A real answer to give a crew who asks for one.'},
+    ],
+    states:[
+      {actions:[
+        'Activate the emergency response system; request additional assistance if needed',
+        'Administer supplemental oxygen if needed',
+        'Apply cardiac monitor, blood pressure cuff and pulse oximeter',
+        'Identify the rhythm: regular wide-complex tachycardia (possible VT) with a pulse and adequate perfusion',
+        'Obtain a 12-lead electrocardiogram',
+        'Search for and treat reversible causes',
+        'Obtain vascular access (intravenous)',
+        'Consider adenosine if the rhythm is regular with monomorphic wide-complex QRS complexes, recording a continuous rhythm strip during administration',
+        'Consult pediatric cardiology',
+      ],trigger:'Adenosine has no effect and the wide-complex tachycardia persists → Rhythm Persists.\n\nThis patient is STABLE. Reaching for urgent electrical therapy or an antiarrhythmic is the error this case is written to surface — assessing the patient as stable is the objective.'},
+      {actions:[
+        'Monitor cardiorespiratory function for signs of heart failure (enlarged liver, extra heart sounds or murmurs, crackles/rales)',
+        'Search for and treat reversible causes',
+        'Obtain a 12-lead electrocardiogram',
+        'Obtain expert consultation with pediatric cardiology',
+        'Check blood glucose with point-of-care testing as soon as reasonable and treat hypoglycaemia immediately; check serum electrolytes — hypokalaemia or hyperkalaemia may cause ventricular arrhythmias',
+      ],trigger:'Persistent stable wide-complex tachycardia with a pulse and adequate perfusion. Re-evaluate–identify–intervene after each intervention. End the simulation once pediatric cardiology is consulted and a plan is stated.'},
+    ],
+  },
+  pals11:{
+    brief:{
+      patient:'Child · 10 y · 30 kg · syncopal episode earlier in the day',
+      dispatch:'Prehospital: You are en route to a house where a 10-year-old child has acutely developed difficulty breathing.\n\nThe manual also runs this case from the ED, a general inpatient unit (rapid response for a child admitted after a syncopal event) and the ICU.',
+      hpi:'Sudden shortness of breath and difficulty breathing. No chest pain, no recent illnesses. Fractured clavicle at age 6.\n\nDerived values: the manual gives HR 210, BP 74/35, RR 46, SpO₂ 82% on room air improving to 94% on 100% oxygen, temperature 37.6 °C and weight 30 kg. EtCO₂ is blank throughout — the 30 → 28 → 36 used here is ours.\n\nTRANSCRIPTION NOTE: built from pages 157-158 only. The manual’s post-conversion Intervene list and its diagnostic-assessments band are on page 159, which is not in the scan — the third state’s actions below are the program’s, not the AHA’s, until that page is added.',
+      handoff:'Reviewed with the parent or primary caretaker only, to identify reversible causes.',
+      withhold:'The remainder of the secondary assessment is deferred until after rhythm conversion; only reversible causes are identified first.',
+      sample:[['Signs / symptoms','Acute shortness of breath and difficulty breathing; no chest pain; no recent illnesses'],['Allergies','None'],['Medications','None'],['Past history','Fractured clavicle at age 6'],['Last oral intake','Supper with family'],['Events','Sudden shortness of breath and difficulty breathing']],
+      primary:'Airway: clear. Breathing: respiratory rate 46/min; SpO₂ 82%, improving to 94% with 100% oxygen via nonrebreathing mask; subcostal and intercostal retractions; nasal flaring. Circulation: heart rate 210/min; blood pressure 74/35 mmHg; central pulses weak, peripheral pulses very weak; cool peripherally; capillary refill 4-5 seconds. Disability: opens eyes to voice; intermittently moaning. Exposure: temperature 37.6 °C; weight 30 kg.',
+      secondary:'Deferred until after rhythm conversion except to identify reversible causes. If cardioversion is correctly performed: heart rate 124/min, sinus rhythm, respiratory rate 28/min, SpO₂ 97% with 100% oxygen via nonrebreathing mask, blood pressure 105/78 mmHg. Retractions less pronounced; breath sounds equal bilaterally, no wheezes or crackles; no murmur, gallop or rub; central pulses now strong; capillary refill 3 seconds; extremities warming; pupils equal and reactive; opens eyes, moves all extremities spontaneously and answers questions.',
+      labs:'Point-of-care glucose 88 mg/dL after conversion.',
+      scene:'Prehospital — a house. Runs equally in the ED, a general inpatient unit or the ICU.',
+    },
+    results:[
+      {title:'POC glucose',value:'88',unit:'mg/dL',detail:'After conversion.',
+       note:'The manual’s own value.'},
+    ],
+    states:[
+      {actions:[
+        'Activate the emergency response system; request additional assistance if needed',
+        'Administer 100% oxygen by nonrebreathing face mask',
+        'Apply cardiac monitor or monitor/defibrillator, blood pressure cuff and pulse oximeter',
+        'Obtain vascular access (intravenous/intraosseous), but do not delay cardioversion',
+        'Attach pads and begin recording a rhythm strip',
+        '"Clear" and perform synchronized cardioversion (0.5-1 J/kg)',
+        'If the initial synchronized cardioversion is unsuccessful, immediately "clear" and perform synchronized cardioversion with 2 J/kg',
+        'Identify reversible causes, deferring the remainder of the secondary assessment until rhythm conversion',
+      ],trigger:'Synchronized cardioversion provided correctly → Cardioverted.\n\nNo cardioversion → perfusion worsens (BP 68/33, capillary refill 6-7 seconds).\n\nSedation in hemodynamically unstable SVT is not routinely recommended, and cardioversion is not delayed to give one.'},
+      {actions:[
+        'Recognise worsening perfusion — weak central and very faint peripheral pulses, capillary refill 6-7 seconds',
+        'Deliver synchronized cardioversion without further delay (0.5-1 J/kg, then 2 J/kg)',
+        'Re-evaluate–identify–intervene after each intervention',
+      ],trigger:'The manual: wide-complex tachycardia with a pulse and poor perfusion converts to sinus rhythm if synchronized cardioversion is provided correctly → Cardioverted.'},
+      {actions:[
+        'Complete the secondary assessment deferred until rhythm conversion',
+        'Reassess perfusion, mental status and respiratory effort after conversion',
+        'Obtain point-of-care glucose',
+      ],trigger:'PROGRAM-AUTHORED, not the manual: page 159 carries the AHA’s own post-conversion Intervene list and is not in the scan this case was built from. Replace these three actions when that page is added.'},
+    ],
+  },
+  pals12:{
+    brief:{
+      patient:'Infant · 6 months · 8 kg by colour-coded length-based resuscitation tape',
+      dispatch:'Prehospital: You are dispatched to a home where a 6-month-old suddenly became gray and apneic. The babysitter called 911 and initiated CPR.\n\nThe manual also runs this case from the ED, a general inpatient unit and the ICU, with CPR already in progress in each.',
+      hpi:'Suddenly became limp and gray with no precursors. CPR in progress on arrival.\n\nDerived values: the manual records heart rate, blood pressure and respiratory rate as "CPR in progress", SpO₂ as not obtainable, and temperature as deferred. The VT rate (220), EtCO₂ (18) and the arrest temperature (36.4 °C, carried back from the post-ROSC reading) are ours. Everything from ROSC onward is the manual’s.',
+      handoff:'The babysitter found the infant limp and gray and began CPR before EMS arrival.',
+      withhold:'Blood work and the chest x-ray are not available during the scenario — the glucose of 112 mg/dL and the normal chest film exist only after ROSC.',
+      sample:[['Signs / symptoms','Infant suddenly became limp; no precursors'],['Allergies','None known'],['Medications','None'],['Past history','None'],['Last oral intake','1 hour ago'],['Events','Suddenly became gray and apneic; bystander CPR started']],
+      primary:'Deferred to initiate immediate basic life support, then focused on airway, oxygenation, ventilation and perfusion. PAT: extremities limp, no spontaneous movement, no visible reaction to noise; no spontaneous breathing; cyanotic/pale extremities and lips with overall gray colour. No response, no breathing and no brachial pulse on the simultaneous check. The monitor reveals pulseless VT. Weight 8 kg per colour-coded length-based resuscitation tape.',
+      secondary:'Deferred except to identify reversible causes (H’s and T’s) — do not interrupt resuscitation. Vital signs after ROSC following high-quality CPR, 3 shocks, 1 dose of epinephrine and 1 dose of antiarrhythmic: sinus rhythm, heart rate 140/min, respiratory rate 30/min by bag-mask ventilation, SpO₂ 98%, blood pressure 84/50 mmHg, temperature 36.4 °C. If no shock is delivered, pulseless VT continues.',
+      labs:'After ROSC only: blood glucose 112 mg/dL (6.2 mmol/L); arterial or venous blood gas, electrolytes, calcium, magnesium; chest x-ray showing normal heart and lung fields.',
+      scene:'Prehospital — a home, with the babysitter performing CPR. Runs equally as a code team response in hospital.',
+    },
+    results:[
+      {title:'Labs / imaging',value:'Not available',unit:'',
+       detail:'Blood work and the chest x-ray are not available during the scenario.',
+       note:'The answer for a crew who asks mid-arrest. The manual withholds both until ROSC, and saying so is the teaching point — send it rather than leaving the question hanging.'},
+      {title:'Blood glucose',value:'112',unit:'mg/dL',detail:'6.2 mmol/L.',
+       note:'After ROSC only. The manual’s own value.'},
+      {title:'Chest x-ray',value:'Normal',unit:'',detail:'Normal heart and lung fields.',
+       note:'After ROSC only. The manual’s own finding.'},
+    ],
+    states:[
+      {actions:[
+        'Activate the emergency response system; request additional assistance if needed',
+        'Check for response and perform a simultaneous check for breathing and brachial pulse',
+        'Immediately begin high-quality CPR, using a CPR feedback device if available',
+        'When the defibrillator arrives, apply pads/leads and turn on the monitor',
+        'Identify the rhythm: pulseless VT, shockable',
+        'Attempt defibrillation with 2 J/kg as soon as possible',
+        'Resume high-quality CPR immediately after shock delivery; reassess the rhythm every 2 minutes',
+        'Obtain vascular access (intravenous/intraosseous)',
+        'If a shockable rhythm persists at the second rhythm check, give a second shock of 4 J/kg followed by immediate CPR',
+        'Prepare and administer epinephrine 0.01 mg/kg (0.1 mg/mL concentration; maximum dose 1 mg) IV/IO during chest compressions, repeating every 3-5 minutes',
+        'If a shockable rhythm persists at the third rhythm check, deliver a shock, resume CPR and give amiodarone 5 mg/kg IV/IO (maximum single dose 300 mg) or lidocaine 1 mg/kg — avoiding amiodarone in long QT syndrome',
+        'Manage the airway (endotracheal intubation or supraglottic airway) without causing delays to CPR; apply the pulse oximeter per local protocol, which may be deferred until ROSC',
+      ],trigger:'Three shocks with high-quality CPR, one dose of epinephrine and one antiarrhythmic → ROSC.\n\nIf no shock is delivered, pulseless VT continues.\n\nSubsequent shocks are 4 J/kg or higher (maximum 10 J/kg or the standard adult dose for that defibrillator).'},
+      {actions:[
+        'Identify ROSC and reassess airway, breathing and circulation',
+        'Continue bag-mask ventilation and confirm the post-arrest vital signs',
+        'Obtain blood glucose (112 mg/dL) and consider electrolytes, calcium and magnesium',
+        'Recall the reversible causes of the arrest (H’s and T’s) for the debriefing',
+      ],trigger:'Post-ROSC care and advanced airway insertion are beyond the scope of this practice case — the manual addresses post-ROSC care in the asystole scenario. End the simulation at ROSC with the reversible causes discussed.'},
     ],
   },
 };
@@ -2644,6 +3050,7 @@ function applyScenario(){
   // Fallback — no states defined, just apply vitals and clear panel
   activeSim=null; activeStateIdx=-1;
   renderSimPanel(null);
+  paintPoc();
   const sc=SCENARIOS[key];
   if(!sc) return;
   S.scenario=key;
@@ -2668,7 +3075,11 @@ function applySimScenario(){
   // (no approved action list, so no run) reach nothing that would, so they get
   // the clean slate here.
   if(!SCENARIO_DOCS[entry.sim]) resetForNewScenario();
+  // A new case is a new patient — the last one's glucose must not still be on
+  // the crew's screen, and the buttons offered have to become this case's.
+  S.poc=null;
   applySimState(entry.sim,entry.idx);
+  paintPoc();
   // Clear the quick scenario dropdown so it doesn't look selected
   document.getElementById('scenarioSel').value='';
 }
@@ -3174,7 +3585,17 @@ function o2Goal(){
   const r=st&&st.o2Response;
   if(r&&r.responds===false) return {blocked:true,why:r.why||'This patient will not improve on oxygen alone.'};
   const base=(st&&st.vitals&&typeof st.vitals.spo2==='number')?st.vitals.spo2:S.spo2;
-  const target=Math.min(99,(r&&typeof r.target==='number')?r.target:base+dev.boost);
+  // A target the scenario author wrote is honoured; only the derived one is
+  // capped. The 99 ceiling is a reasonable guess about what oxygen alone
+  // achieves when nobody has said — it is not a fact to hold a document to, and
+  // applied to both it silently rewrote an author. AHA PALS case 9 states
+  // "SpO₂ 92% before supplemental oxygen and 100% after", and that case's own
+  // converted state carries 100, so the trend used to stop a point short of the
+  // number the next screen shows. Same principle as the physiology lock: bounds
+  // belong on values we inferred, never on values someone chose.
+  const target=(r&&typeof r.target==='number')
+    ? Math.max(0,Math.min(100,r.target))
+    : Math.min(99,base+dev.boost);
   const perMin=(r&&r.perMin)||18;
   return {target,perSec:Math.max(0.05,perMin/60)};
 }
@@ -3368,6 +3789,8 @@ function renderInterventions(){
     `<span class="iv-f">Access ${sel('access',ACCESS,crewDid.access)}</span>`+
     note;
   els.forEach(el=>{ el.innerHTML=html; });
+  // The run card was just rebuilt, so its copy of the result buttons is empty.
+  paintPoc();
 }
 
 // Auto-tick.
@@ -3908,6 +4331,13 @@ function renderSimPanel(simKey){
         </div>
       </div>
       <div class="iv-strip"></div>
+      <!-- The crew's questions, answered from where the facilitator's hands
+           already are. The full control — free text, and the clear — is the
+           Point-of-Care card in the grid below; this is the one-tap half of it,
+           because scrolling the panel to answer a glucose mid-arrest is exactly
+           the friction this was built to remove. Rendered by the same paintPoc()
+           into every .poc-presets on the page. -->
+      <div class="poc-presets poc-inline"></div>
       <div class="run-cols">
         <div><div class="col-h">Patient state — click to drive</div>${states}${advanceHtml}${surgeHtml}</div>
         <div>${run&&run.checklist
@@ -4246,6 +4676,7 @@ makeFocusable();
 setSessionUi('off');
 document.getElementById('sgInner').querySelectorAll('input,select').forEach(el=>{el.disabled=true;});
 updateAllUI();
+paintPoc();
 flushSave();
 </script>
 </body>
