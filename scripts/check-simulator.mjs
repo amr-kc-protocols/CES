@@ -151,6 +151,13 @@ function endRunSaving(w) {
   w.sv('sbp', 84)
   w.sv('dbp', 54)
   ok('but a perfusing V-Tach is expressible', S().sbp === 84 && S().dbp === 54, `${S().sbp}/${S().dbp}`)
+  // Saturation is not a fact about the rhythm. AHA PALS practice case 10 is a
+  // stable, well-perfused infant in a wide-complex tachycardia at 97%, and the
+  // old ceiling of 96 dragged that patient down the moment anything else moved.
+  w.sv('spo2', 97)
+  ok('a stable wide-complex tachycardia holds its saturation', S().spo2 === 97, String(S().spo2))
+  w.sv('spo2', 0)
+  ok('and a pulseless one is still expressible at 0', S().spo2 === 0, String(S().spo2))
 
   // EtCO2 in arrest reflects compression quality and must stay free.
   w.setR('vfib')
@@ -166,6 +173,8 @@ function endRunSaving(w) {
 {
   const { w, d, S, text } = load()
 
+  const sims = w.eval('SIMULATIONS')
+
   d.getElementById('simScenarioSel').value = 'asthma_initial'
   w.applySimScenario()
   ok('a sim that sets the capnogram moves the select', d.getElementById('co2ShapeSel').value === 'shark')
@@ -173,6 +182,34 @@ function endRunSaving(w) {
   d.getElementById('simScenarioSel').value = 'peds_tbi_initial'
   w.applySimScenario()
   ok('pediatric sims set the patient type', d.getElementById('patientTypeSel').value === 'Pediatric')
+
+  // Every option in the picker has to resolve to something. applySimScenario()
+  // silently returns when it does not, so a typo in a value is a menu entry
+  // that looks live and does nothing when a facilitator taps it mid-class.
+  const options = [...d.querySelectorAll('#simScenarioSel option')]
+    .map((o) => o.value)
+    .filter(Boolean)
+  const simMapKeys = ['drowning_initial', 'asthma_initial', 'abdominal_trauma_initial', 'peds_tbi_initial']
+  for (const value of options) {
+    ok(
+      `the picker entry "${value}" loads a scenario`,
+      !!sims[value] || simMapKeys.includes(value),
+      value,
+    )
+  }
+
+  // The PALS practice cases are children, and the monitor draws pediatric
+  // patients differently. An adult patientType here would put adult reference
+  // ranges on a 3-month-old.
+  for (const key of Object.keys(sims).filter((k) => k.startsWith('pals'))) {
+    ok(`${key}: is a pediatric patient`, sims[key].patientType === 'Pediatric', sims[key].patientType)
+    // A practice case is not a megacode test: it publishes no PASS/NR
+    // instrument, so it must not claim one.
+    ok(`${key}: carries no testing checklist`, !sims[key].checklist, String(sims[key].checklist))
+    d.getElementById('simScenarioSel').value = key
+    w.applySimScenario()
+    ok(`${key}: loads and sets the patient type`, d.getElementById('patientTypeSel').value === 'Pediatric')
+  }
 
   w.toggleArt()
   d.getElementById('scenarioSel').value = 'normal'
@@ -2214,7 +2251,23 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   const { w, d, S } = load()
   const sims = w.eval('SIMULATIONS')
   const withCue = Object.keys(sims).filter((k) => (sims[k].states || []).some((st) => st.advanceOn))
-  ok('the defibrillation scenarios script a shock count', withCue.length === 5, withCue.join(','))
+  // Counted by property rather than by a number: this used to assert "5", which
+  // is a fact about how many scenarios existed the day it was written, and the
+  // first PALS arrest case broke it without anything being wrong. What has to
+  // hold is that a scripted cue is usable — a positive shock count, and a stage
+  // after it to move into.
+  ok('some scenarios script a shock count', withCue.length > 0, withCue.join(','))
+  for (const k of withCue) {
+    sims[k].states.forEach((st, i) => {
+      if (!st.advanceOn) return
+      ok(
+        `${k}[${i}]: the scripted shock count is a positive number`,
+        Number.isInteger(st.advanceOn.shocks) && st.advanceOn.shocks > 0,
+        String(st.advanceOn.shocks),
+      )
+      ok(`${k}[${i}]: there is a stage to advance into`, !!sims[k].states[i + 1])
+    })
+  }
 
   d.getElementById('simScenarioSel').value = 'megacode1'
   w.applySimScenario()

@@ -674,6 +674,57 @@ the AHA specified.
   radial pulses, and that patient is the whole reason the tachycardia algorithm
   exists. These are upper bounds, so pulseless VT at 0/0 is still expressible.
 
+## PALS practice cases
+
+Practice case scenarios 9-12 from the AHA PALS course, **© 2025 American Heart
+Association / American Academy of Pediatrics**, as used by this AHA Training
+Center.
+
+These are not megacodes, and the difference decides how a run is recorded. A
+practice case publishes learning objectives and an Intervene list but **no
+PASS / NR instrument**, so — like the quarterly simulations — a PALS run records
+what the crew did and prints as a performance record. No outcome is invented.
+Grading a PALS run would need the PALS Megacode Testing Checklist, which is a
+separate published instrument and is not transcribed here.
+
+| Case | Patient | Rhythm | States |
+|---|---|---|---|
+| `pals9` | Adolescent, 12 y, 50 kg — unstable | SVT at 235 | Unstable SVT → No Conversion / Converted |
+| `pals10` | Infant, 3 mo, 6 kg — **stable** | Wide-complex at 220 | Stable WCT → Rhythm Persists |
+| `pals11` | Child, 10 y, 30 kg — unstable | Wide-complex at 210 | Unstable WCT → No Cardioversion / Cardioverted |
+| `pals12` | Infant, 6 mo, 8 kg — arrest | Pulseless VT | Pulseless VT → ROSC (scripted at 3 shocks) |
+
+`pals10` is the one to watch in a debrief: it is the only case here whose right
+answer is to *not* reach for electricity. The infant is in a wide-complex
+tachycardia at 220 and is perfusing well, and the objective is assessing that
+correctly rather than treating the number.
+
+**Where the manual leaves a vital blank** — EtCO₂ in every one of these cases,
+temperature on both infants, and the VT rate in the arrest — the value in
+`SIMULATIONS` is ours, inferred from the rhythm and the described state, and
+`SCENARIO_DOCS` says so in the brief. One case also disagrees with itself:
+scenario 9's Vital Signs box reads 70/40 while its primary assessment reads
+75/55. The monitor carries the box value and the state note carries the other,
+rather than quietly picking one.
+
+**Two of the four are transcribed from the first two pages only.** Scenario 9's
+diagnostic-assessments band (p. 151) and scenario 11's post-conversion Intervene
+list (p. 159) were not in the scan they were built from. Scenario 11's third
+state therefore carries three program-authored actions, and its trigger text
+says so in capitals so nobody grades a crew against the program's guess at the
+AHA's list. Scenarios 10 and 12 are complete.
+
+### The physiology-lock rule this content corrected
+
+- **V-Tach no longer caps saturation.** It was held at 96%, which is the wrong
+  kind of rule: oxygenation is a fact about the lungs and the oxygen being
+  delivered, not about the rhythm. PALS case 10 is a stable, well-perfused
+  3-month-old in a wide-complex tachycardia saturating **97%** — the old ceiling
+  dragged that infant to 96 the moment any other slider moved. It never
+  protected against the error it appeared to: 96% on a pulseless patient is
+  exactly as impossible as 98%. Pulseless VT is still expressible at 0, because
+  ceilings do not push a value up.
+
 ## Physiology lock
 
 On by default. It exists so an instructor cannot broadcast a combination that
@@ -846,3 +897,17 @@ improvement.
   transcribed.
 - **Adult Abdominal Trauma and Pediatric TBI have no source document.** They
   keep their vitals and notes but are not graded.
+- **PALS cases 9 and 11 are missing their last page.** Scenario 9's
+  diagnostic-assessments band (p. 151) and scenario 11's post-conversion
+  Intervene list (p. 159) were not in the scan. Scenario 11's third state runs
+  on program-authored actions until p. 159 is added; its trigger says so.
+- **PALS runs are not graded.** The practice cases publish no PASS / NR
+  instrument. Grading one needs the PALS Megacode Testing Checklist, which is
+  not transcribed — the ACLS checklists are the only published instrument in
+  `ACLS_CHECKLISTS`.
+- **The medication buttons carry adult doses in their labels.** They apply a
+  physiologic effect rather than a dose, so they behave correctly on a child,
+  but "Adenosine 6 mg rapid IV push" is the adult label beside a case whose
+  correct dose is 0.1 mg/kg. The weight-based doses are in each PALS case's
+  expected actions and coaching notes; the buttons have not been made
+  weight-aware.
