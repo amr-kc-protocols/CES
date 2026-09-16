@@ -1,6 +1,6 @@
 import { esc } from '../academy/docGen'
 import { formatDate, formatDateTime } from '../../lib/date'
-import type { SimRun } from '../../types'
+import type { SimRun, SimRunState } from '../../types'
 
 // ---------------------------------------------------------------------------
 // The printed check-off sheet.
@@ -265,8 +265,7 @@ function notesBlock(run: SimRun): string {
  */
 export function megacodeSheetHTML(run: SimRun): string {
   const [scenarios, path] = (run.checklistName ?? '').split(' — ')
-  const observed = run.states.reduce((n, s) => n + s.actions.filter((a) => a.done).length, 0)
-  const total = run.states.reduce((n, s) => n + s.actions.length, 0)
+  const { observed, total } = runTally(run)
   const seconds = run.states.reduce((n, s) => n + s.seconds, 0)
 
   const sections = run.states
@@ -311,9 +310,45 @@ export function megacodeSheetHTML(run: SimRun): string {
  * approved list of expected actions and define no pass mark, so printing one
  * with a PASS box would invent an outcome the program never set.
  */
+/**
+ * Was this state ever actually reached?
+ *
+ * The run carries every state the scenario defines, entered or not. That is
+ * right for an ACLS megacode, which is one sequence run to Post-Cardiac Arrest
+ * Care — a phase not reached there is a real gap. It is wrong for a scenario
+ * that BRANCHES, and the PALS practice cases branch by design: case 11 goes to
+ * "Cardioverted" or to "No Cardioversion — Worsening Perfusion", never both,
+ * and the second only happens when the crew fails to cardiovert.
+ *
+ * Counting the untaken branch marked a crew who did everything right 11 of 14,
+ * and printed the branch they correctly never caused as a column of misses. A
+ * state nobody entered is not evidence about the crew: it is a road not taken.
+ * So it is reported as not reached, and its actions leave the denominator.
+ *
+ * Seconds OR a tick, because a facilitator can tick an action the moment a
+ * state opens and move on inside the same second.
+ */
+export function stateReached(st: SimRunState): boolean {
+  return st.seconds > 0 || st.actions.some((a) => a.done)
+}
+
+/**
+ * Observed, out of what the run actually visited.
+ *
+ * Megacodes keep the whole-scenario denominator: they are sequential, and the
+ * "PASS with most of the critical actions unobserved" warning depends on it.
+ */
+export function runTally(run: SimRun): { observed: number; total: number; unreached: SimRunState[] } {
+  const counted = run.checklist ? run.states : run.states.filter(stateReached)
+  return {
+    observed: counted.reduce((n, s) => n + s.actions.filter((a) => a.done).length, 0),
+    total: counted.reduce((n, s) => n + s.actions.length, 0),
+    unreached: run.checklist ? [] : run.states.filter((s) => !stateReached(s) && s.actions.length > 0),
+  }
+}
+
 export function scenarioRecordHTML(run: SimRun): string {
-  const observed = run.states.reduce((n, s) => n + s.actions.filter((a) => a.done).length, 0)
-  const total = run.states.reduce((n, s) => n + s.actions.length, 0)
+  const { observed, total, unreached } = runTally(run)
   const seconds = run.states.reduce((n, s) => n + s.seconds, 0)
 
   // Deliberately not the AHA sheet's furniture — no red bands, no result, no
@@ -322,6 +357,11 @@ export function scenarioRecordHTML(run: SimRun): string {
   const sections = run.states
     .map((st) => {
       if (!st.actions.length && !st.seconds) return ''
+      // A branch the scenario never took is named, and then left alone. Ruling
+      // its actions off as unobserved would read as a list of failures.
+      if (!stateReached(st) && !run.checklist) {
+        return `<tr class="rec-sec"><td>${esc(st.section || st.label)}</td><td class="tick">not reached</td></tr>`
+      }
       const done = st.actions.filter((a) => a.done).length
       const tally = st.actions.length
         ? `${done}/${st.actions.length} · ${mmss(st.seconds)}`
@@ -355,7 +395,15 @@ export function scenarioRecordHTML(run: SimRun): string {
       <div class="aha-prov">
         Recorded in CES · run time ${mmss(seconds)} · ${esc(formatDateTime(run.startedAt))} to
         ${esc(formatDateTime(run.endedAt))}. Expected actions are the scenario's own. This
-        scenario defines no pass mark, so this record states what was observed and nothing more.
+        scenario defines no pass mark, so this record states what was observed and nothing more.${
+          unreached.length
+            ? ` ${unreached.length} state${unreached.length === 1 ? '' : 's'} the run never entered ${
+                unreached.length === 1 ? 'is' : 'are'
+              } named above as not reached; ${
+                unreached.length === 1 ? 'its' : 'their'
+              } actions are not counted, being a branch this patient did not take.`
+            : ''
+        }
       </div>
       ${deviceBlock(run)}
       ${notesBlock(run)}

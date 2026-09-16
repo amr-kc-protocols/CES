@@ -352,6 +352,60 @@ ok(
   'the record does not claim every ungraded scenario is a quarterly one',
 )
 
+// A branch the run never took is not evidence about the crew.
+//
+// The PALS practice cases branch: case 11 goes to "Cardioverted" or to "No
+// Cardioversion — Worsening Perfusion", never both, and the second only happens
+// when the crew fails to cardiovert. Counting the untaken branch read a crew
+// who did everything right as 11 of 14 and printed the branch they correctly
+// never caused as a column of misses.
+const branched = {
+  ...quarterly,
+  states: [
+    { id: 'a', label: 'Unstable', seconds: 40, actions: [
+      { text: 'Cardiovert at 0.5-1 J/kg', done: true },
+      { text: 'Apply the monitor', done: true },
+    ] },
+    { id: 'b', label: 'No Cardioversion — Worsening Perfusion', seconds: 0, actions: [
+      { text: 'Recognise worsening perfusion', done: false },
+      { text: 'Cardiovert without further delay', done: false },
+    ] },
+    { id: 'c', label: 'Cardioverted — Sinus Rhythm', seconds: 30, actions: [
+      { text: 'Reassess after conversion', done: true },
+    ] },
+  ],
+}
+const branchedHtml = scenarioRecordHTML(branched)
+ok(/observed<\/span> 3 of 3/.test(branchedHtml), 'the untaken branch leaves the denominator')
+ok(/No Cardioversion — Worsening Perfusion<\/td><td class="tick">not reached/.test(branchedHtml),
+  'and is named as not reached rather than ruled off')
+ok(!/Recognise worsening perfusion/.test(branchedHtml),
+  'its actions are not printed as misses the crew never had the chance to commit')
+ok(/branch this patient did not take/.test(branchedHtml), 'and the record says why it is not counted')
+// A state that was entered still counts every action, ticked or not.
+const entered = scenarioRecordHTML({
+  ...branched,
+  states: branched.states.map((st) => (st.id === 'b' ? { ...st, seconds: 25 } : st)),
+})
+ok(/observed<\/span> 3 of 5/.test(entered), 'a state the run DID enter keeps its unticked actions in the count')
+ok(/Recognise worsening perfusion/.test(entered), 'and prints them')
+// A tick inside a state entered and left within the same second still counts.
+const sameSecond = scenarioRecordHTML({
+  ...branched,
+  states: branched.states.map((st) =>
+    st.id === 'b' ? { ...st, actions: [{ ...st.actions[0], done: true }, st.actions[1]] } : st,
+  ),
+})
+ok(/observed<\/span> 4 of 5/.test(sameSecond), 'a ticked action counts as having reached the state')
+
+// Megacodes are sequential and keep the whole-scenario denominator: the "PASS
+// with most of the critical actions unobserved" warning depends on it.
+const shortMegacode = megacodeSheetHTML({
+  ...run,
+  states: run.states.map((st, i) => (i === run.states.length - 1 ? { ...st, seconds: 0, actions: st.actions.map((a) => ({ ...a, done: false })) } : st)),
+})
+ok(!/not reached/.test(shortMegacode), 'the AHA sheet is unchanged — every published step still prints')
+
 ok(runSheetHTML(quarterly) === record, 'runSheetHTML picks the record for a quarterly run')
 ok(runSheetHTML(run) === sheet, 'and the AHA sheet for a megacode')
 ok(/Megacode Testing Checklist — A\. Rivera/.test(runSheetTitle(run)), 'the print title names the student')
