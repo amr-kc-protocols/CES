@@ -210,6 +210,46 @@ select:focus{border-color:var(--accent);}
 .row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .badge{background:var(--inset);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:.8rem;font-weight:bold;min-width:42px;text-align:center;}
 
+/* ── Numbers you set, rather than aim at ────────────────────────────────────
+   Every vital on this page used to be a range slider with the value printed in
+   a badge beside it. Seventeen of them. Two things were wrong with that, and
+   both were reported from live runs rather than guessed at.
+
+   A slider cannot be set, only approached. "Put the systolic at 74" is one
+   keystroke and one number; on a 0-250 slider 130px wide it is half a pixel per
+   mmHg and a drag you have to check afterwards — and checking it means reading
+   a badge somewhere else on the row, so the control and its value were never in
+   the same place. Facilitators overshot, and overshooting is not free: the
+   monitor is live, so every intermediate value on the way to 74 is a number the
+   crew watched appear.
+
+   And a slider hides where you are. Seventeen thumbs at seventeen fractions of
+   seventeen different ranges tell you nothing at a glance; seventeen numbers
+   tell you the patient.
+
+   So: the number is the control. Type it, or step it by a clinically sensible
+   amount — 5 mmHg, 5 bpm, 1%. The field commits on change rather than on every
+   keystroke, because a field being typed into passes through 1 and 12 on its
+   way to 120 and the crew is watching that screen. */
+.step{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:8px;
+  background:var(--inset);overflow:hidden;max-width:236px;margin-bottom:8px;}
+.step .st-b{flex:0 0 44px;min-height:40px;background:var(--surface-2);border:none;
+  color:var(--t);font-size:1.1rem;line-height:1;cursor:pointer;font-family:inherit;
+  transition:background .12s,color .12s;}
+.step .st-b:hover{background:var(--accent-tint);color:var(--accent);}
+.step .st-b:active{background:var(--accent);color:#04121d;}
+.step .st-b:focus-visible{outline:2px solid var(--accent);outline-offset:-3px;}
+.step .st-n{flex:1 1 auto;min-width:0;width:100%;text-align:center;background:transparent;
+  border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);
+  color:var(--t-strong);font-family:'Courier New',monospace;font-size:1rem;font-weight:bold;
+  font-variant-numeric:tabular-nums;padding:8px 4px;margin:0;appearance:textfield;
+  -moz-appearance:textfield;}
+/* The browser's own spinners are 12px tall and sit on top of the − and + that
+   are actually sized for a finger. */
+.step .st-n::-webkit-outer-spin-button,
+.step .st-n::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.step .st-n:focus{outline:2px solid var(--accent);outline-offset:-2px;}
+
 /* Keyboard focus. Every control below is reachable by Tab — the clickable
    divs are given button semantics in script, and a focus ring is the only
    thing that tells a keyboard user where they are. */
@@ -470,7 +510,16 @@ select:focus{border-color:var(--accent);}
 #runWrap{margin-bottom:12px;}
 .run-card.condensed{padding:0 12px;position:fixed;top:0;left:50%;
   transform:translateX(-50%);width:min(960px,calc(100vw - 40px));z-index:40;}
+/* Everything but the bar. The interventions strip and the one-tap point-of-care
+   answers were added to the card after this list was written and never joined
+   it, so "a single 52px line" was in fact 270px of fixed-position card sitting
+   over the drug buttons. That went unnoticed while collapsing took a deliberate
+   press of ▲ and almost nobody took it; it is impossible to miss now that the
+   bar comes up by itself. Both are one tap away — the bar opens the card — and
+   the point-of-care answers have a second home in the grid regardless. */
 .run-card.condensed .run-head,
+.run-card.condensed .iv-strip,
+.run-card.condensed .poc-presets,
 .run-card.condensed .run-cols{display:none;}
 .run-card.condensed .run-mini{display:flex;}
 .run-mini .rm-chev{color:var(--t-dim);font-size:.8rem;width:14px;flex:0 0 auto;}
@@ -1041,9 +1090,14 @@ body.run-mode .card.bp{grid-row:1/3;}
   <h2>ECG / Heart Rate</h2>
   <button id="btn12Lead" onclick="open12LeadCP()" style="width:100%;padding:10px;margin-bottom:10px;background:var(--inset);border:1px solid var(--accent);border-radius:7px;color:var(--accent);font-family:'Courier New',monospace;font-size:.75rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--inset)'">⊞ Open 12-Lead ECG</button>
   <label for="hr">Heart Rate (bpm)</label>
-  <div class="row">
-    <input type="range" id="hr" min="0" max="250" value="78" oninput="sv('hr',+this.value)">
-    <span class="badge" id="hrv">78</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('hr',-1)"
+            aria-label="Heart rate down 5">−</button>
+    <input type="number" class="st-n" id="hr" inputmode="decimal"
+           min="0" max="250" step="any" data-step="5" value="78"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('hr',this.value)">
+    <button type="button" class="st-b" onclick="numStep('hr',1)"
+            aria-label="Heart rate up 5">+</button>
   </div>
   <div class="pacer-prompt" hidden></div>
   <div class="rcat">Sinus</div>
@@ -1081,14 +1135,24 @@ body.run-mode .card.bp{grid-row:1/3;}
 <div class="card bp">
   <h2>Blood Pressure (NIBP)</h2>
   <label for="sbp">Systolic (mmHg)</label>
-  <div class="row">
-    <input type="range" id="sbp" min="0" max="250" value="121" oninput="sv('sbp',+this.value)">
-    <span class="badge" id="sbpv">121</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('sbp',-1)"
+            aria-label="Systolic down 5">−</button>
+    <input type="number" class="st-n" id="sbp" inputmode="decimal"
+           min="0" max="250" step="any" data-step="5" value="121"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('sbp',this.value)">
+    <button type="button" class="st-b" onclick="numStep('sbp',1)"
+            aria-label="Systolic up 5">+</button>
   </div>
   <label for="dbp">Diastolic (mmHg)</label>
-  <div class="row">
-    <input type="range" id="dbp" min="0" max="160" value="79" oninput="sv('dbp',+this.value)">
-    <span class="badge" id="dbpv">79</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('dbp',-1)"
+            aria-label="Diastolic down 5">−</button>
+    <input type="number" class="st-n" id="dbp" inputmode="decimal"
+           min="0" max="160" step="any" data-step="5" value="79"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('dbp',this.value)">
+    <button type="button" class="st-b" onclick="numStep('dbp',1)"
+            aria-label="Diastolic up 5">+</button>
   </div>
 </div>
 
@@ -1096,14 +1160,24 @@ body.run-mode .card.bp{grid-row:1/3;}
 <div class="card spo2">
   <h2>SpO₂ / Pulse Ox</h2>
   <label for="spo2">SpO₂ (%)</label>
-  <div class="row">
-    <input type="range" id="spo2" min="0" max="100" value="97" oninput="sv('spo2',+this.value)">
-    <span class="badge" id="spo2v">97</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('spo2',-1)"
+            aria-label="Oxygen saturation down 1">−</button>
+    <input type="number" class="st-n" id="spo2" inputmode="decimal"
+           min="0" max="100" step="any" data-step="1" value="97"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('spo2',this.value)">
+    <button type="button" class="st-b" onclick="numStep('spo2',1)"
+            aria-label="Oxygen saturation up 1">+</button>
   </div>
   <label for="rr_spo2">Respiratory Rate (br/min)</label>
-  <div class="row">
-    <input type="range" id="rr_spo2" min="0" max="60" value="11" oninput="sv('rr',+this.value)">
-    <span class="badge" id="rrv_spo2">11</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('rr_spo2',-1)"
+            aria-label="Respiratory rate down 1">−</button>
+    <input type="number" class="st-n" id="rr_spo2" inputmode="decimal"
+           min="0" max="60" step="any" data-step="1" value="11"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('rr_spo2',this.value)">
+    <button type="button" class="st-b" onclick="numStep('rr_spo2',1)"
+            aria-label="Respiratory rate up 1">+</button>
   </div>
   <label for="spo2QualSel">Signal Quality</label>
   <select id="spo2QualSel" onchange="sv('spo2Quality',this.value)">
@@ -1126,9 +1200,14 @@ body.run-mode .card.bp{grid-row:1/3;}
     <div class="atog off" id="etco2OnBtn" onclick="toggleEtco2()" style="flex:1;text-align:center;">⬤ EtCO₂ OFF</div>
   </div>
   <label for="etco2">EtCO₂ (mmHg)</label>
-  <div class="row">
-    <input type="range" id="etco2" min="0" max="80" value="36" oninput="sv('etco2',+this.value)">
-    <span class="badge" id="etco2v">36</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('etco2',-1)"
+            aria-label="End-tidal CO2 down 2">−</button>
+    <input type="number" class="st-n" id="etco2" inputmode="decimal"
+           min="0" max="80" step="any" data-step="2" value="36"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('etco2',this.value)">
+    <button type="button" class="st-b" onclick="numStep('etco2',1)"
+            aria-label="End-tidal CO2 up 2">+</button>
   </div>
   <label for="co2ShapeSel">Waveform Shape</label>
   <select id="co2ShapeSel" onchange="sv('co2Shape',this.value)">
@@ -1311,10 +1390,14 @@ body.run-mode .card.bp{grid-row:1/3;}
     <div class="rbtn" id="pacBtn" onclick="toggleEctopic('pac')" style="border-color:var(--accent);color:var(--accent);">PAC</div>
   </div>
   <label for="ectFreq">Ectopic Frequency <span id="ectFreqLbl" style="color:var(--t);">— every 6 beats</span></label>
-  <div class="row">
-    <input type="range" id="ectFreq" min="2" max="12" value="6" step="1"
-      oninput="sv('ectFreq',+this.value);updateEctFreqLbl(+this.value)">
-    <span class="badge" id="ectFreqV">6</span>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('ectFreq',-1)"
+            aria-label="Ectopic frequency down 1">−</button>
+    <input type="number" class="st-n" id="ectFreq" inputmode="decimal"
+           min="2" max="12" step="any" data-step="1" value="6"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('ectFreq',this.value)">
+    <button type="button" class="st-b" onclick="numStep('ectFreq',1)"
+            aria-label="Ectopic frequency up 1">+</button>
   </div>
   <label for="leadSel">Lead</label>
   <select id="leadSel" onchange="sv('lead',this.value)">
@@ -1335,10 +1418,15 @@ body.run-mode .card.bp{grid-row:1/3;}
 
 <div class="card temp">
   <h2>Temperature</h2>
-  <label for="temp">Temperature</label>
-  <div class="row">
-    <input type="range" id="temp" min="30" max="42" step="0.1" value="36.9" oninput="sv('temp',+this.value);updateTempDisplay()">
-    <span class="badge" id="tempv">36.9</span>
+  <label for="temp">Temperature (<span id="tempUnitHint">°C</span>)</label>
+  <div class="step">
+    <button type="button" class="st-b" onclick="numStep('temp',-1)"
+            aria-label="Temperature down 0.1">−</button>
+    <input type="number" class="st-n" id="temp" inputmode="decimal"
+           min="30" max="42" step="any" data-step="0.1" value="36.9"
+           onkeydown="numKey(event,this.id)" onchange="numCommit('temp',this.value)">
+    <button type="button" class="st-b" onclick="numStep('temp',1)"
+            aria-label="Temperature up 0.1">+</button>
   </div>
   <label for="tempUnitSel">Unit</label>
   <select id="tempUnitSel" onchange="sv('tempUnit',this.value);updateTempDisplay()">
@@ -1368,21 +1456,36 @@ body.run-mode .card.bp{grid-row:1/3;}
     </div>
     <div>
       <label for="hrLo">HR Alarm Low</label>
-      <div class="row">
-        <input type="range" id="hrLo" min="20" max="100" value="50" oninput="sv('hrAlarmLow',+this.value);document.getElementById('hrLov').textContent=this.value">
-        <span class="badge" id="hrLov">50</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('hrLo',-1)"
+                aria-label="Heart rate alarm low down 5">−</button>
+        <input type="number" class="st-n" id="hrLo" inputmode="decimal"
+               min="20" max="100" step="any" data-step="5" value="50"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('hrLo',this.value)">
+        <button type="button" class="st-b" onclick="numStep('hrLo',1)"
+                aria-label="Heart rate alarm low up 5">+</button>
       </div>
       <label for="hrHi">HR Alarm High</label>
-      <div class="row">
-        <input type="range" id="hrHi" min="80" max="250" value="120" oninput="sv('hrAlarmHigh',+this.value);document.getElementById('hrHiv').textContent=this.value">
-        <span class="badge" id="hrHiv">120</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('hrHi',-1)"
+                aria-label="Heart rate alarm high down 5">−</button>
+        <input type="number" class="st-n" id="hrHi" inputmode="decimal"
+               min="80" max="250" step="any" data-step="5" value="120"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('hrHi',this.value)">
+        <button type="button" class="st-b" onclick="numStep('hrHi',1)"
+                aria-label="Heart rate alarm high up 5">+</button>
       </div>
     </div>
     <div>
       <label for="spLo">SpO₂ Alarm Low</label>
-      <div class="row">
-        <input type="range" id="spLo" min="70" max="99" value="94" oninput="sv('spo2AlarmLow',+this.value);document.getElementById('spLov').textContent=this.value">
-        <span class="badge" id="spLov">94</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('spLo',-1)"
+                aria-label="Oxygen saturation alarm low down 1">−</button>
+        <input type="number" class="st-n" id="spLo" inputmode="decimal"
+               min="70" max="99" step="any" data-step="1" value="94"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('spLo',this.value)">
+        <button type="button" class="st-b" onclick="numStep('spLo',1)"
+                aria-label="Oxygen saturation alarm low up 1">+</button>
       </div>
     </div>
   </div>
@@ -1400,14 +1503,24 @@ body.run-mode .card.bp{grid-row:1/3;}
   <div class="art-inner">
     <div>
       <label for="artSbp">Systolic (mmHg)</label>
-      <div class="row">
-        <input type="range" id="artSbp" min="0" max="260" value="121" oninput="sv('artSbp',+this.value);refreshArt()">
-        <span class="badge" id="artSbpv">121</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('artSbp',-1)"
+                aria-label="Arterial systolic down 5">−</button>
+        <input type="number" class="st-n" id="artSbp" inputmode="decimal"
+               min="0" max="260" step="any" data-step="5" value="121"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('artSbp',this.value)">
+        <button type="button" class="st-b" onclick="numStep('artSbp',1)"
+                aria-label="Arterial systolic up 5">+</button>
       </div>
       <label for="artDbp">Diastolic (mmHg)</label>
-      <div class="row">
-        <input type="range" id="artDbp" min="0" max="160" value="79" oninput="sv('artDbp',+this.value);refreshArt()">
-        <span class="badge" id="artDbpv">79</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('artDbp',-1)"
+                aria-label="Arterial diastolic down 5">−</button>
+        <input type="number" class="st-n" id="artDbp" inputmode="decimal"
+               min="0" max="160" step="any" data-step="5" value="79"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('artDbp',this.value)">
+        <button type="button" class="st-b" onclick="numStep('artDbp',1)"
+                aria-label="Arterial diastolic up 5">+</button>
       </div>
       <label>Link to NIBP</label>
       <div class="alarm-row">
@@ -1460,24 +1573,44 @@ body.run-mode .card.bp{grid-row:1/3;}
   <div class="art-inner" id="sgInner" style="opacity:.4;">
     <div>
       <label for="sgSbp">PA Systolic (mmHg)</label>
-      <div class="row">
-        <input type="range" id="sgSbp" min="10" max="80" value="25" oninput="sv('sgSbp',+this.value);refreshSG()">
-        <span class="badge" id="sgSbpv">25</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('sgSbp',-1)"
+                aria-label="Pulmonary artery systolic down 1">−</button>
+        <input type="number" class="st-n" id="sgSbp" inputmode="decimal"
+               min="10" max="80" step="any" data-step="1" value="25"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('sgSbp',this.value)">
+        <button type="button" class="st-b" onclick="numStep('sgSbp',1)"
+                aria-label="Pulmonary artery systolic up 1">+</button>
       </div>
       <label for="sgDbp">PA Diastolic (mmHg)</label>
-      <div class="row">
-        <input type="range" id="sgDbp" min="2" max="40" value="10" oninput="sv('sgDbp',+this.value);refreshSG()">
-        <span class="badge" id="sgDbpv">10</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('sgDbp',-1)"
+                aria-label="Pulmonary artery diastolic down 1">−</button>
+        <input type="number" class="st-n" id="sgDbp" inputmode="decimal"
+               min="2" max="40" step="any" data-step="1" value="10"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('sgDbp',this.value)">
+        <button type="button" class="st-b" onclick="numStep('sgDbp',1)"
+                aria-label="Pulmonary artery diastolic up 1">+</button>
       </div>
       <label for="sgPcwp">PCWP (mmHg)</label>
-      <div class="row">
-        <input type="range" id="sgPcwp" min="1" max="30" value="8" oninput="sv('sgPcwp',+this.value);refreshSG()">
-        <span class="badge" id="sgPcwpv">8</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('sgPcwp',-1)"
+                aria-label="Wedge pressure down 1">−</button>
+        <input type="number" class="st-n" id="sgPcwp" inputmode="decimal"
+               min="1" max="30" step="any" data-step="1" value="8"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('sgPcwp',this.value)">
+        <button type="button" class="st-b" onclick="numStep('sgPcwp',1)"
+                aria-label="Wedge pressure up 1">+</button>
       </div>
       <label for="sgCvp">CVP (mmHg)</label>
-      <div class="row">
-        <input type="range" id="sgCvp" min="0" max="20" value="5" oninput="sv('sgCvp',+this.value);refreshSG()">
-        <span class="badge" id="sgCvpv">5</span>
+      <div class="step">
+        <button type="button" class="st-b" onclick="numStep('sgCvp',-1)"
+                aria-label="Central venous pressure down 1">−</button>
+        <input type="number" class="st-n" id="sgCvp" inputmode="decimal"
+               min="0" max="20" step="any" data-step="1" value="5"
+               onkeydown="numKey(event,this.id)" onchange="numCommit('sgCvp',this.value)">
+        <button type="button" class="st-b" onclick="numStep('sgCvp',1)"
+                aria-label="Central venous pressure up 1">+</button>
       </div>
       <label for="sgModeSel">Waveform Mode</label>
       <select id="sgModeSel" onchange="sv('sgMode',this.value);refreshSG()">
@@ -1648,10 +1781,22 @@ const DEF={
 let S={...DEF};
 
 let cp12Open=false;
+/* Temperature is the one number stored in a unit the facilitator may not be
+   working in. The slider was always Celsius and a badge beside it showed the
+   Fahrenheit reading, so "warm them to 102" meant doing the arithmetic in your
+   head and then aiming a thumb at the answer. The field is in whatever unit
+   the monitor is showing instead: the bounds, the step and the value all move
+   with the select, and numCommit() converts back on the way into S. */
 function updateTempDisplay(){
+  const el=document.getElementById('temp');
+  const hint=document.getElementById('tempUnitHint');
   const iF=S.tempUnit==='F';
-  const val=iF?(S.temp*9/5+32):S.temp;
-  document.getElementById('tempv').textContent=val.toFixed(1);
+  if(hint) hint.textContent=iF?'\u00b0F':'\u00b0C';
+  if(!el) return;
+  // step stays "any" — see numStep. The size of a press lives beside it, and a
+  // fifth of a degree Fahrenheit is about a tenth of one Celsius.
+  el.min=iF?'86':'30'; el.max=iF?'107.6':'42'; el.dataset.step=iF?'0.2':'0.1';
+  el.value=(iF?(S.temp*9/5+32):S.temp).toFixed(1);
 }
 
 function toggleEtco2(){
@@ -1961,15 +2106,80 @@ function enforcePhysiology(changedKey){
   clampPressurePair('artSbp','artDbp');
 }
 
-function syncSlider(id,val){
-  const el=document.getElementById(id);if(el)el.value=val;
-  const b=document.getElementById(id+'v');if(b)b.textContent=val;
-  // rr only lives in the SpO2 card now
-  if(id==='rr'){
-    const s=document.getElementById('rr_spo2');if(s)s.value=val;
-    const sv=document.getElementById('rrv_spo2');if(sv)sv.textContent=val;
+/* Every number the facilitator sets by hand: which field in S it drives, and
+   — temperature only — how the unit on screen maps to the one in S. How big a
+   press of − or + is lives in the markup, as the field's own `step`, so the
+   control and the amount it moves by cannot drift apart. */
+const NUMS={
+  hr:{key:'hr'}, sbp:{key:'sbp'}, dbp:{key:'dbp'},
+  spo2:{key:'spo2'}, rr_spo2:{key:'rr'}, etco2:{key:'etco2'},
+  ectFreq:{key:'ectFreq', after:v=>updateEctFreqLbl(v)},
+  temp:{key:'temp', dp:1, after:()=>updateTempDisplay(),
+        toStore:v=>S.tempUnit==='F'?(v-32)*5/9:v,
+        toShow :v=>S.tempUnit==='F'?(v*9/5+32):v},
+  hrLo:{key:'hrAlarmLow'}, hrHi:{key:'hrAlarmHigh'}, spLo:{key:'spo2AlarmLow'},
+  artSbp:{key:'artSbp', after:()=>refreshArt()},
+  artDbp:{key:'artDbp', after:()=>refreshArt()},
+  sgSbp:{key:'sgSbp', after:()=>refreshSG()},
+  sgDbp:{key:'sgDbp', after:()=>refreshSG()},
+  sgPcwp:{key:'sgPcwp', after:()=>refreshSG()},
+  sgCvp:{key:'sgCvp', after:()=>refreshSG()},
+};
+/* Which field shows which value. Three of these do not share a name with the
+   thing they set — respiratory rate lives in the SpO₂ card, and the alarm
+   limits are hrLo / hrHi / spLo for hrAlarmLow / hrAlarmHigh / spo2AlarmLow.
+   The old sync special-cased the first and simply missed the other two, so a
+   scenario carrying its own alarm limits loaded them into S and left the panel
+   showing the last patient's. */
+const NUM_FIELD={};
+Object.entries(NUMS).forEach(([id,spec])=>{ NUM_FIELD[spec.key]=id; });
+
+/* Commit what is in a field. On change rather than on every keystroke: a field
+   being typed into passes through 1 and 12 on the way to 120, and the crew is
+   watching that screen. */
+function numCommit(id,raw){
+  const el=document.getElementById(id), spec=NUMS[id];
+  if(!el||!spec) return;
+  let v=parseFloat(raw);
+  // Cleared to type into, or holding nothing but a minus sign. That is not a
+  // number to put on a monitor — put the field back where the patient is.
+  if(!isFinite(v)){ syncSlider(spec.key,S[spec.key]); return; }
+  v=Math.min(+el.max,Math.max(+el.min,v));
+  const store=spec.toStore?spec.toStore(v):v;
+  sv(spec.key,+store.toFixed(spec.dp||0));
+  if(spec.after) spec.after(S[spec.key]);
+}
+/* − and + move by the amount the field declares, in the unit it is showing.
+   In data-step rather than in the element's own `step`, because `step` is also
+   a validity grid: it is counted from `min`, so on a field declaring step 5 a
+   patient a scenario put at 74 is snapped to 75 by the first press and to 70 by
+   the next, and the number the author wrote is unreachable afterwards. The
+   fields declare step="any" and carry the size of a press beside it. */
+function numStep(id,dir){
+  const el=document.getElementById(id), spec=NUMS[id];
+  if(!el||!spec) return;
+  const typed=parseFloat(el.value);
+  const now=isFinite(typed) ? typed
+    : (spec.toShow?spec.toShow(S[spec.key]):S[spec.key]);
+  numCommit(id, now + dir*(parseFloat(el.dataset.step)||1));
+}
+/* An arrow key is a press of the same button. Left to the browser it would
+   move by 1 whatever the field is — a tenth of a degree on temperature, and a
+   fifth of a press of + on a heart rate. */
+function numKey(e,id){
+  if(e.key!=='ArrowUp'&&e.key!=='ArrowDown') return;
+  e.preventDefault();
+  numStep(id,e.key==='ArrowUp'?1:-1);
+}
+
+function syncSlider(key,val){
+  const id=NUM_FIELD[key]||key;
+  const el=document.getElementById(id), spec=NUMS[id];
+  if(el){
+    const show=spec&&spec.toShow?spec.toShow(val):val;
+    el.value=(spec&&spec.dp!=null)?(+show).toFixed(spec.dp):show;
   }
-  if(id==='temp') updateTempDisplay();
+  if(key==='temp') updateTempDisplay();
 }
 
 function togglePhysLock(){
@@ -2002,7 +2212,6 @@ function toggleEctopic(type){
 const ECT_LABELS={2:'very frequent',3:'frequent',4:'frequent',5:'occasional',6:'occasional',7:'infrequent',8:'infrequent',9:'rare',10:'rare',11:'very rare',12:'very rare'};
 function updateEctFreqLbl(v){
   document.getElementById('ectFreqLbl').textContent='— every '+v+' beats ('+(ECT_LABELS[v]||'')+')';
-  document.getElementById('ectFreqV').textContent=v;
 }
 
 // ── Rhythm ─────────────────────────────────────────────────
@@ -3230,8 +3439,7 @@ function paintStartPath(){
 
 function updateAllUI(){
   paintStartPath();
-  ['hr','sbp','dbp','spo2','etco2','rr','temp','artSbp','artDbp','ectFreq',
-   'sgSbp','sgDbp','sgPcwp','sgCvp'].forEach(k=>syncSlider(k,S[k]));
+  Object.values(NUMS).forEach(spec=>syncSlider(spec.key,S[spec.key]));
   Object.entries(SELECT_BINDINGS).forEach(([id,key])=>{
     const el=document.getElementById(id);
     if(el) el.value=String(S[key]);
@@ -3693,8 +3901,20 @@ function miniTally(){
    screen, and the mini bar is still there for when the facilitator actually
    wants the room back — reached by the collapse control in the run header
    rather than by scrolling. */
-let runCollapsed=false;
-function expandRunCard(){ runCollapsed=false; applyRunCondense(); }
+let runCollapsed=false;    // ▲ was pressed
+let runScrolledPast=false; // the card has gone off the top of the screen
+function expandRunCard(){
+  runCollapsed=false;
+  // Pressing ▸ on the bar while the card is above the fold would put the card
+  // back somewhere the facilitator cannot see, and the bar would come straight
+  // back on the next scroll event. Go to the card instead.
+  if(runScrolledPast){
+    const wrap=document.getElementById('runWrap');
+    if(wrap) wrap.scrollIntoView({block:'start',behavior:'smooth'});
+    return;
+  }
+  applyRunCondense();
+}
 function collapseRunCard(){ runCollapsed=true; applyRunCondense(); }
 function toggleRunCard(){ runCollapsed=!runCollapsed; applyRunCondense(); }
 function applyRunCondense(){
@@ -3704,7 +3924,7 @@ function applyRunCondense(){
   // rendered into the same card and would collapse to an empty strip.
   const hasBar=!!card.querySelector('.run-mini');
   // The rail costs no vertical space, so there is nothing to collapse there.
-  const want=hasBar&&!railMode()&&runCollapsed;
+  const want=hasBar&&!railMode()&&(runCollapsed||runScrolledPast);
   const wrap=document.getElementById('runWrap');
   if(want===card.classList.contains('condensed')) return;
   // Measured before the class changes, because after it the card is 52px.
@@ -3718,15 +3938,43 @@ function applyRunCondense(){
   // it. Measured rather than assumed: .run-mini declares 52px and the bar
   // wraps to 116 on a 1440-wide window.
   //
-  // This is the layout change the comment on .run-card.condensed rules out,
-  // and the reason it did is gone: the oscillation was the sentinel pulling
-  // itself back into view, and nothing observes #runSentinel any more. The
-  // card condenses on an explicit press now, so there is no loop to feed.
-  document.body.style.paddingTop=want?card.offsetHeight+'px':'';
+  // Only for the pressed collapse, which is taken at the top of the page where
+  // there is something above the card for the bar to cover. Having scrolled
+  // past the card, everything above it has gone with it and the bar covers
+  // nothing — and there padding is not merely unnecessary but unsafe, because
+  // adding it moves the page under the scroll position, and the scroll
+  // position is what decides whether the bar is showing. That is the
+  // oscillation this was rebuilt to avoid: see .run-card.condensed.
+  document.body.style.paddingTop=(want&&!runScrolledPast)?card.offsetHeight+'px':'';
 }
 window.addEventListener('resize',applyRunCondense);
 // The mini bar is keyboard-reachable like every other role="button" here; the
 // delegated Enter/Space handler further down covers it.
+
+/* The bar comes up on its own.
+   The card condenses to a line carrying the phase, the clock, the tally,
+   Advance and End run — which is what a facilitator needs in reach while they
+   scroll down to give a drug. But it only did it on a press of ▲, and ▲ is a
+   control you have to notice, understand and then remember to take *before*
+   you need it. In testing nobody took it: they scrolled to the drug buttons,
+   lost the phase and the clock off the top of the screen, gave the drug, and
+   scrolled back up to find out where the patient was.
+
+   Watched on #runWrap rather than on the card. When the card condenses it
+   leaves the flow and the wrapper is frozen at the height the card had, so the
+   geometry read here does not move when the class this sets is applied — which
+   is precisely what stops it oscillating. The first attempt at this watched an
+   element that did move, and collapsing pulled it back into view, which
+   expanded the card, which pushed it out again. */
+function watchRunScroll(){
+  const wrap=document.getElementById('runWrap');
+  if(!wrap) return;
+  const past=wrap.getBoundingClientRect().bottom<4;
+  if(past===runScrolledPast) return;
+  runScrolledPast=past;
+  applyRunCondense();
+}
+window.addEventListener('scroll',watchRunScroll,{passive:true});
 
 // One second is enough for a clock in mm:ss, and writing the one text node
 // rather than re-rendering keeps the crew and debrief-note inputs from losing
@@ -3734,6 +3982,9 @@ window.addEventListener('resize',applyRunCondense);
 setInterval(()=>{
   const el=document.getElementById('rmClock');
   if(el&&run) el.textContent=mmss(runElapsed());
+  // Cheap, and it catches the cases a scroll event does not: a run starting or
+  // ending, the card re-rendering taller, the window being zoomed.
+  watchRunScroll();
 },1000);
 
 function toggleSetup(){ document.body.classList.toggle('setup-open'); }
