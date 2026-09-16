@@ -802,6 +802,50 @@ peripheral, breath sounds, pupils, GCS and posturing, and what the patient says
 or does. The four PALS cases put all of these in the state note, where the
 facilitator reads them off one screen.
 
+## The panel, in sections
+
+The control panel was twelve cards in one flat three-column grid, in no order a
+facilitator could name — rhythm, pressure, drugs, saturation, capnography,
+temperature, results, an arterial line, a Swan-Ganz and alarm limits, all at the
+same weight, **3.1 screens of them**. Measured rather than guessed:
+
+| | |
+|---|---|
+| Interactive controls on one page | ~80 |
+| Height | 2787px, 3.1 screens |
+| **Arterial line + Swan-Ganz** | **897px — a third of the panel** |
+| Scenarios in the library that use either | **0** |
+| Rhythm buttons no scenario uses | 5 of 16 |
+
+So the page now reads as a sentence — **the case**, **the patient** the crew
+reads, **what you give them**, and then **advanced**, folded. Nothing was
+removed. The rare things are one click away instead of in the way. 2787px →
+1807px, 3.1 screens → 2.0.
+
+**One picker, not two.** There were two side by side — `QUICK SCENARIO` and
+`QUARTERLY SIMULATIONS` — so the first decision a facilitator had to take was
+the least obvious thing on the screen, and the second label was wrong anyway:
+it held the ACLS megacodes and the PALS practice cases too. One picker now,
+with the presets as a group in it named for what they are — *vitals only, no
+script, nothing recorded*. The old select stays in the document because a dozen
+call sites and the check suite address it by id; it is the old control's wiring,
+not a control.
+
+Merging them surfaced a difference that should never have existed: loading a
+preset left the previous run recording. The scripted path had always cleared it.
+Picking from one half of a list behaving differently from the other half is
+exactly what this panel had too much of.
+
+**Ectopics and the lead left the rhythm card.** An ectopic is set by two
+scenarios in the whole library and a lead is chosen once if ever, but both sat
+between the rhythm buttons and the rate — the two things that *are* reached for
+constantly.
+
+**The drug wall is grouped by what you reach for it for** — arrest, rhythm,
+raise the pressure, lower the pressure, sedation and toxicology — because that
+is how the thought arrives ("I need to raise the pressure"), not as eighteen
+names in a block.
+
 ## Power, and a dark screen
 
 The unit **opens off**. A crew pressing ON is part of what a megacode watches,

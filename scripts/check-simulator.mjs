@@ -186,17 +186,36 @@ function endRunSaving(w) {
   // Every option in the picker has to resolve to something. applySimScenario()
   // silently returns when it does not, so a typo in a value is a menu entry
   // that looks live and does nothing when a facilitator taps it mid-class.
+  // Drive every entry rather than pattern-matching its value: there is one
+  // picker now and two kinds of thing behind it — scripted cases, and vitals
+  // presets tagged `qs:` — so what matters is that loading each one actually
+  // moves the patient, not that its key looks familiar.
   const options = [...d.querySelectorAll('#simScenarioSel option')]
     .map((o) => o.value)
     .filter(Boolean)
-  const simMapKeys = ['drowning_initial', 'asthma_initial', 'abdominal_trauma_initial', 'peds_tbi_initial']
+  ok('the picker offers every case and preset', options.length >= 25, String(options.length))
   for (const value of options) {
+    // Park the patient somewhere no entry claims, so any load is visible.
+    Object.assign(S(), { hr: 1, sbp: 1, rhythm: 'nsr' })
+    d.getElementById('simScenarioSel').value = value
+    w.loadCase()
     ok(
-      `the picker entry "${value}" loads a scenario`,
-      !!sims[value] || simMapKeys.includes(value),
-      value,
+      `the picker entry "${value}" loads something`,
+      S().hr !== 1 || S().sbp !== 1,
+      `${value} left the patient at ${S().hr}/${S().sbp}`,
     )
   }
+  // A preset is vitals with no script: it must not open a record.
+  Object.assign(S(), { hr: 1, sbp: 1 })
+  d.getElementById('simScenarioSel').value = 'qs:asystole'
+  w.loadCase()
+  ok('a preset loads its vitals', S().rhythm === 'asystole', S().rhythm)
+  ok('and starts no run, having no expected actions behind it', !w.eval('run'))
+  ok('and clears the picker, which is not holding a case open', d.getElementById('simScenarioSel').value === '')
+  // A scripted case does open one.
+  d.getElementById('simScenarioSel').value = 'pals9'
+  w.loadCase()
+  ok('a scripted case starts a run', !!w.eval('run'))
 
   // The PALS practice cases are children, and the monitor draws pediatric
   // patients differently. An adult patientType here would put adult reference
