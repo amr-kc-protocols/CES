@@ -174,6 +174,18 @@ html,body{
   font-family:'Courier New',monospace;color:#dbe7ec;
 }
 #pocCard[hidden]{display:none;}
+/* A unit that is off shows nothing. The card is fixed to the viewport rather
+   than parented into #screen — it has to clear the chassis in the LIFEPAK skin
+   and the numerics column in ZX — so the screen blanking does not cover it, and
+   a dead monitor sat there displaying a glucose. */
+body.powered-off #pocCard{display:none;}
+/* Portrait in the LIFEPAK skin is the one shape this unit does not have, and
+   #rotate covers it with "turn the iPad round". The power prompt is fixed to
+   the viewport rather than inside the chassis, so the inert that stands the
+   chassis down does not reach it — it sat under the notice, invisible and
+   still tabbable. Same condition as the rule that shows #rotate, so the two
+   cannot drift apart. */
+body.lp-skin.portrait #powerHint{display:none;}
 #pocCard .poc-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#8fb6c2;}
 #pocCard .poc-src{font-size:10px;letter-spacing:2px;color:#4d7c8a;}
@@ -182,6 +194,23 @@ html,body{
 #pocCard .poc-u{font-size:15px;color:#8fb6c2;}
 #pocCard .poc-d{font-size:12px;line-height:1.35;color:#93a6ae;margin-top:3px;}
 #pocCard .poc-d:empty{display:none;}
+
+/* The powered-off prompt. Centred on the dark screen, large enough to read
+   from where the crew stands, and out of the way of the LIFEPAK's own ON key
+   so the real control still wins in that skin. */
+#powerHint{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:70;
+  display:flex;align-items:center;gap:14px;
+  padding:18px 26px;border-radius:12px;cursor:pointer;
+  background:#11161b;border:1px solid #2b343d;color:#c9d3da;
+  font-family:'Courier New',monospace;text-align:left;
+}
+#powerHint[hidden]{display:none;}
+#powerHint:hover{border-color:#4d7c8a;color:#e8f1f5;}
+#powerHint .ph-glyph{font-size:34px;line-height:1;color:#35c8e8;}
+#powerHint .ph-text{display:flex;flex-direction:column;gap:3px;}
+#powerHint b{font-size:16px;letter-spacing:2px;text-transform:uppercase;}
+#powerHint span span,#powerHint .ph-text>span{font-size:12px;color:#8fa0aa;letter-spacing:1px;}
 
 #joinBox{
   position:fixed;top:calc(58px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
@@ -354,7 +383,16 @@ body.lp-skin #devUnder{display:flex;}
 
 .k:active,.k.held{background:#0d0e0f;transform:translateY(1px);}
 .k:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
-.k,.fk,.rk,.shock{touch-action:manipulation;}
+.k,.fk,.rk,.shock{touch-action:manipulation;-webkit-touch-callout:none;}
+/* A held key fills, so a three-second gesture looks like it is working. The
+   duration comes from the binding, so the bar and the timer cannot disagree. */
+.k.holding::after{
+  content:'';position:absolute;left:0;bottom:0;height:3px;width:100%;
+  background:#ffd24a;transform-origin:left center;transform:scaleX(0);
+  animation:holdFill var(--hold-ms,3000ms) linear forwards;
+}
+@keyframes holdFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){.k.holding::after{animation:none;transform:scaleX(1);opacity:.5;}}
 .krow{display:flex;gap:5px;}
 .k.half{flex:1;padding-left:4px;min-width:0;}
 .on-k{background:linear-gradient(180deg,#3fb45f,#217a3b);border-color:#14532a;color:#fff;}
@@ -978,10 +1016,28 @@ body.booting #screen>*{visibility:hidden;}
   <div class="poc-d" id="pocD"></div>
 </div>
 
+<!-- The way back from a dark screen.
+     The unit opens OFF on purpose — a crew pressing ON is part of what a
+     megacode watches — but the ON key lives on the LIFEPAK chassis, and the ZX
+     skin has no chassis. ZX is also the skin the monitor opens in, so opening
+     the monitor gave you a black rectangle with no control on it anywhere and
+     no word saying why. The only way through was to know to switch skins on a
+     35%-opacity button in the corner and find the key over there. -->
+<button id="powerHint" onclick="powerHintTap()" hidden>
+  <span class="ph-glyph">⏻</span>
+  <span class="ph-text"><b>Monitor off</b><span id="powerHintHow">Tap to power on</span></span>
+</button>
+
 <div id="skinbar">
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
   <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
   <button class="skb" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
+  <!-- The ON key is drawn on the LIFEPAK chassis, and the ZX skin has no
+       chassis — so in ZX, which is the skin the monitor opens in, there was no
+       way to power the unit down at all. This is chrome rather than a device
+       key, so it is a plain toggle: the press-and-hold on the LIFEPAK is the
+       gesture being taught, and this is the way out when that is not on screen. -->
+  <button class="skb" id="pwrBtn" onclick="togglePower()" title="Power the monitor on or off">⏻</button>
 </div>
 
 <!-- Cross-device relay. Optional: without it the monitor still works as a
@@ -1178,6 +1234,10 @@ const LP_Y='#e0913c', LP_B='#4aa8ff', LP_W='#e8e8e8', LP_G='#31d63a';
 
 function setSkin(skin){
   currentSkin=skin;
+  // The prompt names the control the crew should reach for, and that differs
+  // by skin, so it is repainted whenever the skin does. Deferred to the end of
+  // this function via the call below — the class it reads is set here first.
+
   // Remember it, so a monitor reopened for the same class comes back in the same
   // skin instead of defaulting to the ZOLL-style one.
   try{ localStorage.setItem('ces.sim.skin',skin); }catch(e){}
@@ -1218,6 +1278,7 @@ function setSkin(skin){
     const c=document.getElementById(id);
     if(c){ c.width=0; c.height=0; }
   });
+  paintPowerHint();
 }
 
 function skinColors(){
@@ -3693,24 +3754,68 @@ function setPower(on){
     },1700);
   }
   logEvent('power',on?'ON':'OFF','');
+  paintPowerHint();
 }
 /** Kept for the console and for tests; the key itself does not toggle. */
 function togglePower(){ setPower(!D.on); }
+
+/* The prompt on a dark screen.
+   In the LIFEPAK skin the ON key is right there on the chassis and is the
+   control the crew should reach for, so the prompt points at it rather than
+   claiming to be the switch — but it still works when tapped, because a
+   facilitator stuck in front of a class is worse than a fidelity nit. */
+function paintPowerHint(){
+  const el=document.getElementById('powerHint');
+  if(!el) return;
+  el.hidden=D.on;
+  const how=document.getElementById('powerHintHow');
+  if(how) how.textContent=document.body.classList.contains('lp-skin')
+    ? 'Press ON on the unit — or tap here'
+    : 'Tap to power on';
+}
+function powerHintTap(){ if(!D.on) setPower(true); }
 
 /* ── Wiring ──────────────────────────────────────────────────────────── */
 function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();armAudio();fn();}); }
 /* Press-and-hold, for the two controls the manual describes that way: ON
    turns the unit off when held, PAUSE slows pacing only while held. */
+/* Press and hold.
+ *
+ * pointerleave used to end the hold, so a thumb that slid a few millimetres —
+ * or a hand resting on a trackpad that drifted off the key — silently cancelled
+ * it. Nothing said so: the key just went back to normal and the unit stayed on,
+ * which reads as a button that does not work however long you hold it.
+ *
+ * Pointer capture fixes it properly. The element keeps receiving the sequence
+ * wherever the pointer goes, so leaving is no longer an event at all and the
+ * gesture ends when the finger lifts, which is what the user meant by it. The
+ * key also fills while it is held, so a three-second gesture looks like it is
+ * doing something rather than like nothing happening.
+ */
 function bindHold(id,ms,onHold,onRelease,onTap){
   const el=document.getElementById(id); if(!el) return;
   let timer=null,fired=false;
-  const down=e=>{ e.preventDefault(); ac(); fired=false; el.classList.add('held');
-    timer=setTimeout(()=>{fired=true;onHold&&onHold();},ms); };
-  const up=()=>{ clearTimeout(timer); el.classList.remove('held');
-    if(fired){ onRelease&&onRelease(); } else { onTap&&onTap(); } };
+  const down=e=>{
+    e.preventDefault(); ac(); fired=false;
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    el.style.setProperty('--hold-ms',ms+'ms');
+    el.classList.add('held');
+    // Only a gesture long enough to be worth showing gets the fill; the shock
+    // and pacer-pause holds are a fifth of a second and would just flicker.
+    if(ms>=1000) el.classList.add('holding');
+    timer=setTimeout(()=>{fired=true;onHold&&onHold();},ms);
+  };
+  const up=e=>{
+    clearTimeout(timer);
+    if(e&&e.pointerId!==undefined){ try{ el.releasePointerCapture(e.pointerId); }catch(err){} }
+    el.classList.remove('held'); el.classList.remove('holding');
+    if(fired){ onRelease&&onRelease(); } else { onTap&&onTap(); }
+  };
   el.addEventListener('pointerdown',down);
   el.addEventListener('pointerup',up);
-  el.addEventListener('pointerleave',up);
+  // pointerleave is gone: with capture it cannot fire mid-gesture, and treating
+  // it as a release was the bug. pointercancel stays — the system taking the
+  // pointer away (a callout, a gesture) really is the end of the press.
   el.addEventListener('pointercancel',up);
 }
 
@@ -4076,6 +4181,7 @@ applySkinPrefs();
 /* The unit opens off, so the screen has to start dark — setPower() is what
    normally paints this, and nobody has pressed anything yet. */
 document.body.classList.toggle('powered-off',!D.on);
+paintPowerHint();
 
 /* ── Keeping the screen up ───────────────────────────────────────────────
    The monitor is a patient monitor: it is meant to sit on a table showing a

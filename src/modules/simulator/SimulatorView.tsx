@@ -6,7 +6,7 @@ import { formatDate } from '../../lib/date'
 import { confirmAction } from '../../lib/dialog'
 import { pushUndo } from '../../lib/undo'
 import { downloadDoc, printDoc, safeFilename } from '../academy/docGen'
-import { runSheetFilename, runSheetHTML, runSheetTitle } from './checkoffSheet'
+import { runSheetFilename, runSheetHTML, runSheetTitle, runTally, stateReached } from './checkoffSheet'
 import { Empty } from '../../components/ui'
 
 // ---------------------------------------------------------------------------
@@ -305,8 +305,10 @@ function RunList({ runs }: { runs: SimRun[] }) {
   return (
     <div className="sim-records">
       {runs.map((r) => {
-        const done = r.states.reduce((n, s) => n + s.actions.filter((a) => a.done).length, 0)
-        const total = r.states.reduce((n, s) => n + s.actions.length, 0)
+        // Counted over what the run actually entered — see stateReached(). A
+        // branching scenario used to count the branch the crew correctly never
+        // caused as a column of misses.
+        const { observed: done, total } = runTally(r)
         const secs = r.states.reduce((n, s) => n + s.seconds, 0)
         const shocks = (r.device ?? []).filter((e) => e.type === 'shock').length
         const isOpen = open === r.id
@@ -361,24 +363,34 @@ function RunList({ runs }: { runs: SimRun[] }) {
                     </div>
                   </div>
                 ) : null}
-                {r.states.map((st, i) =>
-                  st.actions.length || st.seconds ? (
+                {r.states.map((st, i) => {
+                  if (!st.actions.length && !st.seconds) return null
+                  // A state nobody entered is named and left alone: ruling its
+                  // actions off as unobserved reads as a list of failures the
+                  // crew never had the chance to commit.
+                  const skipped = !r.checklist && !stateReached(st)
+                  return (
                     <div key={i} className="sim-run-state">
                       <div className="sim-run-state-head">
-                        {st.label} <span className="subtle">{mmss(st.seconds)}</span>
+                        {st.label}{' '}
+                        <span className="subtle">{skipped ? 'not reached' : mmss(st.seconds)}</span>
                       </div>
-                      {st.actions.map((a, j) => (
-                        <div key={j} className={a.done ? 'sim-act ok' : 'sim-act miss'}>
-                          {a.done ? '✓' : '✗'} {a.text}
-                        </div>
-                      ))}
+                      {!skipped &&
+                        st.actions.map((a, j) => (
+                          <div key={j} className={a.done ? 'sim-act ok' : 'sim-act miss'}>
+                            {a.done ? '✓' : '✗'} {a.text}
+                          </div>
+                        ))}
                     </div>
-                  ) : null,
-                )}
+                  )
+                })}
                 {r.device && r.device.length ? (
                   <div className="sim-run-state">
                     <div className="sim-run-state-head">
-                      At the monitor <span className="subtle">{r.device.length} actions</span>
+                      At the monitor{' '}
+                      <span className="subtle">
+                        {r.device.length} action{r.device.length === 1 ? '' : 's'}
+                      </span>
                     </div>
                     {/* In order, because the questions this answers are about
                         order: how long to the first shock, and whether

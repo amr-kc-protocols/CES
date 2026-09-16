@@ -802,6 +802,81 @@ peripheral, breath sounds, pupils, GCS and posturing, and what the patient says
 or does. The four PALS cases put all of these in the state note, where the
 facilitator reads them off one screen.
 
+## Power, and a dark screen
+
+The unit **opens off**. A crew pressing ON is part of what a megacode watches,
+so that stays. What did not work was the way back: the ON key is drawn on the
+LIFEPAK chassis, the ZX skin has no chassis, and **ZX is the skin the monitor
+opens in**. Opening the monitor gave you a black rectangle with no control
+anywhere on it and no word saying why — the only route through was knowing to
+switch skins on a 35%-opacity button in the corner and find the key over there.
+
+A dark screen now carries a prompt: **MONITOR OFF**, and the gesture. In ZX it
+is the switch; in the LIFEPAK skin it points at the real key on the chassis and
+still works when tapped, because a facilitator stuck in front of a class is
+worse than a fidelity nit. On the LIFEPAK the key behaves as the device does —
+a tap brings it up, a three-second hold takes it down, and a tap while it is
+already on does nothing.
+
+**And the way down.** The ON key is drawn on the LIFEPAK chassis, so in ZX the
+unit could be powered up and then never powered down: there was no button to
+hold. That is what "it just wasn't turning off regardless of how long I held
+the button" was. Every skin now carries a ⏻ in the corner bar beside the skin
+switch and fullscreen. It is chrome rather than a device key, so it is a plain
+toggle — the press-and-hold on the LIFEPAK is the gesture being taught, and this
+is the way out when that is not on screen.
+
+**The hold itself was fragile.** It ended on `pointerleave`, so a thumb that
+slid a few millimetres, or a hand resting on a trackpad that drifted off the
+key, cancelled it silently: the key went back to normal and the unit stayed on,
+which reads exactly like a button that does not work however long you hold it.
+The binding takes **pointer capture** now, so the element keeps the sequence
+wherever the pointer goes and the gesture ends when the finger lifts, which is
+what the user meant by it. `pointercancel` still ends it — the system taking the
+pointer away really is the end of the press — and the key **fills over the three
+seconds**, so the gesture looks like it is doing something instead of like
+nothing happening.
+
+**Screen content obeys the switch.** The blanking rule covers `#screen`, and
+the point-of-care card is fixed to the viewport rather than parented into it —
+it has to clear the chassis in LP and the numerics column in ZX — so a dead
+monitor sat there displaying a glucose until this was written down.
+
+Anything reading the monitor in a test must read what is **seen**, not what is
+in the DOM: a blanked screen still holds every number, which is how several
+harnesses read correct values off a monitor that was dark.
+
+## Ventilation, and who the patient is
+
+Once there is an advanced airway in, the rate on the screen is the crew's, not
+the patient's — an arrest state carries RR 0 because the patient is not
+breathing, which stops being what the monitor should show the moment somebody
+starts ventilating them.
+
+**Children are not small adults here, and they used to be.** The two rates were
+the adult ones — one breath every six seconds in arrest, twelve a minute with a
+pulse — applied to every patient. Since the 2020 guidelines PALS ventilates
+infants and children at **one breath every 2 to 3 seconds, 20 to 30 a minute**,
+both in arrest with an advanced airway and for rescue breathing with a pulse,
+where the adult figure stayed at one every six. So a PALS crew who put in an
+airway watched an adult rate appear on the screen they are being taught from.
+25 is the midpoint of the published band.
+
+A state may name its own rate with **`ventRr`**, and then that wins: PALS case
+12 states "respiratory rate 30/min (bag-mask ventilation)" after ROSC, and a
+monitor contradicting the document the facilitator is reading from is the
+problem this platform exists to avoid.
+
+## Pulseless VT is an arrest
+
+`inArrest()` wanted no rate as well as no pressure. Pulseless VT has a rate —
+180 on ACLS megacode 1, 170 on megacode 4, 220 on PALS 12 — so **the three
+scenarios built around a shockable arrest were the three the rule did not
+recognise as one**. No CPR capnogram, the with-a-pulse ventilation rate, and
+the EtCO₂ ROSC surge — a facilitator control for teaching the sudden rise —
+unavailable on exactly the arrests it is for. A perfusing rhythm has a blood
+pressure; 0/0 is an arrest whatever the monitor is drawing.
+
 ## Physiology lock
 
 On by default. It exists so an instructor cannot broadcast a combination that
