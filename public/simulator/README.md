@@ -818,6 +818,25 @@ worse than a fidelity nit. On the LIFEPAK the key behaves as the device does —
 a tap brings it up, a three-second hold takes it down, and a tap while it is
 already on does nothing.
 
+**And the way down.** The ON key is drawn on the LIFEPAK chassis, so in ZX the
+unit could be powered up and then never powered down: there was no button to
+hold. That is what "it just wasn't turning off regardless of how long I held
+the button" was. Every skin now carries a ⏻ in the corner bar beside the skin
+switch and fullscreen. It is chrome rather than a device key, so it is a plain
+toggle — the press-and-hold on the LIFEPAK is the gesture being taught, and this
+is the way out when that is not on screen.
+
+**The hold itself was fragile.** It ended on `pointerleave`, so a thumb that
+slid a few millimetres, or a hand resting on a trackpad that drifted off the
+key, cancelled it silently: the key went back to normal and the unit stayed on,
+which reads exactly like a button that does not work however long you hold it.
+The binding takes **pointer capture** now, so the element keeps the sequence
+wherever the pointer goes and the gesture ends when the finger lifts, which is
+what the user meant by it. `pointercancel` still ends it — the system taking the
+pointer away really is the end of the press — and the key **fills over the three
+seconds**, so the gesture looks like it is doing something instead of like
+nothing happening.
+
 **Screen content obeys the switch.** The blanking rule covers `#screen`, and
 the point-of-care card is fixed to the viewport rather than parented into it —
 it has to clear the chassis in LP and the numerics column in ZX — so a dead

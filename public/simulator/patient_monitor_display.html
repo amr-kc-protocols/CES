@@ -383,7 +383,16 @@ body.lp-skin #devUnder{display:flex;}
 
 .k:active,.k.held{background:#0d0e0f;transform:translateY(1px);}
 .k:focus-visible{outline:2px solid #ffd24a;outline-offset:1px;}
-.k,.fk,.rk,.shock{touch-action:manipulation;}
+.k,.fk,.rk,.shock{touch-action:manipulation;-webkit-touch-callout:none;}
+/* A held key fills, so a three-second gesture looks like it is working. The
+   duration comes from the binding, so the bar and the timer cannot disagree. */
+.k.holding::after{
+  content:'';position:absolute;left:0;bottom:0;height:3px;width:100%;
+  background:#ffd24a;transform-origin:left center;transform:scaleX(0);
+  animation:holdFill var(--hold-ms,3000ms) linear forwards;
+}
+@keyframes holdFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){.k.holding::after{animation:none;transform:scaleX(1);opacity:.5;}}
 .krow{display:flex;gap:5px;}
 .k.half{flex:1;padding-left:4px;min-width:0;}
 .on-k{background:linear-gradient(180deg,#3fb45f,#217a3b);border-color:#14532a;color:#fff;}
@@ -1023,6 +1032,12 @@ body.booting #screen>*{visibility:hidden;}
   <button class="skb on" id="skinZX" onclick="setSkin('zx')">ZX</button>
   <button class="skb" id="skinLP" onclick="setSkin('lp')">LP</button>
   <button class="skb" id="fsBtn" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</button>
+  <!-- The ON key is drawn on the LIFEPAK chassis, and the ZX skin has no
+       chassis — so in ZX, which is the skin the monitor opens in, there was no
+       way to power the unit down at all. This is chrome rather than a device
+       key, so it is a plain toggle: the press-and-hold on the LIFEPAK is the
+       gesture being taught, and this is the way out when that is not on screen. -->
+  <button class="skb" id="pwrBtn" onclick="togglePower()" title="Power the monitor on or off">⏻</button>
 </div>
 
 <!-- Cross-device relay. Optional: without it the monitor still works as a
@@ -3764,16 +3779,43 @@ function powerHintTap(){ if(!D.on) setPower(true); }
 function bind(id,fn){ const el=document.getElementById(id); if(el) el.addEventListener('click',e=>{e.preventDefault();armAudio();fn();}); }
 /* Press-and-hold, for the two controls the manual describes that way: ON
    turns the unit off when held, PAUSE slows pacing only while held. */
+/* Press and hold.
+ *
+ * pointerleave used to end the hold, so a thumb that slid a few millimetres —
+ * or a hand resting on a trackpad that drifted off the key — silently cancelled
+ * it. Nothing said so: the key just went back to normal and the unit stayed on,
+ * which reads as a button that does not work however long you hold it.
+ *
+ * Pointer capture fixes it properly. The element keeps receiving the sequence
+ * wherever the pointer goes, so leaving is no longer an event at all and the
+ * gesture ends when the finger lifts, which is what the user meant by it. The
+ * key also fills while it is held, so a three-second gesture looks like it is
+ * doing something rather than like nothing happening.
+ */
 function bindHold(id,ms,onHold,onRelease,onTap){
   const el=document.getElementById(id); if(!el) return;
   let timer=null,fired=false;
-  const down=e=>{ e.preventDefault(); ac(); fired=false; el.classList.add('held');
-    timer=setTimeout(()=>{fired=true;onHold&&onHold();},ms); };
-  const up=()=>{ clearTimeout(timer); el.classList.remove('held');
-    if(fired){ onRelease&&onRelease(); } else { onTap&&onTap(); } };
+  const down=e=>{
+    e.preventDefault(); ac(); fired=false;
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    el.style.setProperty('--hold-ms',ms+'ms');
+    el.classList.add('held');
+    // Only a gesture long enough to be worth showing gets the fill; the shock
+    // and pacer-pause holds are a fifth of a second and would just flicker.
+    if(ms>=1000) el.classList.add('holding');
+    timer=setTimeout(()=>{fired=true;onHold&&onHold();},ms);
+  };
+  const up=e=>{
+    clearTimeout(timer);
+    if(e&&e.pointerId!==undefined){ try{ el.releasePointerCapture(e.pointerId); }catch(err){} }
+    el.classList.remove('held'); el.classList.remove('holding');
+    if(fired){ onRelease&&onRelease(); } else { onTap&&onTap(); }
+  };
   el.addEventListener('pointerdown',down);
   el.addEventListener('pointerup',up);
-  el.addEventListener('pointerleave',up);
+  // pointerleave is gone: with capture it cannot fire mid-gesture, and treating
+  // it as a release was the bug. pointercancel stays — the system taking the
+  // pointer away (a callout, a gesture) really is the end of the press.
   el.addEventListener('pointercancel',up);
 }
 

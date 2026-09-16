@@ -2291,6 +2291,31 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   w.setPower(false)
   ok('it comes back when the unit goes down', !hint().hidden)
 
+  // And the way DOWN. The ON key is drawn on the LIFEPAK chassis; ZX has no
+  // chassis, and ZX is the skin the monitor opens in — so in ZX the unit could
+  // be powered up and then never powered down, because there was no button to
+  // hold. Reported as "it just wasn't turning off however long I held it".
+  const pwr = d.getElementById('pwrBtn')
+  ok('every skin carries a power control', !!pwr)
+  w.setSkin('zx')
+  w.setPower(true)
+  ok('the unit is up', w.eval('D.on') === true)
+  pwr.onclick()
+  ok('and ZX can put it down again', w.eval('D.on') === false)
+
+  // The press-and-hold on the LIFEPAK key used to end on pointerleave, so a
+  // thumb that slid a few millimetres cancelled it silently. Capture is what
+  // keeps the sequence on the element wherever the pointer goes.
+  const src = readFileSync(MONITOR, 'utf8')
+  ok('the hold takes pointer capture', /setPointerCapture/.test(src))
+  ok('and no longer ends when the pointer leaves', !/addEventListener\('pointerleave'/.test(src))
+  ok('but still ends when the system cancels it', /addEventListener\('pointercancel'/.test(src))
+  ok('and a long hold shows it is filling', /\.k\.holding::after/.test(src.replace(/\s+/g, '')) || /holdFill/.test(src))
+  w.close()
+}
+{
+  const { w, d } = loadMonitor({}, { powerOn: false })
+
   // Screen content must obey the power switch. The point-of-care card is fixed
   // to the viewport rather than parented into #screen — it has to clear the
   // chassis in LP and the numerics column in ZX — so the blanking rule that
