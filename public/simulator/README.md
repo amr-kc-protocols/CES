@@ -846,6 +846,43 @@ raise the pressure, lower the pressure, sedation and toxicology — because that
 is how the thought arrives ("I need to raise the pressure"), not as eighteen
 names in a block.
 
+## Connecting the patient, and what a case load does to it
+
+Three things used to fight over `S.patientConnected`, and between them they
+produced the two worst bugs a facilitator could hit mid-class.
+
+**Connecting did not mean connecting.** `toggleConnect()` ran
+`Object.assign(S, SCENARIOS.normal)` every time the leads went on. That was
+harmless back when connecting was the first thing anyone did to a blank panel.
+It stopped being harmless the moment the panel started telling people to choose
+a case first: the numbered start path says *1 choose a case* and *3 put the
+patient on the monitor*, and step 3 was erasing step 1. A PALS wide-complex
+tachycardia set up at 210 and 74/40 reached the crew's screen as a well adult at
+78 and 121/79 — the case the facilitator had just loaded, silently replaced by
+the default, on the screen the crew were being asked to read. The defaults are
+now for a patient nobody has set up: they load only when there is no case and no
+preset behind the panel.
+
+**Loading the next case blanked the crew's monitor.** `startRun()` set
+`patientConnected = false` for every scripted case. The reasoning is sound for a
+*graded megacode* — attaching the monitor is a line on the AHA checklist, so it
+is the crew's to do and must not be already done when they walk in. It is not
+sound for anything else. A class runs several cases back to back and nobody
+reloads the page between them, so case two onward arrived with the crew's screen
+at `---` and not a word on either window explaining it. A blank monitor with no
+explanation is indistinguishable from a broken one, and the fastest reading of
+it is that the simulator has crashed.
+
+So: only a graded megacode disconnects, and when it does, `#connectWhy` appears
+under the connect bar and says *blank on purpose — putting the patient on the
+monitor is a scored step in this megacode*. Ungraded practice cases stay
+connected, which is the whole point of them — the crew's questions are supposed
+to be answered by the monitor.
+
+`scripts/check-simulator.mjs` holds both as assertions: a loaded case survives
+Connect, ungraded cases stay connected with no notice shown, and graded ones
+disconnect *and* show the notice.
+
 ## Power, and a dark screen
 
 The unit **opens off**. A crew pressing ON is part of what a megacode watches,

@@ -217,6 +217,57 @@ function endRunSaving(w) {
   w.loadCase()
   ok('a scripted case starts a run', !!w.eval('run'))
 
+  // Connecting the leads is step 3 of the start path printed at the top of the
+  // panel; choosing a case is step 1. Connecting used to load the Normal Adult
+  // defaults unconditionally, so step 3 erased step 1 — a PALS case set up on
+  // the panel reached the crew's monitor as a well adult at 78 and 121/79, and
+  // nothing on either screen said it had happened.
+  d.getElementById('simScenarioSel').value = 'pals11'
+  w.loadCase()
+  const loaded = { hr: S().hr, sbp: S().sbp, rhythm: S().rhythm }
+  S().patientConnected = false
+  w.toggleConnect()
+  ok(
+    'connecting the patient keeps the case that was loaded',
+    S().hr === loaded.hr && S().sbp === loaded.sbp && S().rhythm === loaded.rhythm,
+    `loaded ${loaded.hr}/${loaded.sbp} ${loaded.rhythm}, connected showed ${S().hr}/${S().sbp} ${S().rhythm}`,
+  )
+  ok('and it is connected', S().patientConnected === true)
+  // With nothing loaded it still hands you a plausible patient rather than
+  // whatever the sliders were last left on.
+  w.toggleConnect()
+  Object.assign(S(), { hr: 1, sbp: 1, scenario: '' })
+  w.eval('activeSim = null')
+  w.toggleConnect()
+  ok('a fresh patient with no case loaded still gets sane defaults', S().hr !== 1 && S().sbp !== 1, `${S().hr}/${S().sbp}`)
+  w.toggleConnect()
+
+  // Loading the next case must not silently blank the crew's screen. A class
+  // runs several cases without anyone reloading the page, and a monitor that
+  // drops to dashes with no explanation reads as a broken monitor.
+  //
+  // The one exception is a graded megacode, where putting the patient on the
+  // monitor is a line on the AHA checklist and so is the crew's to do — and
+  // there the panel has to say that out loud.
+  const why = () => {
+    const e = d.getElementById('connectWhy')
+    return e && !e.hidden ? e.textContent.replace(/\s+/g, ' ').trim() : null
+  }
+  for (const [key, graded] of [['pals9', false], ['pals12', false], ['megacode1', true], ['megacode3', true]]) {
+    S().patientConnected = false
+    w.toggleConnect()
+    d.getElementById('simScenarioSel').value = key
+    w.loadCase()
+    if (graded) {
+      ok(`${key}: a graded megacode starts blank — attaching the monitor is scored`, S().patientConnected === false)
+      ok(`${key}: and the panel says why, rather than leaving a dead screen`, /blank on purpose/i.test(why() || ''), String(why()))
+    } else {
+      ok(`${key}: an ungraded case leaves the crew connected`, S().patientConnected === true)
+      ok(`${key}: and shows no blank-screen notice, having nothing to explain`, !why(), String(why()))
+    }
+  }
+  S().patientConnected = false
+
   // The PALS practice cases are children, and the monitor draws pediatric
   // patients differently. An adult patientType here would put adult reference
   // ranges on a 3-month-old.
