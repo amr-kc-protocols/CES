@@ -2267,6 +2267,44 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
 
 
 // ---------------------------------------------------------------------------
+// A dark screen has to say it is dark, and offer the way out.
+//
+// The unit opens OFF on purpose — a crew pressing ON is part of what a megacode
+// watches. But the ON key is drawn on the LIFEPAK chassis, the ZX skin has no
+// chassis, and ZX is the skin the monitor opens in. So opening the monitor gave
+// you a black rectangle with no control anywhere on it and no word saying why:
+// the only way through was knowing to switch skins on a 35%-opacity button in
+// the corner and find the key over there.
+// ---------------------------------------------------------------------------
+{
+  const { w, d } = loadMonitor({}, { powerOn: false })
+  const hint = () => d.getElementById('powerHint')
+  ok('the monitor still opens powered off', w.eval('D.on') === false)
+  ok('a dark screen carries a prompt', !!hint() && !hint().hidden)
+  ok('and the prompt is a control, not a caption', hint().tagName === 'BUTTON')
+  ok('which names the ZX gesture', /Tap/.test(d.getElementById('powerHintHow').textContent))
+  w.setSkin('lp')
+  ok('and names the real key in the LIFEPAK skin', /Press ON/.test(d.getElementById('powerHintHow').textContent))
+  w.powerHintTap()
+  ok('tapping it powers the unit up', w.eval('D.on') === true)
+  ok('and the prompt goes with it', hint().hidden)
+  w.setPower(false)
+  ok('it comes back when the unit goes down', !hint().hidden)
+
+  // Screen content must obey the power switch. The point-of-care card is fixed
+  // to the viewport rather than parented into #screen — it has to clear the
+  // chassis in LP and the numerics column in ZX — so the blanking rule that
+  // covers #screen does not reach it, and a dead monitor sat there showing a
+  // glucose.
+  ok(
+    'a powered-off monitor hides the point-of-care card',
+    /body\.powered-off #pocCard\{display:none;\}/.test(readFileSync(MONITOR, 'utf8').replace(/\s+/g, '')) ||
+      /body\.powered-off#pocCard\{display:none;\}/.test(readFileSync(MONITOR, 'utf8').replace(/\s+/g, '')),
+  )
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
 // Point-of-care results: the facilitator answering a question on the crew's
 // screen.
 //
@@ -2894,6 +2932,57 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('a patient with a pulse is ventilated faster', S().rr === 12, String(S().rr))
   ok('and the capnogram goes back to a normal waveform', S().co2Shape === 'normal', S().co2Shape)
   ok("and the stage's authored EtCO₂ still stands", S().etco2 === 50, String(S().etco2))
+
+  // Children are not small adults. Since 2020 PALS ventilates infants and
+  // children at one breath every 2-3 seconds — 20 to 30 a minute — in arrest
+  // with an advanced airway AND for rescue breathing with a pulse, where the
+  // adult figure stayed at one every six seconds. These rates were applied to
+  // every patient, so a PALS crew who put in an airway watched an adult rate
+  // appear on the screen they are being taught from.
+  d.getElementById('simScenarioSel').value = 'pals12'
+  w.applySimScenario()
+  w.setIntervention('airway', 'ett')
+  ok('a child in arrest is not ventilated at the adult rate', S().rr !== 10, String(S().rr))
+  ok('but inside the published 20-30 band', S().rr >= 20 && S().rr <= 30, String(S().rr))
+  ok('and the CPR capnogram still follows the arrest', S().co2Shape === 'cpr', S().co2Shape)
+
+  // Pulseless VT is an arrest. It has a rate — 220 here, 180 and 170 on ACLS
+  // megacodes 1 and 4 — and the rule used to want no rate as well as no
+  // pressure, so the three scenarios built around a shockable arrest were the
+  // three it did not recognise as one.
+  ok('pulseless VT counts as an arrest', w.inArrest() === true, JSON.stringify({ hr: S().hr, sbp: S().sbp }))
+  ok('so the EtCO₂ ROSC surge is available on it', w.surgeReady() === true)
+  d.getElementById('simScenarioSel').value = 'megacode1'
+  w.applySimScenario()
+  w.applySimState('megacode1', 1) // pulseless VT at 180
+  ok('and on the ACLS pulseless VT megacode too', w.inArrest() === true, String(S().hr))
+  d.getElementById('simScenarioSel').value = 'pals12'
+  w.applySimScenario()
+  w.setIntervention('airway', 'ett')
+
+  // A state that names its own ventilated rate wins: PALS 12 states 30/min by
+  // bag-mask after ROSC, and the monitor must not contradict the document the
+  // facilitator is reading from.
+  w.applySimState('pals12', 1)
+  ok('a documented ventilation rate is honoured', S().rr === 30, String(S().rr))
+  ok('and the waveform goes back to normal with a pulse', S().co2Shape === 'normal', S().co2Shape)
+
+  // A pediatric patient with a pulse and no documented rate still gets the
+  // pediatric band rather than the adult 12.
+  d.getElementById('simScenarioSel').value = 'pals11'
+  w.applySimScenario()
+  w.setIntervention('airway', 'ett')
+  ok('a child with a pulse is not ventilated at the adult rate', S().rr !== 12, String(S().rr))
+  ok('and is inside the band', S().rr >= 20 && S().rr <= 30, String(S().rr))
+
+  // Adults are untouched — re-asserted here because the two now share a path.
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.applySimScenario()
+  w.applySimState('megacode2', 1)
+  w.setIntervention('airway', 'ett')
+  ok('an adult arrest is still one breath every six seconds', S().rr === 10, String(S().rr))
+  w.applySimState('megacode2', 3)
+  ok('and an adult with a pulse is still ventilated at 12', S().rr === 12, String(S().rr))
 
   // A scenario that authored its own waveform keeps it — this rule owns the
   // two shapes it switches between and nothing else.

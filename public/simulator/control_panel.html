@@ -2403,6 +2403,9 @@ const SIMULATIONS={
        coach:'Shockable rhythm. First shock 2 J/kg, second 4 J/kg, subsequent at least 4 J/kg (maximum 10 J/kg or the standard adult dose for that defibrillator). CPR resumes immediately after every shock. Epinephrine 0.01 mg/kg (0.1 mg/mL concentration, maximum 1 mg) IV/IO every 3-5 minutes. At the third rhythm check add an antiarrhythmic — amiodarone 5 mg/kg or lidocaine 1 mg/kg; the 2025 Guidelines treat the two as equally acceptable, and amiodarone is avoided in long QT syndrome.',
        advanceOn:{shocks:3,note:'The manual returns spontaneous circulation after three shocks with high-quality CPR, one dose of epinephrine and one antiarrhythmic.'}},
       {id:'rosc',label:'ROSC',color:'#00cc44',
+       // The manual's own post-ROSC rate, so the monitor agrees with it once
+       // the crew has an airway in rather than falling back to the default.
+       ventRr:30,
        vitals:{hr:140,rhythm:'nsr',sbp:84,dbp:50,spo2:98,etco2:38,rr:30,temp:36.4},
        display:'HR 140 | ROSC | BP 84/50 | SpO₂ 98% | RR 30 (BVM)',
        note:'Vital signs after ROSC following high-quality CPR, a total of 3 shocks, 1 dose of epinephrine and 1 dose of antiarrhythmic. Sinus rhythm with bag-mask ventilation at 30/min. Blood glucose 112 mg/dL and a normal chest x-ray are available after ROSC only — neither is available during the scenario. Insertion of an advanced airway and post-ROSC care are beyond the scope of this practice case.'},
@@ -2969,7 +2972,18 @@ function applyVitals(vitals, patType){
 
 /** Arrest rhythms, for the rules that only apply while the patient has none. */
 function inArrest(){
-  return S.rhythm==='vfib'||S.rhythm==='asystole'||S.rhythm==='pea'||(!S.hr&&!S.sbp);
+  // No pressure is the signal. It used to want no RATE as well, and pulseless
+  // VT has a rate — 180 on ACLS megacode 1, 170 on megacode 4, 220 on PALS 12 —
+  // so the three scenarios built around a shockable arrest were the three the
+  // rule did not recognise as one. The CPR capnogram never appeared, the crew
+  // were ventilated at the with-a-pulse rate, and the EtCO₂ ROSC surge, which
+  // is a facilitator control for teaching the sudden rise, was unavailable on
+  // exactly the arrests it is for.
+  //
+  // A perfusing rhythm has a blood pressure; 0/0 is an arrest whatever the
+  // monitor is drawing. The named rhythms stay for the cases that reach here
+  // before a pressure is set.
+  return S.rhythm==='vfib'||S.rhythm==='asystole'||S.rhythm==='pea'||!S.sbp;
 }
 const ADVANCED_AIRWAYS=['sga','ett'];
 function advancedAirway(){ return ADVANCED_AIRWAYS.indexOf(crewDid.airway)>=0; }
@@ -2995,7 +3009,14 @@ function applyAirwayVentilation(){
   // patient's: an arrest state carries RR 0 because the patient is not
   // breathing, which stops being what the monitor should show the moment
   // somebody starts ventilating them.
-  S.rr=arrest?ADV_AIRWAY_ARREST_RR:ADV_AIRWAY_PULSE_RR;
+  //
+  // A state may name the rate it is ventilated at, and then that wins: AHA
+  // PALS case 12 states "respiratory rate 30/min (bag-mask ventilation)" after
+  // ROSC, and a monitor contradicting the document the facilitator is reading
+  // from is the problem this whole platform exists to avoid.
+  const st=activeStage();
+  const authored=st&&typeof st.ventRr==='number'?st.ventRr:null;
+  S.rr=authored!==null?authored:ventRate(arrest);
   // The shape follows the perfusion, not the airway. A scenario that authored
   // its own waveform — the asthma shark fin, a curare cleft — keeps it; only
   // the two this rule owns are switched between.
@@ -3003,12 +3024,27 @@ function applyAirwayVentilation(){
     S.co2Shape=arrest?'cpr':'normal';
 }
 /* Ventilation through an advanced airway, in breaths per minute.
-   In an arrest, one breath every six seconds, continuous compressions
+
+   ADULTS. In an arrest, one breath every six seconds, continuous compressions
    underneath (2025 AHA). With a pulse back — post-ROSC, or an apnoeic patient
    the crew is bagging through a tube — the program ventilates faster, and the
-   capnogram is a normal square wave rather than the CPR trace. */
+   capnogram is a normal square wave rather than the CPR trace.
+
+   CHILDREN AND INFANTS ARE NOT SMALL ADULTS HERE, and these used to be applied
+   to them unchanged. Since the 2020 guidelines, PALS ventilates infants and
+   children at ONE BREATH EVERY 2 TO 3 SECONDS — 20 to 30 a minute — both in
+   arrest with an advanced airway and for rescue breathing with a pulse, where
+   the adult figure stayed at one every six seconds. So a PALS crew who put in
+   an airway watched an adult rate appear on the screen they are being taught
+   from. 25 is the midpoint of the published band; a scenario with a documented
+   rate of its own overrides it with `ventRr`. */
 const ADV_AIRWAY_ARREST_RR=10;
 const ADV_AIRWAY_PULSE_RR=12;
+const PED_AIRWAY_RR=25;
+function ventRate(arrest){
+  if(S.patientType==='Pediatric') return PED_AIRWAY_RR;
+  return arrest?ADV_AIRWAY_ARREST_RR:ADV_AIRWAY_PULSE_RR;
+}
 
 // Every select that reflects a piece of state, so a scenario that sets one
 // (the asthma states set a shark-fin capnogram; the pediatric sims set the
