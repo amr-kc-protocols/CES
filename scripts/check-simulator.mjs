@@ -186,17 +186,221 @@ function endRunSaving(w) {
   // Every option in the picker has to resolve to something. applySimScenario()
   // silently returns when it does not, so a typo in a value is a menu entry
   // that looks live and does nothing when a facilitator taps it mid-class.
+  // Drive every entry rather than pattern-matching its value: there is one
+  // picker now and two kinds of thing behind it — scripted cases, and vitals
+  // presets tagged `qs:` — so what matters is that loading each one actually
+  // moves the patient, not that its key looks familiar.
   const options = [...d.querySelectorAll('#simScenarioSel option')]
     .map((o) => o.value)
     .filter(Boolean)
-  const simMapKeys = ['drowning_initial', 'asthma_initial', 'abdominal_trauma_initial', 'peds_tbi_initial']
+  ok('the picker offers every case and preset', options.length >= 25, String(options.length))
   for (const value of options) {
+    // Park the patient somewhere no entry claims, so any load is visible.
+    Object.assign(S(), { hr: 1, sbp: 1, rhythm: 'nsr' })
+    d.getElementById('simScenarioSel').value = value
+    w.loadCase()
     ok(
-      `the picker entry "${value}" loads a scenario`,
-      !!sims[value] || simMapKeys.includes(value),
-      value,
+      `the picker entry "${value}" loads something`,
+      S().hr !== 1 || S().sbp !== 1,
+      `${value} left the patient at ${S().hr}/${S().sbp}`,
     )
   }
+  // A preset is vitals with no script: it must not open a record.
+  Object.assign(S(), { hr: 1, sbp: 1 })
+  d.getElementById('simScenarioSel').value = 'qs:asystole'
+  w.loadCase()
+  ok('a preset loads its vitals', S().rhythm === 'asystole', S().rhythm)
+  ok('and starts no run, having no expected actions behind it', !w.eval('run'))
+  ok('and clears the picker, which is not holding a case open', d.getElementById('simScenarioSel').value === '')
+  // A scripted case does open one.
+  d.getElementById('simScenarioSel').value = 'pals9'
+  w.loadCase()
+  ok('a scripted case starts a run', !!w.eval('run'))
+
+  // Connecting the leads is step 3 of the start path printed at the top of the
+  // panel; choosing a case is step 1. Connecting used to load the Normal Adult
+  // defaults unconditionally, so step 3 erased step 1 — a PALS case set up on
+  // the panel reached the crew's monitor as a well adult at 78 and 121/79, and
+  // nothing on either screen said it had happened.
+  d.getElementById('simScenarioSel').value = 'pals11'
+  w.loadCase()
+  const loaded = { hr: S().hr, sbp: S().sbp, rhythm: S().rhythm }
+  S().patientConnected = false
+  w.toggleConnect()
+  ok(
+    'connecting the patient keeps the case that was loaded',
+    S().hr === loaded.hr && S().sbp === loaded.sbp && S().rhythm === loaded.rhythm,
+    `loaded ${loaded.hr}/${loaded.sbp} ${loaded.rhythm}, connected showed ${S().hr}/${S().sbp} ${S().rhythm}`,
+  )
+  ok('and it is connected', S().patientConnected === true)
+  // With nothing loaded it still hands you a plausible patient rather than
+  // whatever the sliders were last left on.
+  w.toggleConnect()
+  Object.assign(S(), { hr: 1, sbp: 1, scenario: '' })
+  w.eval('activeSim = null')
+  w.toggleConnect()
+  ok('a fresh patient with no case loaded still gets sane defaults', S().hr !== 1 && S().sbp !== 1, `${S().hr}/${S().sbp}`)
+  w.toggleConnect()
+
+  // Loading the next case must not silently blank the crew's screen. A class
+  // runs several cases without anyone reloading the page, and a monitor that
+  // drops to dashes with no explanation reads as a broken monitor.
+  //
+  // The one exception is a graded megacode, where putting the patient on the
+  // monitor is a line on the AHA checklist and so is the crew's to do — and
+  // there the panel has to say that out loud.
+  const why = () => {
+    const e = d.getElementById('connectWhy')
+    return e && !e.hidden ? e.textContent.replace(/\s+/g, ' ').trim() : null
+  }
+  for (const [key, graded] of [['pals9', false], ['pals12', false], ['megacode1', true], ['megacode3', true]]) {
+    S().patientConnected = false
+    w.toggleConnect()
+    d.getElementById('simScenarioSel').value = key
+    w.loadCase()
+    if (graded) {
+      ok(`${key}: a graded megacode starts blank — attaching the monitor is scored`, S().patientConnected === false)
+      ok(`${key}: and the panel says why, rather than leaving a dead screen`, /blank on purpose/i.test(why() || ''), String(why()))
+    } else {
+      ok(`${key}: an ungraded case leaves the crew connected`, S().patientConnected === true)
+      ok(`${key}: and shows no blank-screen notice, having nothing to explain`, !why(), String(why()))
+    }
+  }
+  S().patientConnected = false
+
+  // ── Numbers you set, rather than aim at ──────────────────────────────────
+  // Seventeen range sliders became seventeen numeric fields. A slider cannot
+  // be set, only approached: "put the systolic at 74" was a drag you had to
+  // check afterwards, on a live monitor where every value on the way to 74 is
+  // one the crew watched appear.
+  ok('no vital is a slider any more', d.querySelectorAll('input[type=range]').length === 0,
+    String(d.querySelectorAll('input[type=range]').length))
+  const steppers = [...d.querySelectorAll('.step')]
+  ok('every one of them is a stepper instead', steppers.length === 17, String(steppers.length))
+  for (const g of steppers) {
+    const input = g.querySelector('input.st-n')
+    const btns = [...g.querySelectorAll('button.st-b')]
+    const id = input ? input.id : '(no field)'
+    ok(`${id}: is a number you can type into`, !!input && input.type === 'number')
+    // The size of a press is in data-step, not in the element's own `step`.
+    // `step` is a validity grid counted from `min`, so a field declaring step 5
+    // snaps a patient a scenario put at 74 to 75 on the first press and to 70
+    // on the next, and the authored number cannot be got back to.
+    ok(`${id}: declares its own bounds and the size of a press`,
+      !!input && input.min !== '' && input.max !== '' && parseFloat(input.dataset.step) > 0,
+      input ? `${input.min}-${input.max} by ${input.dataset.step}` : '')
+    ok(`${id}: and no step grid to snap an authored value onto`,
+      !!input && input.step === 'any', input ? input.step : '')
+    ok(`${id}: arrow keys move it by the same amount as the buttons`,
+      !!input && /numKey\(/.test(input.getAttribute('onkeydown') || ''),
+      input ? String(input.getAttribute('onkeydown')) : '')
+    // A control whose only label is a glyph is not labelled. Both of these are
+    // "-" and "+", and which vital they move is nowhere in the text.
+    ok(`${id}: both buttons say which number they move, and by how much`,
+      btns.length === 2 && btns.every((b) => /\w+ (up|down) [\d.]+/.test(b.getAttribute('aria-label') || '')),
+      btns.map((b) => b.getAttribute('aria-label')).join(' / '))
+  }
+  // Every field is wired to something in S, and sync can get back the other way.
+  const nums = w.eval('NUMS')
+  const numField = w.eval('NUM_FIELD')
+  for (const id of Object.keys(nums)) {
+    ok(`${id}: the field exists`, !!d.getElementById(id))
+    ok(`${id}: and a repaint can find it from the value it shows`, numField[nums[id].key] === id,
+      `${nums[id].key} -> ${numField[nums[id].key]}`)
+  }
+
+  d.getElementById('scenarioSel').value = 'normal'
+  w.applyScenario()
+  w.numCommit('hr', '96')
+  ok('a typed number commits', S().hr === 96, String(S().hr))
+  ok('and the field agrees with it', d.getElementById('hr').value === '96', d.getElementById('hr').value)
+  // Mid-edit states, which a slider could never be in at all. A field cleared
+  // to type into is not a number to put on the crew's monitor.
+  w.numCommit('hr', '')
+  ok('an emptied field leaves the patient alone', S().hr === 96, String(S().hr))
+  ok('and is put back where the patient is', d.getElementById('hr').value === '96', d.getElementById('hr').value)
+  w.numCommit('hr', '-')
+  ok('so does a field holding nothing but a minus sign', S().hr === 96, String(S().hr))
+  w.numCommit('hr', '9999')
+  ok('an impossible number is clamped to the field’s own range', S().hr === 250, String(S().hr))
+  w.numCommit('hr', '-40')
+  ok('and so is one below it', S().hr === 0, String(S().hr))
+  w.numCommit('sbp', '120')
+  w.numStep('sbp', 1)
+  ok('+ moves the systolic by the step the markup declares', S().sbp === 125, String(S().sbp))
+  w.numStep('sbp', -1)
+  ok('− puts it back', S().sbp === 120, String(S().sbp))
+
+  // Temperature is the one value stored in a unit the facilitator may not be
+  // working in. The field is in whatever unit the monitor is showing, so
+  // "warm them to 102" is the number you type.
+  w.sv('tempUnit', 'C')
+  w.updateTempDisplay()
+  w.numCommit('temp', '38')
+  ok('temperature in Celsius stores Celsius', Math.abs(S().temp - 38) < 0.05, String(S().temp))
+  ok('and the label says which unit the field is in', d.getElementById('tempUnitHint').textContent === '°C')
+  w.sv('tempUnit', 'F')
+  w.updateTempDisplay()
+  ok('switching to Fahrenheit converts the field', Math.abs(+d.getElementById('temp').value - 100.4) < 0.1,
+    d.getElementById('temp').value)
+  ok('and moves its bounds with it',
+    d.getElementById('temp').min === '86' && d.getElementById('temp').max === '107.6',
+    `${d.getElementById('temp').min}-${d.getElementById('temp').max}`)
+  w.numCommit('temp', '102')
+  ok('and a Fahrenheit number is stored as the right Celsius', Math.abs(S().temp - 38.9) < 0.06, String(S().temp))
+  w.sv('tempUnit', 'C')
+  w.updateTempDisplay()
+
+  // The alarm limits were never in the bulk repaint, because their fields are
+  // named hrLo / hrHi / spLo and the values are hrAlarmLow / hrAlarmHigh /
+  // spo2AlarmLow. Anything that set them in S left the panel showing the last
+  // patient's.
+  Object.assign(S(), { hrAlarmLow: 35, hrAlarmHigh: 180, spo2AlarmLow: 88 })
+  w.updateAllUI()
+  ok('a repaint reaches the alarm limits too',
+    d.getElementById('hrLo').value === '35' && d.getElementById('hrHi').value === '180'
+      && d.getElementById('spLo').value === '88',
+    `${d.getElementById('hrLo').value} / ${d.getElementById('hrHi').value} / ${d.getElementById('spLo').value}`)
+
+  // ── The action bar comes up on its own ───────────────────────────────────
+  // The card condenses to a line carrying the phase, the clock, the tally,
+  // Advance and End run. It only ever did that on a press of the collapse
+  // button — a control you have to notice, understand, and then take *before*
+  // you need it. Nobody did: they scrolled down to the drugs, lost the phase
+  // and the clock off the top of the screen, and scrolled back up to find out
+  // where the patient was.
+  d.getElementById('simScenarioSel').value = 'megacode2'
+  w.loadCase()
+  const card = () => d.getElementById('runCard')
+  const bar = () => card().querySelector('.run-mini')
+  ok('a live run has a bar to condense to', !!bar())
+  ok('the bar names the case', /Megacode/i.test(bar().textContent.replace(/\s+/g, ' ')),
+    bar().textContent.replace(/\s+/g, ' ').trim().slice(0, 60))
+  ok('and carries the clock', !!bar().querySelector('#rmClock'))
+  ok('and Advance', !!bar().querySelector('.adv-mini'))
+  ok('and the way out', !!bar().querySelector('.rm-end'))
+
+  w.eval('runCollapsed=false; runScrolledPast=false')
+  w.applyRunCondense()
+  ok('nothing is condensed while the card is in view', !card().classList.contains('condensed'))
+  w.eval('runScrolledPast=true')
+  w.applyRunCondense()
+  ok('scrolling the card off the top brings the bar up by itself', card().classList.contains('condensed'))
+  // Padding is what moves the page, and the scroll position is what decides
+  // whether the bar shows, so padding the page from a scroll-driven collapse
+  // is a loop. It is the loop the first attempt at this died of.
+  ok('and the automatic bar reserves no space, so it cannot move the page under itself',
+    d.body.style.paddingTop === '', d.body.style.paddingTop)
+  w.eval('runScrolledPast=false')
+  w.applyRunCondense()
+  ok('scrolling back to the card puts the bar away', !card().classList.contains('condensed'))
+  // The pressed collapse is taken at the top of the page, where there *is*
+  // something above the card for a bar at top:0 to cover.
+  w.collapseRunCard()
+  ok('pressing the collapse button still condenses it', card().classList.contains('condensed'))
+  ok('and that one does reserve its height', d.body.style.paddingTop !== '', d.body.style.paddingTop)
+  w.eval('runCollapsed=false; runScrolledPast=false')
+  w.applyRunCondense()
 
   // The PALS practice cases are children, and the monitor draws pediatric
   // patients differently. An adult patientType here would put adult reference

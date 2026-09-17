@@ -23,8 +23,9 @@ every change, over three paths:
 
 - `bc.postMessage(S)` on a `BroadcastChannel` named `simState` — the live path.
 - `localStorage['simState']`, as JSON — what a monitor window reads at load.
-  Writes are coalesced on a 50ms trailing timer because a slider drag fires on
-  every pixel; anything that hands off to another window (`Open Monitor`) calls
+  Writes are coalesced on a 50ms trailing timer, because a drug taking effect or
+  a state being applied can move half a dozen values in the same tick; anything
+  that hands off to another window (`Open Monitor`) calls
   `flushSave()` first so the monitor never opens against a stale write.
 - **A Supabase Realtime channel**, when a session is running — the path that
   reaches a monitor on a *different device*. The two above are same-origin and
@@ -168,8 +169,8 @@ leaving the screen stuck.
 history, so a monitor only ever hears what is said after it subscribes, and the
 panel publishes on change. The normal order is the facilitator starting the
 session and the crew typing the code afterwards, which meant the iPad sat on
-the monitor's defaults — `patientConnected:false` again — until the next slider
-moved. The same after every reconnect, and an iPad that sleeps for a moment
+the monitor's defaults — `patientConnected:false` again — until the next change
+on the panel. The same after every reconnect, and an iPad that sleeps for a moment
 reconnects. The panel now republishes the whole of `S` every two seconds while
 a session is live: one small message against an `eventsPerSecond` budget of 20,
 and the monitor merges it, so a repeat of what it already has is a no-op.
@@ -487,7 +488,7 @@ a check that cannot lay the page out.
 holding it to a thumb's minimum would be measuring a room nobody is in. On the
 panel, only the controls tapped *while a code is running*: the expected
 actions, the check-off sheet's own rows and fields, the result, the patient
-states and the way out. The vitals sliders, rhythm buttons and setup selects
+states and the way out. The vitals fields, rhythm buttons and setup selects
 stay at the density a pointer wants — this page is compact on purpose, and
 every pixel above the cards is a pixel of the scenario the facilitator cannot
 see.
@@ -720,7 +721,7 @@ AHA's list. Scenarios 10 and 12 are complete.
   kind of rule: oxygenation is a fact about the lungs and the oxygen being
   delivered, not about the rhythm. PALS case 10 is a stable, well-perfused
   3-month-old in a wide-complex tachycardia saturating **97%** — the old ceiling
-  dragged that infant to 96 the moment any other slider moved. It never
+  dragged that infant to 96 the moment any other vital changed. It never
   protected against the error it appeared to: 96% on a pulseless patient is
   exactly as impossible as 98%. Pulseless VT is still expressible at 0, because
   ceilings do not push a value up.
@@ -801,6 +802,173 @@ retractions, flaring, grunting, tripoding — pulse quality central and
 peripheral, breath sounds, pupils, GCS and posturing, and what the patient says
 or does. The four PALS cases put all of these in the state note, where the
 facilitator reads them off one screen.
+
+## The panel, in sections
+
+The control panel was twelve cards in one flat three-column grid, in no order a
+facilitator could name — rhythm, pressure, drugs, saturation, capnography,
+temperature, results, an arterial line, a Swan-Ganz and alarm limits, all at the
+same weight, **3.1 screens of them**. Measured rather than guessed:
+
+| | |
+|---|---|
+| Interactive controls on one page | ~80 |
+| Height | 2787px, 3.1 screens |
+| **Arterial line + Swan-Ganz** | **897px — a third of the panel** |
+| Scenarios in the library that use either | **0** |
+| Rhythm buttons no scenario uses | 5 of 16 |
+
+So the page now reads as a sentence — **the case**, **the patient** the crew
+reads, **what you give them**, and then **advanced**, folded. Nothing was
+removed. The rare things are one click away instead of in the way. 2787px →
+1807px, 3.1 screens → 2.0.
+
+**One picker, not two.** There were two side by side — `QUICK SCENARIO` and
+`QUARTERLY SIMULATIONS` — so the first decision a facilitator had to take was
+the least obvious thing on the screen, and the second label was wrong anyway:
+it held the ACLS megacodes and the PALS practice cases too. One picker now,
+with the presets as a group in it named for what they are — *vitals only, no
+script, nothing recorded*. The old select stays in the document because a dozen
+call sites and the check suite address it by id; it is the old control's wiring,
+not a control.
+
+Merging them surfaced a difference that should never have existed: loading a
+preset left the previous run recording. The scripted path had always cleared it.
+Picking from one half of a list behaving differently from the other half is
+exactly what this panel had too much of.
+
+**Ectopics and the lead left the rhythm card.** An ectopic is set by two
+scenarios in the whole library and a lead is chosen once if ever, but both sat
+between the rhythm buttons and the rate — the two things that *are* reached for
+constantly.
+
+**The drug wall is grouped by what you reach for it for** — arrest, rhythm,
+raise the pressure, lower the pressure, sedation and toxicology — because that
+is how the thought arrives ("I need to raise the pressure"), not as eighteen
+names in a block.
+
+## Numbers you set, rather than aim at
+
+Every vital on the panel was a range slider with its value printed in a badge
+beside it. Seventeen of them. They are seventeen numeric fields now, each with a
+**−** and a **+** that move by a clinically sensible amount — 5 mmHg, 5 bpm,
+1% — and all of it typed directly when that is faster.
+
+Two reasons, both from live runs rather than from taste.
+
+**A slider cannot be set, only approached.** "Put his systolic at 74" is one
+number and three keystrokes. On a 0–250 slider 130px wide it is half a pixel per
+mmHg, a drag, and then a check — and checking meant reading a badge somewhere
+else on the row, so the control and its value were never in the same place.
+Overshooting is not free here: the monitor is live, so every value on the way to
+74 is one the crew watched appear.
+
+**And a slider hides where you are.** Seventeen thumbs at seventeen fractions of
+seventeen different ranges tell you nothing at a glance. Seventeen numbers tell
+you the patient.
+
+Three things fall out of the change that are worth knowing:
+
+- **Fields commit on `change`, not on `input`.** A field being typed into passes
+  through `1` and `12` on its way to `120`, and a slider could never be in that
+  state at all. A field cleared to type into, or holding nothing but a minus
+  sign, is not a number to put on a monitor: `numCommit()` puts the field back
+  where the patient is and sends nothing.
+- **Bounds and the size of a press live in the markup**, as `min`, `max` and
+  `data-step`, so the control and the amount it moves by cannot drift apart.
+  Out-of-range entries are clamped to the bounds. `data-step` rather than the
+  element's own `step`, because `step` is also a validity grid counted from
+  `min`: on a field declaring step 5, a patient a scenario put at 74 is snapped
+  to 75 by the first arrow press and to 70 by the next, and the number the
+  author wrote cannot be got back to. The fields declare `step="any"` and
+  handle arrow keys themselves, so an arrow moves by exactly what − and + do.
+- **Temperature is in the unit on screen.** It is stored in Celsius, and the
+  slider was always Celsius with a badge showing the Fahrenheit reading — so
+  "warm them to 102" meant doing the conversion in your head and then aiming a
+  thumb at the answer. The field, its bounds and its step now follow the unit
+  select, and `numCommit()` converts back on the way into `S`.
+
+`NUM_FIELD` maps each value in `S` to the field that shows it. Three of them do
+not share a name with the thing they set — respiratory rate lives in the SpO₂
+card, and the alarm limits are `hrLo` / `hrHi` / `spLo` for `hrAlarmLow` /
+`hrAlarmHigh` / `spo2AlarmLow`. The old repaint special-cased the first and
+simply missed the other two, so anything that set an alarm limit in `S` left the
+panel showing the last patient's.
+
+## The action bar comes up on its own
+
+The run card condenses to a single line carrying the phase, the case, the clock,
+the tally, **Advance** and **End run** — which is exactly what a facilitator
+needs in reach while they scroll down to give a drug.
+
+It only ever did that on a press of ▲. That is a control you have to notice,
+understand, and then think to take *before* you need it, and in testing nobody
+took it: they scrolled to the drug buttons, lost the phase and the clock off the
+top of the screen, gave the drug, and scrolled back up to find out where the
+patient was. So it now condenses by itself the moment the card leaves the top of
+the screen, and comes back when it returns. The ▲ still works, for parking the
+bar without scrolling.
+
+Two things keep this from oscillating, which is how the first attempt at it
+failed:
+
+- **It watches `#runWrap`, not the card.** When the card condenses it leaves the
+  flow and the wrapper is frozen at the height the card had, so the geometry the
+  watcher reads does not move when the class it sets is applied.
+- **The automatic bar reserves no space at the top of the page.** The pressed
+  collapse does, because it is taken at the top of the page where there is
+  something above the card for a bar at `top:0` to cover. Having scrolled past
+  the card there is not — and there padding would be worse than unnecessary,
+  because adding it moves the page under the scroll position, and the scroll
+  position is what decides whether the bar shows.
+
+The bar is off in the rail layout, where the full card is permanently on screen
+and costs no vertical space, and presets have no bar because they have no run
+card: they are vitals with no script and nothing recorded.
+
+One thing that had quietly stopped being true: `.run-card.condensed` hid
+`.run-head` and `.run-cols`, and the interventions strip and the one-tap
+point-of-care answers were added to the card afterwards without joining that
+list. "A single 52px line" was in fact 270px of fixed-position card sitting over
+the drug buttons. That was easy to miss while collapsing took a deliberate press
+almost nobody took, and impossible to miss once the bar came up by itself.
+
+## Connecting the patient, and what a case load does to it
+
+Three things used to fight over `S.patientConnected`, and between them they
+produced the two worst bugs a facilitator could hit mid-class.
+
+**Connecting did not mean connecting.** `toggleConnect()` ran
+`Object.assign(S, SCENARIOS.normal)` every time the leads went on. That was
+harmless back when connecting was the first thing anyone did to a blank panel.
+It stopped being harmless the moment the panel started telling people to choose
+a case first: the numbered start path says *1 choose a case* and *3 put the
+patient on the monitor*, and step 3 was erasing step 1. A PALS wide-complex
+tachycardia set up at 210 and 74/40 reached the crew's screen as a well adult at
+78 and 121/79 — the case the facilitator had just loaded, silently replaced by
+the default, on the screen the crew were being asked to read. The defaults are
+now for a patient nobody has set up: they load only when there is no case and no
+preset behind the panel.
+
+**Loading the next case blanked the crew's monitor.** `startRun()` set
+`patientConnected = false` for every scripted case. The reasoning is sound for a
+*graded megacode* — attaching the monitor is a line on the AHA checklist, so it
+is the crew's to do and must not be already done when they walk in. It is not
+sound for anything else. A class runs several cases back to back and nobody
+reloads the page between them, so case two onward arrived with the crew's screen
+at `---` and not a word on either window explaining it. A blank monitor with no
+explanation is indistinguishable from a broken one, and the fastest reading of
+it is that the simulator has crashed.
+
+So: only a graded megacode disconnects, and when it does, `#connectWhy` appears
+under the connect bar and says *blank on purpose — putting the patient on the
+monitor is a scored step in this megacode*. Ungraded practice cases stay
+connected, which is the whole point of them — the crew's questions are supposed
+to be answered by the monitor.
+
+`scripts/check-simulator.mjs` holds both as assertions: a loaded case survives
+Connect, ungraded cases stay connected with no notice shown, and graded ones
+disconnect *and* show the notice.
 
 ## Power, and a dark screen
 
@@ -888,8 +1056,8 @@ cannot exist — V-Fib with a blood pressure, a diastolic above the systolic. It
   put a pressure back onto a fibrillating patient, since it mirrors into the
   cuff reading.
 - V-Tach caps pressure and saturation. It does not fix EtCO₂ and RR, which
-  would leave those two sliders inert for as long as V-Tach is up.
-- Rate bounds apply only while the HR slider is being dragged. Applied to every
+  would leave those two fields inert for as long as V-Tach is up.
+- Rate bounds apply only when the heart rate itself is what changed. Applied to every
   change they rewrote vitals a scenario author set deliberately — the pediatric
   TBI states carry HR 67 and 72 on a sinus bradycardia, correct for a
   5-year-old, and both were being pulled down to 60.
