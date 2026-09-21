@@ -797,6 +797,77 @@ check(
   'and an ordinary document still counts its own pages',
 )
 
+// ----- a PDF this app does not recognise -------------------------------------
+//
+// "not an ImageTrend PCR export" was the whole of what a reviewer got, on a
+// file that read perfectly well. There is no next step in that. The report has
+// to say which anchors were found — and it must not say anything else, because
+// the obvious way to make it useful is to print what was read, and what was
+// read is a patient record.
+
+{
+  // A real report whose banner is worded differently: everything else is there.
+  const nearMiss = m.buildPcrDoc(
+    page(1)
+      .field('Date of Service:', '08/16/2026 16:14:28')
+      .field('Primary Impression', 'Chest Pain')
+      .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+      .field('Narrative Patient Care Report Narrative', 'MRS ELIZABETH HARGROVE of 44 CEDAR LANE, dob 03/14/1951.')
+      .footer()
+      .done(),
+  )
+  check(m.looksLikePcr(nearMiss) === false, 'a report with no agency banner is not recognised')
+  const report = m.unrecognisedReport(nearMiss)
+  check(
+    report.includes('Primary Impression') && report.includes('Transport Disposition'),
+    'the report names the anchors it did find',
+    report,
+  )
+  check(
+    report.includes('EMS Agency:') && report.includes('Incident #'),
+    'and the ones it did not, which is what says where to look',
+    report,
+  )
+  check(
+    /\b1 page\b/.test(report) && /labelled field/.test(report),
+    'with the scale of what it read, so an empty parse is not mistaken for a wrong one',
+    report,
+  )
+
+  // The PHI rule, checked rather than trusted. Every value in that fixture is
+  // the kind of thing a real chart carries.
+  for (const secret of ['HARGROVE', 'CEDAR LANE', '03/14/1951', 'Chest Pain', '08/16/2026']) {
+    check(
+      !report.includes(secret),
+      `nothing read off the chart reaches the message (${secret})`,
+      report,
+    )
+  }
+}
+
+{
+  // Text, and no labels told apart from values: a different problem, and one
+  // that looks identical from the outside without being named.
+  const sameFont = m.buildPcrDoc(
+    [
+      'EMS Agency KS-EXAMPLE',
+      'Incident 99000001',
+      'JOHN A PATIENT 44 CEDAR LANE',
+    ].map((str, i) => ({ page: 1, x: 40, y: 700 - i * 20, str, font: 'g_d0_f1' })),
+  )
+  const report = m.unrecognisedReport(sameFont)
+  check(
+    report.includes('same font'),
+    'a report that prints labels and values alike is named as that',
+    report,
+  )
+  check(
+    !report.includes('CEDAR LANE') && !report.includes('JOHN'),
+    'and still says nothing read off the chart',
+    report,
+  )
+}
+
 // ----- refusals --------------------------------------------------------------
 //
 // A refusal after an assessment used to arrive as an ordinary CQM review, which

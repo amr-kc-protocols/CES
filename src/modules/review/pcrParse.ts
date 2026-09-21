@@ -666,6 +666,62 @@ export function looksLikePcr(doc: PcrDoc): boolean {
   return /EMS Agency\s*:/.test(doc.text) && INCIDENT.test(doc.text)
 }
 
+/**
+ * Anchors an ImageTrend PCR carries, for reporting which of them were missing.
+ *
+ * The first two are what looksLikePcr() requires; the rest are there to tell
+ * "this is a PCR whose banner is spelled differently" apart from "this is not
+ * a patient care report at all". A chart that answers to seven of these and
+ * not to the first two is a matcher problem, and one that answers to none is a
+ * different document.
+ */
+const EXPECTED_ANCHORS: [string, RegExp][] = [
+  ['EMS Agency:', /EMS Agency\s*:/],
+  ['Incident #: with 6 or more digits', INCIDENT],
+  ['Incident # in any format', /Incident\s*#/i],
+  ['Date of Service', /Date of Service/i],
+  ['Patient Care Report Narrative', /Patient Care Report Narrative/i],
+  ['Unit Notified by Dispatch', /Unit Notified by Dispatch/i],
+  ['Primary Impression', /Primary Impression/i],
+  ['Transport Disposition', /Transport Disposition/i],
+  ['Crew Member', /Crew Member/i],
+]
+
+/**
+ * Why a PDF was not recognised, in terms that can be acted on.
+ *
+ * NOTHING FROM THE CHART APPEARS HERE. It reports which of the APP'S OWN field
+ * names it could find and which it could not — the strings in the list above,
+ * never a word read off the document. That is the difference between a message
+ * a coordinator can paste into an email and one that turns a support question
+ * into a disclosure: the text of a PCR is a patient record, and "here is what
+ * we read" is the most natural and worst possible thing for this to print.
+ *
+ * The counts are structural: pages, text runs, and fields where a label and a
+ * value were told apart. Zero fields with plenty of text means the export
+ * prints labels and values in the same font, which is a different problem from
+ * a banner that is worded differently.
+ */
+export function unrecognisedReport(doc: PcrDoc): string {
+  const found: string[] = []
+  const missing: string[] = []
+  for (const [name, re] of EXPECTED_ANCHORS) (re.test(doc.text) ? found : missing).push(name)
+
+  const scale = `${doc.pageCount} page${doc.pageCount === 1 ? '' : 's'}, `
+    + `${doc.items.length} text run${doc.items.length === 1 ? '' : 's'}, `
+    + `${doc.fields.length} labelled field${doc.fields.length === 1 ? '' : 's'}`
+
+  const shape = doc.fields.length === 0 && doc.items.length > 0
+    ? ' The labels and the values could not be told apart, which happens when a report prints both in the same font.'
+    : ''
+
+  return `read as ${scale}, but it does not look like an ImageTrend PCR.`
+    + ` Found: ${found.join(', ') || 'none of the expected fields'}.`
+    + ` Not found: ${missing.join(', ') || 'nothing — this should have been recognised'}.`
+    + shape
+    + ' (Only the app\u2019s own field names are listed. Nothing read off the chart is shown here or sent anywhere.)'
+}
+
 // `hasField` is re-exported so autoAnswer can tell "the export omits this
 // section" from "the section is there and empty" without importing pcrText.
 export { hasField }

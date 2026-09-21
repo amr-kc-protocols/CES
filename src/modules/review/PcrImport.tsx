@@ -4,7 +4,7 @@ import { todayISO } from '../../lib/date'
 import { addChartReview, allReviews, saveNarrative } from './chartReviewStore'
 import { autoReview, type AutoReview } from './autoAnswer'
 import { REVIEW_TYPES } from '../../data/chartReview'
-import { parseCharts, looksLikePcr } from './pcrParse'
+import { parseCharts, looksLikePcr, unrecognisedReport } from './pcrParse'
 import { readPcrPdf } from './pcrText'
 import { describePdfFailure, sniffFile } from './pdfCompat'
 import type { ChartReviewEntry } from '../../types'
@@ -98,11 +98,7 @@ export default function PcrImport({
           continue
         }
         if (!looksLikePcr(doc)) {
-          bad.push(
-            `${file.name} — ${doc.pageCount} page${doc.pageCount === 1 ? '' : 's'} of text read, but it does not `
-              + 'look like an ImageTrend PCR: no "EMS Agency" field and no "Incident #" with six or more digits. '
-              + 'Check this is the printed patient care report rather than a billing sheet or a cover page.',
-          )
+          bad.push(`${file.name} — ${unrecognisedReport(doc)}`)
           continue
         }
         const charts = parseCharts(doc)
