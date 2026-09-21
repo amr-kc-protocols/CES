@@ -60,6 +60,19 @@ export interface ReviewQuestion {
   /** A 'multi' or 'select' answer of this value reveals a free-text box. */
   otherOption?: string
   required?: boolean
+  /**
+   * Review types this question is NOT asked on, although its section is shown.
+   *
+   * The alternative was a Refusal section carrying its own copies of the
+   * questions that still apply — and a second 'was the history documented'
+   * under a second id splits the tally in two, which is the one thing the
+   * outcome questions were pulled out of Overall Evaluation to avoid. A
+   * refusal is a patient-care review with four questions that have no subject:
+   * there is no destination to justify, no facility to have been appropriate,
+   * no ride to be monitored during and no transport mode to have suited the
+   * patient.
+   */
+  notForTypes?: ReviewType[]
 }
 
 /**
@@ -100,7 +113,7 @@ export interface ReviewSection {
   questions: ReviewQuestion[]
 }
 
-export type ReviewType = 'newhire' | 'cqm' | 'nopatient' | 'nonpatient'
+export type ReviewType = 'newhire' | 'cqm' | 'nopatient' | 'nonpatient' | 'refusal'
 
 export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = [
   { id: 'newhire', label: 'New Hire' },
@@ -111,14 +124,26 @@ export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = 
     note: 'A call cleared without a patient — cancelled, no patient found, refusal before assessment.',
   },
   {
+    id: 'refusal',
+    label: 'Refusal',
+    note: 'A patient who was assessed and declined transport. The chart is judged on capacity, risks, alternatives and the signature — not on a transport that never happened.',
+  },
+  {
     id: 'nonpatient',
     label: 'Non-Patient Transport',
     note: 'A transport with nobody to assess — a flight crew returned to the airport, an organ, a standby. It ran, it has a destination and it has mileage.',
   },
 ]
 
-/** Types that review actual patient care, and so get the full backbone. */
-export const PATIENT_CARE_TYPES: ReviewType[] = ['newhire', 'cqm']
+/**
+ * Types that review actual patient care, and so get the full backbone.
+ *
+ * A refusal is one of them. The patient was assessed, and the exam, the
+ * history, the standards of care and the narrative are all reviewable — it is
+ * only the four questions about a transport that have no subject, and those
+ * are withheld per question rather than by leaving the sections out.
+ */
+export const PATIENT_CARE_TYPES: ReviewType[] = ['newhire', 'cqm', 'refusal']
 
 /**
  * CQM review categories. Ticking one appends its section to the end of the
@@ -227,11 +252,17 @@ const DEMOGRAPHICS: ReviewSection = {
     yn('dem.locations', 'Are the Incident Location and Destination Location recorded correctly?', {
       help: 'Are the locations specific and not generalizations?',
     }),
-    yn(
-      'dem.destinationRationale',
-      'Is there clear documentation to support why the patient was transported to the destination facility?',
-    ),
-    yn('dem.appropriateFacility', 'Was the patient transported to an appropriate receiving facility?'),
+    {
+      ...yn(
+        'dem.destinationRationale',
+        'Is there clear documentation to support why the patient was transported to the destination facility?',
+      ),
+      notForTypes: ['refusal'],
+    },
+    {
+      ...yn('dem.appropriateFacility', 'Was the patient transported to an appropriate receiving facility?'),
+      notForTypes: ['refusal'],
+    },
     yn(
       'dem.contact',
       "Were the patient's phone number (preferably cell phone number) and email address included in the PCR?",
@@ -249,10 +280,13 @@ const ASSESSMENT: ReviewSection = {
   questions: [
     yn('asm.reasonSupported', 'Is the Reason for Transport supported by the documented physical exam?'),
     yn('asm.history', 'Is the Patient History documented in the Patient History section?'),
-    yn(
-      'asm.monitoring',
-      'Is there documentation that the patient was appropriately monitored during transport?',
-    ),
+    {
+      ...yn(
+        'asm.monitoring',
+        'Is there documentation that the patient was appropriately monitored during transport?',
+      ),
+      notForTypes: ['refusal'],
+    },
     yn(
       'asm.examMatches',
       'Does the documented exam and treatment match the documented Reason for Transport?',
@@ -281,7 +315,10 @@ const TREATMENT: ReviewSection = {
     yn('trt.assessmentFields', 'Were additional assessment fields used to support the reason for transport?', {
       help: 'Were the Physical Assessment fields used correctly? Were AVPU/GCS used when appropriate? Were neuro assessments used for CVA/stroke chief complaints?',
     }),
-    yn('trt.mode', 'Was the mode of transport (air, ground etc) appropriate for patient condition?'),
+    {
+      ...yn('trt.mode', 'Was the mode of transport (air, ground etc) appropriate for patient condition?'),
+      notForTypes: ['refusal'],
+    },
   ],
 }
 
@@ -342,6 +379,46 @@ const NON_PATIENT: ReviewSection = {
       // The failure worth catching on these: a template or a copied chart that
       // leaves vitals or an impression on a run that had no patient.
       help: 'No vitals, assessments or impressions carried over from another chart. If there is nothing of the kind, select Yes.',
+    }),
+  ],
+}
+
+/**
+ * A patient who was assessed and declined transport.
+ *
+ * Written for AMR Kansas City rather than transcribed — Ninth Brain has no
+ * block for these, and a refusal reviewed as an ordinary CQM chart is marked
+ * against a destination, a facility and a ride that never happened. It is also
+ * the chart most likely to be read by a lawyer: the whole defence of a refusal
+ * is that a patient with capacity was told what could happen to them, was
+ * offered something else, and decided anyway. None of that is a transport
+ * question, and none of it is asked anywhere else on this form.
+ */
+const REFUSAL: ReviewSection = {
+  id: 'refusal',
+  title: 'Refusal Review',
+  when: { reviewType: 'refusal' },
+  authored: true,
+  intro:
+    'Asked alongside the exam, history and treatment questions, which still apply. The four questions about the transport are not asked: there was none.',
+  questions: [
+    yn('ref.capacity', 'Is the patient’s capacity to refuse documented?', {
+      help: 'Orientation or GCS, and nothing recorded that would impair the decision — intoxication, head injury, hypoglycaemia — or an explanation of why it does not.',
+    }),
+    yn('ref.risks', 'Does the narrative record the risks of refusing being explained?', {
+      help: 'Including death or serious disability where the presentation warrants it. "Advised to seek care" is not a risk.',
+    }),
+    yn('ref.alternatives', 'Were alternatives offered and documented?', {
+      help: 'Other transport, seeing their own doctor, calling back — and what to come back for.',
+    }),
+    yn('ref.signature', 'Is there a patient signature, or a recorded reason there is none?', {
+      help: 'A witness where the patient would not sign.',
+    }),
+    yn('ref.vitals', 'Is there at least one full set of vital signs, or a documented refusal of them?', {
+      help: 'A refusal with no vitals at all is the one that cannot be defended afterwards.',
+    }),
+    yn('ref.handover', 'Does the narrative say who the patient was left with and where?', {
+      help: 'Left alone, with family, with police, at the scene or at home — and their condition when the crew left.',
     }),
   ],
 }
@@ -533,6 +610,7 @@ export const REVIEW_SECTIONS: ReviewSection[] = [
   DEMOGRAPHICS,
   ASSESSMENT,
   TREATMENT,
+  REFUSAL,
   OVERALL,
   OUTCOME,
   ...CATEGORY_SECTIONS,
@@ -568,9 +646,21 @@ export function visibleSections(types: ReviewType[], categories: string[]): Revi
 /** Sections written here rather than transcribed, for the provenance note. */
 export const AUTHORED_SECTIONS: ReviewSection[] = REVIEW_SECTIONS.filter((s) => s.authored)
 
+/**
+ * The questions of one section that this review is actually asked.
+ *
+ * Everything that counts a question — the form, the tally, the export, the
+ * unanswered list — goes through here or through visibleQuestions(), so a
+ * question withheld from a review type is withheld everywhere at once rather
+ * than hidden on screen and still counted in the denominator.
+ */
+export function sectionQuestions(section: ReviewSection, types: ReviewType[]): ReviewQuestion[] {
+  return section.questions.filter((q) => !q.notForTypes?.some((t) => types.includes(t)))
+}
+
 /** Every question a review is expected to answer, in form order. */
 export function visibleQuestions(types: ReviewType[], categories: string[]): ReviewQuestion[] {
-  return visibleSections(types, categories).flatMap((s) => s.questions)
+  return visibleSections(types, categories).flatMap((s) => sectionQuestions(s, types))
 }
 
 /**

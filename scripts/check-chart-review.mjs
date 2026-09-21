@@ -125,7 +125,7 @@ check(
   // that already exists, and that provenance is why anyone trusts the numbers.
   // A block we wrote is a different kind of thing, so adding one has to be a
   // deliberate edit here rather than something that slips in.
-  authoredTitles.join(', ') === 'Non-Patient Transport Review, Trauma Review',
+  authoredTitles.join(', ') === 'Non-Patient Transport Review, Refusal Review, Trauma Review',
   'only the sections written for AMR KC are marked as authored',
   `authored: ${authoredTitles.join(', ') || 'none'}`,
 )
@@ -209,6 +209,59 @@ const care = m.visibleQuestions(['cqm'], []).map((q) => q.id)
 check(
   !care.includes('np.narrative') && care.includes('dem.locations') && care.includes('ovr.nearMiss'),
   'a patient-care review gets the backbone and the outcome questions, not the short block',
+)
+
+// A refusal is a patient-care review with four questions that have no subject.
+// It was previously reviewed as an ordinary CQM chart, which marked the crew
+// against a destination, a facility and a ride that never happened.
+const refusal = m.visibleQuestions(['refusal'], []).map((q) => q.id)
+check(
+  refusal.includes('ref.capacity') && refusal.includes('ref.risks') && refusal.includes('ref.signature'),
+  'a refusal review asks its own block',
+  refusal.filter((id) => id.startsWith('ref.')).join(', ') || 'none',
+)
+check(
+  refusal.includes('asm.history') && refusal.includes('trt.standards') && refusal.includes('dem.signatures'),
+  'and still asks the exam, history and treatment questions, which apply',
+)
+check(
+  !refusal.includes('dem.destinationRationale') &&
+    !refusal.includes('dem.appropriateFacility') &&
+    !refusal.includes('asm.monitoring') &&
+    !refusal.includes('trt.mode'),
+  'but not the four about a transport that never happened',
+  refusal.filter((id) =>
+    ['dem.destinationRationale', 'dem.appropriateFacility', 'asm.monitoring', 'trt.mode'].includes(id),
+  ).join(', '),
+)
+// The withheld questions are withheld from the SCORE too, not merely hidden on
+// screen — otherwise a refusal is judged on a denominator it was never asked.
+const refusalTally = m.tally([
+  {
+    id: 'r-refusal',
+    types: ['refusal'],
+    categories: [],
+    incidentNumber: '1',
+    crew: ['Pat Lee'],
+    reviewer: 'R',
+    reviewedAt: '2026-08-01',
+    serviceDate: '2026-08-01',
+    answers: { 'trt.mode': false, 'asm.history': true },
+    status: 'complete',
+    updatedAt: '',
+  },
+])
+check(
+  refusalTally.find((r) => r.question.id === 'trt.mode').answered === 0 &&
+    refusalTally.find((r) => r.question.id === 'asm.history').answered === 1,
+  'an answer left behind on a withheld question is out of scope, not a failure',
+  JSON.stringify(refusalTally.filter((r) => ['trt.mode', 'asm.history'].includes(r.question.id)).map((r) => [r.question.id, r.answered])),
+)
+// A CQM review is untouched by any of this.
+const cqmScope = m.visibleQuestions(['cqm'], []).map((q) => q.id)
+check(
+  cqmScope.includes('trt.mode') && cqmScope.includes('asm.monitoring') && !cqmScope.includes('ref.capacity'),
+  'a CQM review still asks all four, and none of the refusal block',
 )
 
 // ----- the tally -------------------------------------------------------------

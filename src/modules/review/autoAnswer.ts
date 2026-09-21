@@ -321,13 +321,29 @@ function reviewTypes(chart: PcrChart): ReviewType[] {
     said(chart.natureOfCall, 'standby', 'organ procurement', 'transfer of flight crew')
   ) return ['nonpatient']
 
+  // A refusal AFTER an assessment, which is a different chart from a call that
+  // cleared without a patient. The distinction is whether anything was found
+  // out about the patient: a crew who took vitals, formed an impression or
+  // treated before the patient declined has a chart to defend, and the no-
+  // patient-contact block does not ask any of the questions that defend it.
+  const refused =
+    said(chart.transportDisposition, 'patient refused transport', 'refused transport') ||
+    said(chart.patientEvaluation, 'refused') ||
+    has(chart.refusalReason)
+  const assessed =
+    chart.vitalsCount > 0 || has(chart.primaryImpression) || chart.medications.length > 0 || chart.hasGcs
+  if (refused && assessed) return ['refusal']
+
   // Unit Disposition and Patient Evaluation/Care are the fields that decide the
   // rest. Crew Disposition is not: "Back in Service, No Care/Support Services
   // Required" is what a crew records after a cancelled-on-scene call, and it
   // reads as "no patient" while sometimes describing one.
   const noPatient =
     said(chart.unitDisposition, 'no patient', 'cancelled', 'canceled') ||
-    said(chart.patientEvaluation, 'not applicable')
+    said(chart.patientEvaluation, 'not applicable') ||
+    // A refusal before anything was assessed IS a no-contact call, and that
+    // block asks the right question of it: why was no care provided.
+    refused
   return noPatient ? ['nopatient'] : ['cqm']
 }
 
@@ -880,6 +896,68 @@ export function autoReview(chart: PcrChart): AutoReview {
     }
 
     say('ovr.safeDecisions', true, 'assumed', 'Clinical safety is a judgement the export cannot make.')
+  }
+
+  // ----- refusals -----------------------------------------------------------
+  //
+  // The chart most likely to be read by a lawyer, and the one the export can
+  // say least about: capacity, risks and alternatives live in the narrative in
+  // whatever words the crew chose. So these are read where a field answers them
+  // and scanned for where only the narrative does — and a scan that finds
+  // nothing is reported as a look, never as a finding on its own.
+
+  if (types.includes('refusal')) {
+    const narr = narrative.toLowerCase()
+    const capacityWords = /\b(a&ox?\s*4|alert and oriented|oriented x ?4|capacity|competent|gcs 15)\b/i
+    const capacity = chart.hasGcs || chart.hasAvpu || capacityWords.test(narr)
+    say('ref.capacity', capacity, chart.hasGcs || chart.hasAvpu ? 'read' : 'inferred',
+      chart.hasGcs || chart.hasAvpu
+        ? `Mental status recorded (${[chart.hasGcs && 'GCS', chart.hasAvpu && 'AVPU'].filter(Boolean).join(', ')}).`
+        : capacity
+          ? 'The narrative describes the patient as oriented.'
+          : 'No GCS, no AVPU, and nothing in the narrative about the patient’s capacity to refuse.')
+    if (!capacity) {
+      flag('stop', 'Nothing records the patient’s capacity to refuse',
+        'No GCS, no AVPU and no statement of orientation. A refusal is defended on the patient having been able to make the decision.',
+        'ref.capacity')
+    }
+
+    const risks = /\b(risks?|refus\w* against|ama|against medical advice|death|die|dying|disab|deteriorat|worse)\b/i.test(narr)
+    say('ref.risks', risks, 'inferred',
+      risks ? 'The narrative mentions the risks of refusing.' : 'Nothing in the narrative reads as the risks of refusing being explained.')
+    if (!risks) {
+      flag('look', 'Risks of refusing not described',
+        'Nothing in the narrative reads as the crew explaining what could happen. "Advised to seek care" is not a risk.',
+        'ref.risks')
+    }
+
+    const alternatives = /\b(alternativ|own (doctor|physician|pcp)|pcp|urgent care|call (us )?back|call 911 again|return precautions|follow up)\b/i.test(narr)
+    say('ref.alternatives', alternatives, 'inferred',
+      alternatives ? 'The narrative mentions alternatives or return precautions.' : 'Nothing in the narrative reads as an alternative being offered.')
+
+    say('ref.signature', chart.signedByPatient, 'read',
+      chart.signedByPatient
+        ? 'A signature block was signed by the patient or their representative.'
+        : 'No signature block signed by the patient or a representative.')
+    if (!chart.signedByPatient) {
+      flag('look', 'No patient signature on a refusal',
+        'Nothing in the chart records the patient signing, and nothing records a witness to their declining to.',
+        'ref.signature')
+    }
+
+    say('ref.vitals', chart.vitalsCount > 0, 'read',
+      chart.vitalsCount > 0
+        ? `${chart.vitalsCount} set${chart.vitalsCount === 1 ? '' : 's'} of vitals recorded.`
+        : 'No vital signs recorded anywhere in the chart.')
+    if (chart.vitalsCount === 0) {
+      flag('stop', 'No vital signs on a refusal',
+        'The patient was assessed enough to decline transport, and nothing was measured. This is the refusal that cannot be defended afterwards.',
+        'ref.vitals')
+    }
+
+    const handover = /\b(left (with|in|at)|remained|family|police|pd|officer|scene with|at home|care of)\b/i.test(narr)
+    say('ref.handover', handover, 'inferred',
+      handover ? 'The narrative says where and with whom the patient was left.' : 'The narrative does not say who the patient was left with.')
   }
 
   // ----- outcome, asked on every review -------------------------------------

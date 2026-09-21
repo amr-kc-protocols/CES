@@ -718,6 +718,133 @@ function timedChart(over = {}) {
   )
 }
 
+// ----- refusals --------------------------------------------------------------
+//
+// A refusal after an assessment used to arrive as an ordinary CQM review, which
+// marked the crew against a destination, a receiving facility and a ride that
+// never happened — and asked nothing about capacity, risks, alternatives or the
+// signature, which is the whole of what defends a refusal afterwards.
+
+function refusalChart(over = {}) {
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', over.run ?? '99000020')
+    .field('Date of Service:', '08/16/2026 14:02:00')
+    .field('Nature of Call', 'Fall')
+    .field('Incident Address', '4 EXAMPLE AVE')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Patient Evaluation/Care', 'Patient Evaluated and Refused Care')
+    .field('Transport Disposition', over.disposition ?? 'Patient Refused Transport')
+  if (over.impression !== false) b.field('Primary Impression', 'Fall - Minor Injury')
+  b.field('Possible Injury', 'No')
+    .field('Narrative Patient Care Report Narrative', over.narrative ?? REFUSAL_NARRATIVE)
+  if (over.vitals !== false) {
+    b.table(
+      'Vital Signs Vitals Date/Time HR SBP/DBP (MAP) Resp. Rate SpO2 Pain',
+      '08/16/2026 14:10:00 || PTA = No Vance, Robin (10101) 78 132 / 84 ( 100 ) 16 Normal 2 Numeric',
+    )
+  }
+  if (over.gcs !== false) {
+    b.table(
+      'Mental Status Assessment Scales Date/Time AVPU GCS - Total Glasgow Coma Scale GCS - Qualifier',
+      '08/16/2026 14:10:00 || PTA = No Vance, Robin (10101) Alert 15',
+    )
+  }
+  b.table('Crew Member Crew Member Response Role Crew Member ID Crew Member Level',
+    'Primary Patient Caregiver-Transport Vance, Robin (10101) Paramedic')
+    .field('Crew Member Completing this Report', 'Vance, Robin (10101)')
+    .field('Signatures Type of Person Signing', 'Crew Member')
+    .field('Printed Name', 'Robin Vance')
+  if (over.patientSignature !== false) {
+    b.field('Signatures Type of Person Signing', 'Patient')
+      .field('Printed Name', 'A Patient')
+  }
+  b.footer()
+  return m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+}
+
+const REFUSAL_NARRATIVE =
+  'unit dispatched for a fall. patient is a&ox4, gcs 15, denies loss of consciousness and has no '
+  + 'impairing intoxication. full set of vitals obtained. patient refused transport. risks of refusing '
+  + 'were explained including the possibility of a head bleed, deterioration and death. alternatives '
+  + 'offered including transport by us, seeing their own doctor today, and calling 911 again if anything '
+  + 'changes. patient signed the refusal. left at home with family, ambulatory and in no distress.'
+
+{
+  const chart = refusalChart()
+  const r = m.autoReview(chart)
+  check(r.types.join() === 'refusal', 'a patient who was assessed and refused is a refusal review', r.types.join())
+  const asked = m.visibleQuestions(r.types, r.categories).map((q) => q.id)
+  check(
+    asked.includes('ref.capacity') && asked.includes('asm.history') && !asked.includes('trt.mode'),
+    'it is asked the refusal block and the exam questions, but not the transport ones',
+    asked.filter((id) => ['ref.capacity', 'asm.history', 'trt.mode', 'asm.monitoring'].includes(id)).join(', '),
+  )
+  check(
+    m.visibleQuestions(r.types, r.categories)
+      .filter((q) => q.kind === 'yesno')
+      .every((q) => typeof r.answers[q.id] === 'boolean'),
+    'every question on a refusal review is answered',
+    m.visibleQuestions(r.types, r.categories)
+      .filter((q) => q.kind === 'yesno' && typeof r.answers[q.id] !== 'boolean')
+      .map((q) => q.id).join(', '),
+  )
+  check(
+    r.answers['ref.capacity'] === true &&
+      r.answers['ref.risks'] === true &&
+      r.answers['ref.alternatives'] === true &&
+      r.answers['ref.signature'] === true &&
+      r.answers['ref.vitals'] === true &&
+      r.answers['ref.handover'] === true,
+    'a properly documented refusal answers its own block from the chart',
+    JSON.stringify(Object.fromEntries(Object.entries(r.answers).filter(([k]) => k.startsWith('ref.')))),
+  )
+  check(r.clear === true, 'and is cleared without a human', JSON.stringify(r.flags.map((f) => f.title)))
+}
+
+{
+  // The refusal that cannot be defended: nothing measured, nothing signed, and
+  // a narrative that records none of the conversation.
+  const r = m.autoReview(
+    refusalChart({
+      run: '99000021',
+      vitals: false,
+      gcs: false,
+      patientSignature: false,
+      narrative: 'patient fell and refused transport. unit cleared the scene and returned to service.',
+    }),
+  )
+  check(r.answers['ref.vitals'] === false, 'a refusal with no vitals is a finding')
+  check(r.answers['ref.signature'] === false, 'so is one with no patient signature')
+  check(r.answers['ref.capacity'] === false, 'and one with nothing about capacity')
+  check(
+    r.flags.some((f) => f.severity === 'stop' && f.title.includes('capacity')) &&
+      r.flags.some((f) => f.severity === 'stop' && f.title.includes('No vital signs on a refusal')),
+    'the two that cannot be defended stop the chart',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+  check(r.clear === false, 'so it is not counted until a person has read it')
+}
+
+{
+  // A refusal BEFORE anything was assessed is still a no-contact call, and that
+  // block asks the right question of it: why was no care provided.
+  const r = m.autoReview(
+    refusalChart({
+      run: '99000022',
+      vitals: false,
+      gcs: false,
+      impression: false,
+      narrative: 'patient declined evaluation on our arrival and walked away. no assessment performed.',
+    }),
+  )
+  check(
+    r.types.join() === 'nopatient',
+    'a refusal before any assessment stays a no-patient-contact review',
+    r.types.join(),
+  )
+}
+
 // ----- the smaller accuracy fixes -------------------------------------------
 
 {

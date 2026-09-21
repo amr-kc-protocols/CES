@@ -8,6 +8,7 @@ import {
   compliantAnswer,
   isCompliant,
   REVIEW_TYPES,
+  sectionQuestions,
   visibleQuestions,
   visibleSections,
   type ReviewQuestion,
@@ -515,7 +516,7 @@ function ReviewForm({
                 {s.intro}
               </div>
             )}
-            {s.questions.map((q) => (
+            {sectionQuestions(s, draft.types as ReviewType[]).map((q) => (
               <QuestionRow key={q.id} q={q} draft={draft} set={set} />
             ))}
             {s.id === 'cqm' && categories.includes('Other') && (

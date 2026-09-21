@@ -169,6 +169,14 @@ export interface PcrChart {
   patientBelongings?: string
 
   crew: PcrCrew[]
+  /**
+   * True when a signature block was signed by the patient or their
+   * representative.
+   *
+   * The name is not kept — only that one exists. On a refusal this is the
+   * single most load-bearing field on the chart.
+   */
+  signedByPatient: boolean
   /** Printed names on signature blocks signed as a crew member. */
   signedBy: string[]
   /** Printed names on signature blocks signed by anyone else. */
@@ -476,20 +484,27 @@ function crewMembers(view: PcrView): PcrCrew[] {
  * a "Printed Name" is the one that block belongs to. Reading them any other way
  * puts the receiving nurse's name in the crew's column.
  */
-function signatures(view: PcrView): { crew: string[]; other: string[] } {
+function signatures(view: PcrView): { crew: string[]; other: string[]; patient: boolean } {
   const crew: string[] = []
   const other: string[] = []
   let signer = ''
+  let patient = false
   for (const f of view.fields) {
     const key = f.label.toLowerCase().replace(/[^a-z]/g, '')
     if (key.endsWith('typeofpersonsigning')) signer = f.value.toLowerCase()
     else if (key.endsWith('printedname') && f.value) {
       const name = f.value.replace(/\s+/g, ' ').trim()
       if (signer.includes('crew')) { if (!crew.includes(name)) crew.push(name) }
-      else if (!other.includes(name)) other.push(name)
+      else {
+        // Who it was is not recorded here; that it happened is. On a refusal
+        // the presence of the signature is the whole point and the name is the
+        // one thing this parser must not carry out of the PDF.
+        if (/patient|representative|guardian|parent|power of attorney/.test(signer)) patient = true
+        if (!other.includes(name)) other.push(name)
+      }
     }
   }
-  return { crew, other }
+  return { crew, other, patient }
 }
 
 /**
@@ -612,6 +627,7 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     patientBelongings: f('Patient Belongings'),
 
     crew: crewMembers(view),
+    signedByPatient: sigs.patient,
     signedBy: sigs.crew,
     otherSignatures: sigs.other,
     reportBy: f('Crew Member Completing this Report')?.match(/[A-Z][A-Za-z'-]+,\s*[A-Z][A-Za-z'-]+/)?.[0],
