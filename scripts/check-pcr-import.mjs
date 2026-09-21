@@ -543,6 +543,181 @@ check(
 // never going to be able to answer, which is exactly the false alarm the import
 // exists to avoid.
 
+// ----- times: the order they ran in, and where the vitals fall ---------------
+//
+// Out-of-order times were the costliest ordinary error found in live testing:
+// two of them fired nine separate Elite rules, none of which named the cause.
+// And "monitored during transport" was answered by counting sets, so two taken
+// on scene before the truck moved passed a question about the ride.
+
+function timedChart(over = {}) {
+  const t = {
+    dispatched: '08/16/2026 16:14:00',
+    enRoute: '08/16/2026 16:15:00',
+    arrivedScene: '08/16/2026 16:20:00',
+    arrivedPatient: '08/16/2026 16:21:00',
+    leftScene: '08/16/2026 16:32:00',
+    arrivedDestination: '08/16/2026 17:18:00',
+    transferOfCare: '08/16/2026 17:25:00',
+    backInService: '08/16/2026 17:40:00',
+    ...over.times,
+  }
+  const vitals = over.vitals ?? ['08/16/2026 16:22:25', '08/16/2026 16:45:00']
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', over.run ?? '99000010')
+    .field('Date of Service:', '08/16/2026 16:14:28')
+    .field('Nature of Call', 'Chest Pain (Non-Traumatic)')
+    .field('Type of Service Requested', 'Emergency Response (Primary Response Area)')
+    .field('Unit Transport and Equipment Capability', 'Ground Transport (ALS Equipped)')
+    .field('Incident Address', '1 EXAMPLE ST')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Patient Evaluation/Care', 'Patient Evaluated and Care Provided')
+    .field('Destination Name', 'EXAMPLE MEDICAL CENTER')
+    .field('Destination reason', "Patient's Choice")
+    .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+    .field('Possible Injury', 'No')
+    .field('Medical/Surgical History', 'CV - Cardiac Stent')
+    .field('Unit Notified by Dispatch', t.dispatched)
+    .field('Unit En Route', t.enRoute)
+    .field('Unit Arrived on Scene', t.arrivedScene)
+    .field('Arrived at Patient', t.arrivedPatient)
+    .field('Unit Left Scene', t.leftScene)
+    .field('Patient Arrived at Destination', t.arrivedDestination)
+    .field('Destination Patient Transfer of Care', t.transferOfCare)
+    .field('Unit Back in Service', t.backInService)
+    .table("Phone Numbers Patient's Phone Number PhoneNumberType", '(913) 555-0100 Mobile')
+    .field('Narrative Patient Care Report Narrative', NARRATIVE_HEAD + ' ' + NARRATIVE_TAIL)
+  if (vitals.length) {
+    b.table(
+      'Vital Signs Vitals Date/Time HR SBP/DBP (MAP) Resp. Rate SpO2 Pain',
+      vitals
+        .map((v) => `${v} || PTA = No Vance, Robin (10101) 60 130 / 80 ( 96 ) 16 Normal 5 Numeric`)
+        .join(' '),
+    )
+  }
+  b.table('Crew Member Crew Member Response Role Crew Member ID Crew Member Level',
+    'Primary Patient Caregiver-Transport Vance, Robin (10101) Paramedic')
+    .field('Crew Member Completing this Report', 'Vance, Robin (10101)')
+    .field('Signatures Type of Person Signing', 'Crew Member')
+    .field('Printed Name', 'Robin Vance')
+    .footer()
+  return m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+}
+
+{
+  const chart = timedChart()
+  check(
+    chart.vitalsTimes.length === 2 && chart.vitalsTimes[0] === '08/16/2026 16:22:25',
+    'each set of vitals carries the time it was taken',
+    JSON.stringify(chart.vitalsTimes),
+  )
+  check(
+    chart.timeArrivedPatient === '08/16/2026 16:21:00' &&
+      chart.timeTransferOfCare === '08/16/2026 17:25:00',
+    'the three times the chain was missing are read',
+    JSON.stringify([chart.timePsap, chart.timeArrivedPatient, chart.timeTransferOfCare]),
+  )
+
+  const r = m.autoReview(chart)
+  check(
+    r.answers['asm.monitoring'] === true && r.sources['asm.monitoring'].confidence === 'read',
+    'a set taken between leaving the scene and arriving answers the monitoring question',
+    JSON.stringify(r.sources['asm.monitoring']),
+  )
+  check(
+    m.firstOutOfOrder(chart) === undefined && r.flags.every((f) => !f.title.includes('before')),
+    'a chart whose times run in order raises nothing about them',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+}
+
+{
+  // Two sets, both on scene, and the patient was transported. This passed on a
+  // count of two.
+  const r = m.autoReview(timedChart({ vitals: ['08/16/2026 16:22:25', '08/16/2026 16:26:00'] }))
+  check(
+    r.answers['asm.monitoring'] === false,
+    'two sets both taken on scene do not answer a question about the transport',
+    JSON.stringify(r.sources['asm.monitoring']),
+  )
+  const f = r.flags.find((x) => x.title.includes('during the transport'))
+  check(f?.severity === 'look', 'and the reviewer is told why', JSON.stringify(r.flags.map((x) => x.title)))
+}
+
+{
+  // One set on a 46-minute transport.
+  const r = m.autoReview(timedChart({ vitals: ['08/16/2026 16:22:25', '08/16/2026 16:50:00'] }))
+  check(
+    r.answers['asm.monitoring'] === true,
+    'one set during the transport answers the question',
+  )
+  check(
+    r.flags.some((x) => x.title.includes('One set of vitals on a long transport')),
+    'but a long transport with one set is still worth a look',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+}
+
+{
+  // Transfer of care recorded before the unit reached the destination.
+  const chart = timedChart({ times: { transferOfCare: '08/16/2026 17:05:00' } })
+  const problem = m.firstOutOfOrder(chart)
+  check(
+    problem?.kind === 'out-of-order' && problem.label === 'Destination Patient Transfer of Care',
+    'the one pair that runs backwards is named',
+    JSON.stringify(problem),
+  )
+  const r = m.autoReview(chart)
+  const f = r.flags.find((x) => x.title.includes('Transfer of Care'))
+  check(f?.severity === 'stop', 'and it stops the chart', JSON.stringify(r.flags.map((x) => x.title)))
+  check(
+    r.flags.filter((x) => x.title.includes('is before')).length === 1,
+    'once, not once per later time — one wrong time puts every time after it out of order',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+  check(r.clear === false, 'a chart with times out of order is not cleared without a human')
+}
+
+{
+  // A call through midnight with the clock advanced and the date left behind.
+  const chart = timedChart({
+    times: {
+      dispatched: '08/16/2026 23:40:00',
+      enRoute: '08/16/2026 23:42:00',
+      arrivedScene: '08/16/2026 23:51:00',
+      arrivedPatient: '08/16/2026 23:53:00',
+      leftScene: '08/16/2026 00:14:00',
+      arrivedDestination: '08/16/2026 00:48:00',
+      transferOfCare: '08/16/2026 00:55:00',
+      backInService: '08/16/2026 01:10:00',
+    },
+    vitals: ['08/16/2026 23:55:00'],
+  })
+  const problem = m.firstOutOfOrder(chart)
+  check(problem?.kind === 'midnight', 'a call through midnight is named as one', JSON.stringify(problem))
+  const r = m.autoReview(chart)
+  check(
+    r.flags.some((x) => x.severity === 'stop' && x.title.includes('midnight')),
+    'the reviewer is told which field to fix rather than which nine rules fired',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+}
+
+{
+  // The CAD-overwrite fingerprint: a clean response chain, and every clinical
+  // time earlier than the unit was notified.
+  const r = m.autoReview(
+    timedChart({ vitals: ['08/16/2026 07:52:00', '08/16/2026 07:54:00'] }),
+  )
+  const f = r.flags.find((x) => x.title.includes('before the unit was dispatched'))
+  check(
+    f?.severity === 'look' && f.detail.includes('CAD'),
+    'clinical times all earlier than dispatch read as a CAD download into an open report',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+}
+
 function nonPatientChart(over = {}) {
   const b = page(1)
     .field('EMS Agency', 'KS-EXAMPLE- Ground')

@@ -98,13 +98,32 @@ export interface PcrChart {
   odometerStart?: string
   odometerEnd?: string
   loadedMiles?: string
-  /** Unit times, for "are the times complete". */
+  /**
+   * Unit times, in the order the call ran.
+   *
+   * All ten, not the six the "are the times complete" question needs. Order is
+   * the thing worth checking and it cannot be checked through a gap: with
+   * Arrived at Patient missing, a transfer of care recorded before the crew
+   * reached the patient reads as a perfectly ordinary chart.
+   */
+  timePsap?: string
+  timeDispatchNotified?: string
   timeDispatched?: string
   timeEnRoute?: string
   timeArrivedScene?: string
+  timeArrivedPatient?: string
   timeLeftScene?: string
   timeArrivedDestination?: string
+  timeTransferOfCare?: string
   timeBackInService?: string
+  /**
+   * The timestamp on each set of vitals, as printed.
+   *
+   * Counting sets cannot answer "was the patient monitored during transport" —
+   * two sets taken on scene before the truck moved satisfy a count of two. The
+   * times can, so they are carried.
+   */
+  vitalsTimes: string[]
 
   medicalHistory?: string
   advanceDirectives?: string
@@ -298,6 +317,25 @@ export function isoDate(printed: string | undefined): string | undefined {
   return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
 }
 
+/**
+ * The timestamp at the head of each row of a stamped table.
+ *
+ * Anchored on the "|| PTA =" marker rather than on "a date somewhere in the
+ * row", because a vitals row carries numbers that look like times — a blood
+ * pressure prints as "130 / 80" and a despaced row is full of digits. Every
+ * row of these tables carries exactly one PTA marker, which makes it the only
+ * reliable row boundary in the blob.
+ *
+ * The date is optional: some tables print the date once and the time per row.
+ */
+export function rowTimes(table: string): string[] {
+  const out: string[] = []
+  const re = /(?:(\d{1,2}\/\d{1,2}\/\d{4})\s+)?(\d{1,2}:\d{2}(?::\d{2})?)\s*\|\|\s*PTA/g
+  let m
+  while ((m = re.exec(table))) out.push([m[1], m[2]].filter(Boolean).join(' '))
+  return out
+}
+
 function mentions(text: string, needle: string): boolean {
   if (despace(needle).length >= DESPACE_SAFE_LENGTH) {
     return despace(text).includes(despace(needle))
@@ -481,11 +519,15 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     odometerStart: f('Beginning Odometer Reading'),
     odometerEnd: f('Ending Odometer Reading'),
     loadedMiles: f('Total Loaded Miles'),
+    timePsap: f('PSAP Call'),
+    timeDispatchNotified: f('Dispatch Notified'),
     timeDispatched: f('Unit Notified by Dispatch'),
     timeEnRoute: f('Unit En Route'),
     timeArrivedScene: f('Unit Arrived on Scene'),
+    timeArrivedPatient: f('Arrived at Patient'),
     timeLeftScene: f('Unit Left Scene'),
     timeArrivedDestination: f('Patient Arrived at Destination'),
+    timeTransferOfCare: f('Destination Patient Transfer of Care'),
     timeBackInService: f('Unit Back in Service'),
 
     medicalHistory: f('Medical/Surgical History'),
@@ -507,6 +549,7 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     // vitals table counts the sets — counting them across the whole chart would
     // also count the GCS, glucose and measurement-method tables.
     vitalsCount: (vitals.match(/\|\|\s*PTA\s*=/g) ?? []).length,
+    vitalsTimes: rowTimes(vitals),
     hasGcs: /\d/.test(scales) && /GCS|Glasgow/i.test(view.text),
     hasAvpu: /\b(Alert|Verbal|Painful|Unresponsive)\b/.test(scales),
     hasPainScore: /\bPain\b/.test(vitals) || /Numeric|Wong|FLACC/i.test(vitals),

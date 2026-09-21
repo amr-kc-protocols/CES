@@ -339,6 +339,85 @@ function primaryAndRest(chart: PcrChart): { crew: string[]; otherCrew: string[] 
   return { crew: [author], otherCrew: names.filter((n) => n !== author) }
 }
 
+// ----- times -----------------------------------------------------------------
+//
+// Out-of-order times are the costliest ordinary error on a chart: in live
+// testing two of them fired nine separate Elite rules, none of which named the
+// cause. What a reviewer needs is the one pair that broke the sequence.
+
+/** Minutes since epoch for a printed "08/16/2026 16:22:25", or undefined. */
+export function parseStamp(printed: string | undefined): number | undefined {
+  if (!printed) return undefined
+  const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(printed)
+  if (!m) return undefined
+  const [, mo, d, y, h, min, sec] = m
+  return Date.UTC(+y, +mo - 1, +d, +h, +min, sec ? +sec : 0)
+}
+
+/** The call's times, in the order they must run. */
+export const TIME_CHAIN: { key: keyof PcrChart; label: string }[] = [
+  { key: 'timePsap', label: 'PSAP Call' },
+  { key: 'timeDispatchNotified', label: 'Dispatch Notified' },
+  { key: 'timeDispatched', label: 'Unit Notified by Dispatch' },
+  { key: 'timeEnRoute', label: 'Unit En Route' },
+  { key: 'timeArrivedScene', label: 'Unit Arrived on Scene' },
+  { key: 'timeArrivedPatient', label: 'Arrived at Patient' },
+  { key: 'timeLeftScene', label: 'Unit Left Scene' },
+  { key: 'timeArrivedDestination', label: 'Patient Arrived at Destination' },
+  { key: 'timeTransferOfCare', label: 'Destination Patient Transfer of Care' },
+  { key: 'timeBackInService', label: 'Unit Back in Service' },
+]
+
+export interface ChainProblem {
+  /**
+   * 'midnight' is the same fault with a known cause: the writer takes the date
+   * and the time as separate inputs, so a call running through midnight gets
+   * the clock advanced and the date left behind. Worth naming, because the fix
+   * is one field rather than a hunt.
+   */
+  kind: 'out-of-order' | 'midnight'
+  label: string
+  value: string
+  previousLabel: string
+  previousValue: string
+}
+
+/**
+ * The FIRST pair of times that runs backwards, and nothing after it.
+ *
+ * One root cause, deliberately. A single wrong time puts every later time out
+ * of order with it, and a list of nine problems is a list nobody reads to the
+ * end of. Missing times are skipped rather than treated as zero: a chart with
+ * no PSAP time is not a chart whose PSAP time is wrong.
+ */
+export function firstOutOfOrder(chart: PcrChart): ChainProblem | undefined {
+  let prev: number | undefined
+  let prevLabel = ''
+  let prevValue = ''
+  for (const { key, label } of TIME_CHAIN) {
+    const printed = chart[key] as string | undefined
+    const t = parseStamp(printed)
+    if (t === undefined) continue
+    if (prev !== undefined && t < prev) {
+      // Same calendar day, clock wound back from late evening to early
+      // morning: the crew advanced the time and not the date.
+      const sameDay = new Date(t).getUTCDate() === new Date(prev).getUTCDate()
+      const wrapped = new Date(prev).getUTCHours() >= 20 && new Date(t).getUTCHours() <= 4
+      return {
+        kind: sameDay && wrapped ? 'midnight' : 'out-of-order',
+        label,
+        value: printed ?? '',
+        previousLabel: prevLabel,
+        previousValue: prevValue,
+      }
+    }
+    prev = t
+    prevLabel = label
+    prevValue = printed ?? ''
+  }
+  return undefined
+}
+
 /** True when this chart records a patient being carried somewhere. */
 function wasTransported(chart: PcrChart): boolean {
   return said(chart.transportDisposition, 'transport by this ems unit', 'transport by another')
@@ -419,6 +498,60 @@ export function autoReview(chart: PcrChart): AutoReview {
       `${missingProcedures.join(', ')} in the narrative only`,
       `The narrative describes ${missingProcedures.join(', ')} with no matching entry in the Procedures section.`,
       'trt.procedures',
+    )
+  }
+
+  // ----- the times ----------------------------------------------------------
+  //
+  // Raised for every review type, before anything else that reads a time. A
+  // chart whose times run backwards is wrong whether it carried a patient, a
+  // flight crew or nobody at all, and everything downstream — monitoring,
+  // mileage, the clinical window — is being measured against a sequence that
+  // does not hold.
+
+  const chain = firstOutOfOrder(chart)
+  if (chain) {
+    flag(
+      'stop',
+      chain.kind === 'midnight'
+        ? 'The call runs past midnight and the date was not advanced'
+        : `${chain.label} is before ${chain.previousLabel}`,
+      chain.kind === 'midnight'
+        ? `${chain.previousLabel} is ${chain.previousValue} and ${chain.label} is ${chain.value} — the same day. The writer takes the date and the time as separate fields, so the clock was advanced and the date was left behind.`
+        : `${chain.previousLabel} is ${chain.previousValue} and ${chain.label} is ${chain.value}. One of the two is wrong; every later time is out of order with it, so this is the only one worth reading.`,
+      'ovr.nearMiss',
+    )
+  }
+
+  // Clinical times outside the window the crew had the patient.
+  //
+  // Only the vitals, for now: they are the one clinical table whose row
+  // timestamps this parser reads. The usual cause is a CAD download into an
+  // open report, which replaces the response times and leaves the manually
+  // entered clinical times where they were.
+  const careFrom = parseStamp(chart.timeArrivedPatient) ?? parseStamp(chart.timeArrivedScene)
+  const careTo = parseStamp(chart.timeTransferOfCare) ?? parseStamp(chart.timeArrivedDestination)
+  const vitalStamps = chart.vitalsTimes
+    .map((v) => ({ printed: v, at: parseStamp(v) }))
+    .filter((v): v is { printed: string; at: number } => v.at !== undefined)
+  const outsideCare = vitalStamps.filter(
+    (v) => (careFrom !== undefined && v.at < careFrom) || (careTo !== undefined && v.at > careTo),
+  )
+  if (outsideCare.length && !chain) {
+    const allBefore =
+      careFrom !== undefined &&
+      vitalStamps.length > 0 &&
+      outsideCare.length === vitalStamps.length &&
+      vitalStamps.every((v) => v.at < (parseStamp(chart.timeDispatched) ?? careFrom))
+    flag(
+      'look',
+      allBefore
+        ? 'Every clinical time is before the unit was dispatched'
+        : `${outsideCare.length} clinical time${outsideCare.length === 1 ? ' is' : 's are'} outside the crew's contact with the patient`,
+      allBefore
+        ? `The response times look consistent but every set of vitals is stamped before ${chart.timeDispatched || 'the unit was notified'} — the fingerprint of a CAD download into an open report, which replaces the response times and leaves the manually entered clinical times behind.`
+        : `Vitals at ${outsideCare.map((v) => v.printed).join(', ')} fall outside ${chart.timeArrivedPatient || chart.timeArrivedScene || 'arrival'} to ${chart.timeTransferOfCare || chart.timeArrivedDestination || 'transfer of care'}. Unless they were taken prior to arrival, one of the times is wrong.`,
+      'asm.monitoring',
     )
   }
 
@@ -573,13 +706,40 @@ export function autoReview(chart: PcrChart): AutoReview {
     say('asm.history', has(chart.medicalHistory), 'read',
       has(chart.medicalHistory) ? `History recorded: ${chart.medicalHistory}.` : 'Medical/Surgical History is blank.')
 
-    const monitored = !transported || chart.vitalsCount >= 2
-    say('asm.monitoring', monitored, 'read',
+    /**
+     * Monitored DURING TRANSPORT, which a count of sets cannot answer.
+     *
+     * Two sets taken on scene before the truck moved satisfied "vitalsCount >=
+     * 2" and passed a question about the ride. Where the chart carries the
+     * times, the sets are placed against them: at least one between leaving the
+     * scene and arriving at the destination. Where it does not — the export is
+     * missing one of the two times — the old count is the honest fallback, and
+     * it says so in its reason rather than claiming to have checked.
+     */
+    const leftScene = parseStamp(chart.timeLeftScene)
+    const arrived = parseStamp(chart.timeArrivedDestination)
+    const stamps = chart.vitalsTimes.map(parseStamp).filter((t): t is number => t !== undefined)
+    const canTime = transported && leftScene !== undefined && arrived !== undefined && stamps.length > 0
+    const enRoute = canTime ? stamps.filter((t) => t > leftScene! && t <= arrived!) : []
+    const monitored = !transported || (canTime ? enRoute.length >= 1 : chart.vitalsCount >= 2)
+    say('asm.monitoring', monitored, canTime ? 'read' : 'inferred',
       chart.vitalsCount === 0 ? 'No vital signs recorded at all.'
-        : `${chart.vitalsCount} set${chart.vitalsCount === 1 ? '' : 's'} of vitals recorded.`)
+        : canTime
+          ? enRoute.length
+            ? `${enRoute.length} of ${chart.vitalsCount} set${chart.vitalsCount === 1 ? '' : 's'} taken between leaving the scene and arriving.`
+            : `${chart.vitalsCount} set${chart.vitalsCount === 1 ? '' : 's'} of vitals, none between leaving the scene and arriving.`
+          : `${chart.vitalsCount} set${chart.vitalsCount === 1 ? '' : 's'} of vitals recorded; the chart does not carry the times to place them in the transport.`)
     if (transported && chart.vitalsCount === 0) {
       flag('stop', 'No vital signs on a transport', 'The patient was carried by this crew with no vital signs recorded anywhere in the chart.', 'asm.monitoring')
-    } else if (transported && chart.vitalsCount === 1) {
+    } else if (canTime && enRoute.length === 0) {
+      flag('look', 'No vitals taken during the transport',
+        `All ${chart.vitalsCount} set${chart.vitalsCount === 1 ? '' : 's'} were taken before the unit left the scene. Nothing in the chart shows the patient was monitored on the way.`,
+        'asm.monitoring')
+    } else if (canTime && enRoute.length === 1 && arrived - leftScene >= 30 * 60 * 1000) {
+      flag('look', 'One set of vitals on a long transport',
+        `${Math.round((arrived - leftScene) / 60000)} minutes from scene to destination with one set of vitals taken during it.`,
+        'asm.monitoring')
+    } else if (!canTime && transported && chart.vitalsCount === 1) {
       flag('look', 'One set of vitals only', 'A single set does not show the patient was monitored during transport.', 'asm.monitoring')
     }
 
