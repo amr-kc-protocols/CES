@@ -49,9 +49,14 @@ export default function PcrImport({
   const [imported, setImported] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const clear = rows.filter((r) => r.clear && !r.alreadyReviewed)
-  const needsLook = rows.filter((r) => !r.clear && !r.alreadyReviewed)
-  const duplicates = rows.filter((r) => r.alreadyReviewed)
+  // Training and test records are held out of all three buckets. They go
+  // through the same export as real charts, and a month's numbers that include
+  // them are a month's numbers nobody can use.
+  const tests = rows.filter((r) => r.isTestRecord)
+  const real = rows.filter((r) => !r.isTestRecord)
+  const clear = real.filter((r) => r.clear && !r.alreadyReviewed)
+  const needsLook = real.filter((r) => !r.clear && !r.alreadyReviewed)
+  const duplicates = real.filter((r) => r.alreadyReviewed)
 
   async function take(files: File[]) {
     const pdfs = files.filter((f) => /\.pdf$/i.test(f.name))
@@ -105,7 +110,7 @@ export default function PcrImport({
     const stamp = todayISO()
     let count = 0
     for (const r of rows) {
-      if (r.alreadyReviewed) continue
+      if (r.alreadyReviewed || r.isTestRecord) continue
       const entry: Omit<ChartReviewEntry, 'id' | 'updatedAt'> = {
         types: r.types,
         categories: r.categories,
@@ -224,10 +229,16 @@ export default function PcrImport({
             <div className="stat">
               <div className="value">{rows.length}</div>
               <div className="label">Charts read</div>
+              {tests.length > 0 && (
+                <div className="sub">
+                  {tests.length} training record{tests.length === 1 ? '' : 's'} held out
+                </div>
+              )}
             </div>
             <div className="stat">
               <div className="value">{clear.length}</div>
               <div className="label">Clear — counted on import</div>
+              <div className="sub">judgement questions still unconfirmed</div>
             </div>
             <div className="stat">
               <div className="value">{needsLook.length}</div>
@@ -289,7 +300,9 @@ export default function PcrImport({
               <div className="subtle" style={{ marginBottom: 8 }}>
                 Answered from the export and counted in the tally. Nothing here needs a decision
                 — a finding shown below was read straight off the chart and is already counted,
-                not waiting on you.
+                not waiting on you. What the export could not answer — standards of care,
+                timeliness, whether the exam matches the complaint — is marked assumed on the
+                review and stays out of every percentage until a reviewer answers it.
               </div>
               <div className="table-wrap cr-clean-table">
                 <table>
@@ -325,6 +338,17 @@ export default function PcrImport({
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {tests.length > 0 && (
+            <div className="banner warn" style={{ marginTop: 12 }}>
+              <strong>
+                {tests.length} training or test record{tests.length === 1 ? '' : 's'}
+              </strong>{' '}
+              skipped, so the month's figures are about real calls:{' '}
+              {tests.map((r) => r.incidentNumber).join(', ')}. These are recognised from a ZZTEST
+              or TRAINING marker in the chart.
             </div>
           )}
 

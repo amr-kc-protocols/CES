@@ -334,6 +334,70 @@ check(
   review.findings.filter((id) => !review.findingNotes[id]).join(', '),
 )
 
+// ----- what a narrative naming a drug actually means -------------------------
+//
+// Three reasons a drug appears in a narrative: the crew gave it, the patient
+// takes it at home, or the crew considered it and did not. Only the first is a
+// charting gap. Flagged on all three, this reported "Aspirin in the narrative
+// only" on every cardiac patient taking a daily 81mg — and a stop flag that is
+// wrong four times out of five stops being read at all.
+
+const drugCases = [
+  ['Pt takes aspirin 81 mg daily at home.', [], 'a home medication is not a drug given'],
+  ['Narcan considered, not indicated.', [], 'a drug considered and not given raises nothing'],
+  ['Pt denies taking nitro today.', [], 'a drug the patient denies taking raises nothing'],
+  ['20g IV established in the left AC, saline lock placed.', [], 'a saline lock is a line, not a fluid'],
+  ['Administered 324 mg aspirin PO en route.', ['Aspirin'], 'a drug the crew gave is still found'],
+  ['500 ml ns bolus given wide open.', ['Normal Saline'], 'saline beside a volume is a fluid given'],
+  ['Pt is A&Ox4, ns exam unremarkable.', [], "two loose letters are not a litre of saline"],
+]
+for (const [text, expected, label] of drugCases) {
+  const got = m.drugsInNarrative(text).map((d) => d.name)
+  check(
+    got.length === expected.length && expected.every((e) => got.includes(e)),
+    label,
+    `"${text}" -> ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}`,
+  )
+}
+
+// A stem with a closing word boundary never matches its own inflections:
+// "refus\b" cannot match "refused". Every one of these is the ordinary way a
+// crew writes it.
+for (const [text, label] of [
+  ['IV access attempted twice without success, aspirin not given.', 'attempted'],
+  ['Patient refused the aspirin offered.', 'refused'],
+  ['Patient declined nitroglycerin.', 'declined'],
+]) {
+  check(
+    m.drugsInNarrative(text).length === 0,
+    `a drug ${label} is not a drug given`,
+    JSON.stringify(m.drugsInNarrative(text)),
+  )
+}
+
+// Given by somebody else before the crew arrived. Still a field the crew should
+// have filled in — the question asks for medications "including those given by
+// other caregivers" — but not a drug this crew pushed and never recorded, so it
+// is worth a reviewer's eye rather than a hold on the chart.
+const pta = m.drugsInNarrative('Pt reports family gave narcan PTA before our arrival.')
+check(
+  pta.length === 1 && pta[0].name === 'Naloxone' && pta[0].givenByOthers === true,
+  'a drug given by the family before arrival is marked as given by others',
+  JSON.stringify(pta),
+)
+
+// The DCHAT history section is a list of what the patient takes, and no window
+// around a single word will work out that "aspirin, lisinopril, metoprolol" is
+// a list rather than a treatment.
+const dchat = m.drugsInNarrative(
+  'D: Dispatched emergent.\nC: Chest pain.\nH: Takes aspirin, nitroglycerin, metoprolol.\nA: A&Ox4, skin warm.\nT: 4mg zofran IV for nausea.',
+)
+check(
+  dchat.map((d) => d.name).join() === 'Ondansetron',
+  'the history section is not read as treatment, and the treatment section still is',
+  JSON.stringify(dchat.map((d) => d.name)),
+)
+
 // The same chart with the dose right and no drug missing from the table.
 const clean = m.parseChart(
   m.buildPcrDoc(
@@ -493,6 +557,389 @@ check(
 // Read as an ordinary transport they fail every patient-care question they were
 // never going to be able to answer, which is exactly the false alarm the import
 // exists to avoid.
+
+// ----- times: the order they ran in, and where the vitals fall ---------------
+//
+// Out-of-order times were the costliest ordinary error found in live testing:
+// two of them fired nine separate Elite rules, none of which named the cause.
+// And "monitored during transport" was answered by counting sets, so two taken
+// on scene before the truck moved passed a question about the ride.
+
+function timedChart(over = {}) {
+  const t = {
+    dispatched: '08/16/2026 16:14:00',
+    enRoute: '08/16/2026 16:15:00',
+    arrivedScene: '08/16/2026 16:20:00',
+    arrivedPatient: '08/16/2026 16:21:00',
+    leftScene: '08/16/2026 16:32:00',
+    arrivedDestination: '08/16/2026 17:18:00',
+    transferOfCare: '08/16/2026 17:25:00',
+    backInService: '08/16/2026 17:40:00',
+    ...over.times,
+  }
+  const vitals = over.vitals ?? ['08/16/2026 16:22:25', '08/16/2026 16:45:00']
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', over.run ?? '99000010')
+    .field('Date of Service:', '08/16/2026 16:14:28')
+    .field('Nature of Call', 'Chest Pain (Non-Traumatic)')
+    .field('Type of Service Requested', 'Emergency Response (Primary Response Area)')
+    .field('Unit Transport and Equipment Capability', 'Ground Transport (ALS Equipped)')
+    .field('Incident Address', '1 EXAMPLE ST')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Patient Evaluation/Care', 'Patient Evaluated and Care Provided')
+    .field('Destination Name', 'EXAMPLE MEDICAL CENTER')
+    .field('Destination reason', "Patient's Choice")
+    .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+    .field('Possible Injury', 'No')
+    .field('Medical/Surgical History', 'CV - Cardiac Stent')
+    .field('Unit Notified by Dispatch', t.dispatched)
+    .field('Unit En Route', t.enRoute)
+    .field('Unit Arrived on Scene', t.arrivedScene)
+    .field('Arrived at Patient', t.arrivedPatient)
+    .field('Unit Left Scene', t.leftScene)
+    .field('Patient Arrived at Destination', t.arrivedDestination)
+    .field('Destination Patient Transfer of Care', t.transferOfCare)
+    .field('Unit Back in Service', t.backInService)
+    .table("Phone Numbers Patient's Phone Number PhoneNumberType", '(913) 555-0100 Mobile')
+    .field('Narrative Patient Care Report Narrative', NARRATIVE_HEAD + ' ' + NARRATIVE_TAIL)
+  if (vitals.length) {
+    b.table(
+      'Vital Signs Vitals Date/Time HR SBP/DBP (MAP) Resp. Rate SpO2 Pain',
+      vitals
+        .map((v) => `${v} || PTA = No Vance, Robin (10101) 60 130 / 80 ( 96 ) 16 Normal 5 Numeric`)
+        .join(' '),
+    )
+  }
+  b.table('Crew Member Crew Member Response Role Crew Member ID Crew Member Level',
+    'Primary Patient Caregiver-Transport Vance, Robin (10101) Paramedic')
+    .field('Crew Member Completing this Report', 'Vance, Robin (10101)')
+    .field('Signatures Type of Person Signing', 'Crew Member')
+    .field('Printed Name', 'Robin Vance')
+    .footer()
+  return m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+}
+
+{
+  const chart = timedChart()
+  check(
+    chart.vitalsTimes.length === 2 && chart.vitalsTimes[0] === '08/16/2026 16:22:25',
+    'each set of vitals carries the time it was taken',
+    JSON.stringify(chart.vitalsTimes),
+  )
+  check(
+    chart.timeArrivedPatient === '08/16/2026 16:21:00' &&
+      chart.timeTransferOfCare === '08/16/2026 17:25:00',
+    'the three times the chain was missing are read',
+    JSON.stringify([chart.timePsap, chart.timeArrivedPatient, chart.timeTransferOfCare]),
+  )
+
+  const r = m.autoReview(chart)
+  check(
+    r.answers['asm.monitoring'] === true && r.sources['asm.monitoring'].confidence === 'read',
+    'a set taken between leaving the scene and arriving answers the monitoring question',
+    JSON.stringify(r.sources['asm.monitoring']),
+  )
+  check(
+    m.firstOutOfOrder(chart) === undefined && r.flags.every((f) => !f.title.includes('before')),
+    'a chart whose times run in order raises nothing about them',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+}
+
+{
+  // Two sets, both on scene, and the patient was transported. This passed on a
+  // count of two.
+  const r = m.autoReview(timedChart({ vitals: ['08/16/2026 16:22:25', '08/16/2026 16:26:00'] }))
+  check(
+    r.answers['asm.monitoring'] === false,
+    'two sets both taken on scene do not answer a question about the transport',
+    JSON.stringify(r.sources['asm.monitoring']),
+  )
+  const f = r.flags.find((x) => x.title.includes('during the transport'))
+  check(f?.severity === 'look', 'and the reviewer is told why', JSON.stringify(r.flags.map((x) => x.title)))
+}
+
+{
+  // One set on a 46-minute transport.
+  const r = m.autoReview(timedChart({ vitals: ['08/16/2026 16:22:25', '08/16/2026 16:50:00'] }))
+  check(
+    r.answers['asm.monitoring'] === true,
+    'one set during the transport answers the question',
+  )
+  check(
+    r.flags.some((x) => x.title.includes('One set of vitals on a long transport')),
+    'but a long transport with one set is still worth a look',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+}
+
+{
+  // Transfer of care recorded before the unit reached the destination.
+  const chart = timedChart({ times: { transferOfCare: '08/16/2026 17:05:00' } })
+  const problem = m.firstOutOfOrder(chart)
+  check(
+    problem?.kind === 'out-of-order' && problem.label === 'Destination Patient Transfer of Care',
+    'the one pair that runs backwards is named',
+    JSON.stringify(problem),
+  )
+  const r = m.autoReview(chart)
+  const f = r.flags.find((x) => x.title.includes('Transfer of Care'))
+  check(f?.severity === 'stop', 'and it stops the chart', JSON.stringify(r.flags.map((x) => x.title)))
+  check(
+    r.flags.filter((x) => x.title.includes('is before')).length === 1,
+    'once, not once per later time — one wrong time puts every time after it out of order',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+  check(r.clear === false, 'a chart with times out of order is not cleared without a human')
+}
+
+{
+  // A call through midnight with the clock advanced and the date left behind.
+  const chart = timedChart({
+    times: {
+      dispatched: '08/16/2026 23:40:00',
+      enRoute: '08/16/2026 23:42:00',
+      arrivedScene: '08/16/2026 23:51:00',
+      arrivedPatient: '08/16/2026 23:53:00',
+      leftScene: '08/16/2026 00:14:00',
+      arrivedDestination: '08/16/2026 00:48:00',
+      transferOfCare: '08/16/2026 00:55:00',
+      backInService: '08/16/2026 01:10:00',
+    },
+    vitals: ['08/16/2026 23:55:00'],
+  })
+  const problem = m.firstOutOfOrder(chart)
+  check(problem?.kind === 'midnight', 'a call through midnight is named as one', JSON.stringify(problem))
+  const r = m.autoReview(chart)
+  check(
+    r.flags.some((x) => x.severity === 'stop' && x.title.includes('midnight')),
+    'the reviewer is told which field to fix rather than which nine rules fired',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+}
+
+{
+  // The CAD-overwrite fingerprint: a clean response chain, and every clinical
+  // time earlier than the unit was notified.
+  const r = m.autoReview(
+    timedChart({ vitals: ['08/16/2026 07:52:00', '08/16/2026 07:54:00'] }),
+  )
+  const f = r.flags.find((x) => x.title.includes('before the unit was dispatched'))
+  check(
+    f?.severity === 'look' && f.detail.includes('CAD'),
+    'clinical times all earlier than dispatch read as a CAD download into an open report',
+    JSON.stringify(r.flags.map((x) => x.title)),
+  )
+}
+
+// ----- refusals --------------------------------------------------------------
+//
+// A refusal after an assessment used to arrive as an ordinary CQM review, which
+// marked the crew against a destination, a receiving facility and a ride that
+// never happened — and asked nothing about capacity, risks, alternatives or the
+// signature, which is the whole of what defends a refusal afterwards.
+
+function refusalChart(over = {}) {
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', over.run ?? '99000020')
+    .field('Date of Service:', '08/16/2026 14:02:00')
+    .field('Nature of Call', 'Fall')
+    .field('Incident Address', '4 EXAMPLE AVE')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Patient Evaluation/Care', 'Patient Evaluated and Refused Care')
+    .field('Transport Disposition', over.disposition ?? 'Patient Refused Transport')
+  if (over.impression !== false) b.field('Primary Impression', 'Fall - Minor Injury')
+  b.field('Possible Injury', 'No')
+    .field('Narrative Patient Care Report Narrative', over.narrative ?? REFUSAL_NARRATIVE)
+  if (over.vitals !== false) {
+    b.table(
+      'Vital Signs Vitals Date/Time HR SBP/DBP (MAP) Resp. Rate SpO2 Pain',
+      '08/16/2026 14:10:00 || PTA = No Vance, Robin (10101) 78 132 / 84 ( 100 ) 16 Normal 2 Numeric',
+    )
+  }
+  if (over.gcs !== false) {
+    b.table(
+      'Mental Status Assessment Scales Date/Time AVPU GCS - Total Glasgow Coma Scale GCS - Qualifier',
+      '08/16/2026 14:10:00 || PTA = No Vance, Robin (10101) Alert 15',
+    )
+  }
+  b.table('Crew Member Crew Member Response Role Crew Member ID Crew Member Level',
+    'Primary Patient Caregiver-Transport Vance, Robin (10101) Paramedic')
+    .field('Crew Member Completing this Report', 'Vance, Robin (10101)')
+    .field('Signatures Type of Person Signing', 'Crew Member')
+    .field('Printed Name', 'Robin Vance')
+  if (over.patientSignature !== false) {
+    b.field('Signatures Type of Person Signing', 'Patient')
+      .field('Printed Name', 'A Patient')
+  }
+  b.footer()
+  return m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+}
+
+const REFUSAL_NARRATIVE =
+  'unit dispatched for a fall. patient is a&ox4, gcs 15, denies loss of consciousness and has no '
+  + 'impairing intoxication. full set of vitals obtained. patient refused transport. risks of refusing '
+  + 'were explained including the possibility of a head bleed, deterioration and death. alternatives '
+  + 'offered including transport by us, seeing their own doctor today, and calling 911 again if anything '
+  + 'changes. patient signed the refusal. left at home with family, ambulatory and in no distress.'
+
+{
+  const chart = refusalChart()
+  const r = m.autoReview(chart)
+  check(r.types.join() === 'refusal', 'a patient who was assessed and refused is a refusal review', r.types.join())
+  const asked = m.visibleQuestions(r.types, r.categories).map((q) => q.id)
+  check(
+    asked.includes('ref.capacity') && asked.includes('asm.history') && !asked.includes('trt.mode'),
+    'it is asked the refusal block and the exam questions, but not the transport ones',
+    asked.filter((id) => ['ref.capacity', 'asm.history', 'trt.mode', 'asm.monitoring'].includes(id)).join(', '),
+  )
+  check(
+    m.visibleQuestions(r.types, r.categories)
+      .filter((q) => q.kind === 'yesno')
+      .every((q) => typeof r.answers[q.id] === 'boolean'),
+    'every question on a refusal review is answered',
+    m.visibleQuestions(r.types, r.categories)
+      .filter((q) => q.kind === 'yesno' && typeof r.answers[q.id] !== 'boolean')
+      .map((q) => q.id).join(', '),
+  )
+  check(
+    r.answers['ref.capacity'] === true &&
+      r.answers['ref.risks'] === true &&
+      r.answers['ref.alternatives'] === true &&
+      r.answers['ref.signature'] === true &&
+      r.answers['ref.vitals'] === true &&
+      r.answers['ref.handover'] === true,
+    'a properly documented refusal answers its own block from the chart',
+    JSON.stringify(Object.fromEntries(Object.entries(r.answers).filter(([k]) => k.startsWith('ref.')))),
+  )
+  check(r.clear === true, 'and is cleared without a human', JSON.stringify(r.flags.map((f) => f.title)))
+}
+
+{
+  // The refusal that cannot be defended: nothing measured, nothing signed, and
+  // a narrative that records none of the conversation.
+  const r = m.autoReview(
+    refusalChart({
+      run: '99000021',
+      vitals: false,
+      gcs: false,
+      patientSignature: false,
+      narrative: 'patient fell and refused transport. unit cleared the scene and returned to service.',
+    }),
+  )
+  check(r.answers['ref.vitals'] === false, 'a refusal with no vitals is a finding')
+  check(r.answers['ref.signature'] === false, 'so is one with no patient signature')
+  check(r.answers['ref.capacity'] === false, 'and one with nothing about capacity')
+  check(
+    r.flags.some((f) => f.severity === 'stop' && f.title.includes('capacity')) &&
+      r.flags.some((f) => f.severity === 'stop' && f.title.includes('No vital signs on a refusal')),
+    'the two that cannot be defended stop the chart',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+  check(r.clear === false, 'so it is not counted until a person has read it')
+}
+
+{
+  // A refusal BEFORE anything was assessed is still a no-contact call, and that
+  // block asks the right question of it: why was no care provided.
+  const r = m.autoReview(
+    refusalChart({
+      run: '99000022',
+      vitals: false,
+      gcs: false,
+      impression: false,
+      narrative: 'patient declined evaluation on our arrival and walked away. no assessment performed.',
+    }),
+  )
+  check(
+    r.types.join() === 'nopatient',
+    'a refusal before any assessment stays a no-patient-contact review',
+    r.types.join(),
+  )
+}
+
+// ----- the smaller accuracy fixes -------------------------------------------
+
+{
+  // DCHAT: long enough, and still never says what the history was or who the
+  // patient was handed to. A character count cannot tell that from a good chart.
+  const thin =
+    'unit 101 responded emergent to the address. patient complains of chest pain that started this morning. '
+    + 'skin warm and dry, lung sounds clear, a&ox4 on arrival. this sentence exists only to push the narrative '
+    + 'past the two hundred character floor that the reviewer applies to every chart it reads.'
+  const missing = m.missingNarrativeElements(thin)
+  check(
+    missing.includes('history') && !missing.includes('dispatch') && !missing.includes('assessment'),
+    'a narrative long enough but missing an element is told which element',
+    JSON.stringify(missing),
+  )
+  check(
+    m.missingNarrativeElements('D: dispatched.\nC: chest pain.\nH: none.\nA: alert.\nT: transported.').length === 0,
+    "the crew's own DCHAT labels are taken as covering their sections",
+  )
+}
+
+{
+  // Oxygen charted as a medication rather than a procedure is still charted.
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', '99000011')
+    .field('Date of Service:', '08/16/2026 16:14:28')
+    .field('Incident Address', '1 EXAMPLE ST')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Patient Evaluation/Care', 'Patient Evaluated and Care Provided')
+    .field('Destination Name', 'EXAMPLE MEDICAL CENTER')
+    .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+    .table(
+      'Medication Administration Medications Date/Time PTA Crew Member Medication Administered Dosage Route',
+      '08/16/2026 16:25:00 No Vance, Robin (10101) Oxygen 15 Liters/Min (L/min) Nasal Cannula',
+    )
+    .field('Narrative Patient Care Report Narrative',
+      NARRATIVE_HEAD + ' oxygen administered by nasal cannula at 15 lpm. ' + NARRATIVE_TAIL)
+    .footer()
+  const chart = m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+  check(chart.hasOxygen === true, 'oxygen in the medications table is oxygen charted')
+  const r = m.autoReview(chart)
+  check(
+    !r.flags.some((f) => f.title.toLowerCase().includes('oxygen')),
+    'so it is not reported as being in the narrative only',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+}
+
+{
+  // Training records come through the same export as real calls.
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', '900000099')
+    .field('Date of Service:', '08/16/2026 16:14:28')
+    .field('Incident Address', '1 EXAMPLE ST')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Narrative Patient Care Report Narrative',
+      '*** TRAINING RECORD *** this chart was built for practice and is not a patient.')
+    .footer()
+  const chart = m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+  check(m.looksLikeTestRecord(chart) === true, 'a training marker on the chart is recognised')
+  check(
+    m.autoReview(chart).isTestRecord === true,
+    'and the review says so, so the import can hold it out of the month',
+  )
+  check(
+    typeof chart.isTestRecord === 'boolean',
+    'what comes out is a boolean — a record filed under a test name leaves no name behind',
+  )
+  check(
+    m.looksLikeTestRecord({ isTestRecord: false, narrative: 'an ordinary chest pain call.' }) === false,
+    'an ordinary chart is not mistaken for one',
+  )
+  check(
+    chart.narrative !== undefined && !/TRAINING/i.test(chart.narrative),
+    'the banner itself is not what is read — the parser strips it before the narrative starts',
+    JSON.stringify(chart.narrative),
+  )
+}
 
 function nonPatientChart(over = {}) {
   const b = page(1)
