@@ -450,10 +450,10 @@ const MEDICAL_NECESSITY: ReviewSection = {
   when: { reviewType: 'necessity' },
   authored: true,
   intro:
-    'Asked of a non-emergent interfacility transport billed to Medicare. Written here rather than transcribed — neither Ninth Brain nor ImageTrend checks the certification against the chart it travels with.',
+    'Asked of a non-emergent interfacility transport billed to Medicare. The certification itself is filed separately as the PCS of MNF attachment and is not in the PCR export, so the first three questions are answered from that attachment rather than from the chart. Written here rather than transcribed — neither Ninth Brain nor ImageTrend checks the certification against the chart it travels with.',
   questions: [
-    yn('mnc.present', 'Is a Medical Necessity Certification present, complete and signed?', {
-      help: 'Section I answered, the condition stated in II.1, an attestation in Section III, and a printed name, credential and date.',
+    yn('mnc.present', 'Is the PCS / MNF present, complete and signed?', {
+      help: 'From the attachment, not the PCR: Section I answered, the condition stated in II.1, an attestation in Section III, and a printed name, credential and date.',
     }),
     yn('mnc.consistent', 'Does the certification agree with the chart?', {
       help: 'A bed-confined claim against a narrative describing the patient ambulating or sitting up; "cardiac monitoring required en route" on a BLS unit; conditions with nothing in the assessment to support them.',
@@ -469,7 +469,7 @@ const MEDICAL_NECESSITY: ReviewSection = {
       help: 'Scheduled repetitive transports need an MD or DO signature dated within 60 days before the service. Unscheduled ones may be signed after, within 48 hours, and after 21 days the attempts to obtain it must be documented.',
     }),
     yn('mnc.aba', 'Is the patient (or representative) Authorized Billing Agreement in order?', {
-      help: 'Signed, or — where the patient could not sign — a representative\u2019s signature with witness name and title, and the certification\u2019s second attestation answered.',
+      help: 'This one IS in the export. Signed, or — where the patient could not sign — a representative\u2019s signature with witness name and title, and the certification\u2019s second attestation answered.',
     }),
   ],
 }

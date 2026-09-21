@@ -938,15 +938,24 @@ export function autoReview(chart: PcrChart): AutoReview {
   // problem and the one that can be read with certainty.
 
   if (types.includes('necessity')) {
-    say('mnc.present', chart.hasMncWorksheet, chart.hasMncWorksheet ? 'read' : 'assumed',
+    /**
+     * The certification is NOT in these exports, and its absence is not a
+     * finding.
+     *
+     * In KC it is filed as a separate attachment, "PCS of MNF", so the PCR
+     * export never carries it. Raising a flag on every chart that lacks one
+     * would put a look on every non-emergent Medicare transfer in the batch —
+     * the same false positive this file exists to avoid, on the question where
+     * a reviewer can least afford to start ignoring flags.
+     *
+     * So the question is left assumed, which means unscored, and its reason
+     * says where to go and read it. If a certification ever does arrive inside
+     * an export, the answers below are read against the chart.
+     */
+    say('mnc.present', true, chart.hasMncWorksheet ? 'read' : 'assumed',
       chart.hasMncWorksheet
-        ? 'A Medical Necessity Certification is in this export; whether it is complete has to be read.'
-        : 'No certification worksheet in this export. That may mean it was not obtained, or that the export does not include the worksheets — check one against Elite before reading anything into it.')
-    if (!chart.hasMncWorksheet) {
-      flag('look', 'No medical necessity certification in the export',
-        'This is a non-emergent Medicare interfacility transport, which needs one. The export may simply not carry the worksheets — worth establishing once, for every chart like this.',
-        'mnc.present')
-    }
+        ? 'A certification is in this export; whether it is complete has to be read.'
+        : 'The certification is filed separately as the PCS of MNF attachment and is not part of this export. Answer this from the attachment.')
 
     // II.3. A Yes here says the patient could have gone by wheelchair van,
     // which defeats the necessity the rest of the form is claiming.
@@ -993,6 +1002,39 @@ export function autoReview(chart: PcrChart): AutoReview {
       flag('look', 'No services-unavailable text on an interfacility transfer',
         'The field asking what the patient needs that the sending facility cannot provide is blank. It is the shortest statement of why the transfer happened at all.',
         'mnc.present')
+    }
+
+    /**
+     * The ABA, unlike the certification, IS in the export.
+     *
+     * Which makes its absence a real finding rather than an artefact of what
+     * the export includes — the one half of this ticket that can be checked
+     * from the PDF today. A patient recorded as unable to sign needs a
+     * representative's agreement instead, and that is the case most likely to
+     * be left with neither.
+     */
+    const capable = said(chart.capableOfSigning, 'yes')
+    const incapable = said(chart.capableOfSigning, 'no')
+    const signed = chart.signedByPatient
+    say('mnc.aba', signed, 'read',
+      signed
+        ? 'A signature block was signed by the patient or their representative.'
+        : incapable
+          ? 'The patient is recorded as not capable of signing, and no representative has signed either.'
+          : chart.hasAbaWorksheet
+            ? 'The billing agreement is in the export with no patient or representative signature on it.'
+            : 'No patient or representative signature anywhere in the export.')
+    if (!signed) {
+      flag(
+        incapable ? 'stop' : 'look',
+        incapable
+          ? 'Patient cannot sign and nobody signed for them'
+          : 'No signed billing agreement',
+        incapable
+          ? 'The chart records the patient as not mentally and physically capable of signing, and there is no representative signature. That leaves the transport with no authorization from anyone.'
+          : `Nothing in the export is signed by the patient or a representative${capable ? ', although the chart records them as capable of signing' : ''}.`,
+        'mnc.aba',
+      )
     }
   }
 

@@ -768,6 +768,7 @@ function iftChart(over = {}) {
     b.field('Is the patient bed confined', over.mnc.bedConfined ?? 'Yes')
       .field('Can this patient safely be transported by car or wheelchair van', over.mnc.carOrVan ?? 'No')
   }
+  b.field('Is patient mentally and physically capable of electronic signing', over.capableOfSigning ?? 'Yes')
   b.field('Narrative Patient Care Report Narrative', over.narrative ?? IFT_NARRATIVE)
     .table(
       'Vital Signs Vitals Date/Time HR SBP/DBP (MAP) Resp. Rate SpO2 Pain',
@@ -779,7 +780,11 @@ function iftChart(over = {}) {
     .field('Crew Member Completing this Report', 'Vance, Robin (10101)')
     .field('Signatures Type of Person Signing', 'Crew Member')
     .field('Printed Name', 'Robin Vance')
-    .footer()
+  if (over.patientSignature) {
+    b.field('Signatures Type of Person Signing', 'Patient')
+      .field('Printed Name', 'A Patient')
+  }
+  b.footer()
   return m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
 }
 
@@ -851,24 +856,52 @@ const IFT_NARRATIVE =
 }
 
 {
-  // A missing worksheet is a look, never a finding: the exports may not carry
-  // the worksheets at all, and that has to be established before anything is
-  // read into their absence.
+  // The certification is NOT in these exports — in KC it is filed separately as
+  // the PCS of MNF attachment. So its absence is not a finding, and flagging it
+  // would put a look on every non-emergent Medicare transfer in the batch.
   const r = m.autoReview(iftChart({ run: '99000035' }))
   check(
-    r.sources['mnc.present'].confidence === 'assumed',
-    'a certification the export does not carry is assumed, not scored',
+    r.sources['mnc.present'].confidence === 'assumed' &&
+      r.sources['mnc.present'].because.includes('PCS of MNF'),
+    'the certification is left to the reviewer, with the attachment named',
     JSON.stringify(r.sources['mnc.present']),
   )
   check(
-    r.flags.some((x) => x.severity === 'look' && x.title.includes('No medical necessity certification')),
-    'and it is raised as something to establish rather than a failure',
+    !r.flags.some((x) => x.title.toLowerCase().includes('certification')),
+    'and nothing is flagged for its absence, on a chart that was never going to carry it',
     JSON.stringify(r.flags.map((x) => x.title)),
   )
   check(
     !r.flags.some((x) => x.severity === 'stop'),
-    'so an otherwise clean Medicare transfer is not held on a worksheet nobody can find',
+    'so an otherwise clean Medicare transfer is cleared',
     JSON.stringify(r.flags.filter((x) => x.severity === 'stop').map((x) => x.title)),
+  )
+}
+
+{
+  // The ABA, unlike the certification, is in the export — so its absence is a
+  // real finding rather than an artefact of what the export includes.
+  const signed = m.autoReview(iftChart({ run: '99000037', patientSignature: true }))
+  check(
+    signed.answers['mnc.aba'] === true,
+    'a signed billing agreement answers its question from the export',
+    JSON.stringify(signed.sources['mnc.aba']),
+  )
+
+  const unsigned = m.autoReview(iftChart({ run: '99000038' }))
+  check(unsigned.answers['mnc.aba'] === false, 'an unsigned one is a finding')
+  check(
+    unsigned.flags.some((x) => x.severity === 'look' && x.title.includes('No signed billing agreement')),
+    'raised as a look',
+    JSON.stringify(unsigned.flags.map((x) => x.title)),
+  )
+
+  // Nobody able to authorize the transport at all.
+  const incapable = m.autoReview(iftChart({ run: '99000039', capableOfSigning: 'No' }))
+  check(
+    incapable.flags.some((x) => x.severity === 'stop' && x.title.includes('nobody signed for them')),
+    'a patient recorded as unable to sign, with no representative signature, stops the chart',
+    JSON.stringify(incapable.flags.map((x) => x.title)),
   )
 }
 

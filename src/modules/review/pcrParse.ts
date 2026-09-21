@@ -165,11 +165,29 @@ export interface PcrChart {
   /** The billing detail block, where Medicare is actually named. */
   paymentDetails?: string
   /**
-   * True when the export carries a Medical Necessity Certification worksheet at
-   * all — recognised by its own question wording rather than by a label, since
-   * the worksheet prints as its own section.
+   * True when the export carries the medical necessity certification itself.
+   *
+   * NORMALLY FALSE, and that is not a finding. In KC the certification is not
+   * part of the PCR export at all: it is a separate attachment, filed as "PCS
+   * of MNF", and a reviewer checks it there. So this exists for the case where
+   * one does arrive in the PDF — then, and only then, its answers can be read
+   * against the chart. Its absence says nothing about the chart.
    */
   hasMncWorksheet: boolean
+  /**
+   * True when the export carries the Authorized Billing Agreement worksheet.
+   *
+   * This one IS in the export, so its absence on a chart that should have it
+   * is a real finding rather than an artefact of what the export includes.
+   */
+  hasAbaWorksheet: boolean
+  /**
+   * "Is patient mentally and physically capable of electronic signing?"
+   *
+   * The field that decides whether the patient's own ABA is the one to look
+   * for, or a representative's.
+   */
+  capableOfSigning?: string
   /** The MNC's "can this patient go by car or wheelchair van?" answer. */
   mncCarOrVan?: string
   /** The MNC's bed-confined answer. */
@@ -658,7 +676,15 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     // The worksheet is recognised by its own wording: it prints as a section of
     // its own rather than as labelled fields, and these two phrases appear
     // nowhere else on a chart.
-    hasMncWorksheet: /bed\s*confined|safely be transported by car or wheelchair van|SECTION III\s*-?\s*SIGNATURE OF PHYSICIAN/i.test(view.text),
+    // "PCS of MNF" is what the attachment is labelled where it is filed, so it
+    // is recognised too — on the chance that an export is ever assembled with
+    // the attachment included.
+    hasMncWorksheet:
+      /bed\s*confined|safely be transported by car or wheelchair van|SECTION III\s*-?\s*SIGNATURE OF PHYSICIAN|\bPCS of MNF\b/i.test(
+        view.text,
+      ),
+    hasAbaWorksheet: /authorized billing agreement|\bABA\b/i.test(view.text),
+    capableOfSigning: f('Is patient mentally and physically capable of electronic signing'),
     mncCarOrVan: f('Can this patient safely be transported by car or wheelchair van'),
     mncBedConfined: f('Is the patient bed confined'),
     hasOxygen: /\boxygen\b/i.test(
