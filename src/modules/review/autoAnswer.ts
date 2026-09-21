@@ -93,6 +93,15 @@ export interface AutoReview {
   findingNotes: Record<string, string>
   /** True when nothing here needs a human. */
   clear: boolean
+  /**
+   * A practice chart, not a patient's.
+   *
+   * Elite training and test records come through the same export, and a
+   * month's numbers that include them are a month's numbers nobody can use.
+   * Reported rather than dropped silently: a run the reviewer expected to see
+   * and cannot find is worse than one they were told about.
+   */
+  isTestRecord: boolean
 }
 
 const has = (s: string | undefined) => typeof s === 'string' && s.trim().length > 0
@@ -232,6 +241,45 @@ const NARRATIVE_PROCEDURES: [string, RegExp][] = [
   ['CPAP', /\bcpap\b/],
   ['Oxygen administration', /\b(nasal cannula|non-?rebreather|nrb|\d+ ?lpm|oxygen (was )?(applied|administered))\b/],
 ]
+
+/**
+ * The five things a KC narrative is expected to cover.
+ *
+ * DCHAT is the house format: Dispatch, Chief complaint, History, Assessment,
+ * Treatment. A character count catches the narrative that says nothing; this
+ * catches the one that is long enough and still leaves out the history or the
+ * handover. Crew labels are preferred where the crew wrote them, because a
+ * labelled "H:" is the crew saying which part is which.
+ */
+const DCHAT: [string, string, RegExp][] = [
+  ['D', 'dispatch', /\b(dispatched|responded|en ?route|called (to|for)|lights and sirens|non-?emergent)\b/i],
+  ['C', 'chief complaint', /\b(chief complaint|c\/o|complain(s|ing|ed) of|states|reports)\b/i],
+  ['H', 'history', /\b(history|hx|pmh|medications?|allergies|nkda|denies|prior to)\b/i],
+  ['A', 'assessment', /\b(gcs|avpu|a&ox?\d|alert|lung sounds|skin|pupils|assessment|vitals?|bp \d|hr \d)\b/i],
+  ['T', 'treatment and handover', /\b(administered|given|placed|applied|established|transported|report given|care transferred|transfer of care)\b/i],
+]
+
+/** The DCHAT elements a narrative does not cover, by name. */
+export function missingNarrativeElements(narrative: string): string[] {
+  const labelled = new Set(
+    [...narrative.matchAll(/(^|\n)\s*([DCHAT])\s*[:\-]/gi)].map((m) => m[2].toUpperCase()),
+  )
+  return DCHAT.filter(([letter, , re]) => !labelled.has(letter) && !re.test(narrative)).map(
+    ([, name]) => name,
+  )
+}
+
+/**
+ * A chart built for practice rather than for a patient.
+ *
+ * Elite training and test records go through the same export, and a month's
+ * numbers that include them are a month's numbers nobody can use. The markers
+ * are the ones KC uses; the patient name is never parsed here, so the narrative
+ * and the run number are what there is to go on.
+ */
+export function looksLikeTestRecord(chart: Pick<PcrChart, 'isTestRecord' | 'narrative'>): boolean {
+  return chart.isTestRecord === true || /zztest|\*{2,}\s*training/i.test(chart.narrative ?? '')
+}
 
 /** Words that turn a procedure in a narrative into one that did not happen. */
 const NOT_DONE = /attempt|unsuccessful|without success|unable|refus|declin|no (iv|access)|considered/i
@@ -490,6 +538,10 @@ export function autoReview(chart: PcrChart): AutoReview {
   const chartedProcedures = new Set(chart.procedureNames)
   if (chart.hasTwelveLead) chartedProcedures.add('12-lead ECG')
   if (chart.hasCardiacMonitor) chartedProcedures.add('Cardiac monitoring')
+  // Oxygen is a procedure on some KC charts and a medication on others, and
+  // both are correct. Reading Procedures alone reported "oxygen in the
+  // narrative only" on every chart of the second kind.
+  if (chart.hasOxygen) chartedProcedures.add('Oxygen administration')
   const narrativeProcedures = narrative ? proceduresInNarrative(narrative) : []
   const missingProcedures = narrativeProcedures.filter((p) => !chartedProcedures.has(p))
   if (missingProcedures.length) {
@@ -553,6 +605,20 @@ export function autoReview(chart: PcrChart): AutoReview {
         : `Vitals at ${outsideCare.map((v) => v.printed).join(', ')} fall outside ${chart.timeArrivedPatient || chart.timeArrivedScene || 'arrival'} to ${chart.timeTransferOfCare || chart.timeArrivedDestination || 'transfer of care'}. Unless they were taken prior to arrival, one of the times is wrong.`,
       'asm.monitoring',
     )
+  }
+
+  // One person cannot both drive and be the caregiver in the back.
+  //
+  // Elite does not catch it, and it is usually a copied crew row rather than a
+  // claim about what happened — but it is on a record that says who treated the
+  // patient, and the per-crew tally is built from exactly that.
+  const bothRoles = chart.crew.filter(
+    (c) => /driver|pilot/i.test(c.role ?? '') && /primary patient caregiver/i.test(c.role ?? ''),
+  )
+  if (bothRoles.length) {
+    flag('look', `${bothRoles.map((c) => c.name).join(', ')} is recorded as driver and primary caregiver`,
+      'One person cannot drive the truck and be the primary caregiver in the back of it on the same transport. Usually a crew row copied from another chart.',
+      'dem.signatures')
   }
 
   // ----- signatures ---------------------------------------------------------
@@ -694,8 +760,27 @@ export function autoReview(chart: PcrChart): AutoReview {
     say('dem.appropriateFacility', true, 'assumed',
       'Whether the facility suited the patient is a clinical judgement the export cannot make.')
 
+    /**
+     * Phone and email, and the answer is No without the phone.
+     *
+     * A deliberate decision rather than an oversight: Elite accepts "Unable to
+     * Complete" on the phone field and fires no rule, which is why it is so
+     * often what the field says. This is a documentation review and the number
+     * is what the billing office chases afterwards, so a chart without one is
+     * marked down — but the reason says which of the two is missing, so nobody
+     * has to open the chart to find out.
+     */
     say('dem.contact', chart.hasPhone, 'read',
-      chart.hasPhone ? 'A phone number is recorded.' : 'No phone number — the field says Unable to Complete or is blank.')
+      chart.hasPhone && chart.hasEmail
+        ? 'A phone number and an email address are recorded.'
+        : chart.hasPhone
+          ? 'A phone number is recorded; no email address.'
+          : 'No phone number — the field says Unable to Complete or is blank.')
+    if (chart.hasPhone && !chart.hasEmail) {
+      flag('look', 'No email address recorded',
+        'The phone number is there. Elite warns on the missing email at weight 0, so it never blocks the chart and is easy to leave out.',
+        'dem.contact')
+    }
 
     say('dem.signatures', signaturesOk, 'read', signatureBecause)
 
@@ -771,13 +856,26 @@ export function autoReview(chart: PcrChart): AutoReview {
         : `The narrative describes ${[...missingDrugs, ...missingProcedures].join(', ')} that the structured sections do not.`)
 
     const NARRATIVE_FLOOR = 200
+    // The floor catches the narrative that says nothing. The elements catch the
+    // one that is long enough and still never says what the history was or who
+    // the patient was handed to — which a character count cannot tell apart
+    // from a good chart.
+    const missingElements = narrative.length >= NARRATIVE_FLOOR ? missingNarrativeElements(narrative) : []
     say('ovr.narrativeClear', narrative.length >= NARRATIVE_FLOOR, 'read',
-      narrative.length === 0 ? 'There is no narrative.' : `Narrative is ${narrative.length} characters.`)
+      narrative.length === 0
+        ? 'There is no narrative.'
+        : missingElements.length
+          ? `Narrative is ${narrative.length} characters and does not cover ${missingElements.join(', ')}.`
+          : `Narrative is ${narrative.length} characters.`)
     if (narrative.length < NARRATIVE_FLOOR) {
       flag('stop', narrative.length === 0 ? 'No narrative' : 'Narrative is very short',
         narrative.length === 0
           ? 'The export contains no Patient Care Report Narrative.'
           : `${narrative.length} characters is not enough to support a transport.`,
+        'ovr.narrativeClear')
+    } else if (missingElements.length) {
+      flag('look', `Narrative does not cover ${missingElements.join(', ')}`,
+        `Long enough, but nothing in it reads as ${missingElements.join(' or ')}. The house format is DCHAT — dispatch, chief complaint, history, assessment, treatment and handover.`,
         'ovr.narrativeClear')
     }
 
@@ -794,6 +892,23 @@ export function autoReview(chart: PcrChart): AutoReview {
   const stops = flags.filter((x) => x.severity === 'stop')
   say('ovr.escalate', stops.length > 0, stops.length ? 'read' : 'assumed',
     stops.length ? `${stops.length} item${stops.length === 1 ? '' : 's'} need a human: ${stops.map((x) => x.title).join('; ')}.` : 'Nothing here needs clinical leadership.')
+
+  // Lights and sirens carried on a patient who was not that sick.
+  //
+  // Not scored — the two L&S questions are flags by design, because a No is the
+  // good answer as often as not. But a lights-and-sirens transport of a patient
+  // the crew themselves graded low acuity is the one combination worth a
+  // reviewer's eye: it is the version of this that carries crash risk for no
+  // clinical return, and nothing upstream puts the two fields side by side.
+  if (
+    categories.includes('Lights and Sirens') &&
+    said(chart.transportDescriptors, 'lights and sirens') &&
+    said(chart.finalAcuity, 'lower', 'minor', 'non-acute', 'stable')
+  ) {
+    flag('look', 'Transported lights and sirens at low acuity',
+      `Transport mode is lights and sirens and Final Patient Acuity is "${chart.finalAcuity}". Either the acuity or the mode wants explaining in the narrative.`,
+      'ls.transport')
+  }
 
   // ----- category blocks ----------------------------------------------------
 
@@ -842,6 +957,7 @@ export function autoReview(chart: PcrChart): AutoReview {
     // remove. NOT 'look' flags either; those are a note for whoever opens the
     // chart, not a reason to open it.
     clear: !flags.some((x) => x.severity === 'stop'),
+    isTestRecord: looksLikeTestRecord(chart),
   }
 }
 
@@ -876,6 +992,7 @@ function categoryAnswers(chart: PcrChart, categories: string[]): Record<string, 
     set('ls.respond', respond, 'read', `Response mode descriptors: ${chart.responseDescriptors || 'blank'}.`)
     set('ls.transport', transport, 'read', `Transport mode descriptors: ${chart.transportDescriptors || 'blank'}.`)
   }
+
 
   if (categories.includes('STEMI')) {
     set('stemi.twelveLead', chart.hasTwelveLead, 'read', chart.hasTwelveLead ? 'A 12-lead is recorded in the device table.' : 'No 12-lead in the device table.')

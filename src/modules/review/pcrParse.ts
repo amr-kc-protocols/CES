@@ -35,6 +35,14 @@ export interface PcrCrew {
   name: string
   id: string
   level?: string
+  /**
+   * Crew Member Response Role, as printed.
+   *
+   * Carried because one person cannot hold two of them at once — driving the
+   * truck and being the primary caregiver in the back, on the same transport —
+   * and nothing upstream catches it.
+   */
+  role?: string
 }
 
 export interface PcrChart {
@@ -132,6 +140,32 @@ export interface PcrChart {
   weightKg?: string
   /** True when a phone number was recorded, false for "Unable to Complete". */
   hasPhone: boolean
+  /**
+   * True when an email address was recorded.
+   *
+   * The question asks for the phone number and the email address; the parser
+   * only ever looked for a phone, so a chart missing the email read as one that
+   * had both. Elite warns on a missing email at weight 0, which is how it comes
+   * to be missing so often.
+   */
+  hasEmail: boolean
+  /**
+   * A practice chart rather than a patient's.
+   *
+   * Read from the whole page text, not from the narrative: the marker is
+   * usually in the patient name or a banner across the top, and this parser
+   * deliberately never keeps the name. The flag is the only thing that comes
+   * out — a boolean, carrying nothing about whoever the record was filed under.
+   */
+  isTestRecord: boolean
+  /**
+   * True when oxygen appears anywhere it can legitimately be charted.
+   *
+   * KC crews put it in Procedures on some charts and in Medications on others,
+   * and reading Procedures alone reported oxygen as given in the narrative only
+   * on all of the second kind.
+   */
+  hasOxygen: boolean
   patientBelongings?: string
 
   crew: PcrCrew[]
@@ -425,7 +459,12 @@ function crewMembers(view: PcrView): PcrCrew[] {
     if (out.some((c) => c.name === name)) continue
     const tail = m[3].trim()
     const level = CREW_LEVELS.find((l) => tail.toLowerCase().startsWith(l.toLowerCase()))
-    out.push({ name, id: m[2].replace(/\s+/g, ''), level })
+    // The role prints BEFORE the name — "Primary Patient Caregiver-Transport
+    // Vance, Robin (10101) Paramedic" — so it is read backwards from the match,
+    // and only as far as the previous row's level to avoid swallowing it.
+    const before = source.slice(Math.max(0, m.index - 60), m.index)
+    const role = /([A-Za-z/ ]*(?:Caregiver|Driver|Pilot|Other)[A-Za-z/ -]*)\s*$/i.exec(before)?.[1]
+    out.push({ name, id: m[2].replace(/\s+/g, ''), level, role: role?.trim() })
   }
   return out
 }
@@ -451,6 +490,23 @@ function signatures(view: PcrView): { crew: string[]; other: string[] } {
     }
   }
   return { crew, other }
+}
+
+/**
+ * Whether anything on these pages marks the chart as practice rather than a
+ * patient's.
+ *
+ * ZZTEST and a *** TRAINING *** banner are the two markers KC uses. Both are
+ * distinctive enough to match against a whole chart without catching a real
+ * narrative, and neither is stored: what comes out is a boolean, so a record
+ * filed under a test patient's name leaves nothing of that name behind.
+ */
+function isTestMarked(doc: PcrDoc, from: number, to: number): boolean {
+  const raw = doc.items
+    .filter((it) => it.page >= from && it.page <= to)
+    .map((it) => it.str)
+    .join(' ')
+  return /zztest|\*{2,}\s*training/i.test(raw)
 }
 
 export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
@@ -490,7 +546,11 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     secondaryImpressions: f('Secondary Impressions'),
     acuity: f('Initial Patient Acuity'),
     finalAcuity: f('Final Patient Acuity'),
-    chiefComplaint: f('Chief Complaint Anatomic Location') ?? f('Primary Symptom'),
+    // The anatomic location is not the complaint: "Chest" is where it hurts,
+    // and on an interfacility transfer the field is not asked at all. The
+    // complaint and the primary symptom are read first, and the location is
+    // kept as the last resort it always should have been.
+    chiefComplaint: f('Complaint') ?? f('Primary Symptom') ?? f('Chief Complaint Anatomic Location'),
     symptomOnset: f('Date/Time of Symptom Onset'),
 
     incidentAddress: f('Incident Address'),
@@ -538,6 +598,17 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     allergiesRecorded: /Medication\s+Allergies|Environmental\/Food Allergies|No Known Drug Allergy/i.test(view.text),
     weightKg: f('Estimated Body Weight in Kilograms'),
     hasPhone: /\(\d{3}\)\s*\d{3}\s*-\s*\d{4}|\b\d{3}-\d{3}-\d{4}\b/.test(phones),
+    hasEmail: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(`${phones} ${f('Email Address') ?? ''}`),
+    // Read from the RAW items, not from the cleaned text. stripChrome removes
+    // "***BANNER***" runs — that is what it is for — and a training record is
+    // usually marked by exactly such a banner, so by the time the text is
+    // clean the only marker on the chart has been thrown away.
+    isTestRecord: isTestMarked(doc, from, to),
+    hasOxygen: /\boxygen\b/i.test(
+      `${procedures} ${devices} ${tableAfter(view, 'Medication Administered') ?? ''} ${
+        tableAfter(view, 'Medication Given') ?? ''
+      }`,
+    ),
     patientBelongings: f('Patient Belongings'),
 
     crew: crewMembers(view),

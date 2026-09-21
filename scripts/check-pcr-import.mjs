@@ -718,6 +718,87 @@ function timedChart(over = {}) {
   )
 }
 
+// ----- the smaller accuracy fixes -------------------------------------------
+
+{
+  // DCHAT: long enough, and still never says what the history was or who the
+  // patient was handed to. A character count cannot tell that from a good chart.
+  const thin =
+    'unit 101 responded emergent to the address. patient complains of chest pain that started this morning. '
+    + 'skin warm and dry, lung sounds clear, a&ox4 on arrival. this sentence exists only to push the narrative '
+    + 'past the two hundred character floor that the reviewer applies to every chart it reads.'
+  const missing = m.missingNarrativeElements(thin)
+  check(
+    missing.includes('history') && !missing.includes('dispatch') && !missing.includes('assessment'),
+    'a narrative long enough but missing an element is told which element',
+    JSON.stringify(missing),
+  )
+  check(
+    m.missingNarrativeElements('D: dispatched.\nC: chest pain.\nH: none.\nA: alert.\nT: transported.').length === 0,
+    "the crew's own DCHAT labels are taken as covering their sections",
+  )
+}
+
+{
+  // Oxygen charted as a medication rather than a procedure is still charted.
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', '99000011')
+    .field('Date of Service:', '08/16/2026 16:14:28')
+    .field('Incident Address', '1 EXAMPLE ST')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Patient Evaluation/Care', 'Patient Evaluated and Care Provided')
+    .field('Destination Name', 'EXAMPLE MEDICAL CENTER')
+    .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+    .table(
+      'Medication Administration Medications Date/Time PTA Crew Member Medication Administered Dosage Route',
+      '08/16/2026 16:25:00 No Vance, Robin (10101) Oxygen 15 Liters/Min (L/min) Nasal Cannula',
+    )
+    .field('Narrative Patient Care Report Narrative',
+      NARRATIVE_HEAD + ' oxygen administered by nasal cannula at 15 lpm. ' + NARRATIVE_TAIL)
+    .footer()
+  const chart = m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+  check(chart.hasOxygen === true, 'oxygen in the medications table is oxygen charted')
+  const r = m.autoReview(chart)
+  check(
+    !r.flags.some((f) => f.title.toLowerCase().includes('oxygen')),
+    'so it is not reported as being in the narrative only',
+    JSON.stringify(r.flags.map((f) => f.title)),
+  )
+}
+
+{
+  // Training records come through the same export as real calls.
+  const b = page(1)
+    .field('EMS Agency', 'KS-EXAMPLE- Ground')
+    .field('Incident #', '900000099')
+    .field('Date of Service:', '08/16/2026 16:14:28')
+    .field('Incident Address', '1 EXAMPLE ST')
+    .field('Unit Disposition', 'Patient Contact Made')
+    .field('Narrative Patient Care Report Narrative',
+      '*** TRAINING RECORD *** this chart was built for practice and is not a patient.')
+    .footer()
+  const chart = m.parseChart(m.buildPcrDoc(b.done()), 1, 1)
+  check(m.looksLikeTestRecord(chart) === true, 'a training marker on the chart is recognised')
+  check(
+    m.autoReview(chart).isTestRecord === true,
+    'and the review says so, so the import can hold it out of the month',
+  )
+  check(
+    typeof chart.isTestRecord === 'boolean',
+    'what comes out is a boolean — a record filed under a test name leaves no name behind',
+  )
+  check(
+    m.looksLikeTestRecord({ isTestRecord: false, narrative: 'an ordinary chest pain call.' }) === false,
+    'an ordinary chart is not mistaken for one',
+  )
+  check(
+    chart.narrative !== undefined && !/TRAINING/i.test(chart.narrative),
+    'the banner itself is not what is read — the parser strips it before the narrative starts',
+    JSON.stringify(chart.narrative),
+  )
+}
+
 function nonPatientChart(over = {}) {
   const b = page(1)
     .field('EMS Agency', 'KS-EXAMPLE- Ground')
