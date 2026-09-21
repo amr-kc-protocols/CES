@@ -797,6 +797,83 @@ check(
   'and an ordinary document still counts its own pages',
 )
 
+// ----- the banner, as the real templates print it ----------------------------
+//
+// The sniff test demanded the literal string "EMS Agency:". Elite's Master GMR
+// Run Form prints the business unit as the form's own identity instead —
+// "KS-KANSAS CITY-Ground" — so a whole template's exports were rejected as
+// "not an ImageTrend PCR export", which is a month of charts nobody can import.
+
+const bannerPage = (banner, run) =>
+  m.buildPcrDoc(
+    page(1)
+      .field('Incident #', run)
+      .field('Date of Service:', '08/16/2026 16:14:28')
+      .field('Primary Impression', 'Chest Pain')
+      .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+      .overflow(banner)
+      .footer()
+      .done(),
+  )
+
+for (const banner of [
+  'KS-KANSAS CITY-Ground',
+  'MO-CASS COUNTY-Ground',
+  'MO–CASS COUNTY–Ground', // typed with en dashes, which is how people write it
+  'KS-LINN COUNTY-Ground',
+  'EMS Agency: KS-EXAMPLE- Ground',
+]) {
+  check(
+    m.looksLikePcr(bannerPage(banner, '29047490')) === true,
+    `a report headed "${banner}" is recognised`,
+  )
+}
+
+// Eight digits today, six in older exports, and it has only ever ticked up.
+for (const run of ['29047490', '990001', '290474901']) {
+  check(m.looksLikePcr(bannerPage('KS-KANSAS CITY-Ground', run)) === true,
+    `a ${run.length}-digit run number is read`)
+}
+check(
+  m.looksLikePcr(bannerPage('KS-KANSAS CITY-Ground', '4901')) === false,
+  'and four digits is not a run number',
+)
+
+// The label spelled the other ways Elite's templates use.
+for (const label of ['Incident #', 'Incident Number', 'Incident No.']) {
+  const doc = m.buildPcrDoc(
+    page(1).field(label, '29047490').overflow('KS-KANSAS CITY-Ground').footer().done(),
+  )
+  check(m.splitCharts(doc).length === 1, `"${label}:" is read as the run number`,
+    JSON.stringify(m.splitCharts(doc)))
+}
+
+// A hyphenated phrase is not a banner. This is what keeps the shape rule from
+// matching ordinary prose on a document that is not a report at all.
+check(
+  m.looksLikePcr(
+    m.buildPcrDoc(page(1).overflow('AB-SOME THING-Widget Incident # 12345678').footer().done()),
+  ) === false,
+  'a hyphenated phrase with no service type is not an agency banner',
+)
+
+// Splitting a multi-chart export with no banner the app recognises: consecutive
+// pages group by the run number they carry, and a number reprinted in a footer
+// keeps extending the chart it belongs to rather than starting a new one.
+{
+  const items = []
+  const runs = ['29047490', '29047490', '29047491', '29047491', '29047492']
+  runs.forEach((run, i) => {
+    items.push(...page(i + 1).field('Incident #', run).field('Primary Impression', 'Chest Pain').footer().done())
+  })
+  const split = m.splitCharts(m.buildPcrDoc(items))
+  check(
+    split.length === 3 && split[0].from === 1 && split[0].to === 2 && split[2].from === 5,
+    'pages group into charts by their run number when no banner is recognised',
+    JSON.stringify(split),
+  )
+}
+
 // ----- a PDF this app does not recognise -------------------------------------
 //
 // "not an ImageTrend PCR export" was the whole of what a reviewer got, on a
