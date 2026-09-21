@@ -228,6 +228,7 @@ export default function PcrImport({
             <div className="stat">
               <div className="value">{clear.length}</div>
               <div className="label">Clear — counted on import</div>
+              <div className="sub">judgement questions still unconfirmed</div>
             </div>
             <div className="stat">
               <div className="value">{needsLook.length}</div>
@@ -289,7 +290,9 @@ export default function PcrImport({
               <div className="subtle" style={{ marginBottom: 8 }}>
                 Answered from the export and counted in the tally. Nothing here needs a decision
                 — a finding shown below was read straight off the chart and is already counted,
-                not waiting on you.
+                not waiting on you. What the export could not answer — standards of care,
+                timeliness, whether the exam matches the complaint — is marked assumed on the
+                review and stays out of every percentage until a reviewer answers it.
               </div>
               <div className="table-wrap cr-clean-table">
                 <table>

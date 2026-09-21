@@ -917,6 +917,16 @@ input[type='date']::-webkit-date-and-time-value {
 
 .stat.alert .value { color: var(--crit); }
 
+/* A line of explanation under the number, for a figure whose denominator is
+   not obvious. "84%" and "84% of 212 answers a person stands behind" are
+   different claims, and the tile has room to make the honest one. */
+.stat .sub {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
 
 /* ---------- Lists ---------- */
 .list {

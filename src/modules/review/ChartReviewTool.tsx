@@ -54,11 +54,15 @@ type Draft = Omit<ChartReviewEntry, 'id' | 'updatedAt'> & { id?: string }
  * the chart" took half a line on a phone and made the ordinary case the
  * loudest thing on the screen — see the styling, which quiets it for the same
  * reason and leaves the emphasis on "assumed", the one worth stopping at.
+ *
+ * The assumed label carries its consequence now. An assumed answer is not in
+ * any percentage until a reviewer answers the question themselves, and a tag
+ * reading only "assumed" did not say that.
  */
 const CONFIDENCE_LABEL: Record<string, string> = {
   read: 'from the chart',
   inferred: 'inferred',
-  assumed: 'assumed',
+  assumed: 'assumed · not counted',
 }
 
 function YesNo({
@@ -99,8 +103,25 @@ function QuestionRow({
 }) {
   const answer = draft.answers[q.id]
   const source = draft.answerSources?.[q.id]
-  const setAnswer = (v: boolean | string | string[]) =>
-    set({ answers: { ...draft.answers, [q.id]: v } })
+  /**
+   * Answering the question hands it to the reviewer.
+   *
+   * An assumed answer is excluded from every percentage precisely because
+   * nobody has checked it, so touching the control — even to give the same
+   * answer back — has to clear that provenance, or a reviewer could read the
+   * chart, agree with it, and still have their agreement count for nothing.
+   * A 'read' or 'inferred' source is left alone: what the app read off the
+   * chart stays true and stays worth showing after a human has seen it.
+   */
+  const setAnswer = (v: boolean | string | string[]) => {
+    const patch: Partial<Draft> = { answers: { ...draft.answers, [q.id]: v } }
+    if (source?.confidence === 'assumed') {
+      const rest = { ...draft.answerSources }
+      delete rest[q.id]
+      patch.answerSources = rest
+    }
+    set(patch)
+  }
   // Prompted only where the answer is the non-compliant one. Asking for a note
   // on every question would get every note left blank.
   const wantsNote = isCompliant(q, answer) === false
@@ -235,6 +256,11 @@ function ReviewForm({
     return a !== undefined && a !== '' && !(Array.isArray(a) && a.length === 0)
   }
   const answeredCount = inScope.filter(isAnswered).length
+  // Answers the import guessed and nobody has confirmed. They are on the form,
+  // they are not in any percentage, and until this was on screen the only way
+  // to know how many there were was to scroll the whole review looking for the
+  // tag.
+  const assumedCount = inScope.filter((q) => draft.answerSources?.[q.id]?.confidence === 'assumed').length
 
   /**
    * Fill every unanswered yes/no question with its compliant answer.
@@ -293,6 +319,7 @@ function ReviewForm({
           <span className="subtle">
             {answeredCount} of {inScope.length} answered
             {missing.length > 0 && ` · ${missing.length} required outstanding`}
+            {assumedCount > 0 && ` · ${assumedCount} assumed, not counted`}
           </span>
         )}
         <div className="spacer" />
@@ -326,6 +353,26 @@ function ReviewForm({
           </summary>
           <p>{narrative.text}</p>
         </details>
+      )}
+
+      {/*
+        The unconfirmed judgement questions.
+
+        Deliberately a count and not a "confirm them all" button. These are the
+        seven questions no export can answer — standards of care, timeliness,
+        whether the exam matches the complaint — and a button that turned all
+        seven into scored compliance with one tap would put the inflated number
+        straight back. Answering one is one tap on the question itself.
+      */}
+      {assumedCount > 0 && (
+        <div className="banner info" style={{ marginTop: 12 }}>
+          <strong>
+            {assumedCount} answer{assumedCount === 1 ? '' : 's'} on this review {assumedCount === 1 ? 'was' : 'were'}{' '}
+            assumed, not read.
+          </strong>{' '}
+          Mostly the clinical judgements no export can make. They are left out of every percentage
+          until you answer the question yourself — tapping the answer you agree with is enough.
+        </div>
       )}
 
       {/*
@@ -641,6 +688,11 @@ export default function ChartReviewTool() {
         <div className="stat">
           <div className="value">{stats.percent === undefined ? '—' : `${stats.percent}%`}</div>
           <div className="label">Documentation compliant</div>
+          <div className="sub">of {stats.answered} answers a person stands behind</div>
+        </div>
+        <div className="stat">
+          <div className="value">{stats.assumed}</div>
+          <div className="label">Assumed — not counted</div>
         </div>
         <div className="stat">
           <div className="value">{stats.escalated}</div>
@@ -651,6 +703,20 @@ export default function ChartReviewTool() {
           <div className="label">Drafts (not counted)</div>
         </div>
       </div>
+
+      {/*
+        Said in full once, under the tiles, rather than in a tooltip nobody
+        opens. The percentage moved when assumed answers came out of it, and the
+        first person to notice deserves the reason on the same screen.
+      */}
+      {stats.assumed > 0 && (
+        <div className="help-text" style={{ marginTop: 6 }}>
+          An imported chart is answered by the app, and the questions no export can answer — standards
+          of care, timeliness, whether the exam matches the complaint — are marked assumed. Those sit
+          outside the percentage until a reviewer opens the chart and answers them, so the figure
+          above is what people have actually judged, not what the parser guessed.
+        </div>
+      )}
 
       <div className="toolbar" style={{ marginTop: 12 }}>
         <div className="field" style={{ margin: 0 }}>
@@ -699,6 +765,7 @@ export default function ChartReviewTool() {
                   <th style={{ textAlign: 'right' }}>Asked</th>
                   <th style={{ textAlign: 'right' }}>Compliant</th>
                   <th style={{ textAlign: 'right' }}>%</th>
+                  <th style={{ textAlign: 'right' }}>Assumed</th>
                 </tr>
               </thead>
               <tbody>
@@ -724,6 +791,12 @@ export default function ChartReviewTool() {
                           {t.percent}%
                         </span>
                       )}
+                    </td>
+                    {/* A question whose shortfall rests on four answered charts
+                        out of ninety reads very differently from one asked of
+                        all ninety, and the Asked column alone does not say so. */}
+                    <td style={{ textAlign: 'right' }} className="subtle">
+                      {t.assumed || ''}
                     </td>
                   </tr>
                 ))}

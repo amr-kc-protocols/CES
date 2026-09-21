@@ -111,7 +111,7 @@ export function clearNarratives(): void {
 export interface QuestionTally {
   question: ReviewQuestion
   section: string
-  /** Reviews where this question was in scope and answered. */
+  /** Reviews where this question was in scope and answered BY EVIDENCE. */
   answered: number
   yes: number
   no: number
@@ -119,6 +119,32 @@ export interface QuestionTally {
   compliant: number
   /** Percent compliant of those answered, or undefined when nothing is scored. */
   percent?: number
+  /**
+   * Answers the import assumed and nobody has confirmed. Counted here, scored
+   * nowhere — see isAssumed().
+   */
+  assumed: number
+}
+
+/**
+ * An answer the app guessed rather than read, which nobody has since touched.
+ *
+ * The import answers every question so that a properly documented chart costs a
+ * reviewer nothing. Seven of them are clinical judgements no export can make —
+ * standards of care, timeliness, whether the exam matches the complaint,
+ * whether the facility suited the patient, the transport mode, safe decisions,
+ * safety concerns — and those were being filled with the compliant answer and
+ * then counted as compliance. A month of clean imports therefore reported a
+ * documentation score that nobody, human or machine, had checked.
+ *
+ * So an assumed answer is not evidence and does not score. It still shows on
+ * the form, still carries its reason, and the moment a reviewer touches the
+ * question the source is dropped and the answer becomes theirs — which is what
+ * makes it count. What is left unconfirmed is reported beside every percentage
+ * rather than quietly folded into it.
+ */
+export function isAssumed(r: Pick<ChartReviewEntry, 'answerSources'>, questionId: string): boolean {
+  return r.answerSources?.[questionId]?.confidence === 'assumed'
 }
 
 const SECTION_OF = new Map(
@@ -151,6 +177,7 @@ export function tally(reviews: ChartReviewEntry[]): QuestionTally[] {
       yes: 0,
       no: 0,
       compliant: 0,
+      assumed: 0,
     })
   }
 
@@ -161,6 +188,10 @@ export function tally(reviews: ChartReviewEntry[]): QuestionTally[] {
       if (!row) continue
       const a = r.answers[q.id]
       if (typeof a !== 'boolean') continue
+      if (isAssumed(r, q.id)) {
+        row.assumed++
+        continue
+      }
       row.answered++
       if (a) row.yes++
       else row.no++
@@ -187,6 +218,8 @@ export interface CrewTally {
   percent?: number
   /** Reviews where escalation to clinical leadership was ticked. */
   escalated: number
+  /** Assumed answers behind this person's charts, scored nowhere. */
+  assumed: number
 }
 
 /**
@@ -207,15 +240,20 @@ export function crewTally(reviews: ChartReviewEntry[]): CrewTally[] {
     const inScope = visibleQuestions(r.types as ReviewType[], r.categories)
     let answered = 0
     let compliant = 0
+    let assumed = 0
     for (const q of inScope) {
       const a = r.answers[q.id]
       if (typeof a !== 'boolean') continue
       const c = isCompliant(q, a)
       if (c === undefined) continue
+      if (isAssumed(r, q.id)) {
+        assumed++
+        continue
+      }
       answered++
       if (c) compliant++
     }
-    const escalated = r.answers['ovr.escalate'] === true ? 1 : 0
+    const escalated = isEscalated(r) ? 1 : 0
     // A review with nobody named still has to appear somewhere, or the crew
     // sheet silently totals to fewer reviews than were filed.
     for (const name of r.crew.length ? r.crew : ['(no crew recorded)']) {
@@ -226,11 +264,13 @@ export function crewTally(reviews: ChartReviewEntry[]): CrewTally[] {
         answered: 0,
         compliant: 0,
         escalated: 0,
+        assumed: 0,
       }
       row.reviews++
       row.answered += answered
       row.compliant += compliant
       row.escalated += escalated
+      row.assumed += assumed
       rows.set(key, row)
     }
   }
@@ -247,29 +287,35 @@ export function overall(reviews: ChartReviewEntry[]): {
   compliant: number
   percent?: number
   escalated: number
+  /** Questions answered by assumption and never confirmed. Not in the percent. */
+  assumed: number
 } {
   let answered = 0
   let compliant = 0
   let escalated = 0
+  let assumed = 0
   for (const r of reviews) {
     for (const q of visibleQuestions(r.types as ReviewType[], r.categories)) {
       const c = isCompliant(q, r.answers[q.id])
       if (c === undefined) continue
+      if (isAssumed(r, q.id)) {
+        assumed++
+        continue
+      }
       answered++
       if (c) compliant++
     }
-    if (r.answers['ovr.escalate'] === true) escalated++
+    if (isEscalated(r)) escalated++
   }
   return {
     reviews: reviews.length,
     answered,
     compliant,
     escalated,
+    assumed,
     percent: answered > 0 ? Math.round((compliant / answered) * 1000) / 10 : undefined,
   }
 }
-
-// ----- export ----------------------------------------------------------------
 
 const answerText = (v: unknown): string => {
   if (v === undefined || v === null || v === '') return ''
@@ -278,6 +324,61 @@ const answerText = (v: unknown): string => {
   return String(v)
 }
 
+// ----- one chart at a time ---------------------------------------------------
+//
+// The tally answers "how are we doing"; these answer "what is wrong with THIS
+// chart", which is the question the list screen and the Findings sheet are both
+// really asking. They used to be worked out in two places — a loop in the
+// workbook builder and nothing at all on screen, so the only way to see whether
+// a chart had findings was to open it.
+
+export interface ReviewFinding {
+  question: ReviewQuestion
+  section: string
+  /** The answer as it reads, not as it is stored. */
+  answer: string
+  /** The reviewer's note on that question, where they left one. */
+  note: string
+}
+
+/**
+ * The non-compliant answers on one review, in form order.
+ *
+ * Scope-aware, like everything else here: a category block that was ticked,
+ * answered and then unticked is not held against the chart.
+ */
+export function findings(r: ChartReviewEntry): ReviewFinding[] {
+  const out: ReviewFinding[] = []
+  for (const q of visibleQuestions(r.types as ReviewType[], r.categories)) {
+    if (isCompliant(q, r.answers[q.id]) !== false) continue
+    out.push({
+      question: q,
+      section: SECTION_OF.get(q.id) ?? '',
+      answer: answerText(r.answers[q.id]),
+      note: r.questionNotes?.[q.id] ?? '',
+    })
+  }
+  return out
+}
+
+/** How many questions this chart fell short on. */
+export function findingCount(r: ChartReviewEntry): number {
+  return findings(r).length
+}
+
+/**
+ * Whether this review was sent on to clinical leadership.
+ *
+ * One question id, read in four places — the stat tile, the crew rollup, the
+ * overall figure and the escalated filter. Spelled out once so a change to the
+ * question cannot leave three of them reading a key that no longer exists.
+ */
+export function isEscalated(r: ChartReviewEntry): boolean {
+  return r.answers['ovr.escalate'] === true
+}
+
+// ----- export ----------------------------------------------------------------
+
 /**
  * Reviews and tally as one workbook.
  *
@@ -285,9 +386,33 @@ const answerText = (v: unknown): string => {
  * review was asked it — a ragged sheet cannot be filtered or pivoted, which is
  * the only reason to want it in Excel. A question that was out of scope is left
  * blank, and blank reads differently from No in every pivot table.
+ *
+ * DRAFTS ARE LISTED BUT NOT COUNTED. The screen has always scored complete
+ * reviews only; this counted every row it was handed, so a month exported
+ * mid-review reported a percentage the app itself never showed — and a bulk
+ * import files its uncertain charts as drafts, which is exactly when the two
+ * numbers diverged most. The Reviews and Findings sheets still carry the
+ * drafts, marked as such: a half-finished review is worth reading, it is just
+ * not worth averaging.
  */
 export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
   const questions = ALL_QUESTIONS
+  const counted = reviews.filter((r) => r.status === 'complete')
+  const drafts = reviews.length - counted.length
+  // Said on the sheet, not just in this file, and only when there is something
+  // to say. A reader who sees 84% on the Tally sheet and 84% on screen has no
+  // question to ask; one who exported mid-month needs to know which rows are
+  // behind the number.
+  const draftNote =
+    drafts > 0
+      ? [
+          [],
+          [
+            `Counted: ${counted.length} completed review${counted.length === 1 ? '' : 's'}. ` +
+              `${drafts} draft${drafts === 1 ? '' : 's'} on the Reviews sheet ${drafts === 1 ? 'is' : 'are'} not counted here.`,
+          ],
+        ]
+      : []
   const header = [
     'Review ID',
     'Status',
@@ -322,13 +447,30 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
       r.reviewer,
       r.reviewedAt,
       r.notes ?? '',
-      ...questions.map((q) => (inScope.has(q.id) ? answerText(r.answers[q.id]) : '')),
+      // "Yes (assumed)" rather than "Yes". Whoever pivots this sheet is
+      // entitled to see which cells nobody checked — they are not in the Tally
+      // percentages, and a column of bare Yeses would not say so.
+      ...questions.map((q) => {
+        if (!inScope.has(q.id)) return ''
+        const text = answerText(r.answers[q.id])
+        return text && isAssumed(r, q.id) ? `${text} (assumed)` : text
+      }),
     ]
   })
 
-  const t = tally(reviews)
+  const t = tally(counted)
   const tallyRows: (string | number)[][] = [
-    ['Section', 'Question', 'Scoring', 'Answered', 'Yes', 'No', 'Compliant', '% compliant'],
+    [
+      'Section',
+      'Question',
+      'Scoring',
+      'Answered',
+      'Yes',
+      'No',
+      'Compliant',
+      '% compliant',
+      'Assumed — not scored',
+    ],
     ...t.map((row) => [
       row.section,
       row.question.prompt,
@@ -342,12 +484,22 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
       row.no,
       isScored(row.question) ? row.compliant : '',
       row.percent ?? '',
+      row.assumed,
     ]),
+    ...draftNote,
   ]
 
-  const c = crewTally(reviews)
+  const c = crewTally(counted)
   const crewRows: (string | number)[][] = [
-    ['Crew member', 'Reviews', 'Questions scored', 'Compliant', '% compliant', 'Escalated'],
+    [
+      'Crew member',
+      'Reviews',
+      'Questions scored',
+      'Compliant',
+      '% compliant',
+      'Escalated',
+      'Assumed — not scored',
+    ],
     ...c.map((row) => [
       row.crew,
       row.reviews,
@@ -355,26 +507,31 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
       row.compliant,
       row.percent ?? '',
       row.escalated,
+      row.assumed,
     ]),
+    ...draftNote,
   ]
 
   // One row per non-compliant answer, with the reviewer's note. This is the
   // sheet a supervisor actually works from: the Reviews sheet says a chart
   // scored 86%, this one says which four questions and why.
   const findingRows: (string | number)[][] = [
-    ['Incident / PCR', 'Date of service', 'Crew', 'Section', 'Question', 'Answer', 'Why'],
+    // Status last, so the columns a supervisor reads across stay where they
+    // were. A draft's findings belong on this sheet — they are the reason it is
+    // a draft — but they have to say so, since they are not in the Tally.
+    ['Incident / PCR', 'Date of service', 'Crew', 'Section', 'Question', 'Answer', 'Why', 'Status'],
   ]
   for (const r of reviews) {
-    for (const q of visibleQuestions(r.types as ReviewType[], r.categories)) {
-      if (isCompliant(q, r.answers[q.id]) !== false) continue
+    for (const f of findings(r)) {
       findingRows.push([
         r.incidentNumber,
         r.serviceDate ?? '',
         r.crew.join('; '),
-        SECTION_OF.get(q.id) ?? '',
-        q.prompt,
-        answerText(r.answers[q.id]),
-        r.questionNotes?.[q.id] ?? '',
+        f.section,
+        f.question.prompt,
+        f.answer,
+        f.note,
+        r.status === 'complete' ? 'Counted' : 'Draft — not counted',
       ])
     }
   }
@@ -385,9 +542,9 @@ export function reviewWorkbook(reviews: ChartReviewEntry[]): Sheet[] {
       rows: [header, ...rows],
       widths: [14, 10, 16, 14, 16, 26, 24, 18, 14, 30, ...questions.map(() => 22)],
     },
-    { name: 'Findings', rows: findingRows, widths: [16, 14, 24, 22, 70, 9, 60] },
-    { name: 'Tally', rows: tallyRows, widths: [22, 70, 18, 11, 8, 8, 11, 12] },
-    { name: 'By crew', rows: crewRows, widths: [26, 10, 17, 11, 12, 11] },
+    { name: 'Findings', rows: findingRows, widths: [16, 14, 24, 22, 70, 9, 60, 20] },
+    { name: 'Tally', rows: tallyRows, widths: [22, 70, 18, 11, 8, 8, 11, 12, 20] },
+    { name: 'By crew', rows: crewRows, widths: [26, 10, 17, 11, 12, 11, 20] },
   ]
 }
 

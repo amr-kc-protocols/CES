@@ -267,6 +267,74 @@ check(
   'a review with no crew still appears on the crew sheet',
 )
 
+// ----- assumed answers are not evidence --------------------------------------
+//
+// The import answers every question so a clean chart costs a reviewer nothing,
+// and the handful no export can answer — standards of care, timeliness, whether
+// the exam matches the complaint — are filled with the compliant answer and
+// marked 'assumed'. Counting those as compliance meant a month of clean imports
+// reported a documentation score nobody had checked.
+
+const assumedSources = (...ids) =>
+  Object.fromEntries(ids.map((id) => [id, { confidence: 'assumed', because: 'No field in the export speaks to this.' }]))
+
+const assumedOnly = review(
+  { 'trt.standards': true, 'trt.timely': true },
+  { answerSources: assumedSources('trt.standards', 'trt.timely') },
+)
+const assumedTally = m.tally([assumedOnly])
+const standards = assumedTally.find((r) => r.question.id === 'trt.standards')
+check(
+  standards.answered === 0 && standards.assumed === 1 && standards.percent === undefined,
+  'an assumed answer is counted as unconfirmed, not as compliance',
+  `answered ${standards.answered} assumed ${standards.assumed} pct ${standards.percent}`,
+)
+
+const assumedOverall = m.overall([assumedOnly])
+check(
+  assumedOverall.answered === 0 && assumedOverall.assumed === 2 && assumedOverall.percent === undefined,
+  'a chart answered entirely by assumption scores nothing at all',
+  `answered ${assumedOverall.answered} assumed ${assumedOverall.assumed} pct ${assumedOverall.percent}`,
+)
+
+const assumedCrew = m.crewTally([assumedOnly])
+check(
+  assumedCrew[0].answered === 0 && assumedCrew[0].assumed === 2 && assumedCrew[0].percent === undefined,
+  'the per-crew figure excludes assumed answers too',
+  `answered ${assumedCrew[0].answered} assumed ${assumedCrew[0].assumed}`,
+)
+
+// A reviewer who answers the question themselves makes it count: the form drops
+// the 'assumed' source on the question they touched, which is what this models.
+const confirmed = review(
+  { 'trt.standards': true, 'trt.timely': true },
+  { answerSources: assumedSources('trt.timely') },
+)
+const confirmedTally = m.tally([confirmed]).find((r) => r.question.id === 'trt.standards')
+check(
+  confirmedTally.answered === 1 && confirmedTally.assumed === 0 && confirmedTally.percent === 100,
+  'the same answer counts once a reviewer has confirmed it',
+  `answered ${confirmedTally.answered} assumed ${confirmedTally.assumed} pct ${confirmedTally.percent}`,
+)
+
+// The three figures have to agree, or leadership reads a screen and an export
+// that say different things about the same month.
+const mixed = [
+  review({ 'dem.locations': true, 'trt.standards': true }, { answerSources: assumedSources('trt.standards') }),
+  review({ 'dem.locations': false, 'trt.standards': true }, { answerSources: assumedSources('trt.standards') }),
+]
+const mixedOverall = m.overall(mixed)
+const mixedCrew = m.crewTally(mixed)
+const mixedTallyTotal = m.tally(mixed).reduce((n, r) => n + r.answered, 0)
+check(
+  mixedOverall.answered === 2 &&
+    mixedOverall.percent === 50 &&
+    mixedCrew[0].percent === 50 &&
+    mixedTallyTotal === 2,
+  'the headline, the per-crew and the per-question figures agree',
+  `overall ${mixedOverall.percent} crew ${mixedCrew[0].percent} tally answers ${mixedTallyTotal}`,
+)
+
 // ----- the workbook ----------------------------------------------------------
 
 const sheets = m.reviewWorkbook([
@@ -348,6 +416,59 @@ check(
   clean.rows.length === 1,
   'compliant answers and flags produce no findings rows',
   `${clean.rows.length - 1} unexpected row(s)`,
+)
+
+// An assumed answer prints as one. The Tally sheet does not count it, and a
+// column of bare Yeses on the Reviews sheet would not say which cells that
+// percentage rests on.
+const assumedSheets = m.reviewWorkbook([
+  review({ 'trt.standards': true }, { answerSources: assumedSources('trt.standards') }),
+])
+const assumedHeader = assumedSheets[0].rows[0]
+const standardsCol = assumedHeader.indexOf(m.question('trt.standards').prompt)
+check(
+  assumedSheets[0].rows[1][standardsCol] === 'Yes (assumed)',
+  'an assumed answer is marked as assumed on the Reviews sheet',
+  JSON.stringify(assumedSheets[0].rows[1][standardsCol]),
+)
+const assumedTallySheet = assumedSheets.find((x) => x.name === 'Tally')
+const assumedCol = assumedTallySheet.rows[0].indexOf('Assumed — not scored')
+const standardsRow = assumedTallySheet.rows.find((r) => r[1] === m.question('trt.standards').prompt)
+check(
+  assumedCol > 0 && standardsRow[assumedCol] === 1 && standardsRow[3] === 0,
+  'the Tally sheet reports assumed answers in their own column, outside the score',
+  `column ${assumedCol}, assumed ${standardsRow?.[assumedCol]}, answered ${standardsRow?.[3]}`,
+)
+
+// Drafts are listed but never averaged. The screen has always scored complete
+// reviews only; the export counted every row it was handed, so a month exported
+// mid-review reported a percentage the app itself never showed.
+const withDraft = m.reviewWorkbook([
+  review({ 'dem.locations': true }),
+  review({ 'dem.locations': false }, { status: 'draft', incidentNumber: '2' }),
+])
+const draftTally = withDraft.find((x) => x.name === 'Tally')
+const draftRow = draftTally.rows.find((r) => r[1] === m.question('dem.locations').prompt)
+check(
+  draftRow[3] === 1 && draftRow[7] === 100,
+  'a draft is left out of the Tally sheet, as it is left out of the screen',
+  `answered ${draftRow?.[3]}, % ${draftRow?.[7]}`,
+)
+check(
+  withDraft[0].rows.length === 3,
+  'the draft is still listed on the Reviews sheet',
+  `${withDraft[0].rows.length - 1} row(s)`,
+)
+const draftFindings = withDraft.find((x) => x.name === 'Findings')
+check(
+  draftFindings.rows.length === 2 && draftFindings.rows[1][7] === 'Draft — not counted',
+  "a draft's findings are listed and say they are not counted",
+  JSON.stringify(draftFindings.rows[1] ?? null),
+)
+check(
+  draftTally.rows.some((r) => typeof r[0] === 'string' && r[0].includes('1 draft')),
+  'the Tally sheet says how many drafts it left out',
+  JSON.stringify(draftTally.rows[draftTally.rows.length - 1] ?? null),
 )
 
 const header = sheets[0].rows[0]
