@@ -121,18 +121,98 @@ function samePerson(listed: string, printed: string): boolean {
   return norm(listed) === norm(printed)
 }
 
-/** Drug names a narrative mentions, by canonical name. */
-export function drugsInNarrative(narrative: string): string[] {
-  const text = ` ${narrative.toLowerCase()} `
-  const out: string[] = []
+/**
+ * A drug the narrative says was GIVEN, as opposed to one it merely names.
+ *
+ * The distinction is the whole of this. A narrative mentions drugs for three
+ * reasons — the crew gave one, the patient takes one at home, or the crew
+ * considered one and did not give it — and only the first is a charting gap
+ * when the Medications section is empty. Reported as a stop flag on all three,
+ * this said "Aspirin not charted" on every cardiac patient who takes a daily
+ * 81mg, and a flag that is wrong four times out of five stops being read.
+ */
+export interface NarrativeDrug {
+  name: string
+  /**
+   * Given before this crew arrived, or by somebody else.
+   *
+   * Still worth charting — the question asks for medications "including those
+   * given by other caregivers" — but not the same thing as a drug this crew
+   * pushed and never recorded, so it does not stop a chart.
+   */
+  givenByOthers: boolean
+}
+
+/**
+ * Words near a drug that mean it was not given.
+ *
+ * The bare "no " of the source spec is deliberately narrowed to the phrases
+ * that are actually about a drug. Inside an 80-character window "no " matches
+ * "no distress", "no allergies", "no obvious injury" — ordinary narrative
+ * furniture that sits near a drug name constantly — and suppressing a finding
+ * on that is a worse failure than the false positive it prevents: a missing
+ * medication entry nobody is told about.
+ */
+const DRUG_NOT_GIVEN =
+  /\b(attempt|unsuccessful|without success|unable|refus|declin|denies|denied|considered|held|withheld|not (given|indicated|administered|required)|no (iv|access|meds?|medications?|dose|doses))\b/i
+
+/** Words near a drug that mean the patient takes it, rather than got it today. */
+const DRUG_IS_HISTORY =
+  /\b(takes|taking|took|prescribed|home med|daily|bid|tid|qid|qd|prn|history of|hx|medication list|current medications|compliant with)\b/i
+
+/** Words near a drug that mean somebody other than this crew gave it. */
+const DRUG_BY_OTHERS =
+  /\b(pta|prior to (our |ems )?arrival|by (family|bystander|fire|first responders?|staff|nursing|facility|pd|police)|(family|bystander|fire|staff|nursing|facility|pd|police) (gave|administered|had given))\b/i
+
+/**
+ * Drop a narrative's history section before looking for drugs in it.
+ *
+ * KC crews write DCHAT, and the H section is a list of what the patient takes.
+ * Every drug in it is a false positive by construction, and no window around a
+ * single word is going to work out that "aspirin, lisinopril, metoprolol" is a
+ * list rather than a treatment.
+ *
+ * The lookahead names the sections that can follow rather than ending at the
+ * first colon, because a narrative is full of colons ("Pt states: ..."), and
+ * because stopping at the end of the string when there is no A section would
+ * take the treatment section with it — losing the findings this is here to
+ * catch.
+ */
+function stripHistorySection(narrative: string): string {
+  return narrative.replace(
+    /(^|\n)[ \t]*(h|hx|history)[ \t]*[:\-][\s\S]*?(?=\n[ \t]*(?:a|assessment|t|treatment|transport|r|rx|d|dispatch|c|chief complaint)[ \t]*[:\-]|$)/i,
+    '\n',
+  )
+}
+
+/** Drugs a narrative says were given, by canonical name. */
+export function drugsInNarrative(narrative: string): NarrativeDrug[] {
+  const text = ` ${stripHistorySection(narrative).toLowerCase()} `
+  const out: NarrativeDrug[] = []
   for (const name of KNOWN_DRUGS) {
     const words = [name.toLowerCase(), ...(DRUG_ALIASES[name] ?? [])]
-    // Word boundaries, not substrings: "ns" and "epi" would otherwise match
-    // inside half the words in a narrative.
-    const hit = words.some((w) =>
-      new RegExp(`(^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`).test(text),
-    )
-    if (hit) out.push(name)
+    for (const w of words) {
+      // Word boundaries, not substrings: "ns" and "epi" would otherwise match
+      // inside half the words in a narrative.
+      const re = new RegExp(`(^|[^a-z])(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})([^a-z]|$)`)
+      const m = re.exec(text)
+      if (!m) continue
+      // "ns" is two letters, and the only time a crew means saline by them is
+      // beside a volume. Left as a bare word it matched "pt's ns exam", initials
+      // and half the abbreviations in a narrative.
+      if (
+        w === 'ns' &&
+        !/\bns\b[^a-z0-9]{0,4}\d|\d+\s*(?:ml|cc|l|liters?)?\s*(?:of\s+)?\bns\b/.test(text)
+      ) continue
+      const at = m.index + m[1].length
+      const window = text.slice(Math.max(0, at - 80), at + w.length + 80)
+      // One look decides the drug: a mention that reads as history or as a
+      // drug not given is not evidence that a later mention was given either,
+      // and chasing further mentions only re-raises the flag this removes.
+      if (DRUG_NOT_GIVEN.test(window) || DRUG_IS_HISTORY.test(window)) break
+      out.push({ name, givenByOthers: DRUG_BY_OTHERS.test(window) })
+      break
+    }
   }
   return out
 }
@@ -300,12 +380,27 @@ export function autoReview(chart: PcrChart): AutoReview {
 
   const chartedDrugs = new Set(chart.medications.map((m) => m.name))
   const narrativeDrugs = narrative ? drugsInNarrative(narrative) : []
-  const missingDrugs = narrativeDrugs.filter((d) => !chartedDrugs.has(d))
-  if (missingDrugs.length) {
+  const uncharted = narrativeDrugs.filter((d) => !chartedDrugs.has(d.name))
+  // Split by who gave it. A drug this crew pushed and never charted is a claim
+  // that cannot be defended; one the family gave before arrival is a field the
+  // crew should have filled in, which is worth a reviewer's eye but not worth
+  // holding the chart for.
+  const missingByCrew = uncharted.filter((d) => !d.givenByOthers).map((d) => d.name)
+  const missingByOthers = uncharted.filter((d) => d.givenByOthers).map((d) => d.name)
+  const missingDrugs = uncharted.map((d) => d.name)
+  if (missingByCrew.length) {
     flag(
       'stop',
-      `${missingDrugs.join(', ')} in the narrative only`,
-      `The narrative describes giving ${missingDrugs.join(', ')}, but the Medications section has no entry. A drug given and not charted is not billable and not defensible.`,
+      `${missingByCrew.join(', ')} in the narrative only`,
+      `The narrative describes giving ${missingByCrew.join(', ')}, but the Medications section has no entry. A drug given and not charted is not billable and not defensible.`,
+      'trt.medications',
+    )
+  }
+  if (missingByOthers.length) {
+    flag(
+      'look',
+      `${missingByOthers.join(', ')} given before this crew, not charted`,
+      `The narrative says ${missingByOthers.join(', ')} was given by somebody else before or on arrival. The Medications section asks for those too, and it has no entry.`,
       'trt.medications',
     )
   }

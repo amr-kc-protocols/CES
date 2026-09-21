@@ -206,7 +206,15 @@ export const DRUG_ALIASES: Record<string, string[]> = {
   Midazolam: ['versed'],
   Naloxone: ['narcan'],
   Nitroglycerin: ['nitro', 'ntg'],
-  'Normal Saline': ['ns', 'saline'],
+  // Not a bare 'saline'. "Saline lock" is a line, not a fluid, and it appears
+  // on most ALS charts — matching it reported Normal Saline as given and never
+  // charted on every one of them. 'ns' survives, but only beside a volume; see
+  // drugsInNarrative().
+  //
+  // 'fluid bolus' is deliberately absent although it reads like a hit: it names
+  // no particular fluid, so a crew who gave and charted Lactated Ringers would
+  // be told Normal Saline was missing — the same false positive in a new place.
+  'Normal Saline': ['ns', 'saline bolus'],
   Ondansetron: ['zofran'],
   'Sodium Bicarbonate': ['bicarb'],
   Tranexamic: ['txa'],

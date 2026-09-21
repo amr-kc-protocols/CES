@@ -334,6 +334,55 @@ check(
   review.findings.filter((id) => !review.findingNotes[id]).join(', '),
 )
 
+// ----- what a narrative naming a drug actually means -------------------------
+//
+// Three reasons a drug appears in a narrative: the crew gave it, the patient
+// takes it at home, or the crew considered it and did not. Only the first is a
+// charting gap. Flagged on all three, this reported "Aspirin in the narrative
+// only" on every cardiac patient taking a daily 81mg — and a stop flag that is
+// wrong four times out of five stops being read at all.
+
+const drugCases = [
+  ['Pt takes aspirin 81 mg daily at home.', [], 'a home medication is not a drug given'],
+  ['Narcan considered, not indicated.', [], 'a drug considered and not given raises nothing'],
+  ['Pt denies taking nitro today.', [], 'a drug the patient denies taking raises nothing'],
+  ['20g IV established in the left AC, saline lock placed.', [], 'a saline lock is a line, not a fluid'],
+  ['Administered 324 mg aspirin PO en route.', ['Aspirin'], 'a drug the crew gave is still found'],
+  ['500 ml ns bolus given wide open.', ['Normal Saline'], 'saline beside a volume is a fluid given'],
+  ['Pt is A&Ox4, ns exam unremarkable.', [], "two loose letters are not a litre of saline"],
+]
+for (const [text, expected, label] of drugCases) {
+  const got = m.drugsInNarrative(text).map((d) => d.name)
+  check(
+    got.length === expected.length && expected.every((e) => got.includes(e)),
+    label,
+    `"${text}" -> ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}`,
+  )
+}
+
+// Given by somebody else before the crew arrived. Still a field the crew should
+// have filled in — the question asks for medications "including those given by
+// other caregivers" — but not a drug this crew pushed and never recorded, so it
+// is worth a reviewer's eye rather than a hold on the chart.
+const pta = m.drugsInNarrative('Pt reports family gave narcan PTA before our arrival.')
+check(
+  pta.length === 1 && pta[0].name === 'Naloxone' && pta[0].givenByOthers === true,
+  'a drug given by the family before arrival is marked as given by others',
+  JSON.stringify(pta),
+)
+
+// The DCHAT history section is a list of what the patient takes, and no window
+// around a single word will work out that "aspirin, lisinopril, metoprolol" is
+// a list rather than a treatment.
+const dchat = m.drugsInNarrative(
+  'D: Dispatched emergent.\nC: Chest pain.\nH: Takes aspirin, nitroglycerin, metoprolol.\nA: A&Ox4, skin warm.\nT: 4mg zofran IV for nausea.',
+)
+check(
+  dchat.map((d) => d.name).join() === 'Ondansetron',
+  'the history section is not read as treatment, and the treatment section still is',
+  JSON.stringify(dchat.map((d) => d.name)),
+)
+
 // The same chart with the dose right and no drug missing from the table.
 const clean = m.parseChart(
   m.buildPcrDoc(
