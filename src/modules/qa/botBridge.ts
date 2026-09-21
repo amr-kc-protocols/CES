@@ -43,10 +43,46 @@ export function normalizeStatus(value: string): CriterionStatus | undefined {
   return STATUS_ALIASES[norm(value)]
 }
 
+/** A bare yes or no, as opposed to an explicit Met / Not met. */
+const BARE_YES = /^(y|yes|true|1)$/i
+const BARE_NO = /^(n|no|false|0|none)$/i
+
 /**
- * Build a resolver that maps a bot's criterion key (an id or a label, in any
- * casing/punctuation) onto a CES rubric criterion id. Falls back to a
- * contains-match so "Vitals documented" resolves to the `vitals` criterion.
+ * A bot's answer, read as the CES rubric means it.
+ *
+ * Two rubric items are stated here as the positive of a Ninth Brain question
+ * that is asked in reverse — "No near misses to report" against "Were there any
+ * near misses?". An Agent answering the Ninth Brain form literally sends "No",
+ * the synonym table reads "no" as Not met, and q14 is a CRITICAL item: a crew
+ * with nothing to report scored a critical failure on every clean chart.
+ *
+ * So on a reversed item a bare yes or no is inverted, and anything explicit —
+ * "Met", "Not met", "partial" — is taken at its word, because a sender who
+ * writes a CES status has already done the translation. "None" is covered by
+ * the same rule: on q14 it means no near misses, which is Met, where the
+ * general table would read it as N/A and drop it from the score.
+ */
+export function statusForCriterion(
+  criterion: RubricCriterion | undefined,
+  value: string,
+): CriterionStatus | undefined {
+  if (!criterion?.reversed) return normalizeStatus(value)
+  const raw = value.trim()
+  if (BARE_YES.test(raw)) return 'not_met'
+  if (BARE_NO.test(raw)) return 'met'
+  return normalizeStatus(value)
+}
+
+/**
+ * Build a resolver that maps a bot's criterion key onto a CES rubric id.
+ *
+ * Exact id, then a leading q-number, then an exact label — and nothing else.
+ * The contains-match this replaces resolved in rubric order, so ANY key holding
+ * "q1" landed on q1: "q13 clinical decisions" and "Q12: documentation" both
+ * scored the physical exam item, and "documentation" always resolved to q11
+ * because its label contains the word. A key that lands on the wrong question
+ * is worse than one that lands nowhere — nothing in the review says it
+ * happened — so an unrecognised key is now reported rather than guessed at.
  */
 export function buildCriteriaResolver(criteria: RubricCriterion[]): (key: string) => string | undefined {
   const byId = new Map<string, string>()
@@ -58,13 +94,15 @@ export function buildCriteriaResolver(criteria: RubricCriterion[]): (key: string
   return (key: string) => {
     const k = norm(key)
     if (byId.has(k)) return byId.get(k)
-    if (byLabel.has(k)) return byLabel.get(k)
-    // contains match against labels/ids
-    for (const c of criteria) {
-      const nl = norm(c.label)
-      const ni = norm(c.id)
-      if (k && (nl.includes(k) || k.includes(nl) || k.includes(ni))) return c.id
+    // "q13 clinical decisions" and "Q12: documentation" are the Agent writing
+    // the id and the question together. The number is unambiguous; the prose
+    // after it is not, and was what did the damage.
+    const numbered = /^\s*q\s*0*(\d+)\b/i.exec(key)
+    if (numbered) {
+      const id = norm(`q${Number(numbered[1])}`)
+      if (byId.has(id)) return byId.get(id)
     }
+    if (byLabel.has(k)) return byLabel.get(k)
     return undefined
   }
 }

@@ -49,6 +49,35 @@ inverted on import:
 - **Q15** *"Does this chart need further review by clinical leadership?"* —
   same inversion; a form **Yes** sets the flag.
 
+**A bare yes or no on Q14 / Q15 is read as an answer to the FORM's wording**,
+and inverted. That is what a sender who has not done the inversion produces,
+and it is the dangerous case: Q14 is a critical item, so a chart with nothing
+to report used to arrive as a critical failure. An explicit `met`, `not_met`,
+`partial` or `na` is taken at its word and never inverted twice, so both
+Python converters (which invert and emit `met` / `not_met`) are unaffected.
+`none` on Q14 means *no near misses* — Met — rather than N/A.
+
+### Criterion keys must be exact
+
+A key is matched against the rubric in this order: the exact id, then a leading
+question number (`"q13 clinical decisions"`, `"Q12: documentation"`), then the
+exact label. **Nothing else matches.** The substring fallback this replaces
+resolved in rubric order, so any key containing `q1` scored **q1**, and
+`"documentation"` always scored q11 because its label contains the word — a
+wrong answer on the right-looking review, with nothing to say it had happened.
+Keys that match nothing are left out of the score and listed in the import
+summary; send the ids `q1`–`q15`.
+
+### Critical items force the flag
+
+`q5`, `q13` and `q14` are critical and carry double weight. A chart Met on
+everything else and Not met on one of them scores **16/18 = 89%** — above the
+80% coaching threshold, and previously unflagged. Any critical item scored Not
+met now flags the review and sets `criticalFail`, which shows as a red pill in
+the chart list and as its own column in the reviews CSV. A payload's own
+`flagged: false` does not override it: a sender can ask for a chart to be
+flagged, not for a failed critical item to go unflagged.
+
 CES computes the weighted score from the criteria (Q5/Q13/Q14 carry double
 weight). The bot's Synopsis, Findings, matched rules, category follow-ups
 (STEMI / Trauma / Stroke / AMS), and rationales for deficient answers land in
@@ -115,9 +144,9 @@ JSON — a bare array of reviews or `{"reviews": [...]}`:
 | Field | Required | Notes |
 |---|---|---|
 | `incidentNumber` | **yes** | Match key (Run ID). Aliases accepted: `incident`, `run`, `pcr`, `id`. |
-| `criteria` | recommended | Keys are CES criterion ids `q1`–`q15` (or their labels); values `met` / `partial` / `not_met` / `na` (synonyms like `yes` / `no` / `n/a` accepted). CES computes the weighted score from these. **Send post-inversion values** — `q14: met` means *no safety concerns*. |
+| `criteria` | recommended | Keys are CES criterion ids `q1`–`q15` (exact, or with the question after the number) or the exact label — see *Criterion keys must be exact*. Values `met` / `partial` / `not_met` / `na` (synonyms like `yes` / `no` / `n/a` accepted). CES computes the weighted score from these. **Send post-inversion values on Q14 / Q15** — `q14: met` means *no safety concerns*; a bare `yes` / `no` there is read as an answer to the form's own reversed wording. |
 | `scorePct` | optional | 0–100 override; skips the computed score. |
-| `flagged` | optional | Coaching follow-up. Defaults to `true` when the computed score is below 80%. |
+| `flagged` | optional | Coaching follow-up. Defaults to `true` when the computed score is below 80%. Always `true` when a critical item (`q5`, `q13`, `q14`) is Not met, whatever this says. |
 | `date`, `provider`, `crew`, `chiefComplaint`, `acuity`, `notes`, `reviewer` | optional | Chart metadata; existing chart values win on match. |
 
 CSV is also accepted for flat rows (`incidentNumber,scorePct,provider,notes,…`)

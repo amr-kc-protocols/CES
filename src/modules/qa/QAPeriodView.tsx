@@ -55,7 +55,14 @@ function ChartRow({ chart, periodId }: { chart: Chart; periodId: string }) {
         ) : (
           <span className={`pill ${pill.cls}`}>{pill.label}</span>
         )}
-        {chart.review?.flagged && <div style={{ fontSize: 11, color: 'var(--red)' }}>⚑ flagged</div>}
+        {/* A critical item missed says WHY this chart is flagged. At 89% the
+            score reads as a good chart, so "flagged" alone looks like somebody
+            being cautious rather than a failed critical element. */}
+        {chart.review?.criticalFail ? (
+          <div className="pill crit" style={{ marginTop: 2 }}>critical item missed</div>
+        ) : chart.review?.flagged ? (
+          <div style={{ fontSize: 11, color: 'var(--red)' }}>⚑ flagged</div>
+        ) : null}
       </div>
     </Link>
   )
@@ -94,7 +101,7 @@ export default function QAPeriodView() {
   function exportReviews() {
     const headers = [
       'Incident', 'Date', 'Provider', 'Crew', 'Chief Complaint', 'Acuity',
-      'Status', 'Score %', 'Flagged', 'Reviewer', 'Reviewed At', 'Notes',
+      'Status', 'Score %', 'Flagged', 'Critical item missed', 'Reviewer', 'Reviewed At', 'Notes',
     ]
     const rows = charts
       .filter((c) => c.sampled)
@@ -102,6 +109,7 @@ export default function QAPeriodView() {
         c.incidentNumber, c.date ?? '', c.provider ?? '', c.crew ?? '',
         c.chiefComplaint ?? '', c.acuity ?? '', c.status,
         c.review ? c.review.scorePct : '', c.review?.flagged ? 'yes' : '',
+        c.review?.criticalFail ? 'yes' : '',
         c.review?.reviewer ?? '', c.review?.reviewedAt ?? '', c.review?.notes ?? '',
       ])
     downloadCSV(`QA_${per.operation}_${per.month}_reviews.csv`, toCSV(headers, rows))

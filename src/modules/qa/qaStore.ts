@@ -2,7 +2,7 @@ import { setState, useSelector, getState } from '../../lib/store'
 import { uid } from '../../lib/id'
 import { monthKey } from '../../lib/date'
 import { computeScore, rubricForOperation, LOW_SCORE_THRESHOLD } from '../../data/qaRubric'
-import { buildCriteriaResolver, normalizeStatus, type ExternalReview } from './botBridge'
+import { buildCriteriaResolver, statusForCriterion, type ExternalReview } from './botBridge'
 import type {
   Chart,
   ChartReview,
@@ -217,13 +217,19 @@ export function saveReview(
   if (!chart) return
   const criteria = rubricForOperation(chart.operation)
   const scorePct = computeScore(scores, criteria)
+  // The same rule as the bot import, for the same reason: one critical item
+  // missed is 2 points of 18, so the chart still scores 89% and never surfaces.
+  // A reviewer who marks one Not met has said the chart needs following up;
+  // they should not also have to remember to tick the box.
+  const criticalFail = criteria.some((c) => c.critical && scores[c.id] === 'not_met')
   const review: ChartReview = {
     scores,
     scorePct,
     notes,
     reviewer,
     reviewedAt: new Date().toISOString(),
-    flagged,
+    flagged: flagged || criticalFail,
+    criticalFail,
   }
   setState((cur) => ({
     ...cur,
@@ -237,6 +243,17 @@ export interface BotImportResult {
   matched: number
   created: number
   total: number
+  /**
+   * Criterion keys in the batch that matched no rubric item, with the run they
+   * came from.
+   *
+   * Reported rather than guessed at. The resolver used to fall back to a
+   * contains-match, so an unrecognised key silently scored whichever item it
+   * happened to share a substring with and the review looked complete. An
+   * answer that lands nowhere is a batch to fix; one that lands on the wrong
+   * question is a number nobody can trust.
+   */
+  unmatched: { incidentNumber: string; key: string }[]
 }
 
 /**
@@ -263,6 +280,8 @@ export function importBotReviews(
 
   const updates = new Map<string, Chart>()
   const creates: Chart[] = []
+  const unmatched: BotImportResult['unmatched'] = []
+  const byId = new Map(criteria.map((c) => [c.id, c]))
   let matched = 0
   let created = 0
 
@@ -274,8 +293,15 @@ export function importBotReviews(
     if (r.criteria) {
       for (const [k, v] of Object.entries(r.criteria)) {
         const id = resolve(k)
-        const status = normalizeStatus(String(v))
-        if (id && status) scores[id] = status
+        if (!id) {
+          unmatched.push({ incidentNumber: inc, key: k })
+          continue
+        }
+        // Read through the criterion, not the synonym table alone: q14 and q15
+        // are stated here as the positive of a question Ninth Brain asks in
+        // reverse, and a literal "No" to the original means Met.
+        const status = statusForCriterion(byId.get(id), String(v))
+        if (status) scores[id] = status
       }
     }
     const hasScores = Object.keys(scores).length > 0
@@ -285,7 +311,21 @@ export function importBotReviews(
         : hasScores
           ? computeScore(scores, criteria)
           : 0
-    const flagged = r.flagged != null ? !!r.flagged : scorePct < LOW_SCORE_THRESHOLD
+    /**
+     * A critical item missed is flagged whatever the percentage says.
+     *
+     * The weights total 18 and a critical item carries 2, so a chart that is
+     * Met on everything except "clinical decisions safe and appropriate" scores
+     * 16/18 = 89% — comfortably above the coaching threshold, and invisible.
+     * That is the one chart in the batch that has to be looked at.
+     *
+     * It also overrides an explicit flagged:false in the payload. A sender can
+     * ask for a chart to be flagged; it cannot ask for a failed critical item
+     * to go unflagged.
+     */
+    const criticalFail = criteria.some((c) => c.critical && scores[c.id] === 'not_met')
+    const flagged =
+      criticalFail || (r.flagged != null ? !!r.flagged : scorePct < LOW_SCORE_THRESHOLD)
     const review: ChartReview = {
       scores,
       scorePct,
@@ -293,6 +333,7 @@ export function importBotReviews(
       reviewer: r.reviewer || 'Chart Review Agent',
       reviewedAt: now,
       flagged,
+      criticalFail,
     }
 
     const match = existing.get(key(inc))
@@ -334,7 +375,7 @@ export function importBotReviews(
     ...cur,
     charts: [...cur.charts.map((c) => updates.get(c.id) ?? c), ...creates],
   }))
-  return { matched, created, total: matched + created }
+  return { matched, created, total: matched + created, unmatched }
 }
 
 export function setChartInProgress(chartId: string): void {

@@ -41,6 +41,17 @@ export interface RubricCriterion {
   weight: number
   /** Critical elements pull down the overall review harder when missed. */
   critical?: boolean
+  /**
+   * Stated here as the positive of a Ninth Brain question that is asked in
+   * reverse.
+   *
+   * The CES rubric reads "No near misses to report" so that Met is always the
+   * good answer; the Ninth Brain form asks "Were there any near misses?", where
+   * the good answer is No. An importer handed a literal answer to the ORIGINAL
+   * question has to invert it, or a crew's best charts arrive as critical
+   * failures. See statusForCriterion() in botBridge.ts.
+   */
+  reversed?: boolean
   /** Only shown for the operations listed (e.g. KC critical-care items). */
   operations?: OperationId[]
   help?: string
@@ -55,6 +66,16 @@ export interface ChartReview {
   reviewedAt: string
   /** Flagged for coaching follow-up. */
   flagged: boolean
+  /**
+   * A critical rubric item was scored Not met.
+   *
+   * Carried separately from `flagged` because the two answer different
+   * questions: `flagged` is "somebody should look at this", which a reviewer
+   * can set for any reason, and this is "the chart failed something that cannot
+   * be averaged away". A single critical miss is 2 points of 18 — the score
+   * stays at 89% and reads as a good chart.
+   */
+  criticalFail?: boolean
 }
 
 export type ChartStatus = 'unreviewed' | 'in_progress' | 'scored'

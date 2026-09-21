@@ -164,9 +164,23 @@ export default function ImportCharts({
     setError('')
     onClose()
     // Surface a quick summary of what landed where.
+    //
+    // Including the criterion keys that matched no rubric item. They used to be
+    // resolved by substring in rubric order, so a key like "q13 clinical
+    // decisions" scored q1 and the review looked complete — an answer landing
+    // on the wrong question is a number nobody can trust, and the only place it
+    // could ever be noticed is here.
+    const keys = [...new Set(res.unmatched.map((u) => u.key))]
     notifyUser(
       `Imported ${res.total} bot review${res.total === 1 ? '' : 's'}: ` +
-        `${res.matched} matched to existing charts, ${res.created} added as new.`,
+        `${res.matched} matched to existing charts, ${res.created} added as new.` +
+        (keys.length
+          ? ` ${res.unmatched.length} answer${res.unmatched.length === 1 ? '' : 's'} could not be` +
+            ` matched to a rubric item and ${res.unmatched.length === 1 ? 'was' : 'were'} left out: ` +
+            `${keys.slice(0, 6).join(', ')}${keys.length > 6 ? `, and ${keys.length - 6} more` : ''}.` +
+            ' Ask the Agent to send the ids q1–q15.'
+          : ''),
+      keys.length ? 'warn' : 'info',
     )
   }
 

@@ -105,6 +105,7 @@ export const QA_RUBRIC: RubricCriterion[] = [
     category: 'Overall Evaluation',
     weight: 2,
     critical: true,
+    reversed: true,
     help: 'Ninth Brain asks this in reverse: "Were there any near misses, errors, and/or patient safety concerns that should be reported?" — a No there means Met here.',
   },
   {
@@ -112,6 +113,7 @@ export const QA_RUBRIC: RubricCriterion[] = [
     label: 'No further review by clinical leadership needed',
     category: 'Overall Evaluation',
     weight: 1,
+    reversed: true,
     help: 'Ninth Brain asks this in reverse: "Does this chart need further review by clinical leadership?" — a No there means Met here.',
   },
 ]
