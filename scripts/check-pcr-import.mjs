@@ -733,6 +733,218 @@ function timedChart(over = {}) {
   )
 }
 
+// ----- what happens when the file is not what it should be -------------------
+//
+// pdf.js answers a zip, an HTML page and a phone photo alike with "Invalid PDF
+// structure", which reads as "your export is broken" when the truth is usually
+// that the wrong file was picked. A reviewer who cannot tell those apart has no
+// next step, and the name ending in .pdf proves nothing.
+
+const bytesOf = (s) => new Uint8Array([...s].map((c) => c.charCodeAt(0)))
+
+check(m.sniffFile(bytesOf('%PDF-1.7\n')) === undefined, 'a real PDF passes the sniff test')
+check(
+  (m.sniffFile(bytesOf('PK\u0003\u0004abcd')) ?? '').includes('zip'),
+  'a zip or Office file renamed .pdf is named as one',
+  String(m.sniffFile(bytesOf('PK\u0003\u0004abcd'))),
+)
+check(
+  (m.sniffFile(bytesOf('<!DOCTYPE html>')) ?? '').includes('HTML'),
+  'a page saved instead of printed is named as one',
+  String(m.sniffFile(bytesOf('<!DOCTYPE html>'))),
+)
+check(
+  (m.sniffFile(bytesOf('\u0089PNG\r\n')) ?? '').includes('image'),
+  'a screenshot is named as one',
+  String(m.sniffFile(bytesOf('\u0089PNG\r\n'))),
+)
+check(m.sniffFile(new Uint8Array(0)) === 'The file is empty.', 'and an empty file says so')
+
+// The failure messages have to name the thing to go and do. "The file is not a
+// readable PDF" is true of a password-protected export, a half-downloaded one
+// and a reader that never loaded, and useless for all three.
+check(
+  m.describePdfFailure(Object.assign(new Error('No password given'), { name: 'PasswordException' }))
+    .includes('password protected'),
+  'a password-protected PDF is named as one',
+)
+check(
+  m.describePdfFailure(new Error('Setting up fake worker failed')).includes('while online'),
+  'a reader that could not load is not reported as a broken file',
+  m.describePdfFailure(new Error('Setting up fake worker failed')),
+)
+check(
+  m.describePdfFailure(new Error('Failed to fetch dynamically imported module')).includes('while online'),
+  'and neither is one that failed to download',
+)
+check(
+  m.describePdfFailure(new Error('Invalid PDF structure')).includes('damaged or was only partly downloaded'),
+  'a damaged file says what to do about it',
+  m.describePdfFailure(new Error('Invalid PDF structure')),
+)
+
+// A scan reads as a document with pages and no text. Everything downstream
+// sees an empty document, so without saying it here the reviewer is told their
+// export is not an ImageTrend export — wrong, and nothing they can act on.
+const scanned = m.buildPcrDoc([], 4)
+check(
+  scanned.pageCount === 4 && scanned.items.length === 0 && scanned.pages.length === 0,
+  'a PDF with pages and no text keeps its real page count',
+  JSON.stringify({ pageCount: scanned.pageCount, pages: scanned.pages.length }),
+)
+check(
+  m.buildPcrDoc([{ page: 1, x: 0, y: 700, str: 'EMS Agency:', font: 'L' }]).pageCount === 1,
+  'and an ordinary document still counts its own pages',
+)
+
+// ----- the banner, as the real templates print it ----------------------------
+//
+// The sniff test demanded the literal string "EMS Agency:". Elite's Master GMR
+// Run Form prints the business unit as the form's own identity instead —
+// "KS-KANSAS CITY-Ground" — so a whole template's exports were rejected as
+// "not an ImageTrend PCR export", which is a month of charts nobody can import.
+
+const bannerPage = (banner, run) =>
+  m.buildPcrDoc(
+    page(1)
+      .field('Incident #', run)
+      .field('Date of Service:', '08/16/2026 16:14:28')
+      .field('Primary Impression', 'Chest Pain')
+      .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+      .overflow(banner)
+      .footer()
+      .done(),
+  )
+
+for (const banner of [
+  'KS-KANSAS CITY-Ground',
+  'MO-CASS COUNTY-Ground',
+  'MO–CASS COUNTY–Ground', // typed with en dashes, which is how people write it
+  'KS-LINN COUNTY-Ground',
+  'EMS Agency: KS-EXAMPLE- Ground',
+]) {
+  check(
+    m.looksLikePcr(bannerPage(banner, '29047490')) === true,
+    `a report headed "${banner}" is recognised`,
+  )
+}
+
+// Eight digits today, six in older exports, and it has only ever ticked up.
+for (const run of ['29047490', '990001', '290474901']) {
+  check(m.looksLikePcr(bannerPage('KS-KANSAS CITY-Ground', run)) === true,
+    `a ${run.length}-digit run number is read`)
+}
+check(
+  m.looksLikePcr(bannerPage('KS-KANSAS CITY-Ground', '4901')) === false,
+  'and four digits is not a run number',
+)
+
+// The label spelled the other ways Elite's templates use.
+for (const label of ['Incident #', 'Incident Number', 'Incident No.']) {
+  const doc = m.buildPcrDoc(
+    page(1).field(label, '29047490').overflow('KS-KANSAS CITY-Ground').footer().done(),
+  )
+  check(m.splitCharts(doc).length === 1, `"${label}:" is read as the run number`,
+    JSON.stringify(m.splitCharts(doc)))
+}
+
+// A hyphenated phrase is not a banner. This is what keeps the shape rule from
+// matching ordinary prose on a document that is not a report at all.
+check(
+  m.looksLikePcr(
+    m.buildPcrDoc(page(1).overflow('AB-SOME THING-Widget Incident # 12345678').footer().done()),
+  ) === false,
+  'a hyphenated phrase with no service type is not an agency banner',
+)
+
+// Splitting a multi-chart export with no banner the app recognises: consecutive
+// pages group by the run number they carry, and a number reprinted in a footer
+// keeps extending the chart it belongs to rather than starting a new one.
+{
+  const items = []
+  const runs = ['29047490', '29047490', '29047491', '29047491', '29047492']
+  runs.forEach((run, i) => {
+    items.push(...page(i + 1).field('Incident #', run).field('Primary Impression', 'Chest Pain').footer().done())
+  })
+  const split = m.splitCharts(m.buildPcrDoc(items))
+  check(
+    split.length === 3 && split[0].from === 1 && split[0].to === 2 && split[2].from === 5,
+    'pages group into charts by their run number when no banner is recognised',
+    JSON.stringify(split),
+  )
+}
+
+// ----- a PDF this app does not recognise -------------------------------------
+//
+// "not an ImageTrend PCR export" was the whole of what a reviewer got, on a
+// file that read perfectly well. There is no next step in that. The report has
+// to say which anchors were found — and it must not say anything else, because
+// the obvious way to make it useful is to print what was read, and what was
+// read is a patient record.
+
+{
+  // A real report whose banner is worded differently: everything else is there.
+  const nearMiss = m.buildPcrDoc(
+    page(1)
+      .field('Date of Service:', '08/16/2026 16:14:28')
+      .field('Primary Impression', 'Chest Pain')
+      .field('Transport Disposition', 'Transport by This EMS Unit (This Crew Only)')
+      .field('Narrative Patient Care Report Narrative', 'MRS ELIZABETH HARGROVE of 44 CEDAR LANE, dob 03/14/1951.')
+      .footer()
+      .done(),
+  )
+  check(m.looksLikePcr(nearMiss) === false, 'a report with no agency banner is not recognised')
+  const report = m.unrecognisedReport(nearMiss)
+  check(
+    report.includes('Primary Impression') && report.includes('Transport Disposition'),
+    'the report names the anchors it did find',
+    report,
+  )
+  check(
+    report.includes('EMS Agency:') && report.includes('Incident #'),
+    'and the ones it did not, which is what says where to look',
+    report,
+  )
+  check(
+    /\b1 page\b/.test(report) && /labelled field/.test(report),
+    'with the scale of what it read, so an empty parse is not mistaken for a wrong one',
+    report,
+  )
+
+  // The PHI rule, checked rather than trusted. Every value in that fixture is
+  // the kind of thing a real chart carries.
+  for (const secret of ['HARGROVE', 'CEDAR LANE', '03/14/1951', 'Chest Pain', '08/16/2026']) {
+    check(
+      !report.includes(secret),
+      `nothing read off the chart reaches the message (${secret})`,
+      report,
+    )
+  }
+}
+
+{
+  // Text, and no labels told apart from values: a different problem, and one
+  // that looks identical from the outside without being named.
+  const sameFont = m.buildPcrDoc(
+    [
+      'EMS Agency KS-EXAMPLE',
+      'Incident 99000001',
+      'JOHN A PATIENT 44 CEDAR LANE',
+    ].map((str, i) => ({ page: 1, x: 40, y: 700 - i * 20, str, font: 'g_d0_f1' })),
+  )
+  const report = m.unrecognisedReport(sameFont)
+  check(
+    report.includes('same font'),
+    'a report that prints labels and values alike is named as that',
+    report,
+  )
+  check(
+    !report.includes('CEDAR LANE') && !report.includes('JOHN'),
+    'and still says nothing read off the chart',
+    report,
+  )
+}
+
 // ----- refusals --------------------------------------------------------------
 //
 // A refusal after an assessment used to arrive as an ordinary CQM review, which

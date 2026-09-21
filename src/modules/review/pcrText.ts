@@ -58,6 +58,15 @@ export interface PcrDoc {
   pages: string[]
   /** Every page joined. */
   text: string
+  /**
+   * Pages in the PDF, which is NOT `pages.length` when the PDF has no text.
+   *
+   * A scanned chart — a printout put through a copier, or an export whose
+   * fonts carry no character map — reads as a document with pages and no
+   * items, so everything derived from items comes out empty. Without the real
+   * count there is nothing to tell a reviewer apart from an empty file.
+   */
+  pageCount: number
 }
 
 /** A single chart's slice of an export. */
@@ -106,7 +115,7 @@ function stripChrome(s: string): string {
  * node build of pdf.js. When the harness reimplements this instead, the harness
  * and the app drift and the checks start passing on text the app never sees.
  */
-export function buildPcrDoc(items: PcrItem[]): PcrDoc {
+export function buildPcrDoc(items: PcrItem[], pageCount?: number): PcrDoc {
   // Runs first: consecutive, same page, same font, still flowing down the page.
   //
   // The last condition is what keeps "Cardiac Arrest: No" from swallowing a
@@ -234,7 +243,7 @@ export function buildPcrDoc(items: PcrItem[]): PcrDoc {
   const maxPage = items.length ? Math.max(...items.map((i) => i.page)) : 0
   for (let n = 1; n <= maxPage; n++) pages.push(stripChrome(clean((byPage.get(n) ?? []).join(' '))))
 
-  return { items, runs, fields, pages, text: pages.join(' \n ') }
+  return { items, runs, fields, pages, text: pages.join(' \n '), pageCount: pageCount ?? maxPage }
 }
 
 /**
@@ -261,6 +270,7 @@ export async function readPcrPdf(data: ArrayBuffer): Promise<PcrDoc> {
 
   const task = pdfjs.getDocument({ data: new Uint8Array(data), useSystemFonts: true })
   const doc = await task.promise
+  const pageCount = doc.numPages
   const items: PcrItem[] = []
   for (let n = 1; n <= doc.numPages; n++) {
     const page = await doc.getPage(n)
@@ -283,7 +293,7 @@ export async function readPcrPdf(data: ArrayBuffer): Promise<PcrDoc> {
   await task.destroy()
   if (shimmed) URL.revokeObjectURL(shimmed)
 
-  return buildPcrDoc(items)
+  return buildPcrDoc(items, pageCount)
 }
 
 /** The runs, fields and text for one page range. */

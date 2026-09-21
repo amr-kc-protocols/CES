@@ -205,7 +205,29 @@ export interface PcrChart {
 }
 
 // ImageTrend prints one of these per chart, so it is the split point.
-const INCIDENT = /Incident\s*#\s*:\s*(\d{6,})/
+//
+// The label is spelled three ways across Elite's report templates and the
+// number is eight digits in Kansas City today, having ticked up from six. The
+// floor stays at six so a shorter historical export still reads, and stays a
+// floor rather than an exact length so it keeps working as the counter grows.
+const INCIDENT = /Incident\s*(?:#|No\.?|Number)\s*:?\s*(\d{6,})/i
+
+/**
+ * The agency banner at the top of a report.
+ *
+ * Two ways, because the label is not always there. Elite's Master GMR Run Form
+ * prints the business unit as the form's own identity — "KS-KANSAS CITY-
+ * Ground", "MO-CASS COUNTY-Ground" — rather than as a labelled "EMS Agency:"
+ * field, and requiring the label rejected the entire export of whichever
+ * template does that. The shape is distinctive enough to match on its own: a
+ * two-letter state, the business unit, and the service type.
+ *
+ * Dashes are a character class because the unit names are typed by people and
+ * an en dash gets in. The service word is the anchor that keeps this from
+ * matching an ordinary hyphenated phrase.
+ */
+const AGENCY_BANNER =
+  /EMS Agency\s*:|\b[A-Z]{2}\s*[-–—]\s*[A-Za-z][A-Za-z .'\u2019-]{1,40}?\s*[-–—]\s*(?:Ground|Air|Rotor|Fixed Wing|Ambulance|Medical Transport)\b/
 
 /**
  * Split a multi-chart export into per-chart page ranges.
@@ -217,12 +239,31 @@ const INCIDENT = /Incident\s*#\s*:\s*(\d{6,})/
 export function splitCharts(doc: PcrDoc): { from: number; to: number; incidentNumber: string }[] {
   const starts: { page: number; incidentNumber: string }[] = []
   doc.pages.forEach((text, i) => {
-    if (!/EMS Agency\s*:/.test(text)) return
+    if (!AGENCY_BANNER.test(text)) return
     const m = INCIDENT.exec(text)
     if (!m) return
     if (starts.length && starts[starts.length - 1].incidentNumber === m[1]) return
     starts.push({ page: i + 1, incidentNumber: m[1] })
   })
+
+  // Fallback: group consecutive pages by the run number they carry.
+  //
+  // Reached when no page carries a banner this recognises — a template that
+  // prints the unit as a logo, or one worded in a way nothing above matches.
+  // Grouping on the number CHANGING handles the repetition the banner rule was
+  // there to defend against: a run number reprinted in every page footer keeps
+  // extending the chart it belongs to rather than starting a new one, and a
+  // page carrying no number at all stays with the chart before it.
+  if (!starts.length) {
+    let current = ''
+    doc.pages.forEach((text, i) => {
+      const m = INCIDENT.exec(text)
+      if (!m || m[1] === current) return
+      current = m[1]
+      starts.push({ page: i + 1, incidentNumber: m[1] })
+    })
+  }
+
   return starts.map((s, i) => ({
     from: s.page,
     to: i + 1 < starts.length ? starts[i + 1].page - 1 : doc.pages.length,
@@ -662,8 +703,90 @@ export function parseCharts(doc: PcrDoc): PcrChart[] {
 }
 
 /** True when the export looks like an ImageTrend PCR at all. */
+/**
+ * Is this an ImageTrend patient care report?
+ *
+ * A run number, and then either the agency banner or enough of the rest of the
+ * form to leave no doubt. Requiring the banner on its own rejected a whole
+ * template over one string, and the cost of that is not a worse error message
+ * — it is a month of charts nobody can import, with no way from the screen to
+ * tell whether the export or the app is at fault.
+ *
+ * The run number stays mandatory. It is what the export is split on and what
+ * every review is keyed to, so a document without one is of no use here
+ * whatever else it is.
+ */
 export function looksLikePcr(doc: PcrDoc): boolean {
-  return /EMS Agency\s*:/.test(doc.text) && INCIDENT.test(doc.text)
+  if (!INCIDENT.test(doc.text)) return false
+  if (AGENCY_BANNER.test(doc.text)) return true
+  // Two of the form's own field names, on a document that already carries a
+  // run number, is not something another kind of document does by accident.
+  return CORROBORATING.filter((re) => re.test(doc.text)).length >= 2
+}
+
+const CORROBORATING: RegExp[] = [
+  /Date of Service/i,
+  /Patient Care Report Narrative/i,
+  /Unit Notified by Dispatch/i,
+  /Primary Impression/i,
+  /Transport Disposition/i,
+  /Crew Member/i,
+]
+
+/**
+ * Anchors an ImageTrend PCR carries, for reporting which of them were missing.
+ *
+ * The first two are what looksLikePcr() requires; the rest are there to tell
+ * "this is a PCR whose banner is spelled differently" apart from "this is not
+ * a patient care report at all". A chart that answers to seven of these and
+ * not to the first two is a matcher problem, and one that answers to none is a
+ * different document.
+ */
+const EXPECTED_ANCHORS: [string, RegExp][] = [
+  ['an agency banner (an "EMS Agency:" field, or a unit like "KS-KANSAS CITY-Ground")', AGENCY_BANNER],
+  ['a run number of 6 or more digits after "Incident #"', INCIDENT],
+  ['the words "Incident #" in any form', /Incident\s*#/i],
+  ['Date of Service', /Date of Service/i],
+  ['Patient Care Report Narrative', /Patient Care Report Narrative/i],
+  ['Unit Notified by Dispatch', /Unit Notified by Dispatch/i],
+  ['Primary Impression', /Primary Impression/i],
+  ['Transport Disposition', /Transport Disposition/i],
+  ['Crew Member', /Crew Member/i],
+]
+
+/**
+ * Why a PDF was not recognised, in terms that can be acted on.
+ *
+ * NOTHING FROM THE CHART APPEARS HERE. It reports which of the APP'S OWN field
+ * names it could find and which it could not — the strings in the list above,
+ * never a word read off the document. That is the difference between a message
+ * a coordinator can paste into an email and one that turns a support question
+ * into a disclosure: the text of a PCR is a patient record, and "here is what
+ * we read" is the most natural and worst possible thing for this to print.
+ *
+ * The counts are structural: pages, text runs, and fields where a label and a
+ * value were told apart. Zero fields with plenty of text means the export
+ * prints labels and values in the same font, which is a different problem from
+ * a banner that is worded differently.
+ */
+export function unrecognisedReport(doc: PcrDoc): string {
+  const found: string[] = []
+  const missing: string[] = []
+  for (const [name, re] of EXPECTED_ANCHORS) (re.test(doc.text) ? found : missing).push(name)
+
+  const scale = `${doc.pageCount} page${doc.pageCount === 1 ? '' : 's'}, `
+    + `${doc.items.length} text run${doc.items.length === 1 ? '' : 's'}, `
+    + `${doc.fields.length} labelled field${doc.fields.length === 1 ? '' : 's'}`
+
+  const shape = doc.fields.length === 0 && doc.items.length > 0
+    ? ' The labels and the values could not be told apart, which happens when a report prints both in the same font.'
+    : ''
+
+  return `read as ${scale}, but it does not look like an ImageTrend PCR.`
+    + ` Found: ${found.join(', ') || 'none of the expected fields'}.`
+    + ` Not found: ${missing.join(', ') || 'nothing — this should have been recognised'}.`
+    + shape
+    + ' (Only the app\u2019s own field names are listed. Nothing read off the chart is shown here or sent anywhere.)'
 }
 
 // `hasField` is re-exported so autoAnswer can tell "the export omits this

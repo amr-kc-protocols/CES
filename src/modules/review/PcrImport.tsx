@@ -4,9 +4,9 @@ import { todayISO } from '../../lib/date'
 import { addChartReview, allReviews, saveNarrative } from './chartReviewStore'
 import { autoReview, type AutoReview } from './autoAnswer'
 import { REVIEW_TYPES } from '../../data/chartReview'
-import { parseCharts, looksLikePcr } from './pcrParse'
+import { parseCharts, looksLikePcr, unrecognisedReport } from './pcrParse'
 import { readPcrPdf } from './pcrText'
-import { describePdfFailure } from './pdfCompat'
+import { describePdfFailure, sniffFile } from './pdfCompat'
 import type { ChartReviewEntry } from '../../types'
 
 // ---------------------------------------------------------------------------
@@ -73,14 +73,37 @@ export default function PcrImport({
     for (const file of pdfs) {
       setBusy(`Reading ${file.name}…`)
       try {
-        const doc = await readPcrPdf(await file.arrayBuffer())
+        const bytes = await file.arrayBuffer()
+        // Before pdf.js gets the bytes. It answers a zip, an HTML page and a
+        // photo alike with "Invalid PDF structure", which reads as "your
+        // export is broken" when the truth is usually that the wrong file was
+        // picked — and a name ending in .pdf proves nothing.
+        const notPdf = sniffFile(new Uint8Array(bytes.slice(0, 16)))
+        if (notPdf) {
+          bad.push(`${file.name} — ${notPdf}`)
+          continue
+        }
+        const doc = await readPcrPdf(bytes)
+        // Pages, and no text on any of them. A chart that went through a
+        // copier, or an export whose fonts carry no character map, reads as
+        // exactly this — and everything downstream sees an empty document, so
+        // without saying it here the reviewer is told their export is not an
+        // ImageTrend export, which is both wrong and unactionable.
+        if (doc.items.length === 0) {
+          bad.push(
+            `${file.name} — ${doc.pageCount} page${doc.pageCount === 1 ? '' : 's'} opened, with no text on `
+              + `${doc.pageCount === 1 ? 'it' : 'any of them'}. This is a scan or a picture of a chart; the app reads `
+              + 'text, not images. Export the report from Elite rather than scanning a printout.',
+          )
+          continue
+        }
         if (!looksLikePcr(doc)) {
-          bad.push(`${file.name} — not an ImageTrend PCR export.`)
+          bad.push(`${file.name} — ${unrecognisedReport(doc)}`)
           continue
         }
         const charts = parseCharts(doc)
         if (!charts.length) {
-          bad.push(`${file.name} — no charts found in ${doc.pages.length} pages.`)
+          bad.push(`${file.name} — no charts found in ${doc.pageCount} pages.`)
           continue
         }
         for (const chart of charts) {
