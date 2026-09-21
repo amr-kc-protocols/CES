@@ -78,6 +78,29 @@ export default defineConfig({
         globIgnores: ['**/node_modules/**/*', 'review/**/*', 'necessity/**/*'],
         runtimeCaching: [
           {
+            // pdf.js's worker: 2.2 MB, emitted as .mjs, and deliberately NOT
+            // precached — that would push it to every device on first load for
+            // a screen only administrators can open, which is the same trade
+            // already made for the vendored tools below.
+            //
+            // But it was not cached at ALL, because the precache globs do not
+            // list mjs and nothing else claimed it. So the PCR import worked
+            // online and failed offline with a reader that could not load —
+            // in an app whose whole premise is that it works without a signal.
+            // Cached on first use instead: whoever imports a PDF once can
+            // import one on a truck afterwards.
+            urlPattern: /\/assets\/pdf\.worker-.*\.mjs$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'pdf-reader',
+              // One entry, but a hashed filename changes on every deploy that
+              // moves pdf.js, so two allows the new one in before the old one
+              // is evicted rather than after.
+              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: /\/(review|necessity)\/.*$/,
             handler: 'CacheFirst',
             options: {

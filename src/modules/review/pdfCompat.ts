@@ -84,19 +84,61 @@ await import(${JSON.stringify(absolute)});
 }
 
 /**
+ * What a file actually is, when it is not a PDF.
+ *
+ * Checked before pdf.js is handed the bytes, because pdf.js answers every one
+ * of these with "Invalid PDF structure" — which reads as "your export is
+ * broken" when the truth is usually that the wrong file was picked. A name
+ * ending in .pdf proves nothing: a browser that printed a page to HTML, a
+ * downloaded zip and a phone photo of a chart all get renamed by hand.
+ *
+ * Returns undefined for a real PDF, which is the only case that continues.
+ */
+export function sniffFile(bytes: Uint8Array): string | undefined {
+  // Sixteen, not eight: "<!DOCTYPE html" is fourteen characters and an eight
+  // byte window cut it in half, so a saved web page fell through to the
+  // generic answer.
+  const head = Array.from(bytes.subarray(0, 16), (b) => String.fromCharCode(b)).join('')
+  if (head.startsWith('%PDF-')) return undefined
+  if (bytes.length === 0) return 'The file is empty.'
+  if (head.startsWith('PK\u0003\u0004')) {
+    return 'This is a zip or an Office file (.docx, .xlsx), not a PDF, whatever the name says.'
+  }
+  if (/^\s*<(!doctype|html)/i.test(head)) {
+    return 'This is an HTML page, not a PDF. A report saved with "Save page as" rather than printed to PDF comes out like this.'
+  }
+  if (head.startsWith('\u0089PNG') || head.startsWith('\u00ff\u00d8\u00ff')) {
+    return 'This is an image, not a PDF.'
+  }
+  if (head.startsWith('{') || head.startsWith('[')) return 'This is a JSON file, not a PDF.'
+  return 'This file does not start like a PDF, whatever its name says. Print the report to PDF from Elite rather than saving the page.'
+}
+
+/**
  * A reading failure explained in terms someone can act on.
  *
- * "undefined is not a function" on a phone is not a fixable report. Naming the
- * browser as the likely cause turns it into one, and leaves the original
- * message attached for whoever ends up reading the code.
+ * "undefined is not a function" on a phone is not a fixable report, and
+ * neither is "Invalid PDF structure". Each branch names the thing to go and
+ * do, and leaves the original message attached for whoever reads the code.
  */
 export function describePdfFailure(err: unknown): string {
+  const name = err && typeof err === 'object' && 'name' in err ? String((err as Error).name) : ''
   const message = err instanceof Error ? err.message : String(err)
+  if (name === 'PasswordException' || /password/i.test(message)) {
+    return 'The PDF is password protected. Export it again without a password, or open it and re-save a copy.'
+  }
+  // The reader itself failed to load, which is not a problem with the file at
+  // all. pdf.js is 2 MB and is fetched the first time a PDF is opened, so this
+  // is what being offline on a device that has never imported one looks like.
+  if (/fake worker|dynamically imported module|Failed to fetch|NetworkError|importScripts/i.test(message)) {
+    return 'The app could not load its PDF reader. Open this screen once while online — the reader is 2 MB and is fetched the first time you import — then it works offline.'
+  }
   if (/undefined is not a function|is not a function|not defined/i.test(message)) {
     return `${message} — this usually means the browser is too old to read PDFs. `
       + 'Try a current Safari or Chrome, or a desktop.'
   }
-  if (/password/i.test(message)) return 'The PDF is password protected.'
-  if (/Invalid PDF|corrupt/i.test(message)) return 'The file is not a readable PDF.'
+  if (/Invalid PDF|corrupt|startxref|XRef/i.test(message)) {
+    return 'The PDF is damaged or was only partly downloaded. Download the export again and check it opens in a PDF reader first.'
+  }
   return message
 }

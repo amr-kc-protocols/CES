@@ -733,6 +733,70 @@ function timedChart(over = {}) {
   )
 }
 
+// ----- what happens when the file is not what it should be -------------------
+//
+// pdf.js answers a zip, an HTML page and a phone photo alike with "Invalid PDF
+// structure", which reads as "your export is broken" when the truth is usually
+// that the wrong file was picked. A reviewer who cannot tell those apart has no
+// next step, and the name ending in .pdf proves nothing.
+
+const bytesOf = (s) => new Uint8Array([...s].map((c) => c.charCodeAt(0)))
+
+check(m.sniffFile(bytesOf('%PDF-1.7\n')) === undefined, 'a real PDF passes the sniff test')
+check(
+  (m.sniffFile(bytesOf('PK\u0003\u0004abcd')) ?? '').includes('zip'),
+  'a zip or Office file renamed .pdf is named as one',
+  String(m.sniffFile(bytesOf('PK\u0003\u0004abcd'))),
+)
+check(
+  (m.sniffFile(bytesOf('<!DOCTYPE html>')) ?? '').includes('HTML'),
+  'a page saved instead of printed is named as one',
+  String(m.sniffFile(bytesOf('<!DOCTYPE html>'))),
+)
+check(
+  (m.sniffFile(bytesOf('\u0089PNG\r\n')) ?? '').includes('image'),
+  'a screenshot is named as one',
+  String(m.sniffFile(bytesOf('\u0089PNG\r\n'))),
+)
+check(m.sniffFile(new Uint8Array(0)) === 'The file is empty.', 'and an empty file says so')
+
+// The failure messages have to name the thing to go and do. "The file is not a
+// readable PDF" is true of a password-protected export, a half-downloaded one
+// and a reader that never loaded, and useless for all three.
+check(
+  m.describePdfFailure(Object.assign(new Error('No password given'), { name: 'PasswordException' }))
+    .includes('password protected'),
+  'a password-protected PDF is named as one',
+)
+check(
+  m.describePdfFailure(new Error('Setting up fake worker failed')).includes('while online'),
+  'a reader that could not load is not reported as a broken file',
+  m.describePdfFailure(new Error('Setting up fake worker failed')),
+)
+check(
+  m.describePdfFailure(new Error('Failed to fetch dynamically imported module')).includes('while online'),
+  'and neither is one that failed to download',
+)
+check(
+  m.describePdfFailure(new Error('Invalid PDF structure')).includes('damaged or was only partly downloaded'),
+  'a damaged file says what to do about it',
+  m.describePdfFailure(new Error('Invalid PDF structure')),
+)
+
+// A scan reads as a document with pages and no text. Everything downstream
+// sees an empty document, so without saying it here the reviewer is told their
+// export is not an ImageTrend export — wrong, and nothing they can act on.
+const scanned = m.buildPcrDoc([], 4)
+check(
+  scanned.pageCount === 4 && scanned.items.length === 0 && scanned.pages.length === 0,
+  'a PDF with pages and no text keeps its real page count',
+  JSON.stringify({ pageCount: scanned.pageCount, pages: scanned.pages.length }),
+)
+check(
+  m.buildPcrDoc([{ page: 1, x: 0, y: 700, str: 'EMS Agency:', font: 'L' }]).pageCount === 1,
+  'and an ordinary document still counts its own pages',
+)
+
 // ----- refusals --------------------------------------------------------------
 //
 // A refusal after an assessment used to arrive as an ordinary CQM review, which
