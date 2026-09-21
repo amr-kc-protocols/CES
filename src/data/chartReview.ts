@@ -113,7 +113,7 @@ export interface ReviewSection {
   questions: ReviewQuestion[]
 }
 
-export type ReviewType = 'newhire' | 'cqm' | 'nopatient' | 'nonpatient' | 'refusal'
+export type ReviewType = 'newhire' | 'cqm' | 'nopatient' | 'nonpatient' | 'refusal' | 'necessity'
 
 export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = [
   { id: 'newhire', label: 'New Hire' },
@@ -122,6 +122,11 @@ export const REVIEW_TYPES: { id: ReviewType; label: string; note?: string }[] = 
     id: 'nopatient',
     label: 'No Patient Contact',
     note: 'A call cleared without a patient — cancelled, no patient found, refusal before assessment.',
+  },
+  {
+    id: 'necessity',
+    label: 'Medical Necessity (MNC)',
+    note: 'Ticked alongside another type, not instead of it. A non-emergent interfacility transport billed to Medicare has to be certified as medically necessary, and nothing upstream checks that the certification says what the chart says.',
   },
   {
     id: 'refusal',
@@ -423,6 +428,52 @@ const REFUSAL: ReviewSection = {
   ],
 }
 
+/**
+ * Medical necessity on a non-emergent interfacility transport.
+ *
+ * Written for AMR Kansas City. Ninth Brain has no block for it, and neither
+ * does Elite: in live testing a non-emergent Medicare hospital-to-SNF transfer
+ * fired no rule about the certification at all. That makes this the one
+ * clinical check the tool genuinely owns rather than duplicates.
+ *
+ * The questions are about AGREEMENT, not about paperwork existing. A signed
+ * certification saying the patient is bed confined, on a chart whose narrative
+ * says they walked to the cot, is worse than a missing one: it is a signed
+ * statement contradicted by the record it travels with.
+ *
+ * Ticked alongside CQM or New Hire rather than instead of them, because a
+ * Medicare IFT is still an ordinary chart with an ordinary exam.
+ */
+const MEDICAL_NECESSITY: ReviewSection = {
+  id: 'necessity',
+  title: 'Medical Necessity',
+  when: { reviewType: 'necessity' },
+  authored: true,
+  intro:
+    'Asked of a non-emergent interfacility transport billed to Medicare. Written here rather than transcribed — neither Ninth Brain nor ImageTrend checks the certification against the chart it travels with.',
+  questions: [
+    yn('mnc.present', 'Is a Medical Necessity Certification present, complete and signed?', {
+      help: 'Section I answered, the condition stated in II.1, an attestation in Section III, and a printed name, credential and date.',
+    }),
+    yn('mnc.consistent', 'Does the certification agree with the chart?', {
+      help: 'A bed-confined claim against a narrative describing the patient ambulating or sitting up; "cardiac monitoring required en route" on a BLS unit; conditions with nothing in the assessment to support them.',
+    }),
+    yn('mnc.notCarOrVan', 'Does the certification say the patient could NOT go by car or wheelchair van?', {
+      help: 'A Yes to the worksheet\u2019s own II.3 defeats necessity — answer No here if the worksheet says the patient could have gone by van.',
+      scoring: 'yes-good',
+    }),
+    yn('mnc.narrative', 'Does the narrative say why an ambulance was required rather than a van?', {
+      help: 'In the crew\u2019s own words, about this patient on this day. The certification is the physician\u2019s statement; this is the record of what the crew found.',
+    }),
+    yn('mnc.signature', 'Is the signature valid for this kind of transport?', {
+      help: 'Scheduled repetitive transports need an MD or DO signature dated within 60 days before the service. Unscheduled ones may be signed after, within 48 hours, and after 21 days the attempts to obtain it must be documented.',
+    }),
+    yn('mnc.aba', 'Is the patient (or representative) Authorized Billing Agreement in order?', {
+      help: 'Signed, or — where the patient could not sign — a representative\u2019s signature with witness name and title, and the certification\u2019s second attestation answered.',
+    }),
+  ],
+}
+
 const OVERALL: ReviewSection = {
   id: 'overall',
   title: 'Overall Evaluation',
@@ -610,6 +661,7 @@ export const REVIEW_SECTIONS: ReviewSection[] = [
   DEMOGRAPHICS,
   ASSESSMENT,
   TREATMENT,
+  MEDICAL_NECESSITY,
   REFUSAL,
   OVERALL,
   OUTCOME,

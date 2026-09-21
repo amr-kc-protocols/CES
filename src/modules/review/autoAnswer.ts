@@ -163,7 +163,9 @@ export interface NarrativeDrug {
  * medication entry nobody is told about.
  */
 const DRUG_NOT_GIVEN =
-  /\b(attempt|unsuccessful|without success|unable|refus|declin|denies|denied|considered|held|withheld|not (given|indicated|administered|required)|no (iv|access|meds?|medications?|dose|doses))\b/i
+  // The stems carry \w* rather than a closing \b: "refus\b" cannot match
+  // "refused", so a word boundary after a stem is a term that never fires.
+  /\b(attempt\w*|unsuccessful|without success|unable|refus\w*|declin\w*|denies|denied|considered|held|withheld|not (given|indicated|administered|required)|no (iv|access|meds?|medications?|dose|doses))\b/i
 
 /** Words near a drug that mean the patient takes it, rather than got it today. */
 const DRUG_IS_HISTORY =
@@ -344,7 +346,10 @@ function reviewTypes(chart: PcrChart): ReviewType[] {
     // A refusal before anything was assessed IS a no-contact call, and that
     // block asks the right question of it: why was no care provided.
     refused
-  return noPatient ? ['nopatient'] : ['cqm']
+  if (noPatient) return ['nopatient']
+  // Ticked alongside CQM, never instead of it: a Medicare interfacility
+  // transport is still an ordinary chart with an ordinary exam.
+  return needsMedicalNecessity(chart) ? ['cqm', 'necessity'] : ['cqm']
 }
 
 /** Which CQM category blocks this chart earns. */
@@ -480,6 +485,30 @@ export function firstOutOfOrder(chart: PcrChart): ChainProblem | undefined {
     prevValue = printed ?? ''
   }
   return undefined
+}
+
+/**
+ * Whether this chart is one a Medicare medical-necessity certification applies
+ * to: non-emergent, carried by this unit, interfacility, billed to Medicare.
+ *
+ * Every part of it is read from a field that may be absent, and absent means
+ * the gate does not open. A necessity finding on a chart whose payer the export
+ * never stated would be the same mistake as every other false positive in this
+ * file, on the most consequential question it asks.
+ */
+export function needsMedicalNecessity(chart: PcrChart): boolean {
+  const nonEmergent =
+    said(chart.transportMode, 'no lights', 'non-emergent', 'non emergent') ||
+    said(chart.transportDescriptors, 'no lights or sirens')
+  const ift =
+    said(chart.encounterType, 'interfacility', 'transfer') ||
+    said(chart.serviceRequested, 'transfer') ||
+    said(chart.natureOfCall, 'interfacility', 'transfer') ||
+    has(chart.iftReason)
+  // Medicare is recorded as Insurance with Medicare named in the billing
+  // details, not as its own option on the payment field — so both are read.
+  const medicare = said(`${chart.paymentMethod ?? ''} ${chart.paymentDetails ?? ''}`, 'medicare')
+  return nonEmergent && ift && medicare && wasTransported(chart)
 }
 
 /** True when this chart records a patient being carried somewhere. */
@@ -898,6 +927,75 @@ export function autoReview(chart: PcrChart): AutoReview {
     say('ovr.safeDecisions', true, 'assumed', 'Clinical safety is a judgement the export cannot make.')
   }
 
+  // ----- medical necessity --------------------------------------------------
+  //
+  // The rule here is the one governing the whole file, applied to the question
+  // it matters most on: an assumption may be generous only where the export
+  // genuinely cannot say. The worksheets may not be in these exports at all —
+  // that is an open question against a real KC export — so nothing below
+  // reports a missing certification. What it reports is a certification that
+  // is PRESENT and says something the chart contradicts, which is the worse
+  // problem and the one that can be read with certainty.
+
+  if (types.includes('necessity')) {
+    say('mnc.present', chart.hasMncWorksheet, chart.hasMncWorksheet ? 'read' : 'assumed',
+      chart.hasMncWorksheet
+        ? 'A Medical Necessity Certification is in this export; whether it is complete has to be read.'
+        : 'No certification worksheet in this export. That may mean it was not obtained, or that the export does not include the worksheets — check one against Elite before reading anything into it.')
+    if (!chart.hasMncWorksheet) {
+      flag('look', 'No medical necessity certification in the export',
+        'This is a non-emergent Medicare interfacility transport, which needs one. The export may simply not carry the worksheets — worth establishing once, for every chart like this.',
+        'mnc.present')
+    }
+
+    // II.3. A Yes here says the patient could have gone by wheelchair van,
+    // which defeats the necessity the rest of the form is claiming.
+    const carOrVan = said(chart.mncCarOrVan, 'yes')
+    if (chart.mncCarOrVan !== undefined) {
+      say('mnc.notCarOrVan', !carOrVan, 'read',
+        carOrVan
+          ? 'The certification says the patient COULD safely be transported by car or wheelchair van.'
+          : 'The certification says the patient could not safely go by car or wheelchair van.')
+      if (carOrVan) {
+        flag('stop', 'The certification defeats its own claim',
+          'It answers Yes to "can this patient safely be transported by car or wheelchair van". A patient who can go by van does not medically require an ambulance, and this is a signed statement saying so.',
+          'mnc.notCarOrVan')
+      }
+    }
+
+    // Bed confined against what the crew wrote.
+    const bedConfined = said(chart.mncBedConfined, 'yes')
+    const ambulated = /\b(ambulat\w*|walked|walks|sat up|sitting up|stood|self-?transferred|wheelchair to the cot)\b/i.test(narrative)
+    if (bedConfined && ambulated) {
+      say('mnc.consistent', false, 'read',
+        'The certification says the patient is bed confined and the narrative describes them ambulating or sitting up.')
+      flag('stop', 'Bed confined on the certification, ambulatory in the narrative',
+        'One of the two is wrong, and the certification is the one that was signed by a physician and billed on.',
+        'mnc.consistent')
+    }
+
+    // A BLS unit cannot provide the monitoring the certification claims.
+    const monitoringClaimed = /cardiac or hemodynamic monitoring/i.test(`${chart.mncCarOrVan ?? ''} ${chart.servicesUnavailable ?? ''}`)
+    if (monitoringClaimed && said(chart.unitCapability, 'BLS')) {
+      flag('look', 'Monitoring claimed on a BLS unit',
+        'The certification gives cardiac or hemodynamic monitoring en route as the reason, and the responding unit is BLS. Either the unit or the reason is wrong.',
+        'mnc.consistent')
+    }
+
+    // Accurate, and it documents non-coverage in the patient's own file.
+    if (said(chart.iftReason, 'convenience')) {
+      flag('look', 'Reason for transfer is recorded as convenience',
+        `"${chart.iftReason}" is an honest answer and it is also a statement that the transport was not medically necessary. Worth knowing before the claim goes out.`,
+        'mnc.present')
+    }
+
+    if (!has(chart.servicesUnavailable)) {
+      flag('look', 'No services-unavailable text on an interfacility transfer',
+        'The field asking what the patient needs that the sending facility cannot provide is blank. It is the shortest statement of why the transfer happened at all.',
+        'mnc.present')
+    }
+  }
+
   // ----- refusals -----------------------------------------------------------
   //
   // The chart most likely to be read by a lawyer, and the one the export can
@@ -922,7 +1020,7 @@ export function autoReview(chart: PcrChart): AutoReview {
         'ref.capacity')
     }
 
-    const risks = /\b(risks?|refus\w* against|ama|against medical advice|death|die|dying|disab|deteriorat|worse)\b/i.test(narr)
+    const risks = /\b(risks?|ama|against medical advice|death|die|dying|disab\w*|deteriorat\w*|worse)\b/i.test(narr)
     say('ref.risks', risks, 'inferred',
       risks ? 'The narrative mentions the risks of refusing.' : 'Nothing in the narrative reads as the risks of refusing being explained.')
     if (!risks) {
@@ -931,7 +1029,7 @@ export function autoReview(chart: PcrChart): AutoReview {
         'ref.risks')
     }
 
-    const alternatives = /\b(alternativ|own (doctor|physician|pcp)|pcp|urgent care|call (us )?back|call 911 again|return precautions|follow up)\b/i.test(narr)
+    const alternatives = /\b(alternativ\w*|own (doctor|physician|pcp)|pcp|urgent care|call (us )?back|call 911 again|return precautions|follow up)\b/i.test(narr)
     say('ref.alternatives', alternatives, 'inferred',
       alternatives ? 'The narrative mentions alternatives or return precautions.' : 'Nothing in the narrative reads as an alternative being offered.')
 
