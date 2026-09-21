@@ -346,10 +346,7 @@ function reviewTypes(chart: PcrChart): ReviewType[] {
     // A refusal before anything was assessed IS a no-contact call, and that
     // block asks the right question of it: why was no care provided.
     refused
-  if (noPatient) return ['nopatient']
-  // Ticked alongside CQM, never instead of it: a Medicare interfacility
-  // transport is still an ordinary chart with an ordinary exam.
-  return needsMedicalNecessity(chart) ? ['cqm', 'necessity'] : ['cqm']
+  return noPatient ? ['nopatient'] : ['cqm']
 }
 
 /** Which CQM category blocks this chart earns. */
@@ -485,30 +482,6 @@ export function firstOutOfOrder(chart: PcrChart): ChainProblem | undefined {
     prevValue = printed ?? ''
   }
   return undefined
-}
-
-/**
- * Whether this chart is one a Medicare medical-necessity certification applies
- * to: non-emergent, carried by this unit, interfacility, billed to Medicare.
- *
- * Every part of it is read from a field that may be absent, and absent means
- * the gate does not open. A necessity finding on a chart whose payer the export
- * never stated would be the same mistake as every other false positive in this
- * file, on the most consequential question it asks.
- */
-export function needsMedicalNecessity(chart: PcrChart): boolean {
-  const nonEmergent =
-    said(chart.transportMode, 'no lights', 'non-emergent', 'non emergent') ||
-    said(chart.transportDescriptors, 'no lights or sirens')
-  const ift =
-    said(chart.encounterType, 'interfacility', 'transfer') ||
-    said(chart.serviceRequested, 'transfer') ||
-    said(chart.natureOfCall, 'interfacility', 'transfer') ||
-    has(chart.iftReason)
-  // Medicare is recorded as Insurance with Medicare named in the billing
-  // details, not as its own option on the payment field — so both are read.
-  const medicare = said(`${chart.paymentMethod ?? ''} ${chart.paymentDetails ?? ''}`, 'medicare')
-  return nonEmergent && ift && medicare && wasTransported(chart)
 }
 
 /** True when this chart records a patient being carried somewhere. */
@@ -925,117 +898,6 @@ export function autoReview(chart: PcrChart): AutoReview {
     }
 
     say('ovr.safeDecisions', true, 'assumed', 'Clinical safety is a judgement the export cannot make.')
-  }
-
-  // ----- medical necessity --------------------------------------------------
-  //
-  // The rule here is the one governing the whole file, applied to the question
-  // it matters most on: an assumption may be generous only where the export
-  // genuinely cannot say. The worksheets may not be in these exports at all —
-  // that is an open question against a real KC export — so nothing below
-  // reports a missing certification. What it reports is a certification that
-  // is PRESENT and says something the chart contradicts, which is the worse
-  // problem and the one that can be read with certainty.
-
-  if (types.includes('necessity')) {
-    /**
-     * The certification is NOT in these exports, and its absence is not a
-     * finding.
-     *
-     * In KC it is filed as a separate attachment, "PCS of MNF", so the PCR
-     * export never carries it. Raising a flag on every chart that lacks one
-     * would put a look on every non-emergent Medicare transfer in the batch —
-     * the same false positive this file exists to avoid, on the question where
-     * a reviewer can least afford to start ignoring flags.
-     *
-     * So the question is left assumed, which means unscored, and its reason
-     * says where to go and read it. If a certification ever does arrive inside
-     * an export, the answers below are read against the chart.
-     */
-    say('mnc.present', true, chart.hasMncWorksheet ? 'read' : 'assumed',
-      chart.hasMncWorksheet
-        ? 'A certification is in this export; whether it is complete has to be read.'
-        : 'The certification is filed separately as the PCS of MNF attachment and is not part of this export. Answer this from the attachment.')
-
-    // II.3. A Yes here says the patient could have gone by wheelchair van,
-    // which defeats the necessity the rest of the form is claiming.
-    const carOrVan = said(chart.mncCarOrVan, 'yes')
-    if (chart.mncCarOrVan !== undefined) {
-      say('mnc.notCarOrVan', !carOrVan, 'read',
-        carOrVan
-          ? 'The certification says the patient COULD safely be transported by car or wheelchair van.'
-          : 'The certification says the patient could not safely go by car or wheelchair van.')
-      if (carOrVan) {
-        flag('stop', 'The certification defeats its own claim',
-          'It answers Yes to "can this patient safely be transported by car or wheelchair van". A patient who can go by van does not medically require an ambulance, and this is a signed statement saying so.',
-          'mnc.notCarOrVan')
-      }
-    }
-
-    // Bed confined against what the crew wrote.
-    const bedConfined = said(chart.mncBedConfined, 'yes')
-    const ambulated = /\b(ambulat\w*|walked|walks|sat up|sitting up|stood|self-?transferred|wheelchair to the cot)\b/i.test(narrative)
-    if (bedConfined && ambulated) {
-      say('mnc.consistent', false, 'read',
-        'The certification says the patient is bed confined and the narrative describes them ambulating or sitting up.')
-      flag('stop', 'Bed confined on the certification, ambulatory in the narrative',
-        'One of the two is wrong, and the certification is the one that was signed by a physician and billed on.',
-        'mnc.consistent')
-    }
-
-    // A BLS unit cannot provide the monitoring the certification claims.
-    const monitoringClaimed = /cardiac or hemodynamic monitoring/i.test(`${chart.mncCarOrVan ?? ''} ${chart.servicesUnavailable ?? ''}`)
-    if (monitoringClaimed && said(chart.unitCapability, 'BLS')) {
-      flag('look', 'Monitoring claimed on a BLS unit',
-        'The certification gives cardiac or hemodynamic monitoring en route as the reason, and the responding unit is BLS. Either the unit or the reason is wrong.',
-        'mnc.consistent')
-    }
-
-    // Accurate, and it documents non-coverage in the patient's own file.
-    if (said(chart.iftReason, 'convenience')) {
-      flag('look', 'Reason for transfer is recorded as convenience',
-        `"${chart.iftReason}" is an honest answer and it is also a statement that the transport was not medically necessary. Worth knowing before the claim goes out.`,
-        'mnc.present')
-    }
-
-    if (!has(chart.servicesUnavailable)) {
-      flag('look', 'No services-unavailable text on an interfacility transfer',
-        'The field asking what the patient needs that the sending facility cannot provide is blank. It is the shortest statement of why the transfer happened at all.',
-        'mnc.present')
-    }
-
-    /**
-     * The ABA, unlike the certification, IS in the export.
-     *
-     * Which makes its absence a real finding rather than an artefact of what
-     * the export includes — the one half of this ticket that can be checked
-     * from the PDF today. A patient recorded as unable to sign needs a
-     * representative's agreement instead, and that is the case most likely to
-     * be left with neither.
-     */
-    const capable = said(chart.capableOfSigning, 'yes')
-    const incapable = said(chart.capableOfSigning, 'no')
-    const signed = chart.signedByPatient
-    say('mnc.aba', signed, 'read',
-      signed
-        ? 'A signature block was signed by the patient or their representative.'
-        : incapable
-          ? 'The patient is recorded as not capable of signing, and no representative has signed either.'
-          : chart.hasAbaWorksheet
-            ? 'The billing agreement is in the export with no patient or representative signature on it.'
-            : 'No patient or representative signature anywhere in the export.')
-    if (!signed) {
-      flag(
-        incapable ? 'stop' : 'look',
-        incapable
-          ? 'Patient cannot sign and nobody signed for them'
-          : 'No signed billing agreement',
-        incapable
-          ? 'The chart records the patient as not mentally and physically capable of signing, and there is no representative signature. That leaves the transport with no authorization from anyone.'
-          : `Nothing in the export is signed by the patient or a representative${capable ? ', although the chart records them as capable of signing' : ''}.`,
-        'mnc.aba',
-      )
-    }
   }
 
   // ----- refusals -----------------------------------------------------------

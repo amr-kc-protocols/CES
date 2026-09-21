@@ -125,8 +125,7 @@ check(
   // that already exists, and that provenance is why anyone trusts the numbers.
   // A block we wrote is a different kind of thing, so adding one has to be a
   // deliberate edit here rather than something that slips in.
-  authoredTitles.join(', ') ===
-    'Non-Patient Transport Review, Medical Necessity, Refusal Review, Trauma Review',
+  authoredTitles.join(', ') === 'Non-Patient Transport Review, Refusal Review, Trauma Review',
   'only the sections written for AMR KC are marked as authored',
   `authored: ${authoredTitles.join(', ') || 'none'}`,
 )

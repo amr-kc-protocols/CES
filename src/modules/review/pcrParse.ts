@@ -150,49 +150,6 @@ export interface PcrChart {
    */
   hasEmail: boolean
   /**
-   * Billing and encounter fields, for the medical-necessity gate.
-   *
-   * All optional, and undefined where the export does not carry the label.
-   * That distinction is load-bearing here: "this chart is not a Medicare
-   * non-emergent interfacility transfer" and "this export does not say" lead to
-   * completely different behaviour, and treating the second as the first would
-   * put a medical-necessity finding on every chart in the batch.
-   */
-  encounterType?: string
-  iftReason?: string
-  servicesUnavailable?: string
-  paymentMethod?: string
-  /** The billing detail block, where Medicare is actually named. */
-  paymentDetails?: string
-  /**
-   * True when the export carries the medical necessity certification itself.
-   *
-   * NORMALLY FALSE, and that is not a finding. In KC the certification is not
-   * part of the PCR export at all: it is a separate attachment, filed as "PCS
-   * of MNF", and a reviewer checks it there. So this exists for the case where
-   * one does arrive in the PDF — then, and only then, its answers can be read
-   * against the chart. Its absence says nothing about the chart.
-   */
-  hasMncWorksheet: boolean
-  /**
-   * True when the export carries the Authorized Billing Agreement worksheet.
-   *
-   * This one IS in the export, so its absence on a chart that should have it
-   * is a real finding rather than an artefact of what the export includes.
-   */
-  hasAbaWorksheet: boolean
-  /**
-   * "Is patient mentally and physically capable of electronic signing?"
-   *
-   * The field that decides whether the patient's own ABA is the one to look
-   * for, or a representative's.
-   */
-  capableOfSigning?: string
-  /** The MNC's "can this patient go by car or wheelchair van?" answer. */
-  mncCarOrVan?: string
-  /** The MNC's bed-confined answer. */
-  mncBedConfined?: string
-  /**
    * A practice chart rather than a patient's.
    *
    * Read from the whole page text, not from the narrative: the marker is
@@ -663,30 +620,6 @@ export function parseChart(doc: PcrDoc, from: number, to: number): PcrChart {
     // clean the only marker on the chart has been thrown away.
     isTestRecord: isTestMarked(doc, from, to),
 
-    // Medical necessity. Every one of these is a label the ImageTrend writer
-    // prints, and none has been confirmed against a real KC export yet — so
-    // each is read leniently and each is allowed to be absent. A label that
-    // turns out to read differently leaves the field undefined, which switches
-    // the necessity checks off rather than making them wrong.
-    encounterType: f('Type of Encounter'),
-    iftReason: f('Reason for Interfacility Transfer/Medical Transport') ?? f('Reason for Interfacility Transfer'),
-    servicesUnavailable: f('List the services the patient requires that are not available at the sending facility'),
-    paymentMethod: f('Primary Method of Payment'),
-    paymentDetails: tableAfter(view, 'Insurance Company Name') ?? f('Insurance Company Name'),
-    // The worksheet is recognised by its own wording: it prints as a section of
-    // its own rather than as labelled fields, and these two phrases appear
-    // nowhere else on a chart.
-    // "PCS of MNF" is what the attachment is labelled where it is filed, so it
-    // is recognised too — on the chance that an export is ever assembled with
-    // the attachment included.
-    hasMncWorksheet:
-      /bed\s*confined|safely be transported by car or wheelchair van|SECTION III\s*-?\s*SIGNATURE OF PHYSICIAN|\bPCS of MNF\b/i.test(
-        view.text,
-      ),
-    hasAbaWorksheet: /authorized billing agreement|\bABA\b/i.test(view.text),
-    capableOfSigning: f('Is patient mentally and physically capable of electronic signing'),
-    mncCarOrVan: f('Can this patient safely be transported by car or wheelchair van'),
-    mncBedConfined: f('Is the patient bed confined'),
     hasOxygen: /\boxygen\b/i.test(
       `${procedures} ${devices} ${tableAfter(view, 'Medication Administered') ?? ''} ${
         tableAfter(view, 'Medication Given') ?? ''
