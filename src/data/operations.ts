@@ -75,9 +75,37 @@ const WICHITA_OPERATIONS: OperationMeta[] = [
 
 const WICHITA_CE_LOCATIONS: CELocationMeta[] = [{ id: 'wichita', name: 'Wichita' }]
 
+/* Independence and Topeka, the same way and for the same reason as Wichita: one
+ * entry each so every screen that lists operations has something to list.
+ * Their new-hire programs do not read this — NEOP takes its stations from the
+ * operation's own NEOP setup (see src/modules/academy/program.ts), which the
+ * operation edits in the app. */
+const INDEPENDENCE_OPERATIONS: OperationMeta[] = [
+  {
+    id: 'independence',
+    name: 'Independence',
+    short: 'IND',
+    states: ['MO'],
+    typicalVolume: null,
+    note: 'Urban 911.',
+  },
+]
+
+const TOPEKA_OPERATIONS: OperationMeta[] = [
+  {
+    id: 'topeka',
+    name: 'Topeka',
+    short: 'TOP',
+    states: ['KS'],
+    typicalVolume: null,
+  },
+]
+
 const OPERATIONS_BY_MARKET: Record<Market, OperationMeta[]> = {
   kc: KC_OPERATIONS,
   wichita: WICHITA_OPERATIONS,
+  independence: INDEPENDENCE_OPERATIONS,
+  topeka: TOPEKA_OPERATIONS,
 }
 
 export const OPERATIONS: OperationMeta[] = OPERATIONS_BY_MARKET[activeMarket()]
@@ -110,6 +138,8 @@ const KC_CE_LOCATIONS: CELocationMeta[]  = [
 const CE_LOCATIONS_BY_MARKET: Record<Market, CELocationMeta[]> = {
   kc: KC_CE_LOCATIONS,
   wichita: WICHITA_CE_LOCATIONS,
+  independence: [{ id: 'independence', name: 'Independence' }],
+  topeka: [{ id: 'topeka', name: 'Topeka' }],
 }
 
 export const CE_LOCATIONS: CELocationMeta[] = CE_LOCATIONS_BY_MARKET[activeMarket()]

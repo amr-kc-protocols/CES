@@ -1,7 +1,12 @@
 // ---------------------------------------------------------------------------
-// Markets — the two AMR operations this app serves.
+// Markets — the AMR operations this app serves.
 //
-// One codebase, one deployment, one Supabase project, two sets of data. A
+// Four operations: Kansas City, Wichita, Independence and Topeka. Each runs its
+// own new-hire program, with its own FTOs, shifts, facilities and protocols —
+// which is the reason this is a partition rather than a filter.
+//
+// One codebase, one deployment, one Supabase project, one set of data per
+// operation. A
 // market owns everything in the synced store: its own cohorts, trainees, FTO
 // evaluations, surveys, AEMT program and QA. Nothing in `records` is shared.
 //
@@ -18,7 +23,7 @@
 // database is what stops one market reading the other.
 // ---------------------------------------------------------------------------
 
-export type Market = 'kc' | 'wichita'
+export type Market = 'kc' | 'wichita' | 'independence' | 'topeka'
 
 /** What a profile may carry. `all` spans both and gets the switcher. */
 export type MarketAssignment = Market | 'all'
@@ -29,6 +34,8 @@ export const MARKETS: { id: Market; name: string; short: string; abbr: string }[
   // brand rendered as "KC Ac…", which looks broken rather than abbreviated.
   { id: 'kc', name: 'AMR Kansas City', short: 'Kansas City', abbr: 'KC' },
   { id: 'wichita', name: 'AMR Wichita', short: 'Wichita', abbr: 'Wichita' },
+  { id: 'independence', name: 'AMR Independence', short: 'Independence', abbr: 'Indep.' },
+  { id: 'topeka', name: 'AMR Topeka', short: 'Topeka', abbr: 'Topeka' },
 ]
 
 /**
@@ -43,7 +50,7 @@ export const DEFAULT_MARKET: Market = 'kc'
 const ACTIVE_KEY = 'ces.market.active'
 
 export function isMarket(v: unknown): v is Market {
-  return v === 'kc' || v === 'wichita'
+  return v === 'kc' || v === 'wichita' || v === 'independence' || v === 'topeka'
 }
 
 export function activeMarket(): Market {
@@ -63,7 +70,8 @@ export function marketName(id: Market): string {
  * in service today holds a Kansas City mirror under those names, some of it
  * with unsynced edits from a shift that has not reconnected yet. Suffixing
  * everything would have been tidier and would have silently orphaned that
- * data on the day this shipped. Wichita is new, so it can afford a suffix.
+ * data on the day this shipped. Every other operation is newer than that, so
+ * each gets a suffix.
  */
 export function marketKey(base: string, market: Market = activeMarket()): string {
   return market === 'kc' ? base : `${base}.${market}`

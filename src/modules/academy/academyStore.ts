@@ -5,17 +5,11 @@ import { versionToPin } from '../templates/resolve'
 import { NEOP_DAILY_EVAL_ID } from '../../data/templateRegistry'
 import { pushUndo } from '../../lib/undo'
 import { addDays, formatDate, todayISO, fromISODate, toISODate, monthKey } from '../../lib/date'
-import {
-  ACADEMY_LENGTH_DAYS,
-  DEFAULT_CONTACT_TARGET,
-  curriculumFor,
-  moduleSatisfied,
-  phaseOf,
-  requiredContacts,
-  WAIVABLE_MODULE_IDS,
-} from '../../data/academy'
+import { ACADEMY_LENGTH_DAYS } from '../../data/academy'
 import { CLASSROOM_TEMPLATE } from '../../data/academyTemplate'
-import { PHASE2_TEMPLATE, educationMinutes, timelineFromBlocks } from '../../data/academyPhase2'
+import { educationMinutes, timelineFromBlocks } from '../../data/academyPhase2'
+import { checklistFor, isWaivable, itemSatisfied, phaseOf, requiredContacts } from './program'
+import { planForNewCohort, planIn } from './programStore'
 import { dayScheduledHours } from './calendar'
 import { FT_SLOTS, requiredMarks, sectionsFor } from '../../data/ftObjectives'
 import type { AgendaTrack } from '../../data/ftoAgenda'
@@ -30,7 +24,6 @@ import type {
   DailyEval,
   DBShape,
   ObjectiveMark,
-  OperationId,
   RideAssignment,
   ScheduleBlock,
   SessionArrangement,
@@ -66,6 +59,9 @@ export function addCohort(input: CohortInput): AcademyCohort {
     startDate: input.startDate,
     endDate: input.endDate || addDays(input.startDate, ACADEMY_LENGTH_DAYS),
     notes: input.notes?.trim() || undefined,
+    // The operation's NEOP as it stands today. Later edits to the NEOP do not
+    // reach this cohort unless someone brings it up to date — see CohortPlan.
+    plan: planForNewCohort(),
     createdAt: now,
     updatedAt: now,
   }
@@ -125,7 +121,8 @@ export function deleteCohort(id: string): void {
 
 export interface TraineeInput {
   name: string
-  operation: OperationId
+  /** Station id from the operation's NEOP. */
+  operation: string
   credential: Credential
   employeeNumber?: string
   email?: string
@@ -150,7 +147,7 @@ export function addTrainee(cohortId: string, input: TraineeInput): Trainee {
     phone: clean(input.phone),
     checklist: {},
     contacts: 0,
-    contactTarget: input.contactTarget ?? DEFAULT_CONTACT_TARGET,
+    contactTarget: input.contactTarget ?? planIn(getState(), cohortId).release.defaultTarget,
     transfer: input.transfer || undefined,
   }
   setState((db) => ({ ...db, trainees: [...db.trainees, trainee] }))
@@ -266,9 +263,11 @@ export function setTransfer(traineeId: string, transfer: boolean): void {
   }))
 }
 
-/** Waive / un-waive a requirement for an AMR transfer (waivable modules only). */
+/** Waive / un-waive a requirement for an AMR transfer (waivable items only). */
 export function toggleWaiver(traineeId: string, moduleId: string): void {
-  if (!WAIVABLE_MODULE_IDS.has(moduleId)) return
+  const db0 = getState()
+  const trainee = db0.trainees.find((t) => t.id === traineeId)
+  if (!trainee || !isWaivable(planIn(db0, trainee.cohortId), moduleId)) return
   setState((db) => ({
     ...db,
     trainees: db.trainees.map((t) => {
@@ -330,10 +329,12 @@ export function unreleaseTrainee(traineeId: string): void {
 
 /**
  * Eligible for release: FTO phase and at/over the required contact count
- * (the spec's floor, or the trainee's own lowered transfer target).
+ * (the operation's floor, or the trainee's own lowered transfer target),
+ * against the plan the hire's cohort runs.
  */
-export function releaseEligible(t: Trainee): boolean {
-  return phaseOf(t) === 'fto' && t.contacts >= requiredContacts(t)
+export function releaseEligible(t: Trainee, db: DBShape = getState()): boolean {
+  const plan = planIn(db, t.cohortId)
+  return phaseOf(t, plan) === 'fto' && t.contacts >= requiredContacts(t, plan)
 }
 
 // ----- FTO ride assignments ----------------------------------------------------
@@ -815,18 +816,25 @@ export interface CohortProgress {
   checklistPct: number
 }
 
-export function cohortProgress(trainees: Trainee[]): CohortProgress {
+/**
+ * Phase counts and average checklist completion across some trainees, each
+ * measured against their own cohort's plan. `db` defaults to the live store;
+ * pass the selector's snapshot from a render so the numbers and the render
+ * agree.
+ */
+export function cohortProgress(trainees: Trainee[], db: DBShape = getState()): CohortProgress {
   let released = 0
   let inFto = 0
   let inAcademy = 0
   let pctSum = 0
   for (const t of trainees) {
-    const phase = phaseOf(t)
+    const plan = planIn(db, t.cohortId)
+    const phase = phaseOf(t, plan)
     if (phase === 'released') released++
     else if (phase === 'fto') inFto++
     else inAcademy++
-    const modules = curriculumFor(t.operation, t.credential)
-    const done = modules.filter((m) => moduleSatisfied(t, m.id)).length
+    const modules = checklistFor(plan, t)
+    const done = modules.filter((m) => itemSatisfied(t, m.id)).length
     pctSum += modules.length ? done / modules.length : 0
   }
   return {
@@ -1374,7 +1382,7 @@ export function resetSessionBlocks(cohortId: string, sessionId: string): void {
  *  sorted by week then order. Skipped sessions are still included (marked). */
 export function cohortSessionsList(db: DBShape, cohortId: string): TemplateSession[] {
   const custom = db.academyCustomSessions.filter((s) => s.cohortId === cohortId)
-  return [...PHASE2_TEMPLATE.sessions, ...custom].sort((a, b) =>
+  return [...planIn(db, cohortId).schedule.sessions, ...custom].sort((a, b) =>
     a.week !== b.week ? a.week - b.week : a.order - b.order,
   )
 }
@@ -1399,13 +1407,14 @@ export function setSessionSkipped(cohortId: string, sessionId: string, skipped: 
 /** Add a per-class session to a week. Returns the new session's id. */
 export function addCustomSession(
   cohortId: string,
-  week: 1 | 2,
+  week: number,
   mode: 'in-person' | 'at-home',
   title?: string,
 ): string {
   const id = uid('custom')
   const existing = cohortSessionsList(getState(), cohortId).filter((s) => s.week === week)
-  const order = (existing.length ? Math.max(...existing.map((s) => s.order)) : week === 1 ? 0 : 6) + 1
+  // Order only matters within a week (sessions sort by week first).
+  const order = (existing.length ? Math.max(...existing.map((s) => s.order)) : 0) + 1
   const session: CustomSession = {
     id,
     cohortId,

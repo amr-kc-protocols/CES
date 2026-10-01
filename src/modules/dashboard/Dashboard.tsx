@@ -14,6 +14,8 @@ import {
 } from '../ce/ceStore'
 import { useCohorts, useAllTrainees, useAllRides, useAllEvals, releaseEligible } from '../academy/academyStore'
 import { allFtos, crewsOnDate, rotationWeek, shiftWindow, type FtoCrew } from '../../data/ftoSchedule'
+import { programOrBasics } from '../academy/programStore'
+import type { NeopFtos } from '../../types'
 import { weekdayLabel } from '../academy/calendar'
 import { useSyncStatus } from '../../lib/sync'
 import { ftoNameForEmail, facilitatorLineNames } from '../../lib/ftoIdentity'
@@ -56,13 +58,14 @@ interface FtoScore {
  * types on dated schedule days, no extra data entry.
  */
 function ftoLeaderboard(
+  ftos: NeopFtos,
   evals: DailyEval[],
   rides: RideAssignment[],
   arrangements: SessionArrangement[],
   today: string,
 ): FtoScore[] {
   const taughtDays = arrangements.filter((a) => a.date && a.date <= today && !a.skipped && a.facilitators)
-  return allFtos()
+  return allFtos(ftos)
     .map((name) => {
       const hosted = rides.filter((r) => r.date <= today && (r.ftoNames ?? '').includes(name)).length
       const signed = evals.filter((e) => e.fto === name).length
@@ -135,13 +138,14 @@ export default function Dashboard() {
   const cohorts = useCohorts()
   const trainees = useAllTrainees()
   const rides = useAllRides()
-  const readyForRelease = trainees.filter(releaseEligible)
+  const readyForRelease = trainees.filter((t) => releaseEligible(t))
   const traineeById = new Map(trainees.map((t) => [t.id, t]))
 
   const today = todayISO()
   const tomorrow = addDays(today, 1)
-  const crewsToday = crewsOnDate(today)
-  const crewsTomorrow = crewsOnDate(tomorrow)
+  const ftos = programOrBasics(db).ftos
+  const crewsToday = crewsOnDate(ftos, today)
+  const crewsTomorrow = crewsOnDate(ftos, tomorrow)
   const ridesOn = (date: string, unit: string) => rides.filter((r) => r.date === date && r.unit === unit)
   // Rides logged for today whose unit has no rotation line on shift (one-off
   // scheduling, e.g. an FTO without a recurring line) — still worth surfacing.
@@ -149,7 +153,7 @@ export default function Dashboard() {
     (r) => r.date === today && !crewsToday.some((c) => c.unit === r.unit),
   )
   const evals = useAllEvals()
-  const leaderboard = ftoLeaderboard(evals, rides, db.academyArrangements, today)
+  const leaderboard = ftoLeaderboard(ftos, evals, rides, db.academyArrangements, today)
   const { email } = useSyncStatus()
   const myFtoName = ftoNameForEmail(email)
 
@@ -167,7 +171,7 @@ export default function Dashboard() {
         <div>
           <h1>Today</h1>
           <div className="subtle">
-            {weekdayLabel(today)} {formatDate(today)} · rotation week {rotationWeek(today)}
+            {weekdayLabel(today)} {formatDate(today)} · rotation week {rotationWeek(today, ftos.anchor)}
           </div>
         </div>
       </div>

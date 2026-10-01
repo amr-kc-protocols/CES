@@ -1,11 +1,16 @@
-import type { Credential, OperationId, Trainee, TraineePhase } from '../types'
+import type { Credential, TraineePhase } from '../types'
 
 // ---------------------------------------------------------------------------
-// New Hire Academy curriculum (spec §3 domain 3 / §6 Module D).
+// New Hire Academy curriculum as it shipped (spec §3 domain 3 / §6 Module D).
 //
-// Every hire gets the general AMR block. KC paramedics additionally get the
-// interfacility critical-care specialization block (ventilator management,
-// vasopressor & sedative infusions).
+// Every hire gets the general AMR block. Kansas City paramedics additionally
+// get the interfacility critical-care specialization block (ventilator
+// management, vasopressor & sedative infusions).
+//
+// These lists are now the STARTING POINT for an operation's checklist, not
+// the checklist itself. Who needs what, and what a transfer may waive, is in
+// the operation's NEOP — see src/modules/academy/program.ts, which builds
+// Kansas City's and Wichita's shipped programs from exactly these lists.
 // ---------------------------------------------------------------------------
 
 export interface AcademyModule {
@@ -28,62 +33,8 @@ export const KC_MEDIC_MODULES: AcademyModule[] = [
   { id: 'infusions', label: 'Vasopressor & sedative infusions', block: 'kc-medic' },
 ]
 
-/**
- * Requirements that can be waived for hires transferring in from another AMR
- * operation — they've already done these there. Report writing stays (local
- * ImageTrend workflow), and the critical-care block is never waivable:
- * ventilator training is required for every paramedic coming into KC or Cass.
- */
-export const WAIVABLE_MODULE_IDS = new Set(['stretcher', 'evoc', 'hr', 'osha', 'cornerstone'])
-
-/** The checklist that applies to a given hire. */
-export function curriculumFor(operation: OperationId, credential: Credential): AcademyModule[] {
-  const modules = [...GENERAL_MODULES]
-  if (credential === 'paramedic') {
-    // Ventilator management is required for KC and Cass paramedics (not Linn);
-    // the infusion block is KC's interfacility critical-care work only.
-    if (operation === 'kc' || operation === 'cass') modules.push(KC_MEDIC_MODULES[0])
-    if (operation === 'kc') modules.push(KC_MEDIC_MODULES[1])
-  }
-  return modules
-}
-
-/** Spec: release at roughly 20-30 patient contacts. */
-export const RELEASE_MIN_CONTACTS = 20
-export const DEFAULT_CONTACT_TARGET = 25
-
-/**
- * Contacts needed before release. Normally the spec's 20 floor, but a lowered
- * per-trainee target (an AMR transfer with field time elsewhere) wins.
- */
-export function requiredContacts(t: Trainee): number {
-  return Math.min(RELEASE_MIN_CONTACTS, t.contactTarget)
-}
-
 /** Academy runs ~1.5 weeks (spec); default cohort length in calendar days. */
 export const ACADEMY_LENGTH_DAYS = 10
-
-/**
- * A module counts when completed — or waived for an AMR transfer.
- *
- * Both maps are optional-chained: this runs for every trainee on cohort load,
- * so a row that reached storage without a checklist (an older save, a partial
- * sync) would otherwise take out the whole cohort view rather than showing
- * that one trainee as having nothing done.
- */
-export function moduleSatisfied(t: Trainee, moduleId: string): boolean {
-  return !!t.checklist?.[moduleId] || !!t.waived?.[moduleId]
-}
-
-export function checklistDone(t: Trainee): boolean {
-  return curriculumFor(t.operation, t.credential).every((m) => moduleSatisfied(t, m.id))
-}
-
-export function phaseOf(t: Trainee): TraineePhase {
-  if (t.releasedDate) return 'released'
-  if (checklistDone(t)) return 'fto'
-  return 'academy'
-}
 
 export const PHASE_LABELS: Record<TraineePhase, string> = {
   academy: 'Academy',

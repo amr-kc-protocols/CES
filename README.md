@@ -41,6 +41,37 @@ Hunter's head:
   `src/data/kcOperation.ts` (the reading), `scripts/neop-exam-bank.mjs` (the
   questions, deliberately outside `src/`), `src/data/neopSelection.ts` (the
   interview probes). Written up in `docs/neop-selection-exam.md`.
+- **NEOP setup — each operation builds its own (`/academy/setup`):** four
+  operations run on the app — **Kansas City, Wichita, Independence and
+  Topeka** — and each runs a different academy: its own stations, protocols,
+  FTOs, shifts and receiving hospitals. All of that used to be constants in
+  `src/data`, so a new operation was a code change. It is now one document per
+  operation (`NeopProgram` in `src/types.ts`, stored as `settings.neop`), built
+  by an administrator in six steps that each start from a sensible default:
+  **name & stations → checklist → schedule → FTO phase → FTOs & shifts →
+  documents**, then review and save. A new operation starts from the AMR basics
+  (the six general requirements, the stretcher and EVOC check-offs, a five-day
+  week, release at 20 contacts), from scratch, or from a copy of another
+  operation's NEOP — which takes the checklist, schedule and sheets but never
+  the FTOs, shifts, hospitals or station ids, because those are facts about the
+  other operation. Unsaved work is kept on the device until saved or discarded.
+
+  Three rules hold it together, all in `src/modules/academy/program.ts`:
+  **nothing changes until someone edits** — Kansas City and Wichita run
+  programs rebuilt from exactly the constants they ran on, and
+  `npm run check:program` holds them to the old rules for every station ×
+  credential; **a cohort keeps what it started with** — a cohort copies the
+  checklist, release rule and schedule when it is created (`CohortPlan`), so
+  adding a requirement never moves a hire already on FTO rides back to the
+  academy, and the cohort's Edit screen offers "Use current NEOP" when they
+  differ; and **some things stay fixed on purpose** — the exit survey posts to
+  Kansas City's own Google Sheet and the selection exam's reading describes
+  Kansas City's interfacility job, so both stay Kansas City's.
+
+  The database side is `supabase/migrations/2026-10-01-four-operations.sql`,
+  which widens the market check on the four tables that carry one. The market
+  fence itself never named a market, so nothing else changes; run the file,
+  then give each Independence and Topeka account its market on `profiles`.
 - **Module G — AEMT program (`/aemt`):** the Kansas-approved Advanced EMT
   initial course, end to end — candidate selection, roster, the dated class
   schedule, psychomotor skill sheets, clinical and field placement, the

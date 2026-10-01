@@ -8,6 +8,7 @@ import {
   type AgendaDay,
 } from '../../data/ftoAgenda'
 import { allFtos } from '../../data/ftoSchedule'
+import { useProgramOrBasics } from './programStore'
 import { formatDate } from '../../lib/date'
 import {
   agendaProgress,
@@ -146,6 +147,7 @@ function DayCard({ trainee, day }: { trainee: Trainee; day: AgendaDay }) {
 }
 
 export default function FtoAgendaView() {
+  const ftos = useProgramOrBasics().ftos
   const { cohortId, traineeId } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useCohortTrainees(cohortId).find((t) => t.id === traineeId)
@@ -186,7 +188,7 @@ export default function FtoAgendaView() {
             style={inputStyle}
           />
           <datalist id="agenda-ftos">
-            {allFtos().map((n) => (
+            {allFtos(ftos).map((n) => (
               <option key={n} value={n} />
             ))}
           </datalist>

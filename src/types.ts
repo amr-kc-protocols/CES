@@ -4,12 +4,12 @@
 
 import type { Market } from './lib/market'
 
-export type OperationId = 'kc' | 'cass' | 'linn' | 'wichita'
+export type OperationId = 'kc' | 'cass' | 'linn' | 'wichita' | 'independence' | 'topeka'
 
 // ----- Module B: Kansas CE Submission Deadline Tracker ---------------------
 
 /** KBEMS submission locations Hunter is responsible for. */
-export type CELocation = 'kc' | 'linn' | 'topeka' | 'wichita'
+export type CELocation = 'kc' | 'linn' | 'topeka' | 'wichita' | 'independence'
 
 export type CEStatus = 'not_started' | 'in_progress' | 'submitted'
 
@@ -123,6 +123,20 @@ export interface Settings {
   classBuilderUrl: string
   /** Local URL of the Ninth Brain Chart Review Agent, embedded in the QA Bot tab. */
   botUrl: string
+  /**
+   * This operation's own new-hire program, built in the NEOP setup steps.
+   *
+   * Absent until the operation saves one. Kansas City and Wichita then fall
+   * back to the program that shipped with the app (see bundledProgram), so
+   * nothing changes for them until someone edits it; Independence and Topeka
+   * have nothing to fall back to and are offered the setup instead.
+   *
+   * Kept in `settings` deliberately: it is the one record every role can read
+   * (an FTO needs the station names and the FTO roster as much as an admin
+   * does) and only an administrator can write, which is exactly who builds a
+   * NEOP. A collection of its own would have needed the read policy rewritten.
+   */
+  neop?: NeopProgram
 }
 
 // ----- Module D: New Hire Academy -------------------------------------------
@@ -132,10 +146,173 @@ export type Credential = 'emt' | 'aemt' | 'paramedic'
 /** Progression: academy checklist -> FTO rides -> released. Derived, not stored. */
 export type TraineePhase = 'academy' | 'fto' | 'released'
 
+// ----- An operation's NEOP, as data ------------------------------------------
+// Everything below used to be a constant somewhere in src/data, written for
+// Kansas City and copied for Wichita. Four operations each run a different
+// program — different stations, protocols, FTOs, shifts and facilities — so it
+// is data the operation edits instead. See src/modules/academy/program.ts.
+
+/**
+ * Who a requirement or a skill sheet applies to. Empty or absent means
+ * everyone. Both lists narrow: `{ credentials: ['paramedic'], locations:
+ * ['kc', 'cass'] }` is paramedics based at Kansas City or Cass County.
+ */
+export interface NeopAudience {
+  credentials?: Credential[]
+  locations?: string[]
+}
+
+/** A station or sub-operation a hire can be based at. */
+export interface NeopLocation {
+  /** Stored on each trainee, so it must not change once hires use it. */
+  id: string
+  name: string
+  /** Short form for tight spaces, e.g. 'KC'. Defaults to the name. */
+  short?: string
+}
+
+/** One line on the NEOP checklist. */
+export interface NeopChecklistItem {
+  /** Key into Trainee.checklist — stable once anyone has ticked it. */
+  id: string
+  label: string
+  who?: NeopAudience
+  /** A hire transferring from another AMR operation may have it waived. */
+  waivable?: boolean
+}
+
+/** A digital check-off sheet the operation runs, and for whom. */
+export interface NeopSheetUse {
+  id: SkillSheetId
+  who?: NeopAudience
+}
+
+export interface NeopWeek {
+  n: number
+  label: string
+}
+
+/** The academy's sessions. A cohort copies these when it is created. */
+export interface NeopSchedule {
+  /** The academy's name as printed on the schedule, e.g. 'AMR Topeka New Hire Academy'. */
+  name: string
+  minEducationHoursPerDay: number
+  weeks: NeopWeek[]
+  sessions: TemplateSession[]
+}
+
+export interface NeopRelease {
+  /** Patient contacts before a hire can be released. */
+  minContacts: number
+  /** The target a new hire starts with; a transfer's can be lowered. */
+  defaultTarget: number
+}
+
+export interface NeopFacility {
+  name: string
+  address: string
+  notes: string
+}
+
+export interface NeopKitItem {
+  item: string
+  source: string
+}
+
+/** One crew line with an FTO aboard, on a repeating two-week pattern. */
+export interface CrewMember {
+  name: string
+  fto: boolean
+}
+
+export interface FtoCrew {
+  /** Unit call sign, e.g. 'KC105'. */
+  unit: string
+  /** Level of service for the line (ALS / BLS / Dedicated). */
+  level: string
+  /** Wall-clock start, HHMM. */
+  start: string
+  /** Wall-clock end, HHMM. Ends at or before start = runs into the next day. */
+  end: string
+  /** Shift length in hours. */
+  hours: number
+  crew: CrewMember[]
+  /** Worked days, 0=Sun … 6=Sat, in each week of the two-week rotation. */
+  week1?: number[]
+  week2?: number[]
+  /** First day of this crew's Week 1 when it is offset from the operation's. */
+  anchor?: string
+  /** A fixed "N days on, then off" cycle instead of the weekday rotation. */
+  cycle?: { anchor: string; onDays: number; cycleDays: number }
+}
+
+export interface NeopFtos {
+  /** Every FTO, whether or not they have a recurring line in `crews`. */
+  names: string[]
+  /**
+   * Educators who sign skill sheets and daily evals but do not run rides. In
+   * every evaluator picker; never offered to the ride planner.
+   */
+  evaluators: string[]
+  crews: FtoCrew[]
+  /** A Week-1 Sunday the two-week rotation repeats from. */
+  anchor: string
+}
+
+export interface NeopDocuments {
+  facilities: NeopFacility[]
+  /** Short transfer rules printed under the facility list. */
+  keyPoints: string[]
+  welcomeKit: NeopKitItem[]
+  /** Offer the corporate onboarding roadmap in the documents tab. */
+  roadmap: boolean
+}
+
+export interface NeopProgram {
+  /** Shape version, for whatever the next change to this needs to migrate. */
+  schema: 1
+  /** e.g. 'AMR Topeka New Hire Academy'. */
+  name: string
+  /** Printed at the top of each hire's paperwork, e.g. 'AMR TOPEKA — NEW HIRE ACADEMY'. */
+  header: string
+  locations: NeopLocation[]
+  /** The credentials this operation hires. */
+  credentials: Credential[]
+  checklist: NeopChecklistItem[]
+  release: NeopRelease
+  schedule: NeopSchedule
+  sheets: NeopSheetUse[]
+  ftos: NeopFtos
+  documents: NeopDocuments
+  updatedAt: string
+}
+
+/**
+ * What a cohort keeps from its operation's NEOP when it is created.
+ *
+ * The checklist decides a hire's phase. Read live, adding a requirement to the
+ * program would move every hire already on FTO rides back to "Academy" without
+ * anybody touching their record. So a cohort carries the checklist, release
+ * rule and schedule it started with, and picks up later edits only when
+ * someone asks it to.
+ */
+export interface CohortPlan {
+  checklist: NeopChecklistItem[]
+  release: NeopRelease
+  schedule: NeopSchedule
+}
+
 export interface AcademyCohort {
   id: string
   /** Display label, e.g. 'September 2026 Academy'. */
   label: string
+  /**
+   * The checklist, release rule and schedule this cohort runs, copied from the
+   * operation's NEOP when the cohort was created. Absent on cohorts created
+   * before NEOPs were editable: those keep the program that shipped with the
+   * app, which is exactly what they were running.
+   */
+  plan?: CohortPlan
   /** ISO start date. */
   startDate: string
   /** ISO end date (academy runs ~1.5 weeks). */
@@ -151,8 +328,12 @@ export interface Trainee {
   id: string
   cohortId: string
   name: string
-  /** Home operation the hire is being onboarded for. */
-  operation: OperationId
+  /**
+   * The station the hire is based at — one of their operation's NEOP
+   * locations. Kansas City's ids are the old OperationId values ('kc',
+   * 'cass', 'linn'), so every existing record still resolves.
+   */
+  operation: string
   credential: Credential
   /** Full-time / per diem, shown on generated documents. */
   employment?: Employment
@@ -308,8 +489,8 @@ export interface TemplateSession {
   id: string
   /** Global order across the whole academy (both weeks). */
   order: number
-  /** 1 = Systems & Safety week, 2 = Clinical Depth week. */
-  week: 1 | 2
+  /** Which week of the academy, numbered from 1. */
+  week: number
   mode: 'in-person' | 'at-home'
   title: string
   objectives: string[]
@@ -326,6 +507,8 @@ export interface TemplateSession {
   /** Cumulative retrieval: prior session ids this one pulls from. */
   retrieval?: { pullsFrom: string[]; resource?: string }
   placement?: string
+  /** Digital check-offs done in this session, e.g. the stretcher sheet on stretcher day. */
+  checkoffs?: SkillSheetId[]
 }
 
 export interface AcademyTemplate {
@@ -384,7 +567,8 @@ export interface AttendanceRecord {
 /** A schedulable academy day, unified across phases for attendance/printing. */
 export interface AcademyDayRef {
   key: string
-  phase: 1 | 2
+  /** The academy week a session sits in; 1 for a legacy schedule day. */
+  phase: number
   /** ISO date, or '' if a Phase 2 session hasn't been dated yet. */
   date: string
   title: string

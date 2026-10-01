@@ -293,7 +293,7 @@ const WICHITA_TRACKS: AgendaTrack[] = [RED_TRACK, GREEN_TRACK]
  * the page (see setActiveMarket).
  * ------------------------------------------------------------------------ */
 
-const TRACKS_BY_MARKET: Record<Market, AgendaTrack[]> = { kc: [], wichita: WICHITA_TRACKS }
+const TRACKS_BY_MARKET: Record<Market, AgendaTrack[]> = { kc: [], wichita: WICHITA_TRACKS, independence: [], topeka: [] }
 
 export const FTO_TRACKS: AgendaTrack[] = TRACKS_BY_MARKET[activeMarket()]
 

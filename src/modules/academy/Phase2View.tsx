@@ -3,10 +3,7 @@ import { neopSheetMeta } from '../templates/resolve'
 import { confirmAction } from '../../lib/dialog'
 import { Link } from 'react-router-dom'
 import { Modal } from '../../components/ui'
-import { SESSION_CHECKOFFS } from '../../data/checkoffSheets'
 import {
-  PHASE2_TEMPLATE,
-  WEEK_LABELS,
   educationMinutes,
   isUnderMinHours,
   parseClock,
@@ -14,6 +11,7 @@ import {
 } from '../../data/academyPhase2'
 import { resourceFor, resourceUrl } from '../../data/fieldGuide'
 import { allFtos } from '../../data/ftoSchedule'
+import { useCohortPlan, useProgramOrBasics } from './programStore'
 import { facilitatorLineNames, toggleFacilitator } from '../../lib/ftoIdentity'
 import { addDays, formatDate } from '../../lib/date'
 import { pushUndo } from '../../lib/undo'
@@ -106,6 +104,8 @@ function ResourceChips({ refs }: { refs?: string[] }) {
 }
 
 function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; session: TemplateSession; dayLabel?: string }) {
+  const ftos = useProgramOrBasics().ftos
+  const plan = useCohortPlan(cohortId)
   const arrangements = useArrangements(cohortId)
   const arr = arrangements[session.id]
   const [editing, setEditing] = useState(false)
@@ -115,7 +115,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
   const blocks = effectiveBlocks(session, arr?.blocks)
   const customized = !!(arr?.blocks && arr.blocks.length)
   const eduMin = educationMinutes(session, blocks)
-  const under = isUnderMinHours(session, PHASE2_TEMPLATE.minEducationHoursPerDay, blocks)
+  const under = isUnderMinHours(session, plan.schedule.minEducationHoursPerDay, blocks)
   const effectiveStart = arr?.startTime || session.defaultStart
   const rows = timeline(session, effectiveStart, blocks)
   const endsAt = rows && rows.length ? rows[rows.length - 1].end : null
@@ -192,7 +192,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
         {session.location && <span className="pill warn" title={session.location}>📍 Offsite</span>}
         {customized && <span className="pill info" title="This class has edited blocks">Edited</span>}
         <span className={`pill ${under ? 'crit' : 'ok'}`} style={{ marginLeft: 'auto' }}>
-          {fmtHours(eduMin)} hrs education{under ? ` · under ${PHASE2_TEMPLATE.minEducationHoursPerDay}` : ''}
+          {fmtHours(eduMin)} hrs education{under ? ` · under ${plan.schedule.minEducationHoursPerDay}` : ''}
         </span>
       </div>
 
@@ -206,9 +206,9 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
       </ul>
 
       {/* Hands-on days carry their digital check-offs, one tap from the schedule. */}
-      {SESSION_CHECKOFFS[session.id] && (
+      {session.checkoffs && session.checkoffs.length > 0 && (
         <div style={{ margin: '0 0 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {SESSION_CHECKOFFS[session.id].map((sheet) => (
+          {session.checkoffs.map((sheet) => (
             <Link key={sheet} to={`/academy/${cohortId}/checkoff/${sheet}`} className="btn sm primary">
               {neopSheetMeta(sheet).icon} {neopSheetMeta(sheet).label} — whole class
             </Link>
@@ -260,7 +260,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
           {manageAcademy && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
               <span className="subtle" style={{ fontSize: 11, alignSelf: 'center' }}>Tap to add/remove FTOs:</span>
-              {allFtos().map((n) => {
+              {allFtos(ftos).map((n) => {
                 const on = facilitatorLineNames(arr?.facilitators, n)
                 return (
                   <button
@@ -294,7 +294,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
                 {seg.notes && <div className="meta">{seg.notes}</div>}
                 {seg.gatesSession && (
                   <div className="meta" style={{ color: 'var(--warn, #b45309)' }}>
-                    Must finish before the “{PHASE2_TEMPLATE.sessions.find((x) => x.id === seg.gatesSession)?.title ?? '?'}” session
+                    Must finish before the “{plan.schedule.sessions.find((x) => x.id === seg.gatesSession)?.title ?? '?'}” session
                   </div>
                 )}
                 <ResourceChips refs={seg.resources} />
@@ -430,7 +430,7 @@ function SessionCard({ cohortId, session, dayLabel }: { cohortId: string; sessio
         <div className="help-text" style={{ marginTop: 6 }}>
           Cumulative retrieval pulls from:{' '}
           {session.retrieval.pullsFrom
-            .map((id) => PHASE2_TEMPLATE.sessions.find((x) => x.id === id)?.title ?? id)
+            .map((id) => plan.schedule.sessions.find((x) => x.id === id)?.title ?? id)
             .join(', ')}
           .
         </div>
@@ -549,7 +549,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
   const sessions = useCohortSessions(cohort.id)
   const [showFill, setShowFill] = useState(false)
   const { manageAcademy } = useCan()
-  const t = PHASE2_TEMPLATE
+  const t = useCohortPlan(cohort.id).schedule
 
   const active = useMemo(
     () => sessions.filter((s) => !arrangements[s.id]?.skipped),
@@ -564,7 +564,11 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
     [active, t, arrangements],
   )
 
-  const weeks: (1 | 2)[] = [1, 2]
+  // The plan's weeks, plus any week a session has been put in that the plan
+  // does not name (a custom session added to a week since removed).
+  const weeks = [...new Set([...t.weeks.map((w) => w.n), ...sessions.map((s) => s.week)])].sort((a, b) => a - b)
+  const weekLabel = (n: number) =>
+    t.weeks.find((w) => w.n === n)?.label ?? (t.weeks.length > 1 || n > 1 ? `Week ${n}` : 'Academy')
 
   // Auto-sort each week by the date entered; undated sessions keep the template
   // order at the bottom so they don't jump around before they're scheduled.
@@ -592,7 +596,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
   return (
     <div>
       <div className="banner info">
-        <strong>{t.name}</strong> — one schedule across both weeks. Set each session's date, start
+        <strong>{t.name}</strong> — one schedule for the whole academy. Set each session's date, start
         time, and facilitators for this class; edit any session's blocks, or add/skip sessions to fit
         how this class actually runs. NEOP completion is an internal record — not CE, and not the AEMT course.
       </div>
@@ -612,13 +616,13 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
             ⚡ Fill dates
           </button>
         )}
-        <button className="btn" onClick={() => printDoc(`${cohort.label} — NEOP Schedule`, phase2ScheduleHTML(cohort, arrangements, active))}>
+        <button className="btn" onClick={() => printDoc(`${cohort.label} — NEOP Schedule`, phase2ScheduleHTML(cohort, arrangements, active, t))}>
           🖨 Print
         </button>
         <button
           className="btn"
           onClick={() =>
-            downloadDoc(safeFilename(`${cohort.label}_NEOP_Schedule`), `${cohort.label} — NEOP Schedule`, phase2ScheduleHTML(cohort, arrangements, active))
+            downloadDoc(safeFilename(`${cohort.label}_NEOP_Schedule`), `${cohort.label} — NEOP Schedule`, phase2ScheduleHTML(cohort, arrangements, active, t))
           }
         >
           ⬇ Word
@@ -630,7 +634,7 @@ export default function Phase2View({ cohort }: { cohort: AcademyCohort }) {
         return (
           <div key={wk}>
             <div className="section-title" style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span>{WEEK_LABELS[wk]}</span>
+              <span>{weekLabel(wk)}</span>
               {manageAcademy && (
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   <button className="btn sm ghost" onClick={() => addCustomSession(cohort.id, wk, 'in-person')}>

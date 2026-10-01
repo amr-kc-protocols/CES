@@ -3,16 +3,16 @@ import { neopSheetMeta, neopSkillsFor } from '../templates/resolve'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Empty, Modal, ProgressBar, Stat } from '../../components/ui'
 import { Tabs, tabPanelProps } from '../../components/Tabs'
-import { OPERATIONS, operationShort } from '../../data/operations'
+import { PHASE_LABELS, CREDENTIAL_LABELS } from '../../data/academy'
 import {
-  curriculumFor,
-  moduleSatisfied,
+  checklistFor,
+  itemSatisfied,
+  locationShort,
   phaseOf,
-  PHASE_LABELS,
-  CREDENTIAL_LABELS,
   requiredContacts,
-  WAIVABLE_MODULE_IDS,
-} from '../../data/academy'
+  sheetsFor,
+} from './program'
+import { useCohortPlan, useProgramOrBasics } from './programStore'
 import { formatDate } from '../../lib/date'
 import {
   useCohort,
@@ -37,7 +37,6 @@ import {
   useSkillCheckFor,
   useSurveyDateFor,
 } from './academyStore'
-import { clinicalSheetsFor } from '../../data/checkoffSheets'
 import { FIELD_OBJECTIVES_ENABLED } from '../../config/features'
 import { HAS_FTO_AGENDA, trackById } from '../../data/ftoAgenda'
 import { HAS_FIELD_OBJECTIVES } from '../../data/ftObjectives'
@@ -47,7 +46,7 @@ import ScheduleView from './Phase2View'
 import AttendanceView from './AttendanceView'
 import DocumentsPanel from './DocumentsPanel'
 import { useCan } from '../../lib/role'
-import type { Credential, Employment, OperationId, Trainee, TraineePhase } from '../../types'
+import type { Credential, Employment, SkillSheetId, Trainee, TraineePhase } from '../../types'
 
 const PHASE_PILL: Record<TraineePhase, string> = {
   academy: 'warn',
@@ -56,9 +55,13 @@ const PHASE_PILL: Record<TraineePhase, string> = {
 }
 
 function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () => void }) {
+  const program = useProgramOrBasics()
+  const plan = useCohortPlan(cohortId)
   const [name, setName] = useState('')
-  const [operation, setOperation] = useState<OperationId>('kc')
-  const [credential, setCredential] = useState<Credential>('paramedic')
+  const [operation, setOperation] = useState<string>(program.locations[0]?.id ?? '')
+  const [credential, setCredential] = useState<Credential>(
+    program.credentials.includes('paramedic') ? 'paramedic' : program.credentials[0] ?? 'emt',
+  )
   const [employeeNumber, setEmployeeNumber] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -85,22 +88,29 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
         <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="e.g. T. Nguyen" />
       </div>
       <div className="field-row">
+        {/* One station is the common case, and asking "which of one?" is noise. */}
+        {program.locations.length > 1 && (
+          <div className="field">
+            <label htmlFor="at-station">Station</label>
+            <select id="at-station" value={operation} onChange={(e) => setOperation(e.target.value)}>
+              {program.locations.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="field">
-          <label>Home operation</label>
-          <select value={operation} onChange={(e) => setOperation(e.target.value as OperationId)}>
-            {OPERATIONS.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label>Credential</label>
-          <select value={credential} onChange={(e) => setCredential(e.target.value as Credential)}>
-            <option value="paramedic">Paramedic</option>
-            <option value="aemt">AEMT</option>
-            <option value="emt">EMT</option>
+          <label htmlFor="at-cred">Credential</label>
+          <select id="at-cred" value={credential} onChange={(e) => setCredential(e.target.value as Credential)}>
+            {(['paramedic', 'aemt', 'emt'] as Credential[])
+              .filter((c) => program.credentials.includes(c))
+              .map((c) => (
+                <option key={c} value={c}>
+                  {CREDENTIAL_LABELS[c]}
+                </option>
+              ))}
           </select>
         </div>
       </div>
@@ -136,25 +146,35 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
         <input type="checkbox" checked={transfer} onChange={(e) => setTransferFlag(e.target.checked)} />
         <span>Transferring from another AMR operation</span>
       </label>
-      {transfer && (
-        <div className="banner info">
-          Transfer — OSHA, Cornerstone, EVOC, stretcher, and HR can be waived on their checklist,
-          and the contact target can be lowered.
-          {credential === 'paramedic' && (operation === 'kc' || operation === 'cass') &&
-            ' Ventilator training is still required.'}
-        </div>
-      )}
-      {credential === 'paramedic' && operation === 'kc' && (
-        <div className="banner info">
-          KC paramedic — the critical-care specialization block (ventilator, vasopressor &amp;
-          sedative infusions) is added to their checklist.
-        </div>
-      )}
-      {credential === 'paramedic' && operation === 'cass' && (
-        <div className="banner info">
-          Cass paramedic — ventilator management is added to their checklist.
-        </div>
-      )}
+      {(() => {
+        // What this hire's checklist will hold, worked out from the cohort's
+        // own plan — so the note is true in every operation, not just the one
+        // whose module names used to be written into it.
+        const items = checklistFor(plan, { credential, operation } as Trainee)
+        const targeted = items.filter((m) => m.who)
+        const waivable = items.filter((m) => m.waivable)
+        const kept = items.filter((m) => !m.waivable)
+        return (
+          <>
+            {targeted.length > 0 && (
+              <div className="banner info">
+                For a {CREDENTIAL_LABELS[credential].toLowerCase()}
+                {program.locations.length > 1 ? ` at ${locationShort(program, operation)}` : ''}, their
+                checklist adds {targeted.map((m) => m.label).join(', ')}.
+              </div>
+            )}
+            {transfer && (
+              <div className="banner info">
+                {waivable.length > 0
+                  ? `Transfer — ${waivable.map((m) => m.label).join(', ')} can be waived on their checklist`
+                  : 'Transfer — nothing on this checklist can be waived'}
+                , and the contact target can be lowered.
+                {kept.length > 0 && waivable.length > 0 && ` Still required: ${kept.map((m) => m.label).join(', ')}.`}
+              </div>
+            )}
+          </>
+        )
+      })()}
       <div className="btn-row">
         <button className="btn primary" onClick={() => save(false)}>
           Add trainee
@@ -170,32 +190,47 @@ function AddTraineeModal({ cohortId, onClose }: { cohortId: string; onClose: () 
   )
 }
 
+/**
+ * One check-off sheet's button on a trainee card: icon, short name and how many
+ * of its skills are passed. A component of its own so each sheet's record is
+ * read by its own hook — the set of sheets is the operation's choice and can
+ * differ from one hire to the next, and hooks cannot be called in a loop.
+ */
+function SheetLink({ trainee, sheet }: { trainee: Trainee; sheet: SkillSheetId }) {
+  const check = useSkillCheckFor(trainee.id, sheet)
+  const meta = neopSheetMeta(sheet)
+  const passed = Object.values(check?.results ?? {}).filter((r) => r === 'pass').length
+  return (
+    <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/${sheet}`} className="btn sm">
+      {meta.icon} {meta.short} · {passed}/{neopSkillsFor(sheet, trainee.operation).length}
+    </Link>
+  )
+}
+
 function TraineeCard({ trainee }: { trainee: Trainee }) {
   const [open, setOpen] = useState(false)
   const rides = useRidesFor(trainee.id)
   const evals = useEvalsFor(trainee.id)
   const surveyDate = useSurveyDateFor(trainee.id)
-  // Every hire runs the BLS sheet and paramedics additionally run the ALS sheet
-  // — in a market that runs the clinical sheets at all. Wichita does not.
-  const blsCheck = useSkillCheckFor(trainee.id, 'bls')
-  const alsCheck = useSkillCheckFor(trainee.id, 'linn-medic')
-  const rsiCheck = useSkillCheckFor(trainee.id, 'rsi')
-  const ventCheck = useSkillCheckFor(trainee.id, 'vent')
-  const stretcherCheck = useSkillCheckFor(trainee.id, 'stretcher')
-  const evocCheck = useSkillCheckFor(trainee.id, 'evoc-track')
-  const passedOf = (c?: { results: Record<string, string> }) =>
-    Object.values(c?.results ?? {}).filter((r) => r === 'pass').length
+  const program = useProgramOrBasics()
+  const plan = useCohortPlan(trainee.cohortId)
   const can = useCan()
   // New-hire accounts get a read-only card: the server would refuse their
   // writes anyway, so the UI must not offer them (silently-dropped edits
   // otherwise look saved on-device and then diverge).
   const readOnly = !can.editRideWork
-  const phase = phaseOf(trainee)
-  const modules = curriculumFor(trainee.operation, trainee.credential)
-  const done = modules.filter((m) => moduleSatisfied(trainee, m.id)).length
-  const general = modules.filter((m) => m.block === 'general')
-  const kcMedic = modules.filter((m) => m.block === 'kc-medic')
-  const contactPct = Math.min(100, Math.round((trainee.contacts / trainee.contactTarget) * 100))
+  const phase = phaseOf(trainee, plan)
+  const modules = checklistFor(plan, trainee)
+  const done = modules.filter((m) => itemSatisfied(trainee, m.id)).length
+  // Everyone's requirements first, then the ones this hire has because of
+  // their credential or station — in Kansas City, the critical-care block.
+  const general = modules.filter((m) => !m.who)
+  const specific = modules.filter((m) => m.who)
+  const contactPct = trainee.contactTarget
+    ? Math.min(100, Math.round((trainee.contacts / trainee.contactTarget) * 100))
+    : 100
+  const checklistPct = modules.length ? Math.round((done / modules.length) * 100) : 100
+  const sheets = sheetsFor(program, trainee)
 
   return (
     <div className="card" style={{ padding: 14 }}>
@@ -209,7 +244,8 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
           <span className="title">
             {trainee.name}
             <span className="subtle" style={{ fontWeight: 500, marginLeft: 8 }}>
-              {operationShort(trainee.operation)} · {CREDENTIAL_LABELS[trainee.credential]}
+              {program.locations.length > 1 && `${locationShort(program, trainee.operation)} · `}
+              {CREDENTIAL_LABELS[trainee.credential]}
             </span>
             {trainee.transfer && (
               <span className="pill muted" style={{ marginLeft: 8 }} title="Transferring from another AMR operation — waivers allowed">
@@ -232,7 +268,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
       {phase !== 'released' && (
         <div style={{ marginTop: 10 }}>
           <ProgressBar
-            pct={phase === 'academy' ? Math.round((done / modules.length) * 100) : contactPct}
+            pct={phase === 'academy' ? checklistPct : contactPct}
             complete={phase === 'fto' && trainee.contacts >= trainee.contactTarget}
           />
         </div>
@@ -327,7 +363,17 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
           <div className="section-title" style={{ margin: '0 0 8px' }}>
             NEOP checklist
           </div>
-          {[{ label: 'General AMR block', items: general }, ...(kcMedic.length ? [{ label: 'Critical-care specialization (not waivable)', items: kcMedic }] : [])].map(
+          {modules.length === 0 && (
+            <div className="subtle" style={{ fontSize: 13, marginBottom: 10 }}>
+              This cohort's checklist is empty — the hire goes straight to FTO rides.
+            </div>
+          )}
+          {[
+            ...(general.length ? [{ label: 'Every hire', items: general }] : []),
+            ...(specific.length
+              ? [{ label: `For a ${CREDENTIAL_LABELS[trainee.credential].toLowerCase()}${program.locations.length > 1 ? ` at ${locationShort(program, trainee.operation)}` : ''}`, items: specific }]
+              : []),
+          ].map(
             (group) => (
               <div key={group.label} style={{ marginBottom: 10 }}>
                 <div className="subtle" style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>
@@ -379,7 +425,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                       ) : (
                         !readOnly &&
                         trainee.transfer &&
-                        WAIVABLE_MODULE_IDS.has(m.id) && (
+                        m.waivable && (
                           <button
                             className="btn sm ghost"
                             title="Waive — completed at their previous AMR operation"
@@ -400,39 +446,16 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
           )}
 
           <div className="section-title" style={{ margin: '14px 0 8px' }}>
-            FTO rides · release at {requiredContacts(trainee)}+ contacts
-            {trainee.transfer && requiredContacts(trainee) < 20 && ' (transfer-adjusted)'}
+            FTO rides · release at {requiredContacts(trainee, plan)}+ contacts
+            {trainee.transfer && requiredContacts(trainee, plan) < plan.release.minContacts && ' (transfer-adjusted)'}
           </div>
           <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <Link to={`/academy/${trainee.cohortId}/eval/${trainee.id}`} className="btn sm">
               ⭐ Daily evals · {evals.length}
             </Link>
-            {clinicalSheetsFor(trainee).includes('bls') && (
-              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/bls`} className="btn sm">
-                🩺 BLS · {passedOf(blsCheck)}/{neopSkillsFor('bls', trainee.operation).length}
-              </Link>
-            )}
-            {clinicalSheetsFor(trainee).includes('linn-medic') && (
-              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/linn-medic`} className="btn sm">
-                💉 ALS · {passedOf(alsCheck)}/{neopSkillsFor('linn-medic', trainee.operation).length}
-              </Link>
-            )}
-            {clinicalSheetsFor(trainee).includes('rsi') && (
-              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/rsi`} className="btn sm">
-                💨 RSI · {passedOf(rsiCheck)}/{neopSkillsFor('rsi', trainee.operation).length}
-              </Link>
-            )}
-            {clinicalSheetsFor(trainee).includes('vent') && (
-              <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/vent`} className="btn sm">
-                🫁 Vent · {passedOf(ventCheck)}/{neopSkillsFor('vent', trainee.operation).length}
-              </Link>
-            )}
-            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/stretcher`} className="btn sm">
-              🛏️ Stretcher · {passedOf(stretcherCheck)}/{neopSheetMeta('stretcher').skills.length}
-            </Link>
-            <Link to={`/academy/${trainee.cohortId}/skills/${trainee.id}/evoc-track`} className="btn sm">
-              🚗 EVOC track · {passedOf(evocCheck)}/{neopSheetMeta('evoc-track').skills.length}
-            </Link>
+            {sheets.map((sheet) => (
+              <SheetLink key={sheet} trainee={trainee} sheet={sheet} />
+            ))}
             {FIELD_OBJECTIVES_ENABLED && HAS_FIELD_OBJECTIVES && (
               <Link to={`/academy/${trainee.cohortId}/checklist/${trainee.id}`} className="btn sm">
                 📋 Field checklist · {fieldProgress(trainee).done}/{fieldProgress(trainee).total} objectives
@@ -529,7 +552,7 @@ function TraineeCard({ trainee }: { trainee: Trainee }) {
                   title={
                     releaseEligible(trainee)
                       ? ''
-                      : `Needs a complete checklist and at least ${requiredContacts(trainee)} contacts`
+                      : `Needs a complete checklist and at least ${requiredContacts(trainee, plan)} contacts`
                   }
                   onClick={() => releaseTrainee(trainee.id)}
                 >
@@ -635,8 +658,8 @@ export default function CohortView() {
         {tab === 'roster' &&
           (trainees.length === 0 ? (
             <Empty icon="🧑‍🚒" title="No trainees on the roster yet">
-              Add the cohort roster — academies average ~6 participants across all three
-              operations.
+              Add each new hire with <strong>+ Add trainee</strong>. Their checklist is built from
+              this cohort's NEOP, by credential and station.
             </Empty>
           ) : (
             <div className="list">

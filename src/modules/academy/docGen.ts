@@ -1,14 +1,8 @@
 import { notifyUser } from '../../lib/dialog'
 import { FT_SECTIONS, FT_SLOTS, EXPOSURE_GROUPS, EXPOSURE_SLOTS } from '../../data/ftObjectives'
-import {
-  WELCOME_KIT_ITEMS,
-  ROOM_SETUP_ITEMS,
-  FACILITIES,
-  FACILITY_KEY_POINTS,
-} from '../../data/academyTemplate'
+import { ROOM_SETUP_ITEMS } from '../../data/academyTemplate'
 import { CREDENTIAL_LABELS } from '../../data/academy'
 import { AGENDA_ORIENTEE_NOTE, AGENDA_RECOMMENDATIONS, type AgendaTrack } from '../../data/ftoAgenda'
-import { PHASE2_TEMPLATE } from '../../data/academyPhase2'
 import { operationName } from '../../data/operations'
 import { formatDate, formatSignedAt, fromISODate, toISODate } from '../../lib/date'
 import type {
@@ -16,6 +10,9 @@ import type {
   AcademyDay,
   AcademyDayRef,
   AttendanceStatus,
+  NeopProgram,
+  NeopSchedule,
+  OperationId,
   SessionArrangement,
   TemplateSession,
   Trainee,
@@ -343,7 +340,7 @@ export function objectivesPageHTML(t: Trainee): string {
       <td><strong>Trainee name</strong> <span class="line">&nbsp;${esc(t.name)}&nbsp;</span></td>
       <td><strong>Hire date</strong> <span class="line" style="min-width:120px">&nbsp;${t.hireDate ? esc(formatDate(t.hireDate)) : ''}&nbsp;</span></td>
     </tr><tr>
-      <td><strong>Position</strong> <span class="line">&nbsp;${esc(CREDENTIAL_LABELS[t.credential])}${t.employment ? ` — ${t.employment === 'ft' ? 'Full-Time' : 'Per Diem'}` : ''} · ${esc(operationName(t.operation))}&nbsp;</span></td>
+      <td><strong>Position</strong> <span class="line">&nbsp;${esc(CREDENTIAL_LABELS[t.credential])}${t.employment ? ` — ${t.employment === 'ft' ? 'Full-Time' : 'Per Diem'}` : ''} · ${esc(operationName(t.operation as OperationId))}&nbsp;</span></td>
       <td><strong>FTOs assigned</strong> <span class="line" style="min-width:160px">&nbsp;${esc(t.ftos)}&nbsp;</span></td>
     </tr></table>
     <div class="note"><strong>How this works:</strong> Each numbered slot (1–6) is one occurrence. When the trainee completes an objective, the FTO writes their initials + date in the next available slot. The target tells you how many to fill. Trainee signs once per section at the bottom when all required slots are signed.</div>
@@ -360,11 +357,11 @@ export function objectivesPageHTML(t: Trainee): string {
 
 // ----- Folder cover label ----------------------------------------------------
 
-export function folderLabelHTML(t: Trainee): string {
+export function folderLabelHTML(t: Trainee, program?: Pick<NeopProgram, 'header'>): string {
   const first = t.name.trim().split(/\s+/)[0] || t.name
   return `
     <div class="cover">
-      <div class="badge">AMR KC — NEW HIRE ACADEMY</div>
+      <div class="badge">${esc(program?.header || 'NEW HIRE ACADEMY')}</div>
       <div class="first">${esc(first)}</div>
       <div class="full">${esc(t.name)} · ${esc(CREDENTIAL_LABELS[t.credential])}${t.employment ? ` — ${t.employment === 'ft' ? 'Full-Time' : 'Per Diem'}` : ''}</div>
     </div>`
@@ -372,14 +369,18 @@ export function folderLabelHTML(t: Trainee): string {
 
 // ----- Welcome kit checklist ---------------------------------------------------
 
-export function welcomeKitHTML(cohort: AcademyCohort, trainees: Trainee[]): string {
+export function welcomeKitHTML(
+  cohort: AcademyCohort,
+  trainees: Trainee[],
+  program: Pick<NeopProgram, 'documents'>,
+): string {
   const n = trainees.length
   return `
     <h1>Day 1 Welcome Kit — Assembly Checklist</h1>
     <p class="sub">${esc(cohort.label)} · Build ${n} folder${n === 1 ? '' : 's'} before ${esc(formatDate(cohort.startDate))}, 9 AM</p>
     <h2>Each folder contains</h2>
     <table><tr><th class="slot">☐</th><th>Item</th><th>Source</th></tr>
-      ${WELCOME_KIT_ITEMS.map((k) => `<tr><td class="slot">☐</td><td>${esc(k.item)}</td><td>${esc(k.source)}</td></tr>`).join('')}
+      ${program.documents.welcomeKit.map((k) => `<tr><td class="slot">☐</td><td>${esc(k.item)}</td><td>${esc(k.source)}</td></tr>`).join('')}
     </table>
     <div class="note"><strong>Folder cover label:</strong> add a label to the front of each folder with the trainee's first name (print covers from CES). Personalized = small touch, big first impression.</div>
     <h2>Trainee folder list</h2>
@@ -403,16 +404,17 @@ export function welcomeKitHTML(cohort: AcademyCohort, trainees: Trainee[]): stri
 
 // ----- Facility cheat sheet ----------------------------------------------------
 
-export function facilitySheetHTML(): string {
+export function facilitySheetHTML(program: Pick<NeopProgram, 'name' | 'documents'>): string {
+  const { facilities, keyPoints } = program.documents
   return `
-    <h1>AMR Kansas City — IFT Receiving Facilities</h1>
-    <p class="sub">Quick reference for new hires</p>
+    <h1>Receiving Facilities</h1>
+    <p class="sub">${esc(program.name)} · quick reference for new hires</p>
     <h2>Major hospitals</h2>
     <table><tr><th>Facility</th><th>Address</th><th>Specialty / notes</th></tr>
-      ${FACILITIES.map((f) => `<tr><td>${esc(f.name)}</td><td>${esc(f.address)}</td><td>${esc(f.notes)}</td></tr>`).join('')}
+      ${facilities.map((f) => `<tr><td>${esc(f.name)}</td><td>${esc(f.address)}</td><td>${esc(f.notes)}</td></tr>`).join('')}
     </table>
-    <h2>Key things to know</h2>
-    <ul>${FACILITY_KEY_POINTS.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+    ${keyPoints.length ? `<h2>Key things to know</h2>
+    <ul>${keyPoints.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
     <div class="note">Verify before printing: confirm addresses and specialty designations against the current local protocol manual before distributing — facilities update designations regularly.</div>
     <p class="footer">Generated by AMR Kansas Academy · ${esc(formatDate())}</p>`
 }
@@ -557,10 +559,11 @@ export function onboardingRoadmapHTML(): string {
 export function phase2ScheduleHTML(
   cohort: AcademyCohort,
   arrangements: Record<string, SessionArrangement>,
-  sessionList?: TemplateSession[],
+  sessionList: TemplateSession[],
+  schedule: Pick<NeopSchedule, 'name'>,
 ): string {
-  const t = PHASE2_TEMPLATE
-  const allSessions = sessionList ?? t.sessions
+  const t = schedule
+  const allSessions = sessionList
 
   // "Day N" in the order the class is taught (by date), matching the app.
   const dayNum = new Map<string, number>()

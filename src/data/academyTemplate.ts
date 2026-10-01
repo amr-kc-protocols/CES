@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { activeMarket, type Market } from '../lib/market'
+import type { NeopDocuments, NeopFacility, NeopKitItem } from '../types'
 
 export interface TemplateBlock {
   time: string
@@ -89,10 +90,7 @@ const KC_CLASSROOM_TEMPLATE: TemplateDay[] = [
 
 // ----- Day-1 Welcome Kit ----------------------------------------------------
 
-export interface KitItem {
-  item: string
-  source: string
-}
+export type KitItem = NeopKitItem
 
 export const WELCOME_KIT_ITEMS: KitItem[] = [
   { item: 'Printed schedule (1-page color, landscape)', source: 'Academy schedule — print from CES' },
@@ -117,11 +115,7 @@ export const ROOM_SETUP_ITEMS = [
 
 // ----- KC Facility Cheat Sheet ----------------------------------------------
 
-export interface Facility {
-  name: string
-  address: string
-  notes: string
-}
+export type Facility = NeopFacility
 
 const KC_FACILITY_LIST: Facility[] = [
   { name: 'KU Medical Center', address: '4000 Cambridge St, Kansas City, KS 66160', notes: 'Stroke center · Trauma · Thrombectomy capability' },
@@ -252,12 +246,30 @@ const WICHITA_CLASSROOM_TEMPLATE: TemplateDay[] = [
 const TEMPLATE_BY_MARKET: Record<Market, TemplateDay[]> = {
   kc: KC_CLASSROOM_TEMPLATE,
   wichita: WICHITA_CLASSROOM_TEMPLATE,
+  independence: [],
+  topeka: [],
 }
-const FACILITIES_BY_MARKET: Record<Market, Facility[]> = { kc: KC_FACILITY_LIST, wichita: [] }
-const KEY_POINTS_BY_MARKET: Record<Market, string[]> = { kc: KC_FACILITY_KEY_POINTS, wichita: [] }
+
+/**
+ * The documents each operation shipped with: Kansas City's receiving hospitals
+ * and transfer rules, and the shared welcome-kit list. The starting point for
+ * an operation's NEOP documents (settings.neop.documents), which it edits in
+ * the setup steps — Wichita, Independence and Topeka enter their own
+ * hospitals there instead of inheriting Kansas City's.
+ */
+export const BUNDLED_DOCUMENTS: Partial<Record<Market, NeopDocuments>> = {
+  kc: {
+    facilities: KC_FACILITY_LIST,
+    keyPoints: KC_FACILITY_KEY_POINTS,
+    welcomeKit: WELCOME_KIT_ITEMS,
+    roadmap: true,
+  },
+  wichita: {
+    facilities: [],
+    keyPoints: [],
+    welcomeKit: WELCOME_KIT_ITEMS,
+    roadmap: true,
+  },
+}
 
 export const CLASSROOM_TEMPLATE: TemplateDay[] = TEMPLATE_BY_MARKET[activeMarket()]
-/** Receiving facilities for the active market. Named without a market prefix
- *  because it is no longer always Kansas City's. */
-export const FACILITIES: Facility[] = FACILITIES_BY_MARKET[activeMarket()]
-export const FACILITY_KEY_POINTS: string[] = KEY_POINTS_BY_MARKET[activeMarket()]

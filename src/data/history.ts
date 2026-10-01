@@ -4944,18 +4944,26 @@ const KC_HISTORICAL_HIRES: { name: string; firstSeen: string }[] = [
 const SURVEYS_BY_MARKET: Record<Market, typeof KC_HISTORICAL_SURVEYS> = {
   kc: KC_HISTORICAL_SURVEYS,
   wichita: [],
+  independence: [],
+  topeka: [],
 }
 const SKILLS_BY_MARKET: Record<Market, typeof KC_HISTORICAL_SKILLS> = {
   kc: KC_HISTORICAL_SKILLS,
   wichita: [],
+  independence: [],
+  topeka: [],
 }
 const EVALS_BY_MARKET: Record<Market, typeof KC_HISTORICAL_EVALS> = {
   kc: KC_HISTORICAL_EVALS,
   wichita: [],
+  independence: [],
+  topeka: [],
 }
 const HIRES_BY_MARKET: Record<Market, typeof KC_HISTORICAL_HIRES> = {
   kc: KC_HISTORICAL_HIRES,
   wichita: [],
+  independence: [],
+  topeka: [],
 }
 
 export const HISTORICAL_SURVEYS = SURVEYS_BY_MARKET[activeMarket()]

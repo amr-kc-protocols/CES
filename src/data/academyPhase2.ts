@@ -1,12 +1,12 @@
-import type { AcademyTemplate, TemplateBlock, TemplateSession } from '../types'
-import { activeMarket, type Market } from '../lib/market'
+import type { NeopSchedule, SkillSheetId, TemplateBlock, TemplateSession } from '../types'
+import type { Market } from '../lib/market'
 
 // ---------------------------------------------------------------------------
 // New Hire Academy template.
 //
 // The sessions below are KANSAS CITY's, spanning both weeks. Wichita runs
-// Week 1 only and a modified stretcher day — see the per-market selection at
-// the foot of this file, which is what `ACADEMY_TEMPLATE` actually exports.
+// Week 1 only and a modified stretcher day — see BUNDLED_SCHEDULES at the foot
+// of this file.
 //
 //   Week 1 (Systems & Safety): HR/onboarding, EVOC classroom, EVOC road course
 //     (offsite Independence, 0700), PCR/ImageTrend software mechanics, stretcher
@@ -360,50 +360,58 @@ const WICHITA_SESSIONS: TemplateSession[] = SESSIONS.filter((s) => s.week === 1)
   return s
 })
 
-const SESSIONS_BY_MARKET: Record<Market, TemplateSession[]> = {
-  kc: SESSIONS,
-  wichita: WICHITA_SESSIONS,
-}
-
-const ACADEMY_NAME_BY_MARKET: Record<Market, string> = {
-  kc: 'AMR Kansas City New Hire Academy',
-  wichita: 'AMR Wichita New Hire Academy',
-}
-
-const PHASE_NAME_BY_MARKET: Record<Market, string> = {
-  kc: 'Systems & Safety (Week 1) + Clinical Depth (Week 2)',
-  wichita: 'Systems & Safety (Week 1)',
-}
-
-export const ACADEMY_TEMPLATE: AcademyTemplate = {
-  id: 'academy',
-  name: ACADEMY_NAME_BY_MARKET[activeMarket()],
-  notCE: true,
-  // A real 0900–1600 day (1h lunch, 1530 content stop, 30m housekeeping) holds
-  // ~5h of teaching; in-person sessions are fitted to that.
-  minEducationHoursPerDay: 5,
-  phase: { id: 'academy', name: PHASE_NAME_BY_MARKET[activeMarket()] },
-  sessions: SESSIONS_BY_MARKET[activeMarket()],
-}
-
-/** Weeks this market's academy actually runs. */
-export const ACADEMY_WEEKS: (1 | 2)[] = [
-  ...new Set(ACADEMY_TEMPLATE.sessions.map((s) => s.week)),
-].sort() as (1 | 2)[]
-
-/**
- * Human labels for the academy weeks.
+/* ---------------------------------------------------------------------------
+ * What shipped with the app, per operation.
  *
- * Wichita's Week 1 is its whole academy, so calling it "Week 1" on screen
- * would imply a Week 2 that does not exist.
- */
-export const WEEK_LABELS: Record<1 | 2, string> =
-  ACADEMY_WEEKS.length > 1
-    ? { 1: 'Week 1 — Systems, Safety & Onboarding', 2: 'Week 2 — Clinical Depth' }
-    : { 1: 'Systems, Safety & Onboarding', 2: 'Clinical Depth' }
+ * These are now the STARTING POINT for Kansas City's and Wichita's NEOPs, not
+ * the only schedule either can run: an operation's academy schedule lives in
+ * its own NEOP (settings.neop.schedule) and each cohort copies it when it is
+ * created. Independence and Topeka build theirs in the setup steps.
+ *
+ * Each session also names the digital check-offs done in it — the EVOC track
+ * sheet on road-course day, the stretcher sheet (and, in Kansas City, the BLS
+ * equipment sheet) on stretcher day. That used to be a separate per-market map
+ * keyed by session id in checkoffSheets.ts, which a cohort could not see.
+ * ------------------------------------------------------------------------ */
 
-/** @deprecated Use ACADEMY_TEMPLATE — the template now spans both weeks. */
-export const PHASE2_TEMPLATE = ACADEMY_TEMPLATE
+const withCheckoffs = (
+  sessions: TemplateSession[],
+  checkoffs: Record<string, SkillSheetId[]>,
+): TemplateSession[] =>
+  sessions.map((s) => (checkoffs[s.id] ? { ...s, checkoffs: checkoffs[s.id] } : s))
+
+// A real 0900–1600 day (1h lunch, 1530 content stop, 30m housekeeping) holds
+// ~5h of teaching; in-person sessions are fitted to that.
+const MIN_EDUCATION_HOURS = 5
+
+export const BUNDLED_SCHEDULES: Partial<Record<Market, NeopSchedule>> = {
+  kc: {
+    name: 'AMR Kansas City New Hire Academy',
+    minEducationHoursPerDay: MIN_EDUCATION_HOURS,
+    weeks: [
+      { n: 1, label: 'Week 1 — Systems, Safety & Onboarding' },
+      { n: 2, label: 'Week 2 — Clinical Depth' },
+    ],
+    sessions: withCheckoffs(SESSIONS, {
+      p1s3: ['evoc-track'], // EVOC Road Course day
+      // Stretcher day doubles as the BLS equipment check-off — every hire,
+      // every station. The ALS sheet is separate, done during FTO time.
+      p1s5: ['stretcher', 'bls'],
+    }),
+  },
+  // Wichita's academy is its Week 1, so it is not called "Week 1" on screen —
+  // that would imply a Week 2 that does not exist. Its stretcher day carries
+  // the stretcher check-off only.
+  wichita: {
+    name: 'AMR Wichita New Hire Academy',
+    minEducationHoursPerDay: MIN_EDUCATION_HOURS,
+    weeks: [{ n: 1, label: 'Systems, Safety & Onboarding' }],
+    sessions: withCheckoffs(WICHITA_SESSIONS, {
+      p1s3: ['evoc-track'],
+      p1s5: ['stretcher'],
+    }),
+  },
+}
 
 // ----- derived helpers ------------------------------------------------------
 

@@ -19,6 +19,7 @@ import ConferencePanel from './ConferencePanel'
 import { useConferences } from './aemtStore'
 import { useCan } from '../../lib/role'
 import { CAMPUS_LABEL, MAX_ABSENT_HOURS } from '../../data/aemt'
+import { AEMT_CAMPUSES } from '../../data/aemtSites'
 import { todayISO } from '../../lib/date'
 import { daysLabel, patternLabel, workConflicts } from './workPattern'
 import { useSessions } from './aemtStore'
@@ -149,7 +150,7 @@ function StudentForm({
           value={campus}
           onChange={(e) => setCampus(e.target.value as Market)}
         >
-          {MARKETS.map((mk) => (
+          {MARKETS.filter((mk) => AEMT_CAMPUSES.includes(mk.id)).map((mk) => (
             <option key={mk.id} value={mk.id}>
               {mk.short}
             </option>

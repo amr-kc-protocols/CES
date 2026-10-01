@@ -22,7 +22,15 @@ export const SURVEY_SCRIPT_URL =
  * That is the market fence failing outward, to a third party, where no
  * database policy can catch it.
  */
-const SURVEY_BY_MARKET: Record<Market, boolean> = { kc: true, wichita: false }
+// Not an option in the NEOP setup steps for the same reason: turning it on
+// for another operation would send that operation's responses to this sheet.
+// A second operation needs its own sheet and endpoint first.
+const SURVEY_BY_MARKET: Record<Market, boolean> = {
+  kc: true,
+  wichita: false,
+  independence: false,
+  topeka: false,
+}
 
 export const HAS_EXIT_SURVEY = SURVEY_BY_MARKET[activeMarket()]
 
