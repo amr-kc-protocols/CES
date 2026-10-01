@@ -288,7 +288,15 @@ export function basicsProgram(market: Market): NeopProgram {
     },
     sheets: clone(CORPORATE_SHEETS),
     ftos: { names: [], evaluators: [], crews: [], anchor: FTO_ROTATION_ANCHOR },
-    documents: { facilities: [], keyPoints: [], welcomeKit: clone(WELCOME_KIT_ITEMS), roadmap: false },
+    // The shared kit lists the onboarding roadmap as a folder item. The basics
+    // do not offer that document (it was written for Kansas City and Linn), so
+    // the kit must not tell anyone to print it.
+    documents: {
+      facilities: [],
+      keyPoints: [],
+      welcomeKit: clone(WELCOME_KIT_ITEMS).filter((k) => !/roadmap/i.test(k.item)),
+      roadmap: false,
+    },
     updatedAt: '',
   }
 }

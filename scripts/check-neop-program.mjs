@@ -179,6 +179,7 @@ ok('basics: release at 20, target 25', basics.release.minContacts === 20 && basi
 ok('basics: named for the operation', basics.name === 'AMR Topeka New Hire Academy' && basics.header === 'AMR TOPEKA — NEW HIRE ACADEMY')
 ok('basics: one station, the operation itself', eq(basics.locations, [{ id: 'topeka', name: 'Topeka' }]))
 ok('basics: no FTOs, no hospitals', basics.ftos.names.length === 0 && basics.ftos.crews.length === 0 && basics.documents.facilities.length === 0)
+ok('basics: the welcome kit does not list a roadmap the basics do not offer', !basics.documents.roadmap && basics.documents.welcomeKit.every((k) => !/roadmap/i.test(k.item)))
 ok('basics: no problems to fix before saving', m.programProblems(basics).length === 0, m.programProblems(basics).join(' '))
 
 const blank = m.blankProgram('independence')
