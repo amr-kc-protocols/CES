@@ -10,49 +10,15 @@
 // ---------------------------------------------------------------------------
 
 import { fromISODate } from '../lib/date'
-import { activeMarket, type Market } from '../lib/market'
+import type { Market } from '../lib/market'
+import type { FtoCrew, NeopFtos } from '../types'
 
 /** Week 1 Sunday the rotation is anchored to. */
 export const FTO_ROTATION_ANCHOR = '2026-07-19'
 
-export interface CrewMember {
-  name: string
-  /** Marked '- FTO' on the workbook's List tab. */
-  fto: boolean
-}
+export type { CrewMember, FtoCrew } from '../types'
 
-export interface FtoCrew {
-  /** Unit call sign, e.g. 'KC105'. */
-  unit: string
-  /** Level of service for the line (ALS / BLS / Dedicated). */
-  level: string
-  /** Wall-clock start, HHMM. */
-  start: string
-  /** Wall-clock end, HHMM. Ends at or before start = runs into the next day. */
-  end: string
-  /** Shift length in hours (from the schedule cells). */
-  hours: number
-  crew: CrewMember[]
-  /**
-   * Worked days, 0=Sun … 6=Sat, for each week of the two-week rotation. Omit
-   * when the line runs a fixed on/off cycle instead (see `cycle`).
-   */
-  week1?: number[]
-  week2?: number[]
-  /**
-   * First day of this crew's Week 1, when it differs from the master
-   * schedule's FTO_ROTATION_ANCHOR (a crew whose two-week cycle is offset
-   * from everyone else's).
-   */
-  anchor?: string
-  /**
-   * A fixed "N days on, then off" cycle (e.g. 48h-on / 96h-off = 2 on, 6-day
-   * cycle) instead of the weekday rotation. Anchored to a start date.
-   */
-  cycle?: { anchor: string; onDays: number; cycleDays: number }
-}
-
-const KC_FTO_CREWS: FtoCrew[] = [
+export const KC_FTO_CREWS: FtoCrew[] = [
   {
     unit: 'KC102',
     level: 'ALS',
@@ -175,7 +141,7 @@ export function rotationWeek(iso: string, anchor: string = FTO_ROTATION_ANCHOR):
 }
 
 /** Whether one crew line is on shift on a date (honors per-crew anchors). */
-export function crewOnDate(c: FtoCrew, iso: string): boolean {
+export function crewOnDate(c: FtoCrew, iso: string, anchor: string = FTO_ROTATION_ANCHOR): boolean {
   if (c.cycle) {
     const days = Math.round(
       (fromISODate(iso).getTime() - fromISODate(c.cycle.anchor).getTime()) / MS_PER_DAY,
@@ -184,13 +150,13 @@ export function crewOnDate(c: FtoCrew, iso: string): boolean {
     return phase < c.cycle.onDays
   }
   const dow = fromISODate(iso).getDay()
-  const week = rotationWeek(iso, c.anchor)
+  const week = rotationWeek(iso, c.anchor ?? anchor)
   return (week === 1 ? c.week1 ?? [] : c.week2 ?? []).includes(dow)
 }
 
 /** Crew lines (with an FTO aboard) on shift on a given date. */
-export function crewsOnDate(iso: string): FtoCrew[] {
-  return FTO_CREWS.filter((c) => crewOnDate(c, iso))
+export function crewsOnDate(ftos: NeopFtos, iso: string): FtoCrew[] {
+  return ftos.crews.filter((c) => crewOnDate(c, iso, ftos.anchor))
 }
 
 /** '0700' -> '0700–1900', with a '(+Nd)' tail for shifts spanning midnight. */
@@ -202,48 +168,40 @@ export function shiftWindow(c: FtoCrew): string {
 }
 
 /** Every name selectable as an evaluator/facilitator, scheduled lines first. */
-export function allFtos(): string[] {
-  const fromCrews = FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name))
-  return [...new Set([...fromCrews, ...FTOS_WITHOUT_LINE, ...ADDITIONAL_EVALUATORS])]
+export function allFtos(ftos: NeopFtos): string[] {
+  const fromCrews = ftos.crews.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name))
+  return [...new Set([...fromCrews, ...ftos.names, ...ftos.evaluators])].filter(Boolean)
 }
 
+/** FTOs with no recurring line, whose rides have to be booked with them directly. */
+export function ftosWithoutLine(ftos: NeopFtos): string[] {
+  const onLines = new Set(ftos.crews.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)))
+  return ftos.names.filter((n) => n && !onLines.has(n))
+}
 
 /* ---------------------------------------------------------------------------
- * Per-market selection.
+ * What shipped with the app, per operation.
  *
  * Everything above is the Kansas City Metro operation, transcribed from its
- * workbook: KC's units, KC's crews, KC's rotation. None of it is true in
- * Wichita, which runs its own people on its own lines.
+ * workbook. It is now the STARTING POINT for Kansas City's NEOP rather than
+ * the only possible answer: an operation's FTOs and shifts live in its own
+ * NEOP (settings.neop.ftos), which it edits in the app. These lists are what
+ * Kansas City and Wichita see until they save one.
  *
- * This file is compiled into the bundle rather than stored in `records`, so
- * the market fence in the database never reaches it — which is exactly how a
- * Wichita admin ended up looking at KC104 and a Kansas City FTO roster on
- * their own dashboard. The split has to happen here instead.
+ * That also closes the hole the old comment here described. This file was
+ * compiled into the bundle, so the market fence never reached it, and a
+ * Wichita admin ended up looking at KC104. An operation's own roster is stored
+ * in `records` now, behind the fence, where Wichita cannot read Kansas City's.
  *
- * Read once at module load. That is safe because switching markets reloads
- * the page (see setActiveMarket), so these can never be stale.
- *
- * Wichita is empty on purpose. Its schedule is real operational data about
- * real people and has to be transcribed from Wichita's own workbook — a
- * placeholder would be worse than a blank screen, because a blank screen is
- * obviously unfinished and a wrong roster is not.
- * ------------------------------------------------------------------------ */
-
-/**
- * Wichita's FTOs.
- *
- * Listed here rather than in a crew line because their recurring shifts have
- * not been transcribed yet. That keeps them in every evaluator dropdown and
- * in the "schedule rides with them directly" note, which is true, without
- * inventing a rotation for the ride planner to draw — a wrong line would be
- * read as fact, whereas an absent one is visibly missing.
- *
- * Certification level, for whoever builds the Wichita schedule:
+ * Wichita's FTOs are listed without lines on purpose: their recurring shifts
+ * were never transcribed, and a wrong line would be read as fact. Certification
+ * level, for whoever enters Wichita's shifts:
  *   Alex Thomas — paramedic      Alex White — EMT
  *   Sarah Lamm — paramedic       Nathan Huyett — AEMT
  *   Jordan Riddall — AEMT
- */
-const WICHITA_FTOS_WITHOUT_LINE: string[] = [
+ * ------------------------------------------------------------------------ */
+
+const WICHITA_FTO_NAMES: string[] = [
   'Alex Thomas',
   'Alex White',
   'Sarah Lamm',
@@ -251,13 +209,22 @@ const WICHITA_FTOS_WITHOUT_LINE: string[] = [
   'Jordan Riddall',
 ]
 
-const CREWS_BY_MARKET: Record<Market, FtoCrew[]> = { kc: KC_FTO_CREWS, wichita: [] }
-const NO_LINE_BY_MARKET: Record<Market, string[]> = {
-  kc: KC_FTOS_WITHOUT_LINE,
-  wichita: WICHITA_FTOS_WITHOUT_LINE,
+export const BUNDLED_FTOS: Partial<Record<Market, NeopFtos>> = {
+  kc: {
+    names: [
+      ...new Set([
+        ...KC_FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)),
+        ...KC_FTOS_WITHOUT_LINE,
+      ]),
+    ],
+    evaluators: KC_ADDITIONAL_EVALUATORS,
+    crews: KC_FTO_CREWS,
+    anchor: FTO_ROTATION_ANCHOR,
+  },
+  wichita: {
+    names: WICHITA_FTO_NAMES,
+    evaluators: [],
+    crews: [],
+    anchor: FTO_ROTATION_ANCHOR,
+  },
 }
-const EVALUATORS_BY_MARKET: Record<Market, string[]> = { kc: KC_ADDITIONAL_EVALUATORS, wichita: [] }
-
-export const FTO_CREWS: FtoCrew[] = CREWS_BY_MARKET[activeMarket()]
-export const FTOS_WITHOUT_LINE: string[] = NO_LINE_BY_MARKET[activeMarket()]
-export const ADDITIONAL_EVALUATORS: string[] = EVALUATORS_BY_MARKET[activeMarket()]

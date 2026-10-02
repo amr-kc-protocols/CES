@@ -216,8 +216,8 @@ const KC_EXPOSURE_GROUPS: ExposureGroup[] = [
  * the page (see setActiveMarket).
  * ------------------------------------------------------------------------ */
 
-const SECTIONS_BY_MARKET: Record<Market, FTSection[]> = { kc: KC_FT_SECTIONS, wichita: [] }
-const EXPOSURE_BY_MARKET: Record<Market, ExposureGroup[]> = { kc: KC_EXPOSURE_GROUPS, wichita: [] }
+const SECTIONS_BY_MARKET: Record<Market, FTSection[]> = { kc: KC_FT_SECTIONS, wichita: [], independence: [], topeka: [] }
+const EXPOSURE_BY_MARKET: Record<Market, ExposureGroup[]> = { kc: KC_EXPOSURE_GROUPS, wichita: [], independence: [], topeka: [] }
 
 export const FT_SECTIONS: FTSection[] = SECTIONS_BY_MARKET[activeMarket()]
 export const EXPOSURE_GROUPS: ExposureGroup[] = EXPOSURE_BY_MARKET[activeMarket()]

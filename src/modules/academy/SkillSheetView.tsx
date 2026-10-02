@@ -3,7 +3,8 @@ import { Empty, ProgressBar } from '../../components/ui'
 import SignaturePad from '../../components/SignaturePad'
 import { formatDate, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
-import { sheetsForTrainee } from '../../data/checkoffSheets'
+import { useProgramOrBasics } from './programStore'
+import { sheetsFor } from './program'
 import { useSelector } from '../../lib/store'
 import { useCan } from '../../lib/role'
 import { printDoc, downloadDoc, checkoffSheetHTML, safeFilename } from './docGen'
@@ -26,6 +27,8 @@ import {
 // Linn County paramedics get their own — the sheets stay separate by design.
 
 export default function SkillSheetView() {
+  const program = useProgramOrBasics()
+  const ftos = program.ftos
   const { cohortId = '', traineeId = '', sheet: sheetParam } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useSelector((db) => db.trainees.find((t) => t.id === traineeId))
@@ -44,11 +47,11 @@ export default function SkillSheetView() {
     )
   }
 
-  // Refuse a sheet this market or credential does not run, rather than
-  // trusting the URL. Wichita runs no BLS, ALS or ventilator sheet, and an
+  // Refuse a sheet this operation does not run for this hire, rather than
+  // trusting the URL. Which sheets run is the operation's NEOP choice, and an
   // unrecognised param falls back to 'bls' — so without this a stale link or
-  // a typo renders a Kansas City form to a Wichita instructor.
-  if (!sheetsForTrainee(trainee).includes(sheet)) {
+  // a typo renders a form nobody at this operation agreed to fill in.
+  if (!sheetsFor(program, trainee).includes(sheet)) {
     return (
       <Empty icon="📋" title="Not part of this programme">
         {liveNeopSheet(sheet)?.label} is not one of the check-off sheets {trainee.name}
@@ -130,7 +133,7 @@ export default function SkillSheetView() {
             style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
           >
             <option value="">—</option>
-            {allFtos().map((n) => (
+            {allFtos(ftos).map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
           </select>

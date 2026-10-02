@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Empty, ProgressBar, Stat } from '../../components/ui'
 import Icon from '../../components/Icon'
 import { activeMarket, marketName } from '../../lib/market'
-import { FTO_CREWS } from '../../data/ftoSchedule'
+import { useHasOwnProgram, useProgram } from './programStore'
 import { formatDate, todayISO } from '../../lib/date'
 import {
   useCohorts,
@@ -66,8 +66,15 @@ export default function AcademyList() {
   const navigate = useNavigate()
   const can = useCan()
 
+  const program = useProgram()
+  const ownProgram = useHasOwnProgram()
+  // The selection exam is written for Kansas City's interfacility operation —
+  // its reading tells applicants the job is NOT 911 work — so it is offered
+  // there only. Another operation would need its own reading and questions.
+  const hasExam = activeMarket() === 'kc'
+
   const sorted = useMemo(() => [...cohorts].sort(byStartDesc), [cohorts])
-  const readyForRelease = trainees.filter(releaseEligible).length
+  const readyForRelease = trainees.filter((t) => releaseEligible(t)).length
   const active = trainees.filter((t) => !t.releasedDate).length
   const released = trainees.filter((t) => !!t.releasedDate).length
 
@@ -87,7 +94,7 @@ export default function AcademyList() {
           <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
             <Icon name="ambulance" /> FTO shifts
           </Link>
-          {can.manageAcademy && (
+          {can.manageAcademy && hasExam && (
             <Link
               to="/academy/exam-results"
               className="btn"
@@ -96,7 +103,12 @@ export default function AcademyList() {
               <Icon name="clipboard" /> Selection exam
             </Link>
           )}
-          {can.manageAcademy && (
+          {can.manageAcademy && program && (
+            <Link to="/academy/setup" className="btn" title="Change your checklist, schedule, FTOs, shifts and documents">
+              ⚙ NEOP setup
+            </Link>
+          )}
+          {can.manageAcademy && program && (
             <button className="btn primary" onClick={() => setShowForm(true)}>
               + Cohort
             </button>
@@ -124,33 +136,57 @@ export default function AcademyList() {
         </div>
       )}
 
-      {/* A market with no cohorts AND no FTO schedule has never been set up,
-          as opposed to one between classes. Without this, Wichita's first look
-          at NEOP is a row of zeroes that reads as "this app has nothing in it"
-          rather than "this app is ready and waiting for your data". The point
-          is to say what already works, so nobody rebuilds what they have. */}
-      {sorted.length === 0 && FTO_CREWS.length === 0 && (
-        <div className="banner info" style={{ marginTop: 14 }}>
-          <strong>{marketName(activeMarket())} is set up and empty.</strong> Nothing was copied
-          from another operation — cohorts, trainees, evaluations and records all start here.
-          <br />
-          <br />
-          <strong>Ready to use now:</strong> the clinical skill sheets, the Safe Stretcher
-          Handling and EVOC track check-offs, daily performance evaluations, the exit survey,
-          and the AEMT program with its curriculum and selection test. These appear as soon as
-          you create a cohort and add its roster.
-          <br />
-          <br />
-          <strong>Yours to add:</strong> your FTO roster and shift schedule, your classroom
-          week beyond the corporate EVOC and stretcher days, and your receiving-facility list.
-          Send those over whenever you have them.
+      {/* An operation with no NEOP yet. This is the first thing a new
+          operation's educator sees, so it says what happens next in the words
+          they would use, and how long it takes — not a row of zeroes that reads
+          as "this app has nothing in it". */}
+      {!program && (
+        <div className="card setup-invite" style={{ marginTop: 14 }}>
+          <h2 style={{ margin: 0 }}>Build {marketName(activeMarket())}'s NEOP</h2>
+          <p style={{ margin: '8px 0 12px' }}>
+            Tell the app how your academy runs, and every cohort after that builds itself: each
+            hire's checklist, the schedule, the FTO roster, and the paperwork with their name on it.
+            About ten minutes. Start from the AMR basics or copy another operation, and skip anything
+            you are not ready for — you can come back to any step.
+          </p>
+          <ol className="setup-invite-steps">
+            {['Name & stations', 'Checklist', 'Schedule', 'FTO phase', 'FTOs & shifts', 'Documents'].map((label, i) => (
+              <li key={label}>
+                <span className="setup-step-n" aria-hidden>
+                  {i + 1}
+                </span>
+                {label}
+              </li>
+            ))}
+          </ol>
+          {can.manageAcademy ? (
+            <Link to="/academy/setup" className="btn primary" style={{ marginTop: 12 }}>
+              Start setup
+            </Link>
+          ) : (
+            <p className="subtle" style={{ margin: '12px 0 0' }}>
+              Your clinical education specialist sets this up. Nothing to do here until they have.
+            </p>
+          )}
+        </div>
+      )}
+
+      {program && can.manageAcademy && (
+        <div className="subtle" style={{ marginTop: 10, fontSize: 13 }}>
+          Running <strong>{program.name}</strong>
+          {ownProgram ? '' : ' as it shipped with the app'} ·{' '}
+          <Link to="/academy/setup" className="link-btn">
+            change it in NEOP setup
+          </Link>
         </div>
       )}
 
       <div className="section-title">Cohorts</div>
       {sorted.length === 0 ? (
         <Empty icon="🎓" title="No academy cohorts yet">
-          Create a cohort (academies run ~1.5 weeks, every other month) and add its roster.
+          {program
+            ? 'Create a cohort with + Cohort and add its roster. It runs your NEOP as it stands today.'
+            : 'Cohorts start once the NEOP is set up.'}
         </Empty>
       ) : (
         <div className="list">

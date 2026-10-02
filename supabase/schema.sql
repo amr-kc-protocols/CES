@@ -20,7 +20,7 @@ create table if not exists public.profiles (
   email text not null,
   -- Which operation this account works in. 'all' spans both and gets the
   -- market switcher in the app.
-  market text not null default 'kc' check (market in ('kc', 'wichita', 'all')),
+  market text not null default 'kc' check (market in ('kc', 'wichita', 'independence', 'topeka', 'all')),
   role text not null default 'newhire' check (role in ('admin', 'fto', 'newhire')),
   created_at timestamptz not null default now()
 );
@@ -105,7 +105,7 @@ create table if not exists public.records (
   -- Which operation owns this row. The partition line for the whole app: a
   -- market owns its cohorts, trainees, evaluations, surveys, AEMT program and
   -- QA, and nothing in this table is shared between them.
-  market text not null default 'kc' check (market in ('kc', 'wichita')),
+  market text not null default 'kc' check (market in ('kc', 'wichita', 'independence', 'topeka')),
   -- Market is part of the key, so the two operations can hold rows with the
   -- same collection and id without colliding.
   primary key (market, collection, id)
@@ -247,7 +247,7 @@ create table if not exists public.intake_submissions (
   -- Admin-set selection status: New / Shortlisted / Contacted / Accepted / Declined.
   status text not null default 'New',
   -- Which operation the candidate applied to.
-  market text not null default 'kc' check (market in ('kc', 'wichita'))
+  market text not null default 'kc' check (market in ('kc', 'wichita', 'independence', 'topeka'))
 );
 
 -- For projects created before the status column existed.
@@ -372,7 +372,7 @@ create table if not exists public.exam_attempts (
   -- exam_attempts sits OUTSIDE `records`, so the fence on that table does not
   -- reach it. Without this column a Wichita admin reads every Kansas City
   -- candidate's name, email, responses and score.
-  market text not null default 'kc' check (market in ('kc', 'wichita')),
+  market text not null default 'kc' check (market in ('kc', 'wichita', 'independence', 'topeka')),
   -- Which exam was sat. Every rule below that says "per email" means per email
   -- per program.
   program text not null default 'aemt' check (program in ('aemt', 'neop'))

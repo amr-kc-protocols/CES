@@ -24,7 +24,8 @@ import {
   useRidesFor,
 } from './academyStore'
 import { printDoc, downloadDoc, objectivesPageHTML, safeFilename } from './docGen'
-import type { Trainee } from '../../types'
+import type {
+  OperationId, Trainee } from '../../types'
 
 // The FTO-facing fillable version of the Field Training Objectives Page:
 // same sections, objectives, targets, and exposure log as the printed sheet,
@@ -111,7 +112,7 @@ export default function FieldChecklistView() {
         <div>
           <h1>{trainee.name}</h1>
           <div className="subtle">
-            Field Training Objectives · {operationShort(trainee.operation)} ·{' '}
+            Field Training Objectives · {operationShort(trainee.operation as OperationId)} ·{' '}
             {CREDENTIAL_LABELS[trainee.credential]}
           </div>
         </div>

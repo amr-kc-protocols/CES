@@ -388,6 +388,8 @@ export type Campus = Market
 export const CAMPUS_LABEL: Record<Campus, string> = {
   kc: 'Kansas City',
   wichita: 'Wichita',
+  independence: 'Independence',
+  topeka: 'Topeka',
 }
 
 export interface CourseStaff {

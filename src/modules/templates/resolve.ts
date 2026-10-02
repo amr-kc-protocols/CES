@@ -13,7 +13,7 @@ import { BUNDLED_DAILY_EVAL, NEOP_DAILY_EVAL_ID } from '../../data/templateRegis
 import type { AemtSkillSheet } from '../../data/aemtSkills'
 import type { AemtFormDef } from '../../data/aemtForms'
 import type { SkillDef } from '../../data/skillSheets'
-import type { DailyEvalTemplate, OperationId, SkillSheetId, TemplateKind } from '../../types'
+import type { DailyEvalTemplate, SkillSheetId, TemplateKind } from '../../types'
 
 // ---------------------------------------------------------------------------
 // Typed access to whichever version of an instrument is in force.
@@ -155,7 +155,8 @@ export function neopSheetAtVersion(
 /** A sheet's skills for one operation, at whichever version applies. */
 export function neopSkillsFor(
   id: SkillSheetId,
-  operation: OperationId,
+  /** The hire's station. Skills marked for other stations are left out. */
+  operation: string,
   version?: number,
 ): SkillDef[] {
   const sheet = version === undefined ? liveNeopSheet(id) : neopSheetAtVersion(id, version).sheet

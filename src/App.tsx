@@ -21,6 +21,7 @@ const FieldChecklistView = lazy(() => import('./modules/academy/FieldChecklistVi
 const FtoAgendaView = lazy(() => import('./modules/academy/FtoAgendaView'))
 const ExitSurveyView = lazy(() => import('./modules/academy/ExitSurveyView'))
 const FtoScheduleView = lazy(() => import('./modules/academy/FtoScheduleView'))
+const NeopSetup = lazy(() => import('./modules/academy/setup/NeopSetup'))
 const DailyEvalView = lazy(() => import('./modules/academy/DailyEvalView'))
 const SkillSheetView = lazy(() => import('./modules/academy/SkillSheetView'))
 const ClassCheckoffView = lazy(() => import('./modules/academy/ClassCheckoffView'))
@@ -240,6 +241,7 @@ export default function App() {
         )}
         <Route path="academy" element={<AcademyList />} />
         <Route path="academy/ftos" element={<FtoScheduleView />} />
+        <Route path="academy/setup" element={<NeopSetup />} />
         <Route
           path="academy/exam-results"
           element={

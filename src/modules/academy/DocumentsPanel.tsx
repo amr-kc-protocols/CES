@@ -16,7 +16,8 @@ import { scheduleICS, downloadICS } from './calendar'
 import { COMPLIANCE_DOCS } from './complianceDocs'
 import { evalsCSV, skillChecksCSV, downloadCSV } from './csvExport'
 import { useSelector } from '../../lib/store'
-import type { AcademyCohort, AcademyDay, Trainee } from '../../types'
+import { useProgramOrBasics } from './programStore'
+import type { AcademyCohort, AcademyDay, NeopProgram, Trainee } from '../../types'
 
 // One name in, the whole packet out: each trainee's personalized documents
 // plus the cohort-level docs, all print-ready or Word-downloadable.
@@ -28,18 +29,19 @@ function traineeDocs(
   t: Trainee,
   cohort: AcademyCohort,
   days: AcademyDay[],
+  program: NeopProgram,
 ): { id: string; label: string; html: string }[] {
   return [
-    { id: 'label', label: 'Folder cover label', html: folderLabelHTML(t) },
+    { id: 'label', label: 'Folder cover label', html: folderLabelHTML(t, program) },
     ...(days.length
       ? [{ id: 'agenda', label: 'One-page agenda', html: agendaHTML(cohort, days, t) }]
       : []),
-    ...COMPLIANCE_DOCS.map((d) => ({ id: d.id, label: d.label, html: d.html(t) })),
+    ...COMPLIANCE_DOCS.map((d) => ({ id: d.id, label: d.label, html: d.html(t, program) })),
   ]
 }
 
-function packetHTML(t: Trainee, cohort: AcademyCohort, days: AcademyDay[]): string {
-  return traineeDocs(t, cohort, days)
+function packetHTML(t: Trainee, cohort: AcademyCohort, days: AcademyDay[], program: NeopProgram): string {
+  return traineeDocs(t, cohort, days, program)
     .map((d) => d.html)
     .join(PAGE_BREAK)
 }
@@ -52,6 +54,7 @@ export default function DocumentsPanel({
   trainees: Trainee[]
 }) {
   const days = useScheduleDays(cohort.id)
+  const program = useProgramOrBasics()
   const [expanded, setExpanded] = useState<string | null>(null)
   const evals = useSelector((db) => db.dailyEvals)
   const skillChecks = useSelector((db) => db.skillChecks)
@@ -61,7 +64,7 @@ export default function DocumentsPanel({
   function printAllPackets() {
     printDoc(
       `${cohort.label} — All New Hire Packets`,
-      trainees.map((t) => packetHTML(t, cohort, days)).join(PAGE_BREAK),
+      trainees.map((t) => packetHTML(t, cohort, days, program)).join(PAGE_BREAK),
     )
   }
 
@@ -70,26 +73,40 @@ export default function DocumentsPanel({
       label: '📋 Welcome Kit checklist',
       title: `${cohort.label} — Day 1 Welcome Kit`,
       file: `${cohort.label}_Welcome_Kit`,
-      html: () => welcomeKitHTML(cohort, trainees),
-      disabled: trainees.length === 0,
-      disabledReason: 'Add trainees to the roster first',
+      html: () => welcomeKitHTML(cohort, trainees, program),
+      disabled: trainees.length === 0 || program.documents.welcomeKit.length === 0,
+      disabledReason:
+        trainees.length === 0
+          ? 'Add trainees to the roster first'
+          : 'Your NEOP has no welcome-kit items — add them in NEOP setup',
     },
-    {
-      label: '🏥 Facility cheat sheet',
-      title: 'KC Facility Cheat Sheet',
-      file: 'KC_Facility_Cheat_Sheet',
-      html: () => facilitySheetHTML(),
-      disabled: false,
-      disabledReason: '',
-    },
-    {
-      label: '🧭 Onboarding roadmap',
-      title: 'New Hire Onboarding Roadmap — KC / Linn County',
-      file: 'New_Hire_Onboarding_Roadmap',
-      html: () => onboardingRoadmapHTML(),
-      disabled: false,
-      disabledReason: '',
-    },
+    // An operation that has not listed its hospitals gets no cheat sheet at
+    // all. A page headed "Receiving Facilities" with an empty table looks like
+    // a printing fault, and Kansas City's list is wrong anywhere else.
+    ...(program.documents.facilities.length
+      ? [
+          {
+            label: '🏥 Facility cheat sheet',
+            title: 'Facility Cheat Sheet',
+            file: 'Facility_Cheat_Sheet',
+            html: () => facilitySheetHTML(program),
+            disabled: false,
+            disabledReason: '',
+          },
+        ]
+      : []),
+    ...(program.documents.roadmap
+      ? [
+          {
+            label: '🧭 Onboarding roadmap',
+            title: 'New Hire Onboarding Roadmap — KC / Linn County',
+            file: 'New_Hire_Onboarding_Roadmap',
+            html: () => onboardingRoadmapHTML(),
+            disabled: false,
+            disabledReason: '',
+          },
+        ]
+      : []),
     {
       label: '📆 One-page agenda',
       title: `${cohort.label} — Agenda`,
@@ -124,7 +141,7 @@ export default function DocumentsPanel({
           <>
             <div className="list" style={{ gap: 6 }}>
               {trainees.map((t) => {
-                const docs = traineeDocs(t, cohort, days)
+                const docs = traineeDocs(t, cohort, days, program)
                 const isOpen = expanded === t.id
                 return (
                   <div key={t.id} className="row" style={{ padding: '8px 12px', flexDirection: 'column', alignItems: 'stretch' }}>
@@ -136,7 +153,7 @@ export default function DocumentsPanel({
                       <div className="btn-row" style={{ gap: 6 }}>
                         <button
                           className="btn sm primary"
-                          onClick={() => printDoc(`${t.name} — New Hire Packet`, packetHTML(t, cohort, days))}
+                          onClick={() => printDoc(`${t.name} — New Hire Packet`, packetHTML(t, cohort, days, program))}
                         >
                           🖨 Packet
                         </button>
@@ -146,7 +163,7 @@ export default function DocumentsPanel({
                             downloadDoc(
                               safeFilename(`${t.name}_New_Hire_Packet`),
                               `${t.name} — New Hire Packet`,
-                              packetHTML(t, cohort, days),
+                              packetHTML(t, cohort, days, program),
                             )
                           }
                         >

@@ -11,14 +11,38 @@ import { useSyncStatus } from '../lib/sync'
 // leaving it out costs someone an afternoon.
 //
 // The emblem repeats the masthead watermark at a size that survives being read
-// on a phone in daylight: Kansas City's fountain, Wichita's aircraft. The
-// watermark is atmosphere; this is the part that has to actually work.
+// on a phone in daylight: Kansas City's fountain, Wichita's aircraft,
+// Independence's trail wagon (the town the Santa Fe and Oregon trails set out
+// from) and Topeka's capitol dome. The watermark is atmosphere; this is the
+// part that has to actually work.
 //
 // The dropdown appears only for `all` accounts. Switching reloads the page,
 // which is deliberate — see setActiveMarket.
 // ---------------------------------------------------------------------------
 
 function Emblem({ market }: { market: Market }) {
+  if (market === 'topeka') {
+    return (
+      <svg viewBox="0 0 140 100" aria-hidden="true" focusable="false">
+        <path
+          d="M30 90h80v-8H30zM40 82h60V64H40zM52 64h36V50H52zM48 50c2-18 12-30 22-30s20 12 22 30zM67 20h6v-9h-6zM69.2 11h1.6V4h-1.6z"
+          fill="currentColor"
+        />
+      </svg>
+    )
+  }
+  if (market === 'independence') {
+    return (
+      <svg viewBox="0 0 140 100" aria-hidden="true" focusable="false">
+        <path d="M34 60c0-22 8-36 22-36h28c14 0 22 14 22 36zM30 60h80v10H30z" fill="currentColor" />
+        <g fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round">
+          <circle cx="48" cy="80" r="11" />
+          <circle cx="94" cy="80" r="11" />
+          <path d="M110 66l20 10" />
+        </g>
+      </svg>
+    )
+  }
   if (market === 'wichita') {
     // Air Capital of the World — Cessna, Beechcraft, Learjet and Spirit.
     return (
@@ -67,7 +91,7 @@ export default function MarketSwitcher() {
   }
 
   // The dropdown keeps its full labels at every width. It renders for `all`
-  // accounts only — one or two people who run both operations, and who are
+  // accounts only — the few people who work across operations, and who are
   // reading a roster on a laptop when they switch rather than a phone in a truck.
   return (
     <label className="market-chip switch" title="Switch operation. Reloads the app.">

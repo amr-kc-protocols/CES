@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router-dom'
 import { liveNeopSheet, neopSheetMeta, neopSkillsFor } from '../templates/resolve'
 import { Empty, ProgressBar } from '../../components/ui'
-import { clinicalSheetsFor } from '../../data/checkoffSheets'
+import { sheetsFor } from './program'
+import { useProgramOrBasics } from './programStore'
 import { useSelector } from '../../lib/store'
 import type { SkillSheetId } from '../../types'
 import { useCohort, useCohortTrainees } from './academyStore'
@@ -14,6 +15,7 @@ export default function ClassCheckoffView() {
   const { cohortId = '', sheet: sheetParam = '' } = useParams()
   const cohort = useCohort(cohortId)
   const trainees = useCohortTrainees(cohortId)
+  const program = useProgramOrBasics()
   const checks = useSelector((db) => db.skillChecks)
 
   // Valid if the registry knows the id — bundled or authored in-app.
@@ -26,10 +28,9 @@ export default function ClassCheckoffView() {
   }
   const sheet = sheetParam as SkillSheetId
   const meta = neopSheetMeta(sheet)
-  // Stretcher & EVOC run for everyone; the clinical sheets (BLS / ALS / RSI /
-  // Vent) list only the trainees that sheet actually applies to.
-  const clinical = sheet === 'bls' || sheet === 'linn-medic' || sheet === 'rsi' || sheet === 'vent'
-  const roster = clinical ? trainees.filter((t) => clinicalSheetsFor(t).includes(sheet)) : trainees
+  // Only the hires this sheet applies to under the operation's NEOP — the
+  // ventilator sheet lists paramedics, the stretcher sheet lists everyone.
+  const roster = trainees.filter((t) => sheetsFor(program, t).includes(sheet))
 
   return (
     <div>

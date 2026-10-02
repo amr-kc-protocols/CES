@@ -193,6 +193,18 @@ export const SITE_TEMPLATES: SiteTemplate[] = [
  * the two builds were merged was one, and a missing tag must not quietly make a
  * site unreachable.
  */
+/**
+ * The campuses this course places students at: the ones with a placement site.
+ *
+ * Every operation is a market, but only Kansas City and Wichita run the AEMT
+ * course. Offering Topeka as a campus would let a student be filed somewhere
+ * with no hospital and no truck to be placed on. Derived from the sites rather
+ * than listed, so adding a site is the whole of adding a campus.
+ */
+export const AEMT_CAMPUSES: Market[] = [
+  ...new Set(SITE_TEMPLATES.map((t) => t.campus ?? 'kc')),
+] as Market[]
+
 export function siteCampus(site: { campus?: Market }): Market {
   return site.campus ?? 'kc'
 }

@@ -4,6 +4,7 @@ import { Empty } from '../../components/ui'
 import SignaturePad from '../../components/SignaturePad'
 import { formatDate, formatSignedAt, todayISO } from '../../lib/date'
 import { allFtos } from '../../data/ftoSchedule'
+import { useProgramOrBasics } from './programStore'
 import { useCan } from '../../lib/role'
 import { useSyncStatus } from '../../lib/sync'
 import { ftoNameForEmail } from '../../lib/ftoIdentity'
@@ -71,6 +72,7 @@ function YesNoRow({ label, value, onChange }: { label: string; value?: boolean; 
 }
 
 export default function DailyEvalView() {
+  const ftos = useProgramOrBasics().ftos
   const { cohortId = '', traineeId = '' } = useParams()
   const cohort = useCohort(cohortId)
   const trainee = useSelector((db) => db.trainees.find((t) => t.id === traineeId))
@@ -167,7 +169,7 @@ export default function DailyEvalView() {
               style={{ display: 'block', width: '100%', marginTop: 2, padding: '6px 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: 'inherit' }}
             >
               <option value="">—</option>
-              {allFtos().map((n) => (
+              {allFtos(ftos).map((n) => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>

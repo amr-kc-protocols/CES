@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  FTO_CREWS,
-  FTOS_WITHOUT_LINE,
-  FTO_ROTATION_ANCHOR,
   crewsOnDate,
+  ftosWithoutLine,
   rotationWeek,
   shiftWindow,
   type FtoCrew,
 } from '../../data/ftoSchedule'
+import { useProgramOrBasics, useHasOwnProgram } from './programStore'
 import { addDays, formatDate, todayISO } from '../../lib/date'
 import { weekdayLabel } from './calendar'
 import { FT_SLOTS } from '../../data/ftObjectives'
@@ -16,7 +15,8 @@ import { useAllTrainees, useAllRides, toggleRide, removeRide } from './academySt
 import { useCan } from '../../lib/role'
 
 // Ride-along planning view: who is on shift with an FTO aboard, day by day,
-// extrapolated from the operations master schedule's two-week rotation.
+// projected from the operation's two-week rotation — the crews entered in its
+// NEOP setup (Kansas City's shipped transcribed from its master schedule).
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -48,14 +48,18 @@ export default function FtoScheduleView() {
   const [from, setFrom] = useState(todayISO())
   const [ftoFilter, setFtoFilter] = useState('')
   const [planFor, setPlanFor] = useState('')
+  const ftos = useProgramOrBasics().ftos
+  const ownProgram = useHasOwnProgram()
+  const { manageAcademy } = useCan()
+  const withoutLine = ftosWithoutLine(ftos)
   // New hires can see who's on a truck, but rides are assigned by FTOs/admin.
   const { editRideWork: canPlan } = useCan()
   const days = Array.from({ length: 14 }, (_, i) => addDays(from, i))
 
-  const ftoNames = [...new Set(FTO_CREWS.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)))]
+  const ftoNames = [...new Set(ftos.crews.flatMap((c) => c.crew.filter((m) => m.fto).map((m) => m.name)))]
   const matchesFilter = (c: FtoCrew) =>
     !ftoFilter || c.crew.some((m) => m.fto && m.name === ftoFilter)
-  const visibleCrews = FTO_CREWS.filter(matchesFilter)
+  const visibleCrews = ftos.crews.filter(matchesFilter)
 
   const trainees = useAllTrainees()
   const rides = useAllRides()
@@ -80,11 +84,28 @@ export default function FtoScheduleView() {
         </div>
       </div>
 
-      <div className="banner info">
-        Extrapolated from the operations master schedule's two-week rotation (Week 1 anchored to{' '}
-        {formatDate(FTO_ROTATION_ANCHOR)}). Always confirm against the live schedule — trades and
-        call-offs won't show here.
-      </div>
+      {ftos.crews.length === 0 ? (
+        <div className="banner warn">
+          No FTO shifts entered for this operation yet, so there is nothing to plan rides against.{' '}
+          {manageAcademy ? (
+            <>
+              Add your FTOs' recurring shifts in{' '}
+              <Link to="/academy/setup?step=ftos" className="link-btn">
+                NEOP setup → FTOs &amp; shifts
+              </Link>
+              .
+            </>
+          ) : (
+            'Ask your clinical education specialist to add them in NEOP setup.'
+          )}
+        </div>
+      ) : (
+        <div className="banner info">
+          Projected from {ownProgram ? 'the shifts entered in NEOP setup' : "the operations master schedule"}
+          's two-week rotation (Week 1 anchored to {formatDate(ftos.anchor)}). Always confirm against
+          the live schedule — trades and call-offs won't show here.
+        </div>
+      )}
 
       <div className="toolbar">
         <label className="subtle" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -152,7 +173,7 @@ export default function FtoScheduleView() {
 
       <div className="list">
         {days.map((d) => {
-          const crews = crewsOnDate(d).filter(matchesFilter)
+          const crews = crewsOnDate(ftos, d).filter(matchesFilter)
           const isToday = d === todayISO()
           return (
             <div key={d} className="card" style={{ padding: '10px 14px', ...(isToday ? { borderColor: 'var(--navy-600)' } : {}) }}>
@@ -162,7 +183,7 @@ export default function FtoScheduleView() {
                 </span>
                 {isToday && <span className="pill info">Today</span>}
                 <span className="pill muted" title="Rotation week">
-                  Wk {rotationWeek(d)}
+                  Wk {rotationWeek(d, ftos.anchor)}
                 </span>
                 <span className="spacer" />
                 <span className="subtle" style={{ fontSize: 12 }}>
@@ -257,10 +278,10 @@ export default function FtoScheduleView() {
         ))}
       </div>
 
-      {FTOS_WITHOUT_LINE.length > 0 && (
+      {withoutLine.length > 0 && (
         <div className="banner warn" style={{ marginTop: 12 }}>
-          FTO{FTOS_WITHOUT_LINE.length === 1 ? '' : 's'} without a recurring line on the master
-          schedule: {FTOS_WITHOUT_LINE.join(', ')} — schedule rides with them directly.
+          FTO{withoutLine.length === 1 ? '' : 's'} without a recurring shift entered:{' '}
+          {withoutLine.join(', ')} — schedule rides with them directly.
         </div>
       )}
     </div>

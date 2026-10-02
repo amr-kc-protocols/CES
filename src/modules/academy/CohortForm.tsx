@@ -5,6 +5,8 @@ import { addDays, formatDate, todayISO } from '../../lib/date'
 import { ACADEMY_LENGTH_DAYS } from '../../data/academy'
 import { addCohort, defaultCohortLabel, updateCohort, deleteCohort } from './academyStore'
 import type { AcademyCohort } from '../../types'
+import { planDiffers } from './program'
+import { refreshCohortPlan, useCohortPlan, useProgram } from './programStore'
 
 export default function CohortForm({
   editing,
@@ -22,6 +24,11 @@ export default function CohortForm({
   const [label, setLabel] = useState(editing?.label ?? '')
   const [notes, setNotes] = useState(editing?.notes ?? '')
   const [error, setError] = useState('')
+  const program = useProgram()
+  const plan = useCohortPlan(editing?.id)
+  // A cohort keeps the NEOP it started with. Say so where it can be changed,
+  // and only when there is something to change.
+  const behind = !!(editing && program && planDiffers(plan, program))
 
   const effectiveEnd = endDate || addDays(startDate, ACADEMY_LENGTH_DAYS)
 
@@ -87,6 +94,28 @@ export default function CohortForm({
         <label>Notes (optional)</label>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
+
+      {behind && editing && (
+        <div className="banner info">
+          This cohort is running an earlier version of your NEOP — its checklist, schedule or release
+          rule has changed in NEOP setup since the cohort was created.
+          <div style={{ marginTop: 8 }}>
+            <button
+              className="btn sm"
+              onClick={async () => {
+                const ok = await confirmAction({
+                  title: 'Use your current NEOP for this cohort?',
+                  body: 'Its checklist, schedule and release rule are replaced with what NEOP setup says now. Ticks already recorded are kept. A hire on FTO rides moves back to the academy if the new checklist has something they have not done. Undo is offered for a few seconds.',
+                  confirmLabel: 'Use current NEOP',
+                })
+                if (ok) refreshCohortPlan(editing.id)
+              }}
+            >
+              Use current NEOP
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="btn-row" style={{ marginTop: 8 }}>
         <button className="btn primary" onClick={save}>

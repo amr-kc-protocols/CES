@@ -1,7 +1,10 @@
 import { esc } from './docGen'
 import { CREDENTIAL_LABELS } from '../../data/academy'
-import { operationName } from '../../data/operations'
-import type { Trainee } from '../../types'
+import { locationName } from './program'
+import type { NeopProgram, Trainee } from '../../types'
+
+/** Just the part of an operation's NEOP these forms read: its station names. */
+type Stations = Pick<NeopProgram, 'locations'> | undefined
 
 // ---------------------------------------------------------------------------
 // New-hire compliance & skills forms, transcribed from the AMR / GMR source
@@ -26,7 +29,7 @@ function positionOf(t: Trainee): string {
 
 // ----- Hepatitis B Registration / Refusal (Attachment A) --------------------
 
-export function hepBStatementHTML(t: Trainee): string {
+export function hepBStatementHTML(t: Trainee, program?: Stations): string {
   const choices = [
     'I have not received the hepatitis B vaccination series prior to my AMR hire date and I would like to begin the series. (All expenses covered by AMR, do not sign declination)',
     'I have not received the hepatitis B vaccination series prior to my AMR hire date and I have made an informed choice to refuse the vaccination. *You must sign the refusal below.*',
@@ -39,7 +42,7 @@ export function hepBStatementHTML(t: Trainee): string {
     <table class="meta">
       <tr><td><strong>Employee Name</strong> ${line(240, t.name)}</td>
           <td><strong>Job Title</strong> ${line(180, positionOf(t))}</td></tr>
-      <tr><td><strong>Primary County / Dept. of AMR Employment</strong> ${line(180, operationName(t.operation))}</td>
+      <tr><td><strong>Primary County / Dept. of AMR Employment</strong> ${line(180, locationName(program, t.operation))}</td>
           <td><strong>Secondary County of AMR Employment (if any)</strong> ${line(140)}</td></tr>
       <tr><td><strong>SSN:</strong> ${line(60)} — ${line(40)} — ${line(60)}</td>
           <td><strong>Date of Birth:</strong> ${line(50)} / ${line(50)} / ${line(60)}</td></tr>
@@ -125,14 +128,14 @@ function selectOneRows(rows: { label: string; checked?: boolean; star?: boolean 
   </table>`
 }
 
-function trainingHeader(t: Trainee, locationLabel: string): string {
+function trainingHeader(t: Trainee, locationLabel: string, program?: Stations): string {
   return `
     <table class="meta">
       <tr><td><strong>Completion Date:</strong> ${line(50)} / ${line(50)} / ${line(60)}</td>
           <td><strong>${esc(locationLabel)}:</strong> ${line(180)}</td></tr>
       <tr><td><strong>Employee Name:</strong> ${line(220, t.name)}</td>
           <td><strong>Employee Number:</strong> ${line(150, t.employeeNumber ?? '')}</td></tr>
-      <tr><td colspan="2"><strong>Employee's Operation:</strong> ${line(240, operationName(t.operation))}</td></tr>
+      <tr><td colspan="2"><strong>Employee's Operation:</strong> ${line(240, locationName(program, t.operation))}</td></tr>
     </table>`
 }
 
@@ -147,11 +150,11 @@ function dualSign(t: Trainee): string {
     </table>`
 }
 
-export function evocCertHTML(t: Trainee): string {
+export function evocCertHTML(t: Trainee, program?: Stations): string {
   return `
     <div class="note" style="text-align:center;font-weight:700">THIS DOCUMENT MUST BE UPLOADED INTO NINTH BRAIN ALONG WITH THE EVOC TRACK SKILL SHEET</div>
     <h1>EVOC Training Certificate — Ninth Brain</h1>
-    ${trainingHeader(t, 'Training Location')}
+    ${trainingHeader(t, 'Training Location', program)}
     ${selectOneRows([
       { label: "Is this EVOC training part of the employee's new hire orientation program?", checked: true },
       { label: "Is this EVOC training refresher training of GMR's program?" },
@@ -179,7 +182,7 @@ export function evocCertHTML(t: Trainee): string {
 export interface ComplianceDoc {
   id: string
   label: string
-  html: (t: Trainee) => string
+  html: (t: Trainee, program?: Stations) => string
 }
 
 export const COMPLIANCE_DOCS: ComplianceDoc[] = [

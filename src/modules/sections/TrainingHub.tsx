@@ -8,6 +8,7 @@ import { useDB } from '../../lib/store'
 import { todayISO } from '../../lib/date'
 import { formatDate } from '../../lib/date'
 import { useCohorts, useAllTrainees, cohortProgress, releaseEligible } from '../academy/academyStore'
+import { activeMarket } from '../../lib/market'
 
 // The AEMT figures are read straight off the store rather than through
 // aemtStore, deliberately: that module is the course engine and pulling it in
@@ -29,7 +30,7 @@ export default function TrainingHub() {
   const inSession = cohorts.filter((c) => c.startDate <= today && today <= c.endDate).length
   const upcoming = cohorts.filter((c) => c.startDate > today).length
   const active = trainees.filter((t) => !t.releasedDate).length
-  const ready = trainees.filter(releaseEligible).length
+  const ready = trainees.filter((t) => releaseEligible(t)).length
 
   const neopItem = itemAt(section, '/academy')
   const aemtItem = itemAt(section, '/aemt')
@@ -55,7 +56,9 @@ export default function TrainingHub() {
         <Link to="/academy/ftos" className="btn" title="Who's on a truck with an FTO — plan ride-alongs">
           <Icon name="ambulance" /> FTO shifts
         </Link>
-        {manageAcademy && (
+        {/* Kansas City's exam only: its reading and questions describe an
+            interfacility job, and would mislead an applicant anywhere else. */}
+        {manageAcademy && activeMarket() === 'kc' && (
           <Link to="/academy/exam-results" className="btn" title="New-hire selection exam results">
             <Icon name="clipboard" /> Selection exam
           </Link>
