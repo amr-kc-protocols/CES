@@ -2357,6 +2357,15 @@ function sCo2(t){
     if(ph<.76) return Math.max(0,n*(1-((ph-.68)/.08)));
     return 0;
   }
+  /* Small and rounded, with no plateau: a partly obstructed airway or very
+     little ventilation. The breath still comes at the set rate — the vent keeps
+     cycling against the obstruction — but what little CO₂ gets out never
+     squares off. The height is the EtCO₂ the scenario set, as everywhere. */
+  if(shape==='rounded'){
+    if(ph<.06||ph>=.62) return 0;
+    const u=(ph-.06)/.56;
+    return n*Math.pow(Math.sin(Math.PI*u),1.6);
+  }
   if(shape==='rosc'){
     const n2=Math.min(etco2,55)/60;
     if(ph<.06) return 0;
