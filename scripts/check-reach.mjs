@@ -237,25 +237,18 @@ const MONITOR_STATES = {
   SunVue: () => { document.getElementById('skinLP').click(); document.getElementById('kSUN').click() },
   'no patient': () => { document.getElementById('skinLP').click(); S.patientConnected = false },
 }
+// The simplified panel: the ventilator course and vitals-only starts. Every
+// state a facilitator can put it in, including the ones that add a line to
+// the case card (a trend running, a countdown) and the branch.
 const PANEL_STATES = {
-  'nothing picked': () => {},
-  'quick preset': () => { document.getElementById('scenarioSel').value = 'brady'; applyScenario() },
-  'megacode running': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0) },
-  'sheet at a later phase': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 2) },
-  'run card collapsed': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0); collapseRunCard() },
-  pacing: () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0)
-    onDeviceEvent({ type: 'pacer', label: 'PACER ON', detail: '70 ppm' })
-    onDeviceEvent({ type: 'pacerCurrent', label: 'PACING CURRENT', detail: '70 mA' }) },
-  'run finished': () => { document.getElementById('simScenarioSel').value = 'megacode1'; applySimScenario(); applySimState('megacode1', 0); endRun() },
-  'lines up': () => { toggleArt(); toggleSG() },
-  // A megacode is graded on the sheet; a quarterly simulation is graded on the
-  // per-state action list, which is a different set of controls and the only
-  // thing .act is on. Every state above loads megacode1, so until this one the
-  // sweep never rendered that list at all — the selector guard below is what
-  // said so.
-  'quarterly sim running': () => {
-    document.getElementById('simScenarioSel').value = 'drowning_initial'; applySimScenario()
-  },
+  'vitals only': () => { loadCase('p:normal') },
+  'vent case': () => { loadCase('vent_ards') },
+  'trend running': () => { loadCase('vent_ards'); advance() },
+  'x worse': () => { loadCase('vent_ards'); applyState(4) },
+  'counting down': () => { loadCase('vent_dka') },
+  'typed value gliding': () => { loadCase('p:normal'); commit('spo2', '85') },
+  'pediatric drugs': () => { loadCase('vent_peds'); giveDrug('epi_acls') },
+  'sharing': () => { relayCode = 'KCMT24'; paintShare('live') },
 }
 // Reachability is checked everywhere. The 44pt floor is checked where a
 // finger is actually plausible, which is the sizes an iPad presents — not
@@ -266,7 +259,7 @@ const IPAD_VPS = [
   [1366, 1024], [1194, 834], [1180, 820], [1133, 744], [1112, 834], [1080, 810], [1024, 768],
 ]
 const MONITOR_VPS = [[1366, 1024], [1180, 820], [1024, 768], [1366, 768], [960, 720], [820, 1180]]
-const PANEL_VPS = [[1920, 1080], [1440, 900], [1366, 768], [1280, 800], [1180, 820], [820, 1180]]
+const PANEL_VPS = [[1920, 1080], [1440, 900], [1366, 768], [1280, 800], [1180, 820], [820, 1180], [390, 844]]
 const isIpad = (w, h) => IPAD_VPS.some(([a, b]) => a === w && b === h)
 
 const browser = await launch()
@@ -326,8 +319,10 @@ const { bad: monBad } = await sweep('monitor', `${ORIGIN}/patient_monitor_displa
 // selector that matches nothing raises nothing, so the panel's grading
 // controls stopped being measured while this check went on reporting a pass.
 // The assertion after the sweep is what makes that loud.
-const GRADING = ['.act', '.sh-row', '.sh-write input', '.sh-meta input', '.sh-foot input',
-  '.res-btn', '.end-btn', '.pp-btn', '.state-btn']
+// Everything on the simplified panel is tapped mid-scenario, often on an
+// iPad, so the 44pt floor is held on all of it.
+const GRADING = ['.state', '#advanceBtn', '#connectBtn', '#caseSel', '.rbtn', '.num button', '.num input',
+  '.drug-btn', '.tog', '.btn']
 const { bad: panelBad, seen: panelSeen } = await sweep('panel', `${ORIGIN}/control_panel.html`,
   PANEL_STATES, PANEL_VPS, null, (w) => w <= 1180, GRADING)
 await browser.close()

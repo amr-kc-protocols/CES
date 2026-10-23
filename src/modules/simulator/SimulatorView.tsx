@@ -33,7 +33,7 @@ import { Empty } from '../../components/ui'
 // ---------------------------------------------------------------------------
 
 const PANEL_URL = '/simulator/control_panel.html'
-const MONITOR_URL = '/simulator/patient_monitor_display.html'
+const MONITOR_URL = '/simulator/patient_monitor_display.html?skin=lp'
 const PANEL_TITLE = 'Simulator Control Panel'
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`

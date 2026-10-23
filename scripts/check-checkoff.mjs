@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const SRC = join(here, '..', 'src')
-const PAGE = join(here, '..', 'public', 'simulator', 'control_panel.html')
+const PAGE = join(here, '..', 'public', 'simulator', 'control_panel_full.html')
 
 let JSDOM
 try {
@@ -88,7 +88,7 @@ function runMegacode(key, fill) {
   const dom = new JSDOM(readFileSync(PAGE, 'utf8'), {
     runScripts: 'dangerously',
     pretendToBeVisual: true,
-    url: 'https://ces.local/simulator/control_panel.html',
+    url: 'https://ces.local/simulator/control_panel_full.html',
   })
   const w = dom.window
   w.confirm = () => true

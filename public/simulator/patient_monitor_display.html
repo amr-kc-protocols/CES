@@ -260,6 +260,10 @@ body.lp-skin.portrait #powerHint{display:none;}
    the screen, below the band this sits in, so there it stays centred. */
 body:not(.lp-skin) #armAudio{left:calc(6px + env(safe-area-inset-left));transform:none;}
 #armAudio .a-on{display:none;}
+#tap12{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:96;min-height:56px;padding:0 24px;
+  border-radius:12px;border:1px solid #00c8e0;background:#04222b;color:#bff4ff;cursor:pointer;
+  font:700 16px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;box-shadow:0 4px 18px rgba(0,0,0,.6);}
+#tap12[hidden]{display:none;}
 /* Armed: it has nothing left to say, so it stops saying it. */
 #armAudio.armed{opacity:0;pointer-events:none;transition:opacity .6s .8s;}
 #armAudio.armed .a-on{display:inline;}
@@ -1059,7 +1063,7 @@ let S={hr:78,rhythm:'nsr',lead:'II',sbp:121,dbp:79,spo2:97,etco2:36,rr:11,co2Sha
 const cSizes={};
 let pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
 const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
-function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
+function ld(){try{const r=localStorage.getItem('simState');if(r){S={...S,...JSON.parse(r)};check12Cmd();}}catch(e){}}
 ld(); // load saved state on startup
 
 /* Scenario-reset high-water mark. The panel bumps S.deviceReset every time it
@@ -1103,7 +1107,7 @@ function localStateAllowed(){
    named by the session code the panel shows. State comes down it; the
    heartbeat and every device event go back up it. Same payloads either way,
    so nothing downstream knows or cares which path a message arrived on. */
-let relay=null, relayState='off';
+let relay=null, relayState='off', joinRetry=null;
 function relayReady(){ return relay&&relayState==='live'; }
 function joinSession(code){
   forceJoinOpen=false;   // a fresh join attempt: let a successful one hide the box
@@ -1112,13 +1116,22 @@ function joinSession(code){
   if(c.length!==6){ setJoinUi('error','Six characters'); return; }
   relay=window.CESRelay.joinSession({
     code:c, role:'monitor',
-    onState:st=>{ if(st&&!st.__monitor&&!st.__device) S={...S,...st}; },
-    onStatus:(s2,detail)=>{ relayState=s2; setJoinUi(s2,detail); },
+    onState:st=>{ if(st&&!st.__monitor&&!st.__device){ S={...S,...st}; check12Cmd(); } },
+    onStatus:(s2,detail)=>{
+      relayState=s2; setJoinUi(s2,detail);
+      // A dropped connection — the iPad slept, the Wi-Fi blinked — is tried
+      // again with the same code rather than left on an error the crew has to
+      // notice and fix.
+      if(s2==='error'&&!joinRetry) joinRetry=setTimeout(()=>{ joinRetry=null;
+        let code=''; try{ code=localStorage.getItem('ces.sim.session')||''; }catch(e){}
+        if(code&&relayState==='error') joinSession(code); },4000);
+    },
   });
   setJoinUi('joining',c);
   try{ localStorage.setItem('ces.sim.session',c); }catch(e){}
 }
 function leaveSession(){
+  clearTimeout(joinRetry); joinRetry=null;
   if(window.CESRelay) window.CESRelay.leaveSession();
   relay=null; relayState='off';
   try{ localStorage.removeItem('ces.sim.session'); }catch(e){}
@@ -1178,6 +1191,7 @@ try{
   stateBc.onmessage=e=>{
     if(!e.data||e.data.__monitor||e.data.__device) return;
     S={...S,...e.data};
+    check12Cmd();
     // A panel in this browser is driving this window, so this is not a second
     // device and there is no session to join. The prompt was sitting over the
     // ECG of every monitor opened from the panel on the same laptop.
@@ -2423,7 +2437,10 @@ function open12Lead(){
   // Always open/refresh — never close (close is handled by button toggle)
   if(w12Lead&&!w12Lead.closed){ w12Lead.focus(); w12Lead=null; } // reset stale ref before reopening
   w12Lead=window.open('','ECG12Lead','width=1100,height=780,resizable=yes');
-  if(!w12Lead) return;
+  // A tablet blocks a window nobody tapped for, which is every 12-lead the
+  // facilitator sends. Offer it as a tap instead; the tap is allowed to open it.
+  if(!w12Lead){ show12Tap(true); return; }
+  show12Tap(false);
 
   // The popup carries its own copy of the keyframes and its own per-lead table
   // (LEADS, below) because it is a separate document with no access to this
@@ -2842,8 +2859,34 @@ window.onload=function(){
 // only reliable handle on it is w12Lead — anything that looks for an in-page
 // node will silently never find it.
 function close12Lead(){
+  show12Tap(false);
   if(w12Lead&&!w12Lead.closed){ try{ w12Lead.close(); }catch(e){} }
   w12Lead=null;
+}
+function show12Tap(on){
+  let b=document.getElementById('tap12');
+  if(!b&&on){
+    b=document.createElement('button');
+    b.id='tap12'; b.type='button';
+    b.textContent='⊞ 12-lead acquired — tap to view';
+    b.onclick=()=>open12Lead();
+    document.body.appendChild(b);
+  }
+  if(b) b.hidden=!on;
+}
+/* The 12-lead request rides in the patient state ({open, t}), so it reaches a
+   monitor on an iPad as surely as a heart rate does. The first state this
+   window hears is the baseline, never acted on: a request made before it
+   opened is not one for it. After that, any new request is. */
+// var, not let: ld() runs near the top of the page, before this line, and a
+// let read there would throw rather than be undefined.
+var cmd12Seen;
+function check12Cmd(){
+  const c=S.cmd12, t=c&&c.t||0;
+  if(cmd12Seen===undefined){ cmd12Seen=t; return; }
+  if(!c||t===cmd12Seen) return;
+  cmd12Seen=t;
+  if(c.open) open12Lead(); else close12Lead();
 }
 
 // Toggle for buttons — close if open, open if not

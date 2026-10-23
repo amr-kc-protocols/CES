@@ -13,8 +13,14 @@ review tools under `public/review/` and `public/necessity/` are.
 
 **Live at `/simulator`,** on the `Sim` tab in the bottom bar, for administrators.
 `src/modules/simulator/SimulatorView.tsx` frames the control panel and opens the
-monitor in its own window. The platform landing page that shipped with these two
-files is not used: the CES tab replaces the chooser it offered.
+monitor in its own window.
+
+**The control panel is the simplified one** (`control_panel.html`): the
+ventilator course and vitals-only starting points, nothing graded. See "The
+simplified control panel" below. The full panel, with the ACLS megacodes, the
+PALS cases, the quarterly simulations and the AHA check-off sheet, is
+`control_panel_full.html`. It is unchanged and still checked by
+`check-simulator`, but nothing links to it. Most of this README describes it.
 
 ## The contract between the two windows
 
@@ -1349,3 +1355,63 @@ shark fin at a lower EtCO₂, since height follows the number.
   Set RR to the rate you count.
 - **"Sinus 104"** in COPD *Recovered* shows as sinus tachycardia, which is what
   104 is.
+
+## The simplified control panel
+
+`control_panel.html` was rebuilt for the ventilator course, at about a fifth of
+the full panel's size. It has one job: drive the patient on the crew's monitor
+and keep that monitor in step. `check-sim-panel.mjs` holds everything below.
+
+**What is on it.**
+- **The case picker:** the six Day 2 cases and twelve vitals-only starting
+  points. Choosing loads; there is no separate Load button.
+- **Connect:** a single toggle for whether the patient is on the monitor.
+- **Share to an iPad.**
+- **The case card:** the states, Advance, what is moving and for how long, and
+  the guide's note for the current state.
+- **The patient:** heart rate, blood pressure, SpO₂, respiratory rate, EtCO₂
+  with capnography on/off and the waveform, and temperature. Below them, the
+  rhythms, PVCs and the 12-lead.
+- **Medications.**
+
+**What came off.** The ACLS, PALS and quarterly cases; grading of every kind;
+point-of-care results; the start path; the scenario brief; the crew
+interventions strip; the arterial line and Swan-Ganz; alarm limits; signal
+quality, probe site, lead, PACs and temperature site; the physiology-lock
+switch (the lock is now always on); the ROSC surge; and the pacing-capture
+model. Inside the app, the panel also hides its own monitor status and Open
+monitor button, because the bar above it already has both. The monitor still
+receives every key it reads, at the defaults.
+
+**Numbers walk.** A typed vital glides to its new value over 10 seconds
+(`GLIDE_SECS`), so the crew sees a patient trending rather than a screen
+jumping. Each value glides on its own. RR lands at once, because it is the
+rate being breathed. A field being typed in is never overwritten, and beside
+each label is where the value is going. Rhythm changes land at once with their
+own rate, and an arrest rhythm takes the pressure and saturation with it. A
+sinus rhythm is named by its rate as the rate moves. Stop meds walks the
+patient back to where they were without the drugs.
+
+**The connection.**
+- **Panel reload.** The panel used to start from the defaults on every load
+  and publish them, and the defaults are a disconnected patient, so a reload
+  blanked the crew's monitor mid-scenario. It now restores the patient it last
+  published, plus the case and state (`ces.sim.panel`). It starts fresh only
+  after 12 hours.
+- **iPad session.** A shared session survives a panel reload
+  (`ces.sim.panelSession`, separate from the monitor's `ces.sim.session`).
+  Both ends retry a dropped connection every 4 seconds instead of stopping on
+  an error.
+- **The 12-lead** rides in the patient state as `cmd12: {open, t}`, so it
+  reaches an iPad like any other change. Before, it was a localStorage command
+  that only a monitor in the same browser could see. The monitor treats the
+  first state it hears as a baseline and never replays an old request. A tablet
+  that blocks the pop-up gets a "tap to view" button instead.
+- **Opening the monitor.** The app's button and the panel's own both open the
+  LIFEPAK skin, under one window name, so they never put two monitors on one
+  patient.
+
+Checked in a real browser: a typed SpO₂ of 90 → 80 reached the monitor as one
+point a second. A panel reload and a monitor reload each left the crew's
+screen on the same patient. The 12-lead opened from the panel.
+
