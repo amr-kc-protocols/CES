@@ -268,6 +268,49 @@ function endRunSaving(w) {
   }
   S().patientConnected = false
 
+  // A case chosen in the picker and never loaded. Nothing said it was not
+  // loaded, and Connect then put the default well adult on the crew's monitor
+  // in place of the bradycardic 38 the facilitator had picked.
+  {
+    const fresh = load()
+    const sel = fresh.d.getElementById('simScenarioSel')
+    sel.value = 'megacode1'
+    sel.dispatchEvent(new fresh.w.Event('change'))
+    const btn = fresh.d.getElementById('loadBtn')
+    ok('a chosen case that is not loaded says so', btn.classList.contains('pending') && !fresh.d.getElementById('loadPending').hidden)
+    fresh.w.toggleConnect()
+    ok(
+      'and Connect loads it rather than putting the default adult up',
+      fresh.S().hr === 38 && fresh.S().rhythm === 'brady' && fresh.S().patientConnected === true,
+      `${fresh.S().hr} ${fresh.S().rhythm} connected=${fresh.S().patientConnected}`,
+    )
+    ok('after which nothing is pending', !btn.classList.contains('pending') && fresh.d.getElementById('loadPending').hidden)
+    fresh.w.close()
+  }
+
+  // The drug buttons carried adult doses beside a child. On a PALS case they
+  // carry the PALS dose, worked out for the weight the case states.
+  {
+    const p = load()
+    const dose = (k) => p.d.querySelector(`.drug-btn[data-drug="${k}"] .ddose`).textContent
+    const name = (k) => p.d.querySelector(`.drug-btn[data-drug="${k}"] .dname`).textContent
+    p.d.getElementById('simScenarioSel').value = 'pals12'   // 8 kg infant
+    p.w.loadCase()
+    ok('PALS 12: epinephrine reads 0.01 mg/kg worked out for 8 kg', /= 0\.08 mg for 8 kg/.test(dose('epi_acls')), dose('epi_acls'))
+    ok('PALS 12: the arrest amiodarone is not labelled 300 mg', !/300 ?mg$/i.test(name('amiodarone_300')) && /= 40 mg/.test(dose('amiodarone_300')), name('amiodarone_300') + ' ' + dose('amiodarone_300'))
+    p.d.getElementById('simScenarioSel').value = 'pals9'    // 50 kg adolescent
+    p.w.loadCase()
+    ok('PALS 9: adenosine is capped at 6 mg', /= 5 mg for 50 kg/.test(dose('adenosine')), dose('adenosine'))
+    ok('PALS 9: atropine is capped at its 0.5 mg single dose', /= 0\.5 mg/.test(dose('atropine')), dose('atropine'))
+    ok('a drug with no PALS dose here shows no adult number on a child', !/\d/.test(dose('labetalol')), dose('labetalol'))
+    p.w.giveDrug('adenosine')
+    ok('and the log records the dose the child was given', /Adenosine 5 mg/.test(p.d.getElementById('drugLog').textContent), p.d.getElementById('drugLog').textContent)
+    p.d.getElementById('simScenarioSel').value = 'megacode1'
+    p.w.loadCase()
+    ok('an adult case gets the adult labels back', dose('epi_acls') === '1 mg IV push — ACLS' && name('amiodarone_300') === 'Amiodarone 300mg', dose('epi_acls'))
+    p.w.close()
+  }
+
   // ── Numbers you set, rather than aim at ──────────────────────────────────
   // Seventeen range sliders became seventeen numeric fields. A slider cannot
   // be set, only approached: "put the systolic at 74" was a drag you had to
@@ -1830,10 +1873,35 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
     /function relayReady\(\)\{ return relay&&relayState==='live'; \}/.test(panelSrc),
   )
 
+  // A monitor opened from the panel on the same laptop asked whether it was on
+  // a second device, over the top of the ECG. Its first heartbeat now says
+  // hello, the panel answers it with the patient, and that answer is proof
+  // enough that there is no session to join.
+  ok('the panel answers a new monitor\'s hello with the patient', /if\(e\.data\.hello\) bc\.postMessage\(S\);/.test(panelSrc))
+  {
+    const m = loadMonitor()
+    const box = m.d.getElementById('joinBox')
+    m.w.eval('bcDelivered=false; relayState="off"; setJoinUi("off")')
+    ok('a monitor on its own still offers to join a session', box.hidden === false)
+    m.w.eval('setJoinUi("off"); bcDelivered=true; setJoinUi("off")')
+    ok('one a panel in this browser is driving does not', box.hidden === true)
+    m.w.eval('openJoinPrompt()')
+    ok('though the tab still opens it on request', box.hidden === false)
+    m.w.close()
+  }
+
   // Two strip items on the ZX skin were divs with an onclick and no way in
-  // from the keyboard.
+  // from the keyboard. One of them was a way from the crew's monitor into the
+  // facilitator's control panel — the checklist, the coaching notes and every
+  // vital — so it is gone, and the 12-lead is the strip's only control.
   const stripButtons = (MONITOR_SRC.match(/class="ic"[^>]*role="button"/g) || []).length
-  ok('the ZX strip controls are reachable from the keyboard', stripButtons === 2, `${stripButtons} of 2`)
+  ok('the ZX strip controls are reachable from the keyboard', stripButtons === 1, `${stripButtons} of 1`)
+  ok('nothing on the crew\'s monitor opens the control panel', !/window\.open\('control_panel\.html'/.test(MONITOR_SRC))
+  const stripTiles = (MONITOR_SRC.match(/<div id="strip">([\s\S]*?)\n<\/div>/) || [, ''])[1]
+  ok(
+    'and a strip tile that does nothing has no handler to look like it does',
+    (stripTiles.match(/class="ic"[^>]*onclick/g) || []).length === stripButtons,
+  )
 }
 
 // ---------------------------------------------------------------------------

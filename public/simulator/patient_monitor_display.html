@@ -44,7 +44,10 @@ html,body{
 .nhdr.alarming,.ntri.alarming{background:#ff3b3b!important;}
 @keyframes af{from{opacity:1}to{opacity:.1}}
 
-#bot{position:absolute;bottom:0;left:0;right:0;height:56px;background:#000;border-top:1px solid #2a2a2a;display:flex;z-index:20;}
+#bot{position:absolute;bottom:0;left:0;right:0;height:56px;background:#000;border-top:1px solid #2a2a2a;display:flex;z-index:20;
+  /* The skin switch, fullscreen and power sit fixed in this corner. Without
+     room left for them the ART readout was drawn underneath. */
+  padding-left:calc(196px + env(safe-area-inset-left));}
 .bc{flex:1;display:flex;align-items:center;border-right:1px solid #222;overflow:hidden;}
 .bc:last-child{border-right:none;flex:.65;}
 
@@ -77,10 +80,14 @@ html,body{
 #strip{position:absolute;top:26px;left:0;bottom:56px;width:52px;background:#111;border-right:2px solid #333;display:flex;flex-direction:column;z-index:10;}
 .ic{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  border-bottom:1px solid #2e2e2e;font-size:9px;color:#bbb;cursor:pointer;
+  border-bottom:1px solid #2e2e2e;font-size:9px;color:#bbb;cursor:default;
   text-align:center;line-height:1.3;min-height:0;
   transition:background .12s;
 }
+/* Only the 12-lead tile does anything. The rest are the screen's labels, and a
+   tile that lights up under a finger and then does nothing reads as a broken
+   button to a crew mid-scenario. */
+.ic[role="button"]{cursor:pointer;}
 
 .ic:last-child{border-bottom:none;}
 .ic:focus-visible{outline:2px solid #ffd24a;outline-offset:-2px;}
@@ -247,6 +254,11 @@ body.lp-skin.portrait #powerHint{display:none;}
   font:700 13px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;
   box-shadow:0 3px 12px rgba(0,0,0,.5);touch-action:manipulation;
 }
+/* In ZX the alarm banner is drawn at the top centre, exactly where this sat, so
+   until somebody tapped it the crew could not see what was alarming. The
+   corner over the date costs them nothing. The LIFEPAK draws its banner inside
+   the screen, below the band this sits in, so there it stays centred. */
+body:not(.lp-skin) #armAudio{left:calc(6px + env(safe-area-inset-left));transform:none;}
 #armAudio .a-on{display:none;}
 /* Armed: it has nothing left to say, so it stops saying it. */
 #armAudio.armed{opacity:0;pointer-events:none;transition:opacity .6s .8s;}
@@ -640,7 +652,7 @@ body.lp-skin .wt{font-size:13px;}
   .updown .ud:hover{background:#3f4245;}
   .rk:hover svg{background:#3f4245;}
   .fk:hover{background:linear-gradient(180deg,#3a3d40,#1d1f21);}
-  .ic:hover{background:#1e1e1e;}
+  .ic[role="button"]:hover{background:#1e1e1e;}
 }
 
 /* The dial's highlight on the home screen. Outlined rather than filled: the
@@ -770,10 +782,6 @@ body.booting #screen>*{visibility:hidden;}
   <div class="ic" style="color:#00ff88;font-size:20px;font-weight:bold;">✛</div>
   <div class="ic" style="color:#cccccc;font-size:9px;font-weight:bold;letter-spacing:.5px;">SYNC</div>
   <div class="ic" style="font-size:16px;">🖫</div>
-  <div class="ic" role="button" tabindex="0"
-       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"
-       onclick="window.open('control_panel.html','ControlPanel','width=1100,height=900,resizable=yes,scrollbars=yes')"
-       style="font-size:20px;color:#00aaff;background:#001020;" title="Open Control Panel">↩</div>
 </div>
 
 <!-- Parameter column. Order, grouping and the per-parameter alarm bell follow
@@ -1135,7 +1143,7 @@ function setJoinUi(st,detail){
   const el=document.getElementById('joinBox');
   if(!el) return;
   el.className='join '+st;
-  if(st==='live'&&!forceJoinOpen){
+  if((st==='live'||(st==='off'&&bcDelivered))&&!forceJoinOpen){
     // Connected: the panel is driving this screen, and the crew should be
     // looking at a monitor rather than at a connection notice. The tab above
     // stays, so changing session later is still one tap away.
@@ -1170,14 +1178,21 @@ try{
   stateBc.onmessage=e=>{
     if(!e.data||e.data.__monitor||e.data.__device) return;
     S={...S,...e.data};
-    bcDelivered=true;
+    // A panel in this browser is driving this window, so this is not a second
+    // device and there is no session to join. The prompt was sitting over the
+    // ECG of every monitor opened from the panel on the same laptop.
+    if(!bcDelivered){ bcDelivered=true; if(relayState==='off') setJoinUi('off'); }
   };
   // The heartbeat carries the one piece of monitor state the panel needs back:
   // whether the 12-lead window is actually up. The panel's toggle used to be a
   // local boolean, so a crew closing the 12-lead at the unit left the
   // facilitator's button reading "Close" and swallowed their next press.
+  // The first beat says hello, and a panel in this browser answers it with the
+  // patient, so this window learns at once that it is not on its own.
+  let hello=true;
   const beat=()=>{
     const hb={__monitor:1,lead12:!!(w12Lead&&!w12Lead.closed)};
+    if(hello){ hb.hello=1; hello=false; }
     try{ stateBc.postMessage(hb); }catch(e){}
     if(relayReady()) relay.sendBack(hb);
   };
