@@ -1203,12 +1203,10 @@ improvement.
 - **The 12-lead is a snapshot.** It renders the rhythm as it stands when the
   window opens and does not follow later changes, which is what a printed
   acquisition is. Re-acquiring re-renders it.
-- **The control panel assumes a wide screen.** Its grid is authored against
-  960px with breakpoints below that, so it works on a laptop or a landscape
-  iPad and not on a phone. The monitor no longer has this problem — it is a
-  fixed layout scaled to the window, with a rotate prompt in portrait — but the
-  panel has not had the same treatment. It is a facilitator's console rather
-  than something carried, so this has not been worth the rework yet.
+- **The control panel is laid out for a laptop.** It fits a phone now — no
+  horizontal scroll at 360px — but one long column of cards is a lot of
+  scrolling to drive a megacode from. A laptop or a landscape iPad is still
+  the right tool.
 - **Three LEDs are stated rather than simulated.** AC and BATTERY are held
   illuminated — a trainer on mains with full batteries — and SERVICE stays dark
   because there is no fault model behind it.
@@ -1225,9 +1223,59 @@ improvement.
   instrument. Grading one needs the PALS Megacode Testing Checklist, which is
   not transcribed — the ACLS checklists are the only published instrument in
   `ACLS_CHECKLISTS`.
-- **The medication buttons carry adult doses in their labels.** They apply a
-  physiologic effect rather than a dose, so they behave correctly on a child,
-  but "Adenosine 6 mg rapid IV push" is the adult label beside a case whose
-  correct dose is 0.1 mg/kg. The weight-based doses are in each PALS case's
-  expected actions and coaching notes; the buttons have not been made
-  weight-aware.
+- **Only eight drug buttons know a pediatric dose.** See "A foundation pass"
+  below. The other ten show no number at all on a child, which is safe but
+  less help than a dose.
+
+## A foundation pass
+
+Done before the ventilator scenarios go in: both windows were driven end to
+end in a real browser, the way a class uses them, and every problem that pass
+turned up is fixed here.
+
+**The facilitator's side.**
+
+- **A case chosen but never loaded.** Choosing from the picker does nothing
+  until Load is pressed, and nothing said so. A facilitator who chose
+  megacode 1 and went straight to Connect put the default well adult, at 78
+  and 121/79, on the crew's monitor in place of a bradycardia at 38. Load now
+  pulses and the panel says *Not loaded yet* while a choice is pending, and
+  Connect loads the pending case first when nothing else is loaded.
+- **The run card ran off a phone.** Two fields, three buttons and End run sat
+  in one row that would not wrap, 480px wide. The section grids used bare
+  `1fr` columns too, which never shrink below their widest word. Both are
+  fixed.
+- **Adult doses beside a child.** On a pediatric patient the eight drugs with
+  a PALS dose show it, worked out for the weight in the case brief: for the
+  8 kg infant in PALS 12, epinephrine reads *= 0.08 mg for 8 kg · 0.01 mg/kg
+  (max 1 mg)*. The doses are the AHA PALS ones the cases already teach:
+  epinephrine 0.01 mg/kg, amiodarone 5 mg/kg (max 300 mg), adenosine
+  0.1 mg/kg (max 6 mg), atropine 0.02 mg/kg (max 0.5 mg), calcium chloride
+  20 mg/kg, sodium bicarbonate 1 mEq/kg and isotonic fluid 10-20 mL/kg. The
+  others show *weight-based dose per protocol*, never the adult figure. The
+  drug log records the child's dose. `PEDS_DOSES` holds the table, and it
+  should be read against current protocol by whoever signs off the content.
+
+**The crew's side.**
+
+- **A door into the facilitator's console.** The ZX strip's ↩ opened
+  `control_panel.html` from the crew's own monitor: the checklist, the
+  coaching notes and every vital, one tap away. It is gone.
+- **Tiles that looked like buttons.** Five of the six strip tiles lit up
+  under a finger and did nothing. Only the 12-lead tile is a control now, and
+  only it takes the pointer and hover.
+- **Two prompts over the ECG.** A monitor opened from the panel on the same
+  laptop asked *Monitor on a second device?* over the trace. Its first
+  heartbeat now says `hello`, the panel answers with the patient, and a
+  monitor that has heard from a panel in its own browser does not offer to
+  join a session. The ⇄ tab still opens the prompt on request.
+- **The audio check hid the alarm.** In ZX it sat at top centre, exactly
+  where the alarm banner is drawn, so *HR LOW* was invisible until somebody
+  tapped it. It sits over the date in the corner now. The LIFEPAK skin draws
+  its banner inside the screen, so there it stays centred.
+- **The ART readout sat under the corner buttons.** The bottom bar leaves
+  room for the skin switch, fullscreen and power.
+
+`check-simulator` holds the behaviour: the pending case, the doses, the
+`hello`, and a strip with one control and no way to the panel.
+
