@@ -703,6 +703,10 @@ function loadMonitor(storage = {}, { powerOn = true } = {}) {
   for (const key of Object.keys(docs)) {
     ok(`${key}: scenario exists`, !!sims[key])
     if (!sims[key]) continue
+    // The ventilator course is programmed from an instructor guide, not a run
+    // sheet: it has triggers and vitals and no brief to speak of. Its own
+    // checks are below.
+    if (docs[key].fromGuide) continue
     // A state without its actions grades as a blank; a stray action list means
     // the transcription and the vitals table have drifted apart.
     ok(
@@ -3367,6 +3371,173 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   ok('the monitor holds a screen wake lock', /navigator\.wakeLock\.request\('screen'\)/.test(MONITOR_SRC))
   ok('and takes it again when the page comes back', /visibilitychange/.test(MONITOR_SRC))
   ok('every call is guarded', /if\(!\('wakeLock' in navigator\)/.test(MONITOR_SRC))
+  w.close()
+}
+
+// ---------------------------------------------------------------------------
+// The ventilator course, Day 2
+// ---------------------------------------------------------------------------
+// Programmed from the instructor's Simulator Programming Guide. What the guide
+// asks of an app beyond a table of vitals: states that trend into each other
+// over a stated time, sometimes only in the value it names; an "X Worse"
+// branch that is pressed on purpose and returned from; one state that starts
+// by itself; and a row that changes no vitals at all.
+{
+  const { w, d, S } = load()
+  const sims = w.eval('SIMULATIONS')
+  const docs = w.eval('SCENARIO_DOCS')
+  const VENT = ['vent_ards', 'vent_copd', 'vent_tbi', 'vent_dka', 'vent_als', 'vent_peds']
+  const picker = [...d.querySelectorAll('#simScenarioSel option')].map((o) => o.value)
+  // Time is the guide's whole point here, so the checks own the clock.
+  let now = Date.now()
+  w.Date.now = () => now
+  const tick = (secs) => { now += secs * 1000; w.eval('trendTick()') }
+
+  for (const key of VENT) {
+    const sim = sims[key], doc = docs[key]
+    ok(`${key}: on the picker`, picker.includes(key))
+    ok(`${key}: documented, one entry per state`, !!doc && doc.states.length === sim.states.length)
+    ok(`${key}: marked as from the guide`, !!(doc && doc.fromGuide))
+    // "Keep RR matched to the ventilator rate." A crew that marks an airway
+    // would otherwise see the panel's default rate, not the vent's.
+    for (const st of sim.states.filter((x) => !x.event))
+      ok(`${key} ${st.id}: the ventilated rate is the state's RR`, st.ventRr === st.vitals.rr, `${st.ventRr} vs ${st.vitals.rr}`)
+    // Every branch goes back somewhere real, and never to another branch.
+    for (const st of sim.states.filter((x) => x.branch)) {
+      const back = sim.states[st.returnTo]
+      ok(`${key} ${st.id}: returns to a recovery state`, !!back && !back.branch && !back.event, String(st.returnTo))
+    }
+    // Capnography on, as the guide asks, and a known waveform everywhere.
+    const shapes = [...d.querySelectorAll('#co2ShapeSel option')].map((o) => o.value)
+    for (const st of sim.states.filter((x) => !x.event)) {
+      ok(`${key} ${st.id}: capnography on`, st.vitals.etco2On === true)
+      ok(`${key} ${st.id}: a waveform the panel offers`, shapes.includes(st.vitals.co2Shape), st.vitals.co2Shape)
+    }
+  }
+  ok('the pediatric case is pediatric', sims.vent_peds.patientType === 'Pediatric')
+
+  // Loading starts where the author put it — no trend out of the last case.
+  w.toggleConnect()
+  d.getElementById('simScenarioSel').value = 'vent_ards'
+  w.loadCase()
+  ok('ARDS loads at baseline', S().hr === 112 && S().spo2 === 90 && S().rr === 24, `${S().hr} ${S().spo2} ${S().rr}`)
+  ok('and starts a run, ungraded and connected', !!w.eval('run') && !w.eval('run').checklist && S().patientConnected === true)
+  ok('loading is not a trend', w.eval('stTrend') === null)
+
+  // Advance skips the branch.
+  ok('Advance from baseline goes to Disconnect', w.eval('nextStage()').state.id === 'disconnect')
+  w.advanceStage()
+  // "SpO2 over 20 s": the saturation moves; everything else is immediate.
+  ok('Disconnect: EtCO₂ is gone at once', S().etco2 === 0 && S().co2Shape === 'flat', `${S().etco2} ${S().co2Shape}`)
+  ok('and RR', S().rr === 0)
+  ok('and the heart rate jumps', S().hr === 128, String(S().hr))
+  ok('while SpO₂ starts where it was', S().spo2 === 90, String(S().spo2))
+  tick(10)
+  ok('halfway through 20 s it is halfway', S().spo2 === 87, String(S().spo2))
+  ok('the panel says what is moving and for how long', /SpO₂ moving to this state — 0:10 left/.test(w.eval('trendStatusText()')), w.eval('trendStatusText()'))
+  tick(10)
+  ok('and at 20 s it is there', S().spo2 === 84, String(S().spo2))
+  ok('and the trend is over', w.eval('stTrend') === null)
+  ok('Advance from Disconnect goes to Bagging, not X Worse', w.eval('nextStage()').state.id === 'bagging')
+
+  // The branch, pressed on purpose, and the way back from it.
+  w.applySimState('vent_ards', 4)
+  ok('X Worse: a 30 s trend of everything but RR and a zero EtCO₂', JSON.stringify(w.eval('stTrend.keys').sort()) === JSON.stringify(['dbp', 'hr', 'sbp', 'spo2']), JSON.stringify(w.eval('stTrend && stTrend.keys')))
+  tick(30)
+  ok('reaching the X Worse numbers', S().hr === 136 && S().sbp === 90 && S().spo2 === 78, `${S().hr} ${S().sbp} ${S().spo2}`)
+  ok('from X Worse, Advance returns to Bagging', w.eval('nextStage()').state.id === 'bagging')
+  w.advanceStage()
+  // A circuit back together shows CO₂ on the first breath, not over a minute.
+  ok('Bagging puts the vent rate and the capnogram back at once', S().rr === 24 && S().etco2 === 46, `${S().rr} ${S().etco2}`)
+  tick(60)
+  ok('and the rest arrives over 60 s', S().spo2 === 87 && S().hr === 120, `${S().spo2} ${S().hr}`)
+
+  // A value the facilitator types is theirs, not the trend's.
+  w.applySimState('vent_ards', 3)
+  w.sv('spo2', 95)
+  tick(30)
+  ok('a typed value leaves the trend', S().spo2 === 95, String(S().spo2))
+  ok('while the rest keeps moving', S().hr === 117, String(S().hr))
+
+  // "BP over 60 s" — and a sinus rate that crosses 100 reads as what it is
+  // when it gets there.
+  d.getElementById('simScenarioSel').value = 'vent_copd'
+  w.loadCase()
+  w.advanceStage()
+  ok('COPD air trapping: the heart rate jumps', S().hr === 120 && S().rhythm === 'tachy')
+  ok('the pressure starts high', S().sbp === 104, String(S().sbp))
+  tick(30)
+  ok('and is halfway at 30 s', S().sbp === 91, String(S().sbp))
+
+  d.getElementById('simScenarioSel').value = 'vent_tbi'
+  w.loadCase()
+  w.advanceStage()
+  tick(90)
+  ok('TBI on the vent: EtCO₂ halfway from 28 to 33 at 90 s', S().etco2 === 31, String(S().etco2))
+  ok('with the ordered rate at once', S().rr === 14)
+
+  // The state that starts by itself.
+  d.getElementById('simScenarioSel').value = 'vent_dka'
+  w.loadCase()
+  ok('DKA counts down to Rising CO₂', /Rising CO₂ starts by itself in 1:00/.test(w.eval('trendStatusText()')), w.eval('trendStatusText()'))
+  w.eval('autoFire(activeSim, activeStateIdx)')
+  ok('and starts it', w.eval('activeStage()').id === 'rising_co2')
+  ok('EtCO₂ climbing from 22, over five minutes', S().etco2 === 22 && w.eval('stTrend.secs') === 300)
+  ok('while the rest is immediate', S().hr === 132 && S().sbp === 94)
+  tick(150)
+  ok('halfway at 2:30', S().etco2 === 30, String(S().etco2))
+  // Pressing on early cancels the countdown rather than letting it fire into
+  // whatever state is current a minute later.
+  d.getElementById('simScenarioSel').value = 'vent_dka'
+  w.loadCase()
+  w.advanceStage()
+  ok('Advance takes it early and the countdown goes', w.eval('stAutoAt') === 0)
+  w.applySimState('vent_dka', 3)
+  ok('X Worse brings the PVCs', S().pvcOn === true)
+  w.applySimState('vent_dka', 2)
+  ok('and the way back takes them away', S().pvcOn === false)
+
+  // Two legs: 60 s to the desaturated 130, then 60 s down to a bradycardia.
+  d.getElementById('simScenarioSel').value = 'vent_als'
+  w.loadCase()
+  w.advanceStage()
+  ok('ALS obstructed: the small, rounded capnogram', S().co2Shape === 'rounded' && S().etco2 === 8)
+  w.applySimState('vent_als', 3)
+  tick(60)
+  ok('X Worse first leg: 130 and 72%', S().hr === 130 && S().spo2 === 72, `${S().hr} ${S().spo2}`)
+  w.eval('thenFire(activeSim, activeStateIdx)')
+  tick(30)
+  ok('second leg halfway: 90, reading sinus', S().hr === 90 && S().rhythm === 'nsr', `${S().hr} ${S().rhythm}`)
+  tick(30)
+  ok('and a bradycardia of 50 at the end', S().hr === 50 && S().rhythm === 'brady', `${S().hr} ${S().rhythm}`)
+
+  // The power event changes nothing and is still on the record.
+  d.getElementById('simScenarioSel').value = 'vent_peds'
+  w.loadCase()
+  w.advanceStage()
+  w.advanceStage()
+  ok('Advance from O₂ lost goes to O₂ fixed, past the power row', w.eval('activeStage()').id === 'o2_fixed')
+  tick(90)
+  const before = JSON.stringify([S().hr, S().sbp, S().spo2, S().etco2, S().rr, w.eval('activeStateIdx')])
+  w.applySimState('vent_peds', 3)
+  ok('the power event changes no vitals and no state', JSON.stringify([S().hr, S().sbp, S().spo2, S().etco2, S().rr, w.eval('activeStateIdx')]) === before)
+  ok('and lands on the run timeline', w.eval('run').device.some((e) => e.type === 'event' && /Power/.test(e.label)))
+  ok('and the next is still not advanced into', w.eval('nextStage()') === null)
+  w.close()
+}
+
+// The small, rounded capnogram: a hump with no plateau, at the set rate, as
+// tall as the EtCO₂ the scenario set.
+{
+  const { w, S } = loadMonitor()
+  Object.assign(S(), { patientConnected: true, etco2On: true, etco2: 30, rr: 12, co2Shape: 'rounded' })
+  const sCo2 = w.eval('sCo2'), ceil = w.eval('co2Ceiling()')
+  const samples = []
+  for (let i = 0; i < 500; i++) samples.push(sCo2(i * 0.01))
+  const peak = Math.max(...samples)
+  ok('the rounded capnogram reaches the set EtCO₂', Math.abs(peak - 30 / ceil) < 0.01, `${peak} vs ${30 / ceil}`)
+  ok('and has no plateau', samples.filter((v) => v > peak * 0.98).length < samples.length * 0.06, String(samples.filter((v) => v > peak * 0.98).length))
+  ok('and returns to baseline between breaths', samples.some((v) => v === 0))
   w.close()
 }
 

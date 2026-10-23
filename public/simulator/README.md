@@ -1279,3 +1279,73 @@ turned up is fixed here.
 `check-simulator` holds the behaviour: the pending case, the doses, the
 `hello`, and a strip with one control and no way to the panel.
 
+
+## The ventilator course, Day 2
+
+Six scenarios from the AEMT Ventilator Course's *Day 2 Simulator Programming
+Guide* (instructor copy), under **Ventilator course — Day 2** in the picker:
+influenza ARDS, COPD exacerbation, traumatic brain injury, DKA intubated, ALS on
+a home vent via trach, and a pediatric trach-vent. The crew works a real
+ventilator on a test lung; this is the monitor beside it. Every value is the
+guide's, which says it matches the Day 2 run sheets. `check-simulator` holds
+the behaviour below, not the numbers. The numbers were read against the guide
+row by row when they were entered.
+
+They run ungraded, like the quarterly simulations. The guide has no PASS / NR
+instrument and no expected-actions column. What it has is *Go to this state
+when…*, and where that is something the student does it is the action the
+previous state is waiting for, so that is what is ticked, in the guide's words.
+The run card's *Moves on when* is the same column read forwards. There is no
+dispatch, survey or SAMPLE: those are in the run sheets, not the guide.
+`fromGuide:true` marks these entries, and the run-sheet checks skip them.
+
+### State trends
+
+The guide programs each state with a **Trend**: how long the numbers take to
+get from the last state to this one. That needed four things the engine did
+not have, all as fields on a state:
+
+- **`trend: {secs, keys}`.** *SpO₂ over 20 s* moves only the saturation and
+  jumps the rest; a bare *60 s* moves everything. Two values never trend. RR
+  is the rate the ventilator is set to, which changes when somebody changes
+  it. EtCO₂ going to or from zero is a circuit coming apart or back together,
+  so it is immediate. A sinus rate trending through 100 or 60 reads as
+  tachycardia or bradycardia when it gets there. A value the facilitator types
+  leaves the trend. The panel shows what is moving and how long is left.
+- **`then`.** The second leg of the one two-part row. In ALS *X Worse*, the
+  patient desaturates to 72% at 130 over 60 s, then the heart rate falls to a
+  bradycardia of 50 over the next 60 s. That reads the guide's *60 s, then
+  60 s* and *130 → brady 50 at 3 min* as 3 min from the obstruction, since
+  X Worse begins 2 min after it.
+- **`auto`.** DKA's *Rising CO₂* starts by itself one minute after baseline,
+  with a countdown on the panel. Advance still takes it early, and that
+  cancels the countdown.
+- **`branch` and `returnTo`.** An *X Worse* row is pressed on purpose and
+  Advance never goes into it. From it, Advance goes to the state the missed
+  action would have reached, following the guide's *make the point, then coach
+  and return to the recovery state*. These rows are dashed.
+
+One row is an **`event`**: the pediatric case's AC power pull, which the guide
+says changes no vitals. Pressing it logs it on the run's timeline and leaves the
+patient and the state where they are.
+
+`ventRr` on every state is the guide's RR, so a crew that marks an airway sees
+the ventilator's rate rather than the panel's default ("keep RR matched to the
+ventilator rate").
+
+### A capnogram the monitor did not have
+
+*Small, rounded* is a partial obstruction or very little ventilation: a hump
+with no plateau, at the set rate, as tall as the EtCO₂. ALS *Obstructed* uses
+it. The guide's other shapes were already there. *Shark fin, smaller* is the
+shark fin at a lower EtCO₂, since height follows the number.
+
+### What the guide asks that this does not do
+
+- **NIBP cycling every 3–5 minutes.** The LIFEPAK skin takes a pressure when
+  NIBP is pressed and has no interval setting. The guide accepts *or show BP on
+  demand*, and the ZX skin shows it continuously.
+- **"Bagged" as a rate.** Scenario 1's Bagging state shows 24, the vent rate.
+  Set RR to the rate you count.
+- **"Sinus 104"** in COPD *Recovered* shows as sinus tachycardia, which is what
+  104 is.

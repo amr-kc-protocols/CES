@@ -601,6 +601,13 @@ select:focus{border-color:var(--accent);}
 }
 .run-cols .col-h{font-size:.62rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--t-dim);}
 .run-card .state-btn{margin-bottom:4px;}
+/* An "X Worse" branch is pressed on purpose and never advanced into; an event
+   row changes nothing about the patient. Both read as set apart from the path. */
+.state-btn.branch{border-style:dashed;}
+.state-btn.event{border-style:dotted;opacity:.85;}
+.trend-status{font-size:.7rem;color:var(--co2);background:var(--inset);border:1px solid var(--border);
+  border-radius:6px;padding:6px 9px;margin-bottom:6px;}
+.trend-status[hidden]{display:none;}
 .run-card .sim-note{margin-top:8px;}
 .run-inline{display:flex;gap:8px;align-items:center;}
 
@@ -1017,6 +1024,14 @@ body.run-mode .card.bp{grid-row:1/3;}
       <option value="pals11">11 — Wide-complex tachycardia (child; unstable)</option>
       <option value="pals12">12 — Pulseless arrest, pulseless VT (infant)</option>
     </optgroup>
+    <optgroup label="Ventilator course — Day 2">
+      <option value="vent_ards">1 — Influenza ARDS (rate 24)</option>
+      <option value="vent_copd">2 — COPD exacerbation (rate 10)</option>
+      <option value="vent_tbi">3 — Traumatic brain injury (rate 14)</option>
+      <option value="vent_dka">4 — DKA, intubated (rate 14)</option>
+      <option value="vent_als">5 — ALS, home vent, trach (rate 12)</option>
+      <option value="vent_peds">6 — Pediatric trach-vent (rate 22)</option>
+    </optgroup>
     <!-- Vitals with no script behind them: a patient to improvise against,
          rather than a case with states and expected actions. Named for what
          they are, because "quick scenario" told you nothing about the
@@ -1238,6 +1253,7 @@ body.run-mode .card.bp{grid-row:1/3;}
       <option value="shark">Shark Fin — Bronchospasm / Obstruction</option>
       <option value="rebreathing">Rebreathing (elevated baseline)</option>
       <option value="leak">Leak (irregular baseline)</option>
+      <option value="rounded">Small, Rounded — partial obstruction / low ventilation</option>
       <option value="curare">Curare Cleft (notch in plateau)</option>
     </optgroup>
     <optgroup label="Critical / Arrest">
@@ -1991,6 +2007,7 @@ function sv(k,v){
   // The facilitator dragging saturation is them taking it back from the oxygen
   // trend; a slider that springs back to where the model wanted it is unusable.
   if(k==='spo2') stopO2Trend();
+  releaseFromTrend(k);
   S[k]=v;
   // Physiology lock first, so the value the A-Line mirrors is the corrected
   // one. Mirroring before the lock ran let refreshArt() write the unclamped
@@ -2801,6 +2818,193 @@ const SIMULATIONS={
        display:'HR 140 | ROSC | BP 84/50 | SpO₂ 98% | RR 30 (BVM)',
        note:'Vital signs after ROSC following high-quality CPR, a total of 3 shocks, 1 dose of epinephrine and 1 dose of antiarrhythmic. Sinus rhythm with bag-mask ventilation at 30/min. Blood glucose 112 mg/dL and a normal chest x-ray are available after ROSC only — neither is available during the scenario. Insertion of an advanced airway and post-ROSC care are beyond the scope of this practice case.'},
     ]},
+  // ── AEMT Ventilator Course, Day 2 ─────────────────────────────────────────
+  // Transcribed from the Day 2 Simulator Programming Guide (instructor copy).
+  // Values are the guide's, which match the Day 2 run sheets. The crew runs a
+  // real ventilator on a test lung; this is the monitor beside it.
+  //
+  // Four fields here are for these scenarios and documented with the engine
+  // (see "State trends"):
+  //   trend   the guide's Trend column — how long the numbers take to get from
+  //           the last state to this one. `keys` limits it to the parameter the
+  //           guide names ("SpO2 over 20 s"); without it everything moves.
+  //   then    a second trend partway through a state, for the one row that has
+  //           two ("60 s, then 60 s").
+  //   auto    the state starts by itself this long after the state before it.
+  //   branch  an "X Worse" row: the branch if the critical action is missed.
+  //           Advance skips it, and from it Advance goes to `returnTo` — the
+  //           guide's "make the point, then coach and return to the recovery
+  //           state".
+  //   event   a row that changes no vitals (the power event). Pressing it logs
+  //           it on the timeline and leaves the patient where they are.
+  // `ventRr` keeps the rate on the monitor at the guide's RR when the crew marks
+  // an airway — "keep RR matched to the ventilator rate".
+  vent_ards:{
+    name:'Vent 1 — Influenza ARDS',
+    subtitle:'Vent rate 24 · hypoxemic but stable at baseline',
+    patientType:'Adult',
+    states:[
+      {id:'baseline',label:'Baseline',color:'var(--amber)',ventRr:24,
+       vitals:{hr:112,rhythm:'tachy',sbp:104,dbp:62,spo2:90,etco2:48,rr:24,co2Shape:'normal',etco2On:true,temp:37.0},
+       display:'HR 112 | BP 104/62 | SpO₂ 90% | EtCO₂ 48 | RR 24',
+       note:'Go to this state when: scenario start (pickup).'},
+      {id:'disconnect',label:'Disconnect',color:'#ff3333',ventRr:0,
+       trend:{secs:20,keys:['spo2']},
+       vitals:{hr:128,rhythm:'tachy',sbp:98,dbp:58,spo2:84,etco2:0,rr:0,co2Shape:'flat',etco2On:true},
+       display:'HR 128 | BP 98/58 | SpO₂ 84% | EtCO₂ 0 flat | RR 0',
+       note:'Go to this state when: the instructor disconnects at the wye during the stretcher move. SpO₂ falls over 20 s; the rest is immediate.'},
+      {id:'bagging',label:'Bagging',color:'var(--drug)',ventRr:24,
+       trend:{secs:60},
+       vitals:{hr:120,rhythm:'tachy',sbp:100,dbp:60,spo2:87,etco2:46,rr:24,co2Shape:'normal',etco2On:true},
+       display:'HR 120 | BP 100/60 | SpO₂ 87% | EtCO₂ 46 | RR bagged',
+       note:'Go to this state when: the student bags with 100% O₂ and a PEEP valve. The guide gives RR as "bagged" — 24 is shown; set RR to the rate you count.'},
+      {id:'recovered',label:'Recovered',color:'#00cc44',ventRr:24,
+       trend:{secs:60},
+       vitals:{hr:114,rhythm:'tachy',sbp:102,dbp:60,spo2:89,etco2:47,rr:24,co2Shape:'normal',etco2On:true},
+       display:'HR 114 | BP 102/60 | SpO₂ 89% | EtCO₂ 47 | RR 24',
+       note:'Go to this state when: the student reconnects to the vent and confirms PEEP.'},
+      {id:'worse',label:'X Worse — not bagged',color:'#cc0000',branch:true,returnTo:2,ventRr:0,
+       trend:{secs:30},
+       vitals:{hr:136,rhythm:'tachy',sbp:90,dbp:52,spo2:78,etco2:0,rr:0,co2Shape:'flat',etco2On:true},
+       display:'HR 136 | BP 90/52 | SpO₂ 78% | EtCO₂ 0 flat | RR 0',
+       note:'Go to this state when: no bagging within 60 s of Disconnect. Use it only long enough to make the point, then coach and return to Bagging.'},
+    ]},
+  vent_copd:{
+    name:'Vent 2 — COPD Exacerbation',
+    subtitle:'Vent rate 10 · obstructive capnogram throughout',
+    patientType:'Adult',
+    states:[
+      {id:'baseline',label:'Baseline',color:'var(--amber)',ventRr:10,
+       vitals:{hr:98,rhythm:'nsr',sbp:104,dbp:60,spo2:91,etco2:58,rr:10,co2Shape:'shark',etco2On:true,temp:37.0},
+       display:'HR 98 | BP 104/60 | SpO₂ 91% | EtCO₂ 58 shark fin | RR 10',
+       note:'Go to this state when: scenario start.'},
+      {id:'air_trapping',label:'Air trapping',color:'#ff3333',ventRr:10,
+       trend:{secs:60,keys:['sbp','dbp']},
+       vitals:{hr:120,rhythm:'tachy',sbp:78,dbp:40,spo2:88,etco2:52,rr:10,co2Shape:'shark',etco2On:true},
+       display:'HR 120 | BP 78/40 | SpO₂ 88% | EtCO₂ 52 shark fin, smaller | RR 10',
+       note:'Go to this state when: the instructor squeezes the test lung and HIGH PRES alarms. BP falls over 60 s; the rest is immediate. The smaller shark fin follows from the lower EtCO₂.'},
+      {id:'released',label:'Released',color:'var(--drug)',ventRr:0,
+       trend:{secs:30},
+       vitals:{hr:108,rhythm:'tachy',sbp:92,dbp:54,spo2:89,etco2:0,rr:0,co2Shape:'flat',etco2On:true},
+       display:'HR 108 | BP 92/54 | SpO₂ 89% | EtCO₂ 0 flat | RR 0',
+       note:'Go to this state when: the student disconnects to let the patient exhale (20–30 s).'},
+      {id:'recovered',label:'Recovered',color:'#00cc44',ventRr:10,
+       trend:{secs:60},
+       vitals:{hr:104,rhythm:'tachy',sbp:98,dbp:58,spo2:90,etco2:60,rr:10,co2Shape:'shark',etco2On:true},
+       display:'HR 104 | BP 98/58 | SpO₂ 90% | EtCO₂ 60 shark fin | RR 10',
+       note:'Go to this state when: the student reconnects and reports. (The guide labels this rhythm "Sinus 104"; at 104 the monitor shows sinus tachycardia.)'},
+      {id:'worse',label:'X Worse — not released',color:'#cc0000',branch:true,returnTo:2,ventRr:10,
+       trend:{secs:60},
+       vitals:{hr:138,rhythm:'tachy',sbp:62,dbp:30,spo2:85,etco2:48,rr:10,co2Shape:'shark',etco2On:true},
+       display:'HR 138 | BP 62/30 | SpO₂ 85% | EtCO₂ 48 shark fin, small | RR 10 / new',
+       note:'Go to this state when: no disconnect within 2 min, or the student raises the rate. RR is 10, or the new rate if the student raised it — set it to match. Use it only long enough to make the point, then coach and return to Released.'},
+    ]},
+  vent_tbi:{
+    name:'Vent 3 — Traumatic Brain Injury',
+    subtitle:'Arrives hyperventilated from bagging · ordered rate 14',
+    patientType:'Adult',
+    states:[
+      {id:'bagged',label:'Bagged',color:'var(--amber)',ventRr:26,
+       vitals:{hr:62,rhythm:'nsr',sbp:136,dbp:78,spo2:99,etco2:28,rr:26,co2Shape:'normal',etco2On:true,temp:37.0},
+       display:'HR 62 | BP 136/78 | SpO₂ 99% | EtCO₂ 28 | RR 26',
+       note:'Go to this state when: scenario start, while the previous crew is "bagging".'},
+      {id:'on_vent',label:'On vent',color:'var(--drug)',ventRr:14,
+       trend:{secs:180},
+       vitals:{hr:66,rhythm:'nsr',sbp:130,dbp:76,spo2:98,etco2:33,rr:14,co2Shape:'normal',etco2On:true},
+       display:'HR 66 | BP 130/76 | SpO₂ 98% | EtCO₂ 33 | RR 14',
+       note:'Go to this state when: the student connects the vent at the ordered rate of 14.'},
+      {id:'in_range',label:'In range',color:'#00cc44',ventRr:14,
+       trend:{secs:180},
+       vitals:{hr:68,rhythm:'nsr',sbp:128,dbp:74,spo2:98,etco2:37,rr:14,co2Shape:'normal',etco2On:true},
+       display:'HR 68 | BP 128/74 | SpO₂ 98% | EtCO₂ 37 | RR 14',
+       note:'Go to this state when: three more minutes on the vent.'},
+      {id:'worse',label:'X Worse — hyperventilated',color:'#cc0000',branch:true,returnTo:1,ventRr:28,
+       trend:{secs:120},
+       vitals:{hr:54,rhythm:'brady',sbp:164,dbp:92,spo2:99,etco2:25,rr:28,co2Shape:'normal',etco2On:true},
+       display:'HR 54 | BP 164/92 | SpO₂ 99% | EtCO₂ 25 | RR 28',
+       note:'Go to this state when: the student keeps bagging fast or raises the rate. Use it only long enough to make the point, then coach and return to On vent.'},
+    ]},
+  vent_dka:{
+    name:'Vent 4 — DKA, Intubated',
+    subtitle:'Vent rate 14, far below her pre-intubation RR 36',
+    patientType:'Adult',
+    states:[
+      {id:'baseline',label:'Baseline',color:'var(--amber)',ventRr:14,
+       auto:{after:60},
+       vitals:{hr:124,rhythm:'tachy',sbp:102,dbp:64,spo2:98,etco2:22,rr:14,co2Shape:'normal',etco2On:true,pvcOn:false,temp:37.0},
+       display:'HR 124 | BP 102/64 | SpO₂ 98% | EtCO₂ 22 | RR 14',
+       note:'Go to this state when: scenario start, right after intubation. Rising CO₂ starts by itself one minute in.'},
+      {id:'rising_co2',label:'Rising CO₂',color:'#ff3333',ventRr:14,
+       trend:{secs:300,keys:['etco2']},
+       vitals:{hr:132,rhythm:'tachy',sbp:94,dbp:58,spo2:97,etco2:38,rr:14,co2Shape:'normal',etco2On:true,pvcOn:false},
+       display:'HR 132 | BP 94/58 | SpO₂ 97% | EtCO₂ 38 | RR 14',
+       note:'Starts automatically 1 min into packaging. EtCO₂ climbs over 5 min; the rest is immediate. The "normal-looking" EtCO₂ is the problem: her pre-intubation RR was 36.'},
+      {id:'corrected',label:'Corrected',color:'#00cc44',ventRr:30,
+       trend:{secs:240},
+       vitals:{hr:120,rhythm:'tachy',sbp:100,dbp:62,spo2:98,etco2:26,rr:30,co2Shape:'normal',etco2On:true,pvcOn:false},
+       display:'HR 120 | BP 100/62 | SpO₂ 98% | EtCO₂ 26 | RR 30',
+       note:'Go to this state when: medical control orders rate 30 and the student sets it.'},
+      {id:'worse',label:'X Worse — no medical control',color:'#cc0000',branch:true,returnTo:2,ventRr:14,
+       trend:{secs:180},
+       vitals:{hr:140,rhythm:'tachy',sbp:80,dbp:50,spo2:96,etco2:45,rr:14,co2Shape:'normal',etco2On:true,pvcOn:true},
+       display:'HR 140 with PVCs | BP 80/50 | SpO₂ 96% | EtCO₂ 45 | RR 14',
+       note:'Go to this state when: the student leaves without calling medical control. The PVCs are optional in the guide; turn them off under Advanced if you do not want them. Use it only long enough to make the point, then coach and return to Corrected.'},
+    ]},
+  vent_als:{
+    name:'Vent 5 — ALS, Home Vent, Trach',
+    subtitle:'SIMV pressure, rate 12 · wife at bedside',
+    patientType:'Adult',
+    states:[
+      {id:'baseline',label:'Baseline',color:'var(--amber)',ventRr:12,
+       vitals:{hr:88,rhythm:'nsr',sbp:122,dbp:78,spo2:96,etco2:40,rr:12,co2Shape:'normal',etco2On:true,temp:37.0},
+       display:'HR 88 | BP 122/78 | SpO₂ 96% | EtCO₂ 40 | RR 12',
+       note:'Go to this state when: scenario start.'},
+      {id:'obstructed',label:'Obstructed',color:'#ff3333',ventRr:12,
+       trend:{secs:45,keys:['spo2']},
+       vitals:{hr:118,rhythm:'tachy',sbp:138,dbp:84,spo2:85,etco2:8,rr:12,co2Shape:'rounded',etco2On:true},
+       display:'HR 118 | BP 138/84 | SpO₂ 85% | EtCO₂ 8 small, rounded | RR 12',
+       note:'Go to this state when: the instructor clamps the circuit near the test lung. SpO₂ falls over 45 s; the rest is immediate.'},
+      {id:'cleared',label:'Cleared',color:'#00cc44',ventRr:12,
+       trend:{secs:60},
+       vitals:{hr:96,rhythm:'nsr',sbp:126,dbp:80,spo2:94,etco2:41,rr:12,co2Shape:'normal',etco2On:true},
+       display:'HR 96 | BP 126/80 | SpO₂ 94% | EtCO₂ 41 | RR 12',
+       note:'Go to this state when: the student removes the inner cannula and suctions.'},
+      {id:'worse',label:'X Worse — not cleared',color:'#cc0000',branch:true,returnTo:2,ventRr:0,
+       trend:{secs:60},
+       then:{at:60,secs:60,vitals:{hr:50,rhythm:'brady'}},
+       vitals:{hr:130,rhythm:'tachy',sbp:100,dbp:60,spo2:72,etco2:0,rr:0,co2Shape:'flat',etco2On:true},
+       display:'HR 130 → brady 50 | BP 100/60 | SpO₂ 72% | EtCO₂ 0 flat | RR 0',
+       note:'Go to this state when: not cleared within 2 min. Over the first 60 s the patient desaturates to 72% at 130; over the next 60 s the heart rate falls to a bradycardia of 50, reached 3 min after the obstruction began. Use it only long enough to make the point, then coach and return to Cleared.'},
+    ]},
+  vent_peds:{
+    name:'Vent 6 — Pediatric Trach-Vent',
+    subtitle:'A/C pressure, rate 22 · the oxygen event is slow',
+    patientType:'Pediatric',
+    states:[
+      {id:'baseline',label:'Baseline',color:'var(--amber)',ventRr:22,
+       vitals:{hr:130,rhythm:'tachy',sbp:98,dbp:60,spo2:95,etco2:42,rr:22,co2Shape:'normal',etco2On:true,temp:37.0},
+       display:'HR 130 | BP 98/60 | SpO₂ 95% | EtCO₂ 42 | RR 22',
+       note:'Go to this state when: scenario start.'},
+      {id:'o2_lost',label:'O₂ lost',color:'#ff3333',ventRr:22,
+       trend:{secs:120,keys:['spo2']},
+       vitals:{hr:142,rhythm:'tachy',sbp:96,dbp:58,spo2:90,etco2:43,rr:22,co2Shape:'normal',etco2On:true},
+       display:'HR 142 | BP 96/58 | SpO₂ 90% | EtCO₂ 43 | RR 22',
+       note:'Go to this state when: the instructor closes the cylinder (LOW O₂ PRES). SpO₂ falls over 2 min; the rest is immediate.'},
+      {id:'o2_fixed',label:'O₂ fixed',color:'#00cc44',ventRr:22,
+       trend:{secs:90},
+       vitals:{hr:132,rhythm:'tachy',sbp:98,dbp:60,spo2:95,etco2:42,rr:22,co2Shape:'normal',etco2On:true},
+       display:'HR 132 | BP 98/60 | SpO₂ 95% | EtCO₂ 42 | RR 22',
+       note:'Go to this state when: the student reopens or swaps the O₂ source.'},
+      {id:'power',label:'Power — AC unplugged',color:'var(--t-dim)',event:true,
+       vitals:{},
+       display:'No vital-sign change — logged on the timeline',
+       note:'Go to this when: the instructor unplugs AC. The vent alarms; the patient does not change.'},
+      {id:'worse',label:'X Worse — O₂ not fixed',color:'#cc0000',branch:true,returnTo:2,ventRr:22,
+       trend:{secs:60},
+       vitals:{hr:150,rhythm:'tachy',sbp:92,dbp:56,spo2:86,etco2:44,rr:22,co2Shape:'normal',etco2On:true},
+       display:'HR 150 | BP 92/56 | SpO₂ 86% | EtCO₂ 44 | RR 22',
+       note:'Go to this state when: O₂ not fixed within 3 min. Use it only long enough to make the point, then coach and return to O₂ fixed.'},
+    ]},
 };
 // ── Scenario reference and grading content ────────────────────────────────────
 // Transcribed from the approved Word scenarios (Medical Director reviewed).
@@ -3318,6 +3522,119 @@ const SCENARIO_DOCS={
         'Recall the reversible causes of the arrest (H’s and T’s) for the debriefing',
       ],trigger:'Post-ROSC care and advanced airway insertion are beyond the scope of this practice case — the manual addresses post-ROSC care in the asystole scenario. End the simulation at ROSC with the reversible causes discussed.'},
     ],
+  },  // ── AEMT Ventilator Course, Day 2 ─────────────────────────────────────────
+  // The guide has no expected-actions column. What it does have is "Go to this
+  // state when…", and where that is something the student does, it is the
+  // action this state is waiting for — so that is what is ticked, in the
+  // guide's words. Nothing is graded: there is no PASS / NR instrument, so a
+  // run prints as a performance record, like the quarterly simulations.
+  vent_ards:{
+    // From the programming guide, not a run sheet: no dispatch, survey or SAMPLE.
+    fromGuide:true,
+    brief:{
+      patient:'Influenza ARDS · on the ventilator, rate 24',
+      dispatch:'',hpi:'Hypoxemic but stable at baseline.',handoff:'',withhold:'',sample:[],
+      primary:'',secondary:'',labs:'',
+      scene:'AEMT Ventilator Course, Day 2. The crew runs the ventilator on a test lung; the stretcher move is where the disconnect happens.',
+    },
+    states:[
+      {actions:[],trigger:'The instructor disconnects at the wye during the stretcher move → Disconnect.'},
+      {actions:['Bags with 100% O₂ and a PEEP valve'],
+       trigger:'The student bags with 100% O₂ and a PEEP valve → Bagging.\n\nNo bagging within 60 s → X Worse.'},
+      {actions:['Reconnects to the vent and confirms PEEP'],
+       trigger:'The student reconnects to the vent and confirms PEEP → Recovered.'},
+      {actions:[],trigger:''},
+      {actions:[],trigger:'Make the point, then coach and return to Bagging.'},
+    ],
+  },
+  vent_copd:{
+    // From the programming guide, not a run sheet: no dispatch, survey or SAMPLE.
+    fromGuide:true,
+    brief:{
+      patient:'COPD exacerbation · on the ventilator, rate 10',
+      dispatch:'',hpi:'Obstructive capnogram throughout.',handoff:'',withhold:'',sample:[],
+      primary:'',secondary:'',labs:'',
+      scene:'AEMT Ventilator Course, Day 2. The instructor creates the air trapping by squeezing the test lung.',
+    },
+    states:[
+      {actions:[],trigger:'The instructor squeezes the test lung and HIGH PRES alarms → Air trapping.'},
+      {actions:['Disconnects to let the patient exhale (20–30 s)'],
+       trigger:'The student disconnects to let the patient exhale (20–30 s) → Released.\n\nNo disconnect within 2 min, or the student raises the rate → X Worse.'},
+      {actions:['Reconnects and reports'],
+       trigger:'The student reconnects and reports → Recovered.'},
+      {actions:[],trigger:''},
+      {actions:[],trigger:'Make the point, then coach and return to Released.'},
+    ],
+  },
+  vent_tbi:{
+    // From the programming guide, not a run sheet: no dispatch, survey or SAMPLE.
+    fromGuide:true,
+    brief:{
+      patient:'Traumatic brain injury · ordered vent rate 14',
+      dispatch:'',hpi:'Arrives hyperventilated from bagging. Run Bagged while the previous crew “bags”.',handoff:'',withhold:'',sample:[],
+      primary:'',secondary:'',labs:'',
+      scene:'AEMT Ventilator Course, Day 2.',
+    },
+    states:[
+      {actions:['Connects the vent at the ordered rate of 14'],
+       trigger:'The student connects the vent at the ordered rate of 14 → On vent.\n\nThe student keeps bagging fast or raises the rate → X Worse.'},
+      {actions:[],
+       trigger:'Three more minutes on the vent → In range.\n\nThe student raises the rate → X Worse.'},
+      {actions:[],trigger:''},
+      {actions:[],trigger:'Make the point, then coach and return to On vent.'},
+    ],
+  },
+  vent_dka:{
+    // From the programming guide, not a run sheet: no dispatch, survey or SAMPLE.
+    fromGuide:true,
+    brief:{
+      patient:'DKA, intubated · vent rate 14, pre-intubation RR 36',
+      dispatch:'',hpi:'Vent rate 14, far below her pre-intubation RR of 36. The “normal-looking” EtCO₂ is the problem.',handoff:'',withhold:'',sample:[],
+      primary:'',secondary:'',labs:'',
+      scene:'AEMT Ventilator Course, Day 2. Rising CO₂ starts by itself one minute into packaging.',
+    },
+    states:[
+      {actions:[],trigger:'Starts automatically 1 min into packaging → Rising CO₂.'},
+      {actions:['Calls medical control','Sets the rate of 30 medical control orders'],
+       trigger:'Medical control orders rate 30 and the student sets it → Corrected.\n\nThe student leaves without calling medical control → X Worse.'},
+      {actions:[],trigger:''},
+      {actions:[],trigger:'Make the point, then coach and return to Corrected.'},
+    ],
+  },
+  vent_als:{
+    // From the programming guide, not a run sheet: no dispatch, survey or SAMPLE.
+    fromGuide:true,
+    brief:{
+      patient:'ALS · home ventilator via tracheostomy · SIMV pressure, rate 12',
+      dispatch:'',hpi:'Wife at bedside.',handoff:'',withhold:'',sample:[],
+      primary:'',secondary:'',labs:'',
+      scene:'AEMT Ventilator Course, Day 2. The instructor creates the obstruction by clamping the circuit near the test lung.',
+    },
+    states:[
+      {actions:[],trigger:'The instructor clamps the circuit near the test lung → Obstructed.'},
+      {actions:['Removes the inner cannula and suctions'],
+       trigger:'The student removes the inner cannula and suctions → Cleared.\n\nNot cleared within 2 min → X Worse.'},
+      {actions:[],trigger:''},
+      {actions:[],trigger:'Make the point, then coach and return to Cleared.'},
+    ],
+  },
+  vent_peds:{
+    // From the programming guide, not a run sheet: no dispatch, survey or SAMPLE.
+    fromGuide:true,
+    brief:{
+      patient:'Pediatric · tracheostomy, home ventilator · A/C pressure, rate 22',
+      dispatch:'',hpi:'The oxygen event is slow; the power event changes no vitals.',handoff:'',withhold:'',sample:[],
+      primary:'',secondary:'',labs:'',
+      scene:'AEMT Ventilator Course, Day 2. The instructor closes the cylinder (LOW O₂ PRES) and, separately, unplugs AC power.',
+    },
+    states:[
+      {actions:[],trigger:'The instructor closes the cylinder (LOW O₂ PRES) → O₂ lost. The power event can be run at any point.'},
+      {actions:['Reopens or swaps the O₂ source'],
+       trigger:'The student reopens or swaps the O₂ source → O₂ fixed.\n\nO₂ not fixed within 3 min → X Worse.'},
+      {actions:[],trigger:''},
+      {actions:[],trigger:''},
+      {actions:[],trigger:'Make the point, then coach and return to O₂ fixed.'},
+    ],
   },
 };
 
@@ -3569,6 +3886,13 @@ function applySimState(simKey, stateIdx){
   if(!sim) return;
   const st=sim.states[stateIdx];
   if(!st) return;
+  // An event row changes nothing about the patient. It is something the
+  // facilitator did to the equipment, and it goes on the timeline.
+  if(st.event){ logStateEvent(st); return; }
+  // Where the numbers are coming from, for a state that trends into its own.
+  const from={hr:S.hr,sbp:S.sbp,dbp:S.dbp,spo2:S.spo2,etco2:S.etco2,rr:S.rr,rhythm:S.rhythm};
+  const sameCase=activeSim===simKey;
+  stopStateTrend();
   activeStateIdx=stateIdx;
   activeSim=simKey;
   S.scenario=simKey; // track active scenario for monitor popup
@@ -3589,6 +3913,11 @@ function applySimState(simKey, stateIdx){
   // The per-stage 12-lead contract, if any, flows to the monitor so its 12-lead
   // printout matches the described findings (applyVitals cleared any prior one).
   if(st.ecg){ S.ecg=st.ecg; save(); }
+  // A trend is a move from the last state of this case. Loading a case is not
+  // one: it starts where the author put it.
+  if(st.trend&&sameCase) startStateTrend(st,from);
+  if(st.then) scheduleThen(st);
+  if(st.auto) scheduleAuto(st);
   // Repaint so the active state's own note and checklist are the ones showing.
   renderSimPanel(simKey);
 }
@@ -4131,6 +4460,130 @@ function o2Goal(){
   return {target,perSec:Math.max(0.05,perMin/60)};
 }
 
+/* ── State trends ──────────────────────────────────────────────────────────
+   The ventilator course programs each state with a Trend: how long the
+   numbers take to get from the last state to this one. "SpO2 over 20 s" moves
+   only the saturation and jumps the rest; a bare "60 s" moves them all.
+
+   Two values never trend. RR is the rate the ventilator is set to, which
+   changes when somebody changes it. And an EtCO₂ going to or from zero is a
+   circuit coming apart or back together: a flat line at once, and a waveform
+   on the first breath — not a number drifting across a flat trace.
+
+   Everything is written through drugBase while a drug is on board, the same
+   way the oxygen trend does it, so a drug given mid-trend wears off onto the
+   trend rather than snapping back to where the trend started. A value the
+   facilitator types is theirs: it leaves the trend (releaseFromTrend). */
+const TREND_KEYS=['hr','sbp','dbp','spo2','etco2'];
+let stTrend=null, stTrendTimer=null, stThenTimer=null, stAutoTimer=null, stAutoAt=0;
+function stopStateTrend(){
+  if(stTrendTimer){ clearInterval(stTrendTimer); stTrendTimer=null; }
+  if(stThenTimer){ clearTimeout(stThenTimer); stThenTimer=null; }
+  if(stAutoTimer){ clearTimeout(stAutoTimer); stAutoTimer=null; }
+  stTrend=null; stAutoAt=0;
+}
+function trendKeys(t,vitals,from){
+  return (t.keys||TREND_KEYS).filter(k=>TREND_KEYS.includes(k)&&typeof vitals[k]==='number'
+    &&!(k==='etco2'&&(vitals.etco2===0||(from&&from.etco2===0))));
+}
+function runTrend(secs,from,to,keys){
+  if(stTrendTimer){ clearInterval(stTrendTimer); stTrendTimer=null; }
+  const live=keys.filter(k=>typeof from[k]==='number'&&from[k]!==to[k]);
+  if(!live.length||!(secs>0)){ stTrend=null; return; }
+  stTrend={startT:Date.now(),secs,from,to,keys:live,
+    // Sinus by rate: a heart rate trending through 100 or 60 should read as
+    // tachycardia or bradycardia when it gets there, not when it starts.
+    sinus:['nsr','tachy','brady'].includes(from.rhythm)&&['nsr','tachy','brady'].includes(to.rhythm)};
+  // The patient starts where they were; the trend carries them on.
+  live.forEach(k=>writeTrended(k,from[k]));
+  if(stTrend.sinus&&live.includes('hr')) S.rhythm=from.rhythm;
+  stTrendTimer=setInterval(trendTick,500);
+  updateAllUI(); save();
+}
+function writeTrended(k,v){ if(drugBase&&k in drugBase) drugBase[k]=v; else setVital(k,v); }
+function trendTick(){
+  const t=stTrend;
+  if(!t){ stopTrendTimer(); return; }
+  const p=Math.min(1,(Date.now()-t.startT)/(t.secs*1000));
+  t.keys.forEach(k=>writeTrended(k,Math.round(t.from[k]+(t.to[k]-t.from[k])*p)));
+  if(t.sinus&&t.keys.includes('hr')){
+    const hr=drugBase?drugBase.hr:S.hr;
+    S.rhythm=p>=1?t.to.rhythm:(hr>100?'tachy':hr<60?'brady':'nsr');
+  }
+  if(S.physLock) enforcePhysiology();
+  save();
+  paintTrendStatus();
+  if(p>=1){ stTrend=null; stopTrendTimer(); renderSimPanel(activeSim); }
+}
+function stopTrendTimer(){ if(stTrendTimer){ clearInterval(stTrendTimer); stTrendTimer=null; } }
+function startStateTrend(st,from){
+  runTrend(st.trend.secs,from,{...st.vitals},trendKeys(st.trend,st.vitals,from));
+}
+function releaseFromTrend(k){
+  if(!stTrend) return;
+  stTrend.keys=stTrend.keys.filter(x=>x!==k);
+  if(!stTrend.keys.length){ stTrend=null; stopTrendTimer(); }
+}
+/* The second leg of a two-part row ("60 s, then 60 s"), from wherever the
+   first leg left the patient. */
+function scheduleThen(st){
+  const idx=activeStateIdx, sim=activeSim;
+  stThenTimer=setTimeout(()=>thenFire(sim,idx),st.then.at*1000);
+}
+function thenFire(sim,idx){
+    stThenTimer=null;
+    if(activeSim!==sim||activeStateIdx!==idx) return;
+    const st=SIMULATIONS[sim].states[idx];
+    const from={hr:S.hr,sbp:S.sbp,dbp:S.dbp,spo2:S.spo2,etco2:S.etco2,rr:S.rr,rhythm:S.rhythm};
+    if(drugBase) TREND_KEYS.forEach(k=>{ if(k in drugBase) from[k]=drugBase[k]; });
+    if(st.then.vitals.rhythm&&!['nsr','tachy','brady'].includes(st.then.vitals.rhythm)) S.rhythm=st.then.vitals.rhythm;
+    runTrend(st.then.secs,from,{...from,...st.then.vitals},trendKeys({},st.then.vitals,from));
+    renderSimPanel(activeSim);
+}
+/* A state that starts by itself ("starts automatically 1 min into
+   packaging"). The countdown is on the panel, and Advance still takes it
+   early. */
+function scheduleAuto(st){
+  const idx=activeStateIdx, sim=activeSim;
+  stAutoAt=Date.now()+st.auto.after*1000;
+  stAutoTimer=setTimeout(()=>autoFire(sim,idx),st.auto.after*1000);
+}
+function autoFire(sim,idx){
+  stAutoTimer=null; stAutoAt=0;
+  if(activeSim!==sim||activeStateIdx!==idx) return;
+  const n=nextStage();
+  if(n) applySimState(sim,n.idx);
+}
+function fmtSecs(s){ s=Math.max(0,Math.ceil(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+const TREND_NAMES={hr:'HR',sbp:'BP',dbp:'BP',spo2:'SpO₂',etco2:'EtCO₂'};
+function trendStatusText(){
+  const bits=[];
+  if(stTrend){
+    const left=stTrend.secs-(Date.now()-stTrend.startT)/1000;
+    const names=[...new Set(stTrend.keys.map(k=>TREND_NAMES[k]))].join(', ');
+    bits.push(`⇢ ${names} moving to this state — ${fmtSecs(left)} left`);
+  }
+  if(stAutoAt){
+    const n=nextStage();
+    if(n) bits.push(`⏱ ${n.state.label} starts by itself in ${fmtSecs((stAutoAt-Date.now())/1000)}`);
+  }
+  return bits.join(' · ');
+}
+function paintTrendStatus(){
+  const el=document.getElementById('trendStatus');
+  if(!el) return;
+  const t=trendStatusText();
+  el.textContent=t; el.hidden=!t;
+}
+setInterval(()=>{ if(stTrend||stAutoAt) paintTrendStatus(); },1000);
+/* The power event, and anything else a row says changes no vitals. */
+function logStateEvent(st){
+  // Through the device feed, so it lands on the run's timeline with the
+  // crew's presses, in the order it happened.
+  logLocal('event',st.label,'No vital-sign change');
+  renderSimPanel(activeSim);
+}
+
 let o2Timer=null;
 /* The saturation shown is a whole number, but the climb is not: at a realistic
    rate a tick moves it a third of a point, and rounding that back into S every
@@ -4270,8 +4723,15 @@ function tickForIntervention(){
 function nextStage(){
   const sim=SIMULATIONS[activeSim];
   if(!sim||activeStateIdx<0) return null;
-  const i=activeStateIdx+1;
-  return i<sim.states.length?{idx:i,state:sim.states[i]}:null;
+  const cur=sim.states[activeStateIdx];
+  // From an "X Worse" branch the way on is back to the recovery state, once
+  // the point is made and coached.
+  if(cur&&cur.branch&&typeof cur.returnTo==='number')
+    return {idx:cur.returnTo,state:sim.states[cur.returnTo]};
+  // The branch and the event rows are pressed on purpose, never advanced into.
+  for(let i=activeStateIdx+1;i<sim.states.length;i++)
+    if(!sim.states[i].branch&&!sim.states[i].event) return {idx:i,state:sim.states[i]};
+  return null;
 }
 function advanceStage(){
   const n=nextStage();
@@ -4563,8 +5023,9 @@ function renderBrief(simKey){
   html+=sec('Dispatch',b.dispatch);
   html+=sec('Hand-off report',b.handoff);
   html+=sec('History of present illness',b.hpi);
-  html+=`<div class="bsec"><h4>SAMPLE</h4><dl class="bsam">`+
-        b.sample.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')+`</dl></div>`;
+  if(b.sample&&b.sample.length)
+    html+=`<div class="bsec"><h4>SAMPLE</h4><dl class="bsam">`+
+          b.sample.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')+`</dl></div>`;
   html+=sec('Primary assessment — only if assessed',b.primary,true);
   html+=sec('Secondary assessment — only if assessed',b.secondary,true);
   html+=sec('Setting',b.scene);
@@ -4777,7 +5238,8 @@ function renderSimPanel(simKey){
     const hit=rs?rs.actions.filter(a=>a.done).length:0;
     const tot=rs?rs.actions.length:0;
     const tally=tot?`<span style="float:right;font-size:.6rem;color:${hit===tot?'#7fe0a5':'var(--t-dim)'}">${hit}/${tot}</span>`:'';
-    return `<div class="state-btn${i===activeStateIdx?' active':''}" role="button" tabindex="0" aria-pressed="${i===activeStateIdx}" onclick="applySimState('${simKey}',${i})">
+    const kind=st.branch?' branch':st.event?' event':'';
+    return `<div class="state-btn${kind}${i===activeStateIdx?' active':''}" role="button" tabindex="0" aria-pressed="${i===activeStateIdx}" onclick="applySimState('${simKey}',${i})">
       <span class="sname" style="color:${st.color}">${st.label}${tally}</span>
       <span class="svitals">${st.display}</span>
     </div>`;
@@ -4824,6 +5286,8 @@ function renderSimPanel(simKey){
     : (surgeTimer
         ? `<div class="surge-live">⤴ EtCO₂ rising — ${esc(String(S.etco2))} mmHg</div>`
         : '');
+  const trendTxt=trendStatusText();
+  const trendHtml=`<div class="trend-status" id="trendStatus"${trendTxt?'':' hidden'}>${esc(trendTxt)}</div>`;
   const triggerHtml=dst&&dst.trigger?`<div class="trig"><b>Moves on when</b>${esc(dst.trigger)}</div>`:'';
   const noteHtml=st&&st.note?`<div class="sim-note">💡 ${esc(st.note)}</div>`:'';
   // Program coaching, distinct from the AHA-transcribed note above it: the
@@ -4878,7 +5342,7 @@ function renderSimPanel(simKey){
         <div>${run&&run.checklist
           ? sheetHtml()
           : `<div class="col-h" style="color:var(--ok);">Expected actions — tap as observed</div>${actionsHtml||'<div class="no-sim" style="padding:8px 0;">No graded actions in this state.</div>'}`}</div>
-        <div>${triggerHtml}${noteHtml}${coachHtml}
+        <div>${trendHtml}${triggerHtml}${noteHtml}${coachHtml}
           <div class="col-h" style="color:var(--accent);margin-top:10px;">At the monitor</div>
           <div class="pacer-prompt" hidden></div>
           <div id="devFeed" class="dev-feed"></div>
