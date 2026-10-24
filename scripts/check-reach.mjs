@@ -249,6 +249,8 @@ const PANEL_STATES = {
   'typed value gliding': () => { loadCase('p:normal'); commit('spo2', '85') },
   'pediatric drugs': () => { loadCase('vent_peds'); giveDrug('epi_acls') },
   'sharing': () => { relayCode = 'KCMT24'; paintShare('live') },
+  'asking to switch': () => { loadCase('vent_ards'); toggleConnect(); pickCase('vent_copd') },
+  'x worse due': () => { loadCase('vent_ards'); advance(); stateAt = Date.now() - 70000; paintNext() },
 }
 // Reachability is checked everywhere. The 44pt floor is checked where a
 // finger is actually plausible, which is the sizes an iPad presents — not
@@ -321,7 +323,7 @@ const { bad: monBad } = await sweep('monitor', `${ORIGIN}/patient_monitor_displa
 // The assertion after the sweep is what makes that loud.
 // Everything on the simplified panel is tapped mid-scenario, often on an
 // iPad, so the 44pt floor is held on all of it.
-const GRADING = ['.state', '#advanceBtn', '#connectBtn', '#caseSel', '.rbtn', '.num button', '.num input',
+const GRADING = ['.state', '.go', '#connectBtn', '#shareBtn', '#caseSel', '.rbtn', '.num button', '.num input',
   '.drug-btn', '.tog', '.btn']
 const { bad: panelBad, seen: panelSeen } = await sweep('panel', `${ORIGIN}/control_panel.html`,
   PANEL_STATES, PANEL_VPS, null, (w) => w <= 1180, GRADING)

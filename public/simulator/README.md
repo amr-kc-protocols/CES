@@ -1363,20 +1363,39 @@ the full panel's size. It has one job: drive the patient on the crew's monitor
 and keep that monitor in step. `check-sim-panel.mjs` holds everything below.
 
 **What is on it.**
-- **The case picker:** the six Day 2 cases and twelve vitals-only starting
-  points. Choosing loads; there is no separate Load button.
-- **Connect:** a single toggle for whether the patient is on the monitor.
-- **Share to an iPad.**
-- **The case card:** the states, Advance, what is moving and for how long, and
-  the guide's note for the current state.
-- **The patient:** heart rate, blood pressure, SpO₂, respiratory rate, EtCO₂
-  with capnography on/off and the waveform, and temperature. Below them, the
-  rhythms, PVCs and the 12-lead.
+- **One row:** the case picker, Connect and Share to iPad. The picker holds
+  the six Day 2 cases and twelve vitals-only starting points. Choosing
+  loads, except while the patient is on the monitor and a case is running:
+  then it asks first, in the panel, and nothing changes until you confirm.
+- **The case card:** the states, then a **Next** box with a clock for the
+  time in this state and a button for each way out. Each button carries the
+  guide's trigger, e.g. "→ Bagging, when the student bags with 100% O₂ and a
+  PEEP valve" and "✗ X Worse, if there is no bagging within 1:00". A time
+  limit counts down on its button and turns amber once it passes. TBI's
+  "three more minutes on the vent" counts the same way, and DKA's automatic
+  start shows its countdown on its button. From X Worse, the one button goes
+  back to the recovery state. Below that, the current state's own note, such
+  as how its numbers arrive.
+- **The patient:** heart rate, blood pressure, SpO₂, respiratory rate, and
+  EtCO₂ with capnography on/off and the waveform. Below them, the rhythms,
+  PVCs and the 12-lead.
 - **Medications.**
+
+Buttons that cannot do anything are disabled, not left to fail silently.
+Stop meds is off while nothing is running, and Open 12-lead is off while no
+monitor is open. There is no temperature field: the LIFEPAK shows
+temperature only once the crew attaches a probe at the unit, so a field for
+it looked like a control that did nothing. The cases still set it.
+
+**Inside the app** the panel drops its own title row. On a screen 900px tall
+or less, the Sim tab also hides the app's header; the tab bar stays as the
+way out. Together these took an iPad from 588 visible pixels, with the vitals
+below the fold, to the case, the Next box and the first row of vitals on one
+screen.
 
 **What came off.** The ACLS, PALS and quarterly cases; grading of every kind;
 point-of-care results; the start path; the scenario brief; the crew
-interventions strip; the arterial line and Swan-Ganz; alarm limits; signal
+interventions strip; temperature; the arterial line and Swan-Ganz; alarm limits; signal
 quality, probe site, lead, PACs and temperature site; the physiology-lock
 switch (the lock is now always on); the ROSC surge; and the pacing-capture
 model. Inside the app, the panel also hides its own monitor status and Open
@@ -1409,7 +1428,10 @@ patient back to where they were without the drugs.
   that blocks the pop-up gets a "tap to view" button instead.
 - **Opening the monitor.** The app's button and the panel's own both open the
   LIFEPAK skin, under one window name, so they never put two monitors on one
-  patient.
+  patient. Workbox matches its navigation-fallback denylist against the path
+  *and* the query string, so `patient_monitor_display.html?skin=lp` once got
+  the CES home page from the service worker. The extension rule in
+  `vite.config.ts` now allows a query string after the extension.
 
 Checked in a real browser: a typed SpO₂ of 90 → 80 reached the monitor as one
 point a second. A panel reload and a monitor reload each left the crew's
