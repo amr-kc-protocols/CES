@@ -128,7 +128,12 @@ export default defineConfig({
         // that is to state twice. `/review/necessity` is a real SPA route, and
         // denying the fallback for it would break navigating straight there
         // while offline — the one situation the service worker exists for.
-        navigateFallbackDenylist: [/^\/decks\//, /\.[a-z0-9]+$/i],
+        //
+        // Workbox tests these against the path AND the query string, so the
+        // extension rule has to allow a query after it. Without that,
+        // `patient_monitor_display.html?skin=lp` ended in "lp", not ".html",
+        // and the crew's monitor window opened onto the CES home page.
+        navigateFallbackDenylist: [/^\/decks\//, /\.[a-z0-9]+(\?.*)?$/i],
       },
       devOptions: {
         enabled: false,
