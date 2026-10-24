@@ -425,6 +425,9 @@ const DEF={
   temp:36.9,tempUnit:'C',tempSite:'Esophageal',
   patientType:'Adult',
   alarmOn:true,alarmMuted:false,
+  // One alarm: SpO₂ low. The heart-rate alarm is off; the SpO₂ limit is the
+  // case's own (SPO2_LOW), so a baseline is quiet and the deterioration alarms.
+  hrAlarmOn:false,
   hrAlarmLow:50,hrAlarmHigh:120,spo2AlarmLow:94,
   artActive:false,artSbp:121,artDbp:79,artLinked:true,
   artScale:180,artDamping:'normal',artSite:'Radial — Left',
@@ -893,8 +896,15 @@ function pickCase(v){
 }
 function confirmSwitch(){ const v=pendingCase; cancelSwitch(); if(v) loadCase(v); }
 function cancelSwitch(){ pendingCase=''; document.getElementById('switchBox').hidden=true; document.getElementById('caseSel').value=caseKey; }
+/* The SpO₂ low limit, per case. 94 is the monitor's default and suits a
+   patient whose baseline is well above it. ARDS (baseline 90) and COPD
+   (baseline 91) would alarm from the first second at 94, so they sit at 88,
+   the bottom of the usual target range for both (88-92% for COPD with CO₂
+   retention; 88-95% in ARDS). */
+const SPO2_LOW={vent_ards:88,vent_copd:88};
 function loadCase(v){
   stopEverything();
+  S.spo2AlarmLow=SPO2_LOW[v]||94; S.hrAlarmOn=false;
   if(v.startsWith('p:')){
     const p=PRESETS[v.slice(2)];
     caseKey=v; stateIdx=-1;

@@ -1387,6 +1387,26 @@ monitor is open. There is no temperature field: the LIFEPAK shows
 temperature only once the crew attaches a probe at the unit, so a field for
 it looked like a control that did nothing. The cases still set it.
 
+**One alarm: SpO₂ low.** The panel sends `hrAlarmOn:false`, and the monitor
+then never alarms on heart rate; a panel that never sends the key, like the
+full panel, keeps the heart-rate alarm. The SpO₂ limit is per case
+(`SPO2_LOW`). It is 94, the monitor's default, except for ARDS and COPD, which
+sit at 88, the bottom of the usual target range for both. At 94 their
+baselines (90 and 91) would alarm from the first second. Where the alarm
+sounds:
+
+| Case | Limit | Alarms in |
+|---|---|---|
+| ARDS | 88 | Disconnect (84), Bagging (87), X Worse (78) |
+| COPD | 88 | X Worse (85). Air trapping sits at 88, on the limit, and stays quiet. |
+| TBI | 94 | never (lowest 98) |
+| DKA | 94 | never (lowest 96) |
+| ALS | 94 | Obstructed (85), X Worse (72) |
+| Pediatric | 94 | O₂ lost (90), X Worse (86) |
+
+No SpO₂ alarm sounds without a pulse: with no perfusing pressure the monitor
+reads `---`, and a dash is not a value to breach.
+
 **Inside the app** the panel drops its own title row. On a screen 900px tall
 or less, the Sim tab also hides the app's header; the tab bar stays as the
 way out. Together these took an iPad from 588 visible pixels, with the vitals

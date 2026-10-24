@@ -108,6 +108,56 @@ function load(storage = {}, { relay } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// One alarm: SpO₂ low
+// ---------------------------------------------------------------------------
+// The course alarms on SpO₂ low and nothing else. Each case's limit keeps its
+// baseline quiet, so the alarm is news when it comes.
+{
+  const { w, S } = load()
+  const cases = w.eval('CASES')
+  const alarms = (st) => st.vitals.sbp > 0 && st.vitals.spo2 < S().spo2AlarmLow
+  const expected = {
+    vent_ards: ['disconnect', 'bagging', 'worse'],
+    vent_copd: ['worse'],
+    vent_tbi: [],
+    vent_dka: [],
+    vent_als: ['obstructed', 'worse'],
+    vent_peds: ['o2_lost', 'worse'],
+  }
+  for (const [k, c] of Object.entries(cases)) {
+    w.loadCase(k)
+    ok(`${k}: the heart-rate alarm is off`, S().hrAlarmOn === false)
+    ok(`${k}: baseline does not alarm`, !alarms(c.states[0]), `SpO₂ ${c.states[0].vitals.spo2} against ${S().spo2AlarmLow}`)
+    const got = c.states.filter(alarms).map((st) => st.id)
+    ok(`${k}: SpO₂ low alarms in ${expected[k].join(', ') || 'no state'}`, JSON.stringify(got) === JSON.stringify(expected[k]), got.join(', '))
+  }
+  w.loadCase('vent_ards')
+  ok('ARDS alarms below 88, the bottom of its target range', S().spo2AlarmLow === 88)
+  w.loadCase('p:normal')
+  ok('a vitals-only start uses the monitor\'s 94', S().spo2AlarmLow === 94 && S().hrAlarmOn === false)
+  w.close()
+
+  // At the monitor: a heart rate of 150 with the heart-rate alarm off says
+  // nothing; a saturation under the limit does.
+  const stub = new Proxy({}, { get: (_, k) => (k === 'canvas' ? {} : () => {}), set: () => true })
+  const mdom = new JSDOM(readFileSync(MONITOR, 'utf8'), {
+    runScripts: 'dangerously', pretendToBeVisual: true,
+    url: 'https://ces.local/simulator/patient_monitor_display.html',
+    beforeParse(mw) { mw.HTMLCanvasElement.prototype.getContext = () => stub },
+  })
+  const m = mdom.window
+  m.setPower(true)
+  const banner = () => { m.eval('upNums()'); return m.document.getElementById('alm').textContent }
+  m.eval("Object.assign(S,{patientConnected:true,rhythm:'tachy',hr:150,sbp:110,dbp:70,spo2:97,spo2AlarmLow:88,hrAlarmOn:false})")
+  ok('the monitor does not alarm on heart rate when the panel turns it off', !/HR/.test(banner()), banner())
+  m.eval('S.spo2=84')
+  ok('and alarms on SpO₂ under the limit', /SpO₂ LOW/.test(banner()) && !/HR/.test(banner()), banner())
+  m.eval('S.hrAlarmOn=undefined; S.spo2=97')
+  ok('a panel that never sends the switch keeps the heart-rate alarm', /HR HIGH/.test(banner()), banner())
+  m.close()
+}
+
+// ---------------------------------------------------------------------------
 // Switching cases in front of the crew
 // ---------------------------------------------------------------------------
 {

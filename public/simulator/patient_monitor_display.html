@@ -1493,7 +1493,10 @@ function upNums(){
   // itself something worth seeing them do. A silenced alarm still breaches —
   // the parameter goes on flashing, only the announcement stops.
   const live=!nc&&S.alarmOn&&D.alarms;
-  const hrBreach=live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
+  // The heart-rate alarm can be switched off by the panel (hrAlarmOn:false):
+  // the ventilator course alarms on SpO₂ low and nothing else. A panel that
+  // never sends the key leaves it on.
+  const hrBreach=S.hrAlarmOn!==false&&live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
   // No perfusing pressure means the SpO2 reads ---, so there is no value to
   // breach: a --- must not drive a "SpO2 LOW" alarm.
   const spBreach=live&&!noP&&(S.spo2<S.spo2AlarmLow);
@@ -3664,7 +3667,7 @@ const eventMenu=()=>({title:'EVENT',items:
    highlight, and the menu the dial opens on it. */
 const SCREEN_ITEMS=[
   {key:'ecg',   el:'rEcg',    menu:()=>ecgMenu()},
-  {key:'hr',    el:'lpHRbox', menu:()=>limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
+  {key:'hr',    el:'lpHRbox', menu:()=>S.hrAlarmOn===false?limitsMenu('HR','bpm',null,null):limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
   {key:'spo2',  el:'lpSPbox', menu:()=>limitsMenu('SpO2','%',S.spo2AlarmLow,null)},
   {key:'co2',   el:'lpCO2box',menu:()=>limitsMenu('CO2','mmHg',null,null)},
   {key:'temp',  el:'lpTMPbox',menu:()=>tempMenu()},
