@@ -13,8 +13,14 @@ review tools under `public/review/` and `public/necessity/` are.
 
 **Live at `/simulator`,** on the `Sim` tab in the bottom bar, for administrators.
 `src/modules/simulator/SimulatorView.tsx` frames the control panel and opens the
-monitor in its own window. The platform landing page that shipped with these two
-files is not used: the CES tab replaces the chooser it offered.
+monitor in its own window.
+
+**The control panel is the simplified one** (`control_panel.html`): the
+ventilator course and vitals-only starting points, nothing graded. See "The
+simplified control panel" below. The full panel, with the ACLS megacodes, the
+PALS cases, the quarterly simulations and the AHA check-off sheet, is
+`control_panel_full.html`. It is unchanged and still checked by
+`check-simulator`, but nothing links to it. Most of this README describes it.
 
 ## The contract between the two windows
 
@@ -1349,3 +1355,118 @@ shark fin at a lower EtCO₂, since height follows the number.
   Set RR to the rate you count.
 - **"Sinus 104"** in COPD *Recovered* shows as sinus tachycardia, which is what
   104 is.
+
+## The simplified control panel
+
+`control_panel.html` was rebuilt for the ventilator course, at about a fifth of
+the full panel's size. It has one job: drive the patient on the crew's monitor
+and keep that monitor in step. `check-sim-panel.mjs` holds everything below.
+
+**What is on it.**
+- **One row:** the case picker, Connect and Share to iPad. The picker holds
+  the six Day 2 cases and twelve vitals-only starting points. Choosing
+  loads, except while the patient is on the monitor and a case is running:
+  then it asks first, in the panel, and nothing changes until you confirm.
+- **The case card:** the states, then a **Next** box with a clock for the
+  time in this state and a button for each way out. Each button carries the
+  guide's trigger, e.g. "→ Bagging, when the student bags with 100% O₂ and a
+  PEEP valve" and "✗ X Worse, if there is no bagging within 1:00". A time
+  limit counts down on its button and turns amber once it passes. TBI's
+  "three more minutes on the vent" counts the same way, and DKA's automatic
+  start shows its countdown on its button. From X Worse, the one button goes
+  back to the recovery state. Below that, the current state's own note, such
+  as how its numbers arrive.
+- **The patient:** heart rate, blood pressure with the cuff's cycling interval, SpO₂, respiratory rate, and
+  EtCO₂ with capnography on/off and the waveform. Below them, the rhythms,
+  PVCs and the 12-lead.
+- **Medications.**
+
+Buttons that cannot do anything are disabled, not left to fail silently.
+Stop meds is off while nothing is running, and Open 12-lead is off while no
+monitor is open. There is no temperature field: the LIFEPAK shows
+temperature only once the crew attaches a probe at the unit, so a field for
+it looked like a control that did nothing. The cases still set it.
+
+**One alarm: SpO₂ low.** The panel sends `hrAlarmOn:false`, and the monitor
+then never alarms on heart rate; a panel that never sends the key, like the
+full panel, keeps the heart-rate alarm. The SpO₂ limit is per case
+(`SPO2_LOW`). It is 94, the monitor's default, except for ARDS and COPD, which
+sit at 88, the bottom of the usual target range for both. At 94 their
+baselines (90 and 91) would alarm from the first second. Where the alarm
+sounds:
+
+| Case | Limit | Alarms in |
+|---|---|---|
+| ARDS | 88 | Disconnect (84), Bagging (87), X Worse (78) |
+| COPD | 88 | Air trapping (87), X Worse (85) |
+| TBI | 94 | never (lowest 98) |
+| DKA | 94 | never (lowest 96) |
+| ALS | 94 | Obstructed (85), X Worse (72) |
+| Pediatric | 94 | O₂ lost (90), X Worse (86) |
+
+COPD's Air trapping is SpO₂ 87 here, one under the guide's 88, so that the
+alarm sounds with it; at 88 it sat on the limit and stayed quiet.
+
+No SpO₂ alarm sounds without a pulse: with no perfusing pressure the monitor
+reads `---`, and a dash is not a value to breach.
+
+**The cuff cycles by itself.** The LIFEPAK shows a pressure only when the
+cuff takes one, so COPD's falling BP was invisible to a crew that did not
+press NIBP. The guide asks for cycling every 3–5 minutes. The panel sends
+`nibpAutoMin` (3 by default, 5, or 0 for on demand), set by a select under the
+BP fields. The monitor takes the first reading as soon as a patient is on a
+unit that is on, then one every interval from the start of the last, and
+shows `AUTO 3m` in the NIBP header. A press of NIBP takes one now and
+restarts the count. A panel that sends no interval, like the full panel,
+leaves the cuff on demand as before.
+
+**Inside the app** the panel drops its own title row. On a screen 900px tall
+or less, the Sim tab also hides the app's header; the tab bar stays as the
+way out. Together these took an iPad from 588 visible pixels, with the vitals
+below the fold, to the case, the Next box and the first row of vitals on one
+screen.
+
+**What came off.** The ACLS, PALS and quarterly cases; grading of every kind;
+point-of-care results; the start path; the scenario brief; the crew
+interventions strip; temperature; the arterial line and Swan-Ganz; alarm limits; signal
+quality, probe site, lead, PACs and temperature site; the physiology-lock
+switch (the lock is now always on); the ROSC surge; and the pacing-capture
+model. Inside the app, the panel also hides its own monitor status and Open
+monitor button, because the bar above it already has both. The monitor still
+receives every key it reads, at the defaults.
+
+**Numbers walk.** A typed vital glides to its new value over 10 seconds
+(`GLIDE_SECS`), so the crew sees a patient trending rather than a screen
+jumping. Each value glides on its own. RR lands at once, because it is the
+rate being breathed. A field being typed in is never overwritten, and beside
+each label is where the value is going. Rhythm changes land at once with their
+own rate, and an arrest rhythm takes the pressure and saturation with it. A
+sinus rhythm is named by its rate as the rate moves. Stop meds walks the
+patient back to where they were without the drugs.
+
+**The connection.**
+- **Panel reload.** The panel used to start from the defaults on every load
+  and publish them, and the defaults are a disconnected patient, so a reload
+  blanked the crew's monitor mid-scenario. It now restores the patient it last
+  published, plus the case and state (`ces.sim.panel`). It starts fresh only
+  after 12 hours.
+- **iPad session.** A shared session survives a panel reload
+  (`ces.sim.panelSession`, separate from the monitor's `ces.sim.session`).
+  Both ends retry a dropped connection every 4 seconds instead of stopping on
+  an error.
+- **The 12-lead** rides in the patient state as `cmd12: {open, t}`, so it
+  reaches an iPad like any other change. Before, it was a localStorage command
+  that only a monitor in the same browser could see. The monitor treats the
+  first state it hears as a baseline and never replays an old request. A tablet
+  that blocks the pop-up gets a "tap to view" button instead.
+- **Opening the monitor.** The app's button and the panel's own both open the
+  LIFEPAK skin, under one window name, so they never put two monitors on one
+  patient. Workbox matches its navigation-fallback denylist against the path
+  *and* the query string, so `patient_monitor_display.html?skin=lp` once got
+  the CES home page from the service worker. The extension rule in
+  `vite.config.ts` now allows a query string after the extension.
+
+Checked in a real browser: a typed SpO₂ of 90 → 80 reached the monitor as one
+point a second. A panel reload and a monitor reload each left the crew's
+screen on the same patient. The 12-lead opened from the panel.
+

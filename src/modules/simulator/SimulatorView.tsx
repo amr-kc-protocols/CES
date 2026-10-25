@@ -33,7 +33,7 @@ import { Empty } from '../../components/ui'
 // ---------------------------------------------------------------------------
 
 const PANEL_URL = '/simulator/control_panel.html'
-const MONITOR_URL = '/simulator/patient_monitor_display.html'
+const MONITOR_URL = '/simulator/patient_monitor_display.html?skin=lp'
 const PANEL_TITLE = 'Simulator Control Panel'
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
@@ -60,6 +60,16 @@ export default function SimulatorView() {
     () => [...db.simRuns].sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
     [db.simRuns],
   )
+
+  // On a laptop or an iPad the app's own header cost the panel the room its
+  // vitals need: inside the app an iPad showed 588 of the panel's pixels, and
+  // the vitals started below them. While this tab is up, short screens drop
+  // the header (see .sim-focus in index.css). The tab bar stays: it is the way
+  // out.
+  useEffect(() => {
+    document.documentElement.classList.add('sim-focus')
+    return () => document.documentElement.classList.remove('sim-focus')
+  }, [])
 
   // Every open monitor announces itself on the shared channel once a second.
   // This bar is the only part of the screen that does not scroll away, so it is
@@ -189,12 +199,7 @@ export default function SimulatorView() {
                   </button>{' '}
                   or see Runs
                 </strong>
-              ) : (
-                <span className="subtle">
-                  Set vitals, rhythm and medications here. Open the monitor on the screen the crew
-                  reads.
-                </span>
-              )}
+              ) : null}
             </div>
             <span className={`sim-mon ${monitorLive ? 'on' : 'off'}`}>
               {monitorLive ? '● Monitor live' : '◌ No monitor open'}

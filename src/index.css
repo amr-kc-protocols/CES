@@ -2865,6 +2865,13 @@ details[open] > .timeline-toggle::before { transform: rotate(90deg); }
   .sim-bar-text { min-width: 0; }
 }
 
+/* The Sim tab on a short screen: no app header, so the panel gets the room.
+   The tab bar stays — it is how you leave. */
+@media (max-height: 900px) {
+  .sim-focus .topbar { display: none; }
+  .sim-focus .sim-host { min-height: calc(100vh - 56px - env(safe-area-inset-bottom)); }
+}
+
 /* Whether the crew actually has a display. Lives in the bar because that is
    the only part of this screen that does not scroll away. */
 .sim-mon {

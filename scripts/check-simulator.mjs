@@ -42,7 +42,7 @@ import { dirname, join } from 'node:path'
 import { skip } from './lib/check-kit.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const PAGE = join(here, '..', 'public', 'simulator', 'control_panel.html')
+const PAGE = join(here, '..', 'public', 'simulator', 'control_panel_full.html')
 const MONITOR = join(here, '..', 'public', 'simulator', 'patient_monitor_display.html')
 
 let JSDOM
@@ -67,7 +67,7 @@ function load(file = PAGE) {
   const dom = new JSDOM(readFileSync(file, 'utf8'), {
     runScripts: 'dangerously',
     pretendToBeVisual: true,
-    url: 'https://ces.local/simulator/control_panel.html',
+    url: 'https://ces.local/simulator/control_panel_full.html',
   })
   const w = dom.window
   // Ending a run with gaps in it opens a prompt in the page — see endRun(). It
@@ -1546,7 +1546,7 @@ ok('and both work again once it finishes', w.eval('energy()') !== eBefore)
   )
   ok(
     'the monitor never adopts a heartbeat as patient state',
-    /if\(st&&!st\.__monitor&&!st\.__device\) S=\{\.\.\.S,\.\.\.st\};/.test(MONITOR_SRC),
+    /if\(st&&!st\.__monitor&&!st\.__device\)\{ S=\{\.\.\.S,\.\.\.st\};/.test(MONITOR_SRC),
     'the relay carries three kinds of message on one channel',
   )
   for (const f of [PAGE, MONITOR])

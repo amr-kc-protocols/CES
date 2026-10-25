@@ -260,6 +260,10 @@ body.lp-skin.portrait #powerHint{display:none;}
    the screen, below the band this sits in, so there it stays centred. */
 body:not(.lp-skin) #armAudio{left:calc(6px + env(safe-area-inset-left));transform:none;}
 #armAudio .a-on{display:none;}
+#tap12{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:96;min-height:56px;padding:0 24px;
+  border-radius:12px;border:1px solid #00c8e0;background:#04222b;color:#bff4ff;cursor:pointer;
+  font:700 16px/1 'Arial Narrow',Arial,sans-serif;letter-spacing:.5px;box-shadow:0 4px 18px rgba(0,0,0,.6);}
+#tap12[hidden]{display:none;}
 /* Armed: it has nothing left to say, so it stops saying it. */
 #armAudio.armed{opacity:0;pointer-events:none;transition:opacity .6s .8s;}
 #armAudio.armed .a-on{display:inline;}
@@ -583,6 +587,7 @@ body.lp-skin .zxseg{display:none;}
 /* When the reading on screen was taken. A cuff number is of its moment, and
    during a code the moment matters more than the number. */
 .lpBP .lpage{display:block;font-size:12px;color:#6f7780;letter-spacing:.5px;}
+.lpBP .lpauto{font-size:10px;letter-spacing:.5px;color:#b9c0c7;margin-right:6px;white-space:nowrap;}
 .lpP1{display:none;} .lpP1.visible{display:flex;}
 .lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:31px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
 /* A cuff cycle in progress, or a parameter the patient is not wearing. */
@@ -806,7 +811,7 @@ body.booting #screen>*{visibility:hidden;}
     <div class="lpval" id="lpTMP">---</div>
   </div>
   <div class="lpb lpBP" id="lpBPbox">
-    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpauto" id="lpBPauto"></span><span class="lpunit">mmHg</span></div>
     <div class="lpval" id="lpSys">---</div>
     <div class="lpval lpdia" id="lpDia">--</div>
     <div class="lpsub"><span class="lpmap" id="lpMap">--</span><span class="lpage" id="lpBPage"></span></div>
@@ -1059,7 +1064,7 @@ let S={hr:78,rhythm:'nsr',lead:'II',sbp:121,dbp:79,spo2:97,etco2:36,rr:11,co2Sha
 const cSizes={};
 let pxPos={cEcg:0,cArt:0,cCo2:0,cSpo2:0,cP2:0};
 const lastY={cEcg:-1,cArt:-1,cCo2:-1,cSpo2:-1,cP2:-1};
-function ld(){try{const r=localStorage.getItem('simState');if(r)S={...S,...JSON.parse(r)};}catch(e){}}
+function ld(){try{const r=localStorage.getItem('simState');if(r){S={...S,...JSON.parse(r)};check12Cmd();}}catch(e){}}
 ld(); // load saved state on startup
 
 /* Scenario-reset high-water mark. The panel bumps S.deviceReset every time it
@@ -1103,7 +1108,7 @@ function localStateAllowed(){
    named by the session code the panel shows. State comes down it; the
    heartbeat and every device event go back up it. Same payloads either way,
    so nothing downstream knows or cares which path a message arrived on. */
-let relay=null, relayState='off';
+let relay=null, relayState='off', joinRetry=null;
 function relayReady(){ return relay&&relayState==='live'; }
 function joinSession(code){
   forceJoinOpen=false;   // a fresh join attempt: let a successful one hide the box
@@ -1112,13 +1117,22 @@ function joinSession(code){
   if(c.length!==6){ setJoinUi('error','Six characters'); return; }
   relay=window.CESRelay.joinSession({
     code:c, role:'monitor',
-    onState:st=>{ if(st&&!st.__monitor&&!st.__device) S={...S,...st}; },
-    onStatus:(s2,detail)=>{ relayState=s2; setJoinUi(s2,detail); },
+    onState:st=>{ if(st&&!st.__monitor&&!st.__device){ S={...S,...st}; check12Cmd(); } },
+    onStatus:(s2,detail)=>{
+      relayState=s2; setJoinUi(s2,detail);
+      // A dropped connection — the iPad slept, the Wi-Fi blinked — is tried
+      // again with the same code rather than left on an error the crew has to
+      // notice and fix.
+      if(s2==='error'&&!joinRetry) joinRetry=setTimeout(()=>{ joinRetry=null;
+        let code=''; try{ code=localStorage.getItem('ces.sim.session')||''; }catch(e){}
+        if(code&&relayState==='error') joinSession(code); },4000);
+    },
   });
   setJoinUi('joining',c);
   try{ localStorage.setItem('ces.sim.session',c); }catch(e){}
 }
 function leaveSession(){
+  clearTimeout(joinRetry); joinRetry=null;
   if(window.CESRelay) window.CESRelay.leaveSession();
   relay=null; relayState='off';
   try{ localStorage.removeItem('ces.sim.session'); }catch(e){}
@@ -1178,6 +1192,7 @@ try{
   stateBc.onmessage=e=>{
     if(!e.data||e.data.__monitor||e.data.__device) return;
     S={...S,...e.data};
+    check12Cmd();
     // A panel in this browser is driving this window, so this is not a second
     // device and there is no session to join. The prompt was sitting over the
     // ECG of every monitor opened from the panel on the same laptop.
@@ -1479,7 +1494,10 @@ function upNums(){
   // itself something worth seeing them do. A silenced alarm still breaches —
   // the parameter goes on flashing, only the announcement stops.
   const live=!nc&&S.alarmOn&&D.alarms;
-  const hrBreach=live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
+  // The heart-rate alarm can be switched off by the panel (hrAlarmOn:false):
+  // the ventilator course alarms on SpO₂ low and nothing else. A panel that
+  // never sends the key leaves it on.
+  const hrBreach=S.hrAlarmOn!==false&&live&&!dead&&(S.hr<S.hrAlarmLow||S.hr>S.hrAlarmHigh);
   // No perfusing pressure means the SpO2 reads ---, so there is no value to
   // breach: a --- must not drive a "SpO2 LOW" alarm.
   const spBreach=live&&!noP&&(S.spo2<S.spo2AlarmLow);
@@ -1541,6 +1559,8 @@ function upNums(){
     setEl('lpDia', nb?nb.dia:'--');
     setEl('lpMap', nb?m3(nb.sys,nb.dia):'--');
     setEl('lpBPage', nb?nibpAge():(cuff?'cuff':''));
+    // The interval the cuff is cycling at, where the unit shows it.
+    setEl('lpBPauto', +S.nibpAutoMin?('AUTO '+(+S.nibpAutoMin)+'m'):'');
 
     const p1box=document.getElementById('lpP1box');
     const showP1=S.artActive&&!nc&&!dead;
@@ -2423,7 +2443,10 @@ function open12Lead(){
   // Always open/refresh — never close (close is handled by button toggle)
   if(w12Lead&&!w12Lead.closed){ w12Lead.focus(); w12Lead=null; } // reset stale ref before reopening
   w12Lead=window.open('','ECG12Lead','width=1100,height=780,resizable=yes');
-  if(!w12Lead) return;
+  // A tablet blocks a window nobody tapped for, which is every 12-lead the
+  // facilitator sends. Offer it as a tap instead; the tap is allowed to open it.
+  if(!w12Lead){ show12Tap(true); return; }
+  show12Tap(false);
 
   // The popup carries its own copy of the keyframes and its own per-lead table
   // (LEADS, below) because it is a separate document with no access to this
@@ -2842,8 +2865,34 @@ window.onload=function(){
 // only reliable handle on it is w12Lead — anything that looks for an in-page
 // node will silently never find it.
 function close12Lead(){
+  show12Tap(false);
   if(w12Lead&&!w12Lead.closed){ try{ w12Lead.close(); }catch(e){} }
   w12Lead=null;
+}
+function show12Tap(on){
+  let b=document.getElementById('tap12');
+  if(!b&&on){
+    b=document.createElement('button');
+    b.id='tap12'; b.type='button';
+    b.textContent='⊞ 12-lead acquired — tap to view';
+    b.onclick=()=>open12Lead();
+    document.body.appendChild(b);
+  }
+  if(b) b.hidden=!on;
+}
+/* The 12-lead request rides in the patient state ({open, t}), so it reaches a
+   monitor on an iPad as surely as a heart rate does. The first state this
+   window hears is the baseline, never acted on: a request made before it
+   opened is not one for it. After that, any new request is. */
+// var, not let: ld() runs near the top of the page, before this line, and a
+// let read there would throw rather than be undefined.
+var cmd12Seen;
+function check12Cmd(){
+  const c=S.cmd12, t=c&&c.t||0;
+  if(cmd12Seen===undefined){ cmd12Seen=t; return; }
+  if(!c||t===cmd12Seen) return;
+  cmd12Seen=t;
+  if(c.open) open12Lead(); else close12Lead();
 }
 
 // Toggle for buttons — close if open, open if not
@@ -3159,7 +3208,7 @@ const D={
   pacer:false, pacerRate:70, pacerMa:0, pacePaused:false,
   alarms:true, silenceUntil:0,
   sunvue:false,
-  nibpUntil:0,
+  nibpUntil:0, nibpLastStart:0,
   /* What the crew have actually measured.
      A cuff reading and a temperature are not vital signs the monitor knows —
      they are measurements somebody took, and until they are taken the screen
@@ -3215,7 +3264,7 @@ function resetDevice(){
   D.alarms=true; D.silenceUntil=0;
   D.nibpUntil=0;
   if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
-  D.nibp=null; D.tempProbe=false;
+  D.nibp=null; D.tempProbe=false; D.nibpLastStart=0;
   D.leadIx=1; D.leadFromPanel=null; D.sizeIx=2;
   D.log.length=0;
   if(D.sunvue){ D.sunvue=false; document.body.classList.remove('sunvue'); invalidateCanvases(); }
@@ -3539,13 +3588,25 @@ function finishAnalyze(){
    a number or does not. On a patient in arrest it does not: there is no
    pulsatile flow for a cuff to find, and a monitor that answered 0/0 would be
    teaching that the machine can tell you what a code is doing. */
-function startNibp(){
+function startNibp(auto){
   if(!D.on||nibpBusy()) return;
   D.nibpUntil=Date.now()+NIBP_MS;
+  D.nibpLastStart=Date.now();
   if(D.nibpTimer) clearTimeout(D.nibpTimer);
   D.nibpTimer=setTimeout(finishNibp,NIBP_MS);
-  logEvent('nibp','NIBP','cycle started');
+  logEvent('nibp','NIBP',auto?'auto cycle started':'cycle started');
 }
+/* Automatic cycling, at the interval the panel sends (S.nibpAutoMin, in
+   minutes; 0 or absent is on demand only, as before). The first reading is
+   taken as soon as there is a patient on a unit that is on, and then one every
+   interval from the start of the last — a press of NIBP takes one now and
+   restarts the count, as the unit does. */
+function nibpAutoTick(){
+  const every=+S.nibpAutoMin||0;
+  if(!every||!D.on||!S.patientConnected||nibpBusy()) return;
+  if(!D.nibpLastStart||Date.now()-D.nibpLastStart>=every*60000) startNibp(true);
+}
+setInterval(nibpAutoTick,1000);
 function finishNibp(){
   D.nibpTimer=null;
   if(!D.on) return;
@@ -3621,7 +3682,7 @@ const eventMenu=()=>({title:'EVENT',items:
    highlight, and the menu the dial opens on it. */
 const SCREEN_ITEMS=[
   {key:'ecg',   el:'rEcg',    menu:()=>ecgMenu()},
-  {key:'hr',    el:'lpHRbox', menu:()=>limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
+  {key:'hr',    el:'lpHRbox', menu:()=>S.hrAlarmOn===false?limitsMenu('HR','bpm',null,null):limitsMenu('HR','bpm',S.hrAlarmLow,S.hrAlarmHigh)},
   {key:'spo2',  el:'lpSPbox', menu:()=>limitsMenu('SpO2','%',S.spo2AlarmLow,null)},
   {key:'co2',   el:'lpCO2box',menu:()=>limitsMenu('CO2','mmHg',null,null)},
   {key:'temp',  el:'lpTMPbox',menu:()=>tempMenu()},
@@ -3922,7 +3983,7 @@ bind('kCurDn',()=>nudgeMa(-1));
 bindHold('kPAUSE',180,()=>{ if(D.pacer){ D.pacePaused=true; logEvent('pacerPause','PACING PAUSED',''); } },
   ()=>{ D.pacePaused=false; },null);
 
-bind('kNIBP',()=>startNibp());
+bind('kNIBP',()=>startNibp(false));
 bind('kALARMS',()=>{
   if(!D.on) return;
   if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }
