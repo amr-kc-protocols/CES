@@ -243,6 +243,13 @@ body.framed{padding-top:10px;}
         <div class="num"><button onclick="step('dbp',-1)" aria-label="Diastolic down">−</button>
           <input id="dbp" type="number" inputmode="numeric" min="0" max="200" data-step="5" onchange="commit('dbp',this.value)" onkeydown="arrow(event,'dbp')" aria-label="Diastolic">
           <button onclick="step('dbp',1)" aria-label="Diastolic up">+</button></div>
+      </div>
+      <div class="row">
+        <select id="nibpAuto" onchange="setNibpAuto(this.value)" aria-label="NIBP cycling">
+          <option value="3">Cuff cycles every 3 min</option>
+          <option value="5">Cuff cycles every 5 min</option>
+          <option value="0">Cuff on demand only</option>
+        </select>
       </div></div>
     <div class="vital v-spo2"><label for="spo2">SpO₂ % <span class="to" id="to-spo2"></span></label>
       <div class="num"><button onclick="step('spo2',-1)" aria-label="SpO2 down">−</button>
@@ -428,6 +435,9 @@ const DEF={
   // One alarm: SpO₂ low. The heart-rate alarm is off; the SpO₂ limit is the
   // case's own (SPO2_LOW), so a baseline is quiet and the deterioration alarms.
   hrAlarmOn:false,
+  // The cuff cycles by itself every this many minutes; 0 is on demand only.
+  // The guide asks for every 3-5 minutes.
+  nibpAutoMin:3,
   hrAlarmLow:50,hrAlarmHigh:120,spo2AlarmLow:94,
   artActive:false,artSbp:121,artDbp:79,artLinked:true,
   artScale:180,artDamping:'normal',artSite:'Radial — Left',
@@ -677,6 +687,10 @@ function setRhythm(r){
 function togglePvc(){ S.pvcOn=!S.pvcOn; paint(); save(); }
 function toggleEtco2(){ S.etco2On=!S.etco2On; paint(); save(); }
 function setShape(v){ S.co2Shape=v; paint(); save(); }
+/* The LIFEPAK shows a pressure only when the cuff takes one. Without cycling,
+   a falling BP — COPD's air trapping — is invisible unless a student thinks
+   to press NIBP. */
+function setNibpAuto(v){ S.nibpAutoMin=+v||0; paint(); save(); }
 
 /* ── The 12-lead ──────────────────────────────────────────────────────────
    The button says what the monitor reports, not what this window last asked
@@ -758,9 +772,9 @@ const CASES={
        note:''},
       {watch:{next:'when the student disconnects to let the patient exhale (20–30 s)',worse:'if there is no disconnect, or the student raises the rate',worseAfter:120},id:'air_trapping',label:'Air trapping',color:'#ff3333',
        trend:{secs:60,keys:['sbp','dbp']},
-       vitals:{hr:120,rhythm:'tachy',sbp:78,dbp:40,spo2:88,etco2:52,rr:10,co2Shape:'shark',etco2On:true},
-       display:'HR 120 | BP 78/40 | SpO₂ 88% | EtCO₂ 52 shark fin, smaller | RR 10',
-       note:'BP falls over 60 s; the rest is immediate. The smaller shark fin follows from the lower EtCO₂.'},
+       vitals:{hr:120,rhythm:'tachy',sbp:78,dbp:40,spo2:87,etco2:52,rr:10,co2Shape:'shark',etco2On:true},
+       display:'HR 120 | BP 78/40 | SpO₂ 87% | EtCO₂ 52 shark fin, smaller | RR 10',
+       note:'BP falls over 60 s; the rest is immediate. The smaller shark fin follows from the lower EtCO₂. SpO₂ is 87 here, one under the guide\'s 88, so the SpO₂ low alarm (88) sounds.'},
       {watch:{next:'when the student reconnects and reports'},id:'released',label:'Released',color:'var(--drug)',
        trend:{secs:30},
        vitals:{hr:108,rhythm:'tachy',sbp:92,dbp:54,spo2:89,etco2:0,rr:0,co2Shape:'flat',etco2On:true},
@@ -1130,6 +1144,7 @@ function paint(){
   const co2=document.getElementById('etco2OnBtn');
   co2.classList.toggle('on',!!S.etco2On); co2.textContent=S.etco2On?'Capnography on':'Capnography off';
   document.getElementById('co2Shape').value=S.co2Shape||'normal';
+  document.getElementById('nibpAuto').value=String(S.nibpAutoMin||0);
   const cb=document.getElementById('connectBtn');
   cb.className='btn '+(S.patientConnected?'on':'off');
   cb.textContent=S.patientConnected?'● On the monitor':'● Not on monitor — connect';

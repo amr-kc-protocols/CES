@@ -587,6 +587,7 @@ body.lp-skin .zxseg{display:none;}
 /* When the reading on screen was taken. A cuff number is of its moment, and
    during a code the moment matters more than the number. */
 .lpBP .lpage{display:block;font-size:12px;color:#6f7780;letter-spacing:.5px;}
+.lpBP .lpauto{font-size:10px;letter-spacing:.5px;color:#b9c0c7;margin-right:6px;white-space:nowrap;}
 .lpP1{display:none;} .lpP1.visible{display:flex;}
 .lpP1 .lphd{color:#e04a4a;} .lpP1 .lpval{color:#e04a4a;font-size:31px;} .lpP1 .lpsub{color:#e04a4a;font-size:17px;}
 /* A cuff cycle in progress, or a parameter the patient is not wearing. */
@@ -810,7 +811,7 @@ body.booting #screen>*{visibility:hidden;}
     <div class="lpval" id="lpTMP">---</div>
   </div>
   <div class="lpb lpBP" id="lpBPbox">
-    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpunit">mmHg</span></div>
+    <div class="lphd"><svg class="bell" viewBox="0 0 16 16"><path d="M8 1.6a1 1 0 0 1 1 1v.5a4 4 0 0 1 3 3.9v3l1.2 1.8H2.8L4 10V7a4 4 0 0 1 3-3.9v-.5a1 1 0 0 1 1-1zM6.2 12.6h3.6a1.8 1.8 0 0 1-3.6 0z" fill="currentColor"/><path class="slash" d="M2 2l12 12" stroke="currentColor" stroke-width="1.6" fill="none" style="display:none"/></svg><span>NIBP</span><span class="lpsp"></span><span class="lpauto" id="lpBPauto"></span><span class="lpunit">mmHg</span></div>
     <div class="lpval" id="lpSys">---</div>
     <div class="lpval lpdia" id="lpDia">--</div>
     <div class="lpsub"><span class="lpmap" id="lpMap">--</span><span class="lpage" id="lpBPage"></span></div>
@@ -1558,6 +1559,8 @@ function upNums(){
     setEl('lpDia', nb?nb.dia:'--');
     setEl('lpMap', nb?m3(nb.sys,nb.dia):'--');
     setEl('lpBPage', nb?nibpAge():(cuff?'cuff':''));
+    // The interval the cuff is cycling at, where the unit shows it.
+    setEl('lpBPauto', +S.nibpAutoMin?('AUTO '+(+S.nibpAutoMin)+'m'):'');
 
     const p1box=document.getElementById('lpP1box');
     const showP1=S.artActive&&!nc&&!dead;
@@ -3205,7 +3208,7 @@ const D={
   pacer:false, pacerRate:70, pacerMa:0, pacePaused:false,
   alarms:true, silenceUntil:0,
   sunvue:false,
-  nibpUntil:0,
+  nibpUntil:0, nibpLastStart:0,
   /* What the crew have actually measured.
      A cuff reading and a temperature are not vital signs the monitor knows —
      they are measurements somebody took, and until they are taken the screen
@@ -3261,7 +3264,7 @@ function resetDevice(){
   D.alarms=true; D.silenceUntil=0;
   D.nibpUntil=0;
   if(D.nibpTimer){ clearTimeout(D.nibpTimer); D.nibpTimer=null; }
-  D.nibp=null; D.tempProbe=false;
+  D.nibp=null; D.tempProbe=false; D.nibpLastStart=0;
   D.leadIx=1; D.leadFromPanel=null; D.sizeIx=2;
   D.log.length=0;
   if(D.sunvue){ D.sunvue=false; document.body.classList.remove('sunvue'); invalidateCanvases(); }
@@ -3585,13 +3588,25 @@ function finishAnalyze(){
    a number or does not. On a patient in arrest it does not: there is no
    pulsatile flow for a cuff to find, and a monitor that answered 0/0 would be
    teaching that the machine can tell you what a code is doing. */
-function startNibp(){
+function startNibp(auto){
   if(!D.on||nibpBusy()) return;
   D.nibpUntil=Date.now()+NIBP_MS;
+  D.nibpLastStart=Date.now();
   if(D.nibpTimer) clearTimeout(D.nibpTimer);
   D.nibpTimer=setTimeout(finishNibp,NIBP_MS);
-  logEvent('nibp','NIBP','cycle started');
+  logEvent('nibp','NIBP',auto?'auto cycle started':'cycle started');
 }
+/* Automatic cycling, at the interval the panel sends (S.nibpAutoMin, in
+   minutes; 0 or absent is on demand only, as before). The first reading is
+   taken as soon as there is a patient on a unit that is on, and then one every
+   interval from the start of the last — a press of NIBP takes one now and
+   restarts the count, as the unit does. */
+function nibpAutoTick(){
+  const every=+S.nibpAutoMin||0;
+  if(!every||!D.on||!S.patientConnected||nibpBusy()) return;
+  if(!D.nibpLastStart||Date.now()-D.nibpLastStart>=every*60000) startNibp(true);
+}
+setInterval(nibpAutoTick,1000);
 function finishNibp(){
   D.nibpTimer=null;
   if(!D.on) return;
@@ -3968,7 +3983,7 @@ bind('kCurDn',()=>nudgeMa(-1));
 bindHold('kPAUSE',180,()=>{ if(D.pacer){ D.pacePaused=true; logEvent('pacerPause','PACING PAUSED',''); } },
   ()=>{ D.pacePaused=false; },null);
 
-bind('kNIBP',()=>startNibp());
+bind('kNIBP',()=>startNibp(false));
 bind('kALARMS',()=>{
   if(!D.on) return;
   if(!D.alarms){ D.alarms=true; D.silenceUntil=0; logEvent('alarms','ALARMS ON',''); }

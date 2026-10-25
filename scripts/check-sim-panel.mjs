@@ -118,7 +118,7 @@ function load(storage = {}, { relay } = {}) {
   const alarms = (st) => st.vitals.sbp > 0 && st.vitals.spo2 < S().spo2AlarmLow
   const expected = {
     vent_ards: ['disconnect', 'bagging', 'worse'],
-    vent_copd: ['worse'],
+    vent_copd: ['air_trapping', 'worse'],
     vent_tbi: [],
     vent_dka: [],
     vent_als: ['obstructed', 'worse'],
@@ -154,6 +154,55 @@ function load(storage = {}, { relay } = {}) {
   ok('and alarms on SpO₂ under the limit', /SpO₂ LOW/.test(banner()) && !/HR/.test(banner()), banner())
   m.eval('S.hrAlarmOn=undefined; S.spo2=97')
   ok('a panel that never sends the switch keeps the heart-rate alarm', /HR HIGH/.test(banner()), banner())
+  m.close()
+}
+
+// ---------------------------------------------------------------------------
+// The cuff cycles by itself
+// ---------------------------------------------------------------------------
+// The LIFEPAK shows a pressure only when the cuff takes one, so a falling BP
+// is invisible to a crew that does not press NIBP. The guide asks for cycling
+// every 3-5 minutes.
+{
+  const { w, d, S } = load()
+  ok('the panel cycles the cuff every 3 minutes by default', S().nibpAutoMin === 3 && d.getElementById('nibpAuto').value === '3')
+  w.setNibpAuto('5')
+  ok('and can be set to 5', S().nibpAutoMin === 5)
+  w.setNibpAuto('0')
+  ok('or to on demand', S().nibpAutoMin === 0)
+  w.close()
+
+  const stub = new Proxy({}, { get: (_, k) => (k === 'canvas' ? {} : () => {}), set: () => true })
+  const mdom = new JSDOM(readFileSync(MONITOR, 'utf8'), {
+    runScripts: 'dangerously', pretendToBeVisual: true,
+    url: 'https://ces.local/simulator/patient_monitor_display.html',
+    beforeParse(mw) { mw.HTMLCanvasElement.prototype.getContext = () => stub },
+  })
+  const m = mdom.window
+  let now = Date.now()
+  m.Date.now = () => now
+  const busy = () => m.eval('nibpBusy()')
+  m.setPower(true)
+  m.eval("Object.assign(S,{patientConnected:true,rhythm:'nsr',hr:80,sbp:118,dbp:72})")
+  m.eval('nibpAutoTick()')
+  ok('a panel that sends no interval leaves the cuff on demand', !busy())
+  m.eval('S.nibpAutoMin=3; nibpAutoTick()')
+  ok('with an interval, the first reading starts at once', busy())
+  now += 26000; m.eval('finishNibp(); nibpAutoTick()')
+  ok('it reads the patient', m.eval('D.nibp && D.nibp.sys') === 118)
+  ok('and does not cycle again before the interval', !busy())
+  m.eval("setSkin('lp'); upNums()")
+  ok('the unit shows it is cycling', m.document.getElementById('lpBPauto').textContent === 'AUTO 3m')
+  now += 160000; m.eval('nibpAutoTick()')
+  ok('three minutes after the last start it cycles again', busy())
+  now += 26000; m.eval("S.sbp=78; S.dbp=40; finishNibp()")
+  ok('and the falling pressure reaches the screen', m.eval('D.nibp.sys') === 78)
+  now += 60000; m.eval('startNibp(false)')
+  ok('a press takes one now', busy())
+  now += 26000; m.eval('finishNibp()'); now += 120000; m.eval('nibpAutoTick()')
+  ok('and restarts the count from the press', !busy())
+  m.eval('S.patientConnected=false'); now += 300000; m.eval('nibpAutoTick()')
+  ok('no patient, no cycling', !busy())
   m.close()
 }
 

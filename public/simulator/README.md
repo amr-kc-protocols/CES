@@ -1376,7 +1376,7 @@ and keep that monitor in step. `check-sim-panel.mjs` holds everything below.
   start shows its countdown on its button. From X Worse, the one button goes
   back to the recovery state. Below that, the current state's own note, such
   as how its numbers arrive.
-- **The patient:** heart rate, blood pressure, SpO₂, respiratory rate, and
+- **The patient:** heart rate, blood pressure with the cuff's cycling interval, SpO₂, respiratory rate, and
   EtCO₂ with capnography on/off and the waveform. Below them, the rhythms,
   PVCs and the 12-lead.
 - **Medications.**
@@ -1398,14 +1398,27 @@ sounds:
 | Case | Limit | Alarms in |
 |---|---|---|
 | ARDS | 88 | Disconnect (84), Bagging (87), X Worse (78) |
-| COPD | 88 | X Worse (85). Air trapping sits at 88, on the limit, and stays quiet. |
+| COPD | 88 | Air trapping (87), X Worse (85) |
 | TBI | 94 | never (lowest 98) |
 | DKA | 94 | never (lowest 96) |
 | ALS | 94 | Obstructed (85), X Worse (72) |
 | Pediatric | 94 | O₂ lost (90), X Worse (86) |
 
+COPD's Air trapping is SpO₂ 87 here, one under the guide's 88, so that the
+alarm sounds with it; at 88 it sat on the limit and stayed quiet.
+
 No SpO₂ alarm sounds without a pulse: with no perfusing pressure the monitor
 reads `---`, and a dash is not a value to breach.
+
+**The cuff cycles by itself.** The LIFEPAK shows a pressure only when the
+cuff takes one, so COPD's falling BP was invisible to a crew that did not
+press NIBP. The guide asks for cycling every 3–5 minutes. The panel sends
+`nibpAutoMin` (3 by default, 5, or 0 for on demand), set by a select under the
+BP fields. The monitor takes the first reading as soon as a patient is on a
+unit that is on, then one every interval from the start of the last, and
+shows `AUTO 3m` in the NIBP header. A press of NIBP takes one now and
+restarts the count. A panel that sends no interval, like the full panel,
+leaves the cuff on demand as before.
 
 **Inside the app** the panel drops its own title row. On a screen 900px tall
 or less, the Sim tab also hides the app's header; the tab bar stays as the
