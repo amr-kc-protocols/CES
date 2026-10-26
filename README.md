@@ -158,9 +158,12 @@ Hunter's head:
   track, 2 h leadership practicum for FTOs, managers and educators) with a
   synthetic chart-review lab, a blueprinted 30-item exam, reviewer-scored
   practical and an "Internal training completed" record. Not CADS, not
-  NAAC-endorsed. Pilot results are device-only. Content in
-  `src/data/docAcademy/`, acceptance criteria in `npm run check:docacademy`,
-  source verification and open items in `docs/documentation-academy.md`.
+  NAAC-endorsed. Learners, attempts and reviews sync through Supabase — run
+  `supabase/migrations/2026-10-27-documentation-academy.sql` so FTOs and new
+  hires can keep their own (`npm run check:rls` tests the policies against
+  real Postgres). Content in `src/data/docAcademy/`, acceptance criteria in
+  `npm run check:docacademy`, source verification and open items in
+  `docs/documentation-academy.md`.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

@@ -56,7 +56,7 @@ export default function CaseLab() {
       return
     }
     if (learner) saveDraft(learner.id, c.id, draft)
-    setDraftMsg(learner ? 'Saved on this device.' : 'Choose a learner on the course page to save.')
+    setDraftMsg(learner ? 'Saved.' : 'Start the course on the course page to save drafts.')
   }
 
   return (

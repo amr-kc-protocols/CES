@@ -56,6 +56,9 @@ function emptyDB(): DBShape {
     templates: [],
     cqmpReports: [],
     simRuns: [],
+    docLearners: [],
+    docAttempts: [],
+    docReviews: [],
     settings: { samplePercent: 0.2, reviewer: '', classBuilderUrl: '', botUrl: '' },
   }
 }

@@ -46,6 +46,8 @@ export interface SyncStatus {
   configured: boolean
   signedIn: boolean
   email?: string
+  /** The signed-in account's id — what owner-scoped rows are keyed by. */
+  userId?: string
   /**
    * The signed-in user's role from their cloud profile. When not signed in
    * (pure local use) the device is its own admin.
@@ -208,13 +210,19 @@ async function connect(): Promise<void> {
   }
 
   const { data } = await c.auth.getSession()
-  setStatus({ configured: true, signedIn: !!data.session, email: data.session?.user.email ?? undefined })
+  setStatus({
+    configured: true,
+    signedIn: !!data.session,
+    email: data.session?.user.email ?? undefined,
+    userId: data.session?.user.id,
+  })
   if (data.session) void loadRole(data.session.user.id)
 
   c.auth.onAuthStateChange((_event, session) => {
     setStatus({
       signedIn: !!session,
       email: session?.user.email ?? undefined,
+      userId: session?.user.id,
       // Signed out = local-only again, which is this device's own admin.
       ...(session ? {} : { role: 'admin' as CloudRole }),
     })
@@ -454,7 +462,7 @@ export async function verifyEmailCode(email: string, code: string): Promise<{ er
 export async function signOut(): Promise<void> {
   const c = await getClient()
   await c?.auth.signOut()
-  setStatus({ signedIn: false, email: undefined })
+  setStatus({ signedIn: false, email: undefined, userId: undefined })
 }
 
 /**

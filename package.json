@@ -50,7 +50,8 @@
     "check:baseline": "node scripts/check-baseline.mjs",
     "sql:baseline": "node scripts/build-baseline-sql.mjs",
     "print:baseline": "node scripts/build-baseline-review.mjs --key && node scripts/build-baseline-review.mjs",
-    "check:docacademy": "node scripts/check-doc-academy.mjs"
+    "check:docacademy": "node scripts/check-doc-academy.mjs",
+    "check:rls": "node scripts/check-doc-academy-rls.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

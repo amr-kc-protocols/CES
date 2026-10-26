@@ -23,6 +23,20 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
 
+// The store and the sync mapping persist through localStorage.
+const mem = new Map()
+globalThis.localStorage = {
+  getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+  setItem: (k, v) => void mem.set(k, String(v)),
+  removeItem: (k) => void mem.delete(k),
+  clear: () => mem.clear(),
+  key: (i) => [...mem.keys()][i] ?? null,
+  get length() {
+    return mem.size
+  },
+}
+globalThis.window ??= globalThis
+
 const here = dirname(fileURLToPath(import.meta.url))
 const SRC = join(here, '..', 'src')
 const OUT = join(tmpdir(), `ces-docacademy-${process.pid}.mjs`)
@@ -35,6 +49,9 @@ await build({
       export * from ${JSON.stringify(join(SRC, 'data/docAcademy/cases'))}
       export * from ${JSON.stringify(join(SRC, 'data/docAcademy/sources'))}
       export * from ${JSON.stringify(join(SRC, 'modules/docacademy/scoring'))}
+      export * as store from ${JSON.stringify(join(SRC, 'modules/docacademy/academyStore'))}
+      export { getState } from ${JSON.stringify(join(SRC, 'lib/store'))}
+      export { toRecords, applyRemote } from ${JSON.stringify(join(SRC, 'lib/records'))}
     `,
     resolveDir: SRC,
     loader: 'ts',
@@ -199,6 +216,36 @@ ok(m.completionGaps({ ...base, track: 'learner', examPassed: false }).length ===
 ok(m.completionGaps({ ...base, track: 'fto' }).length === 3, 'an FTO completes without the leadership practicum and sign-offs')
 ok(m.completionGaps({ ...base, track: 'manager', lessonsDone: LEADERSHIP_IDS, coachingApprovedBy: 'A', auditPlanApprovedBy: 'B' }).length === 0,
   'a manager with everything is not complete')
+
+// --- Records on the shared store ------------------------------------------
+// Signed out, this is an instructor install: a learner carries no userId.
+const { store, getState, toRecords, applyRemote } = m
+const lid = store.addLearner('  Test Medic ', 'fto')
+const learner = getState().docLearners.find((l) => l.id === lid)
+ok(learner && learner.name === 'Test Medic' && learner.userId === undefined, 'a signed-out learner is not stored as created')
+store.recordAttempt(lid, { id: 'att1', form: 'A', answers: {}, correct: 24, total: 30, pct: 80, passed: true })
+store.recordAttempt(lid, { id: 'att1', form: 'A', answers: {}, correct: 0, total: 30, pct: 0, passed: false })
+const atts = getState().docAttempts.filter((a) => a.learnerId === lid)
+ok(atts.length === 1 && atts[0].pct === 80, 'a replayed attempt id duplicates or overwrites the attempt')
+store.savePractical(lid, { caseId: 'K12', reviewer: 'R', scores: {}, naJustification: {}, criticalErrors: [], feedback: '' })
+store.setSignoff(lid, 'coachingApproved', 'R')
+const reviews = getState().docReviews.filter((r) => r.learnerId === lid)
+ok(reviews.length === 1 && reviews[0].practical && reviews[0].coachingApproved, 'practical and sign-off do not land on one review row')
+
+// A learner who enrolled signed in keeps their userId on every row derived
+// from them — it is what the server's read policy keys on.
+const owned = { ...learner, id: 'dl_owned', userId: 'user-1' }
+const withOwned = { ...getState(), docLearners: [...getState().docLearners, owned] }
+const recs = [...toRecords(withOwned).values()]
+for (const c of ['docLearners', 'docAttempts', 'docReviews']) {
+  ok(recs.some((r) => r.collection === c), `${c} does not sync — it is missing from lib/records.ts`)
+}
+const back = applyRemote({ ...getState(), docLearners: [] }, recs.filter((r) => r.collection === 'docLearners'))
+ok(back.docLearners.some((l) => l.id === 'dl_owned' && l.userId === 'user-1'), 'a learner row does not survive the sync round trip with its userId')
+
+store.removeLearner(lid)
+ok(!getState().docAttempts.some((a) => a.learnerId === lid) && !getState().docReviews.some((r) => r.learnerId === lid),
+  "removing a learner leaves their attempts or review behind")
 
 // ---------------------------------------------------------------------------
 if (fails.length) {

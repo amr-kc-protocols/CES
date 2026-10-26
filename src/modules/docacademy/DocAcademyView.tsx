@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Tabs, tabPanelProps } from '../../components/Tabs'
 import { useCan } from '../../lib/role'
+import { useSyncStatus } from '../../lib/sync'
 import { formatDate, todayISO } from '../../lib/date'
 import {
   COMPLETION_WORDING,
@@ -55,13 +56,20 @@ const minutesOf = (track: Track) => lessonsFor(track).reduce((n, l) => n + l.min
 
 function LearnerPicker() {
   const { learners, activeId } = useAcademy()
+  const me = useActiveLearner()
+  const { signedIn, role } = useSyncStatus()
+  const self = signedIn && role !== 'admin'
   const [name, setName] = useState('')
-  const [track, setTrack] = useState<Track>('learner')
+  const [track, setTrack] = useState<Track>(self && role === 'fto' ? 'fto' : 'learner')
+
+  // A signed-in FTO or new hire enrols once, as themselves, and that is the
+  // only record their account can write.
+  if (self && me) return null
 
   return (
     <div className="card" style={{ padding: 14 }}>
-      <div className="section-title" style={{ marginTop: 0 }}>Learner on this device</div>
-      {learners.length > 0 && (
+      <div className="section-title" style={{ marginTop: 0 }}>{self ? 'Enrol' : 'Learners'}</div>
+      {!self && learners.length > 0 && (
         <div className="btn-row" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
           {learners.map((l) => (
             <button
@@ -89,8 +97,8 @@ function LearnerPicker() {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Staff name"
-          aria-label="Staff name"
+          placeholder={self ? 'Your name' : 'Staff name'}
+          aria-label={self ? 'Your name' : 'Staff name'}
           style={{ flex: '1 1 12rem', padding: 8, font: 'inherit' }}
         />
         <select value={track} onChange={(e) => setTrack(e.target.value as Track)} aria-label="Role" style={{ padding: 8, font: 'inherit' }}>
@@ -101,12 +109,13 @@ function LearnerPicker() {
           ))}
         </select>
         <button className="btn" type="submit" disabled={!name.trim()}>
-          Add learner
+          {self ? 'Start the course' : 'Add learner'}
         </button>
       </form>
       <div className="help-text">
-        Pilot: progress and results are kept on this device only. They do not sync, and they are not a durable
-        completion record for organizational reporting.
+        {signedIn
+          ? 'Progress, attempts and reviews sync to the CES cloud with the rest of this operation’s records.'
+          : 'Not signed in: progress stays on this device until someone signs in under Settings → Cloud sync and syncs it.'}
       </div>
     </div>
   )
@@ -368,6 +377,7 @@ function Signoffs({ learner }: { learner: LearnerRecord }) {
 }
 
 function Completion({ learner }: { learner: LearnerRecord }) {
+  const { manageAcademy } = useCan()
   const exam = latestExam(learner)
   const prac = learner.practical
   const practical = prac ? scorePractical(prac) : undefined
@@ -406,6 +416,8 @@ function Completion({ learner }: { learner: LearnerRecord }) {
             <li key={g}>{g}</li>
           ))}
         </ul>
+      ) : !manageAcademy ? (
+        <div className="subtle">All requirements met — a clinical educator issues the completion record.</div>
       ) : (
         <div className="btn-row" style={{ flexWrap: 'wrap' }}>
           <label>
@@ -458,7 +470,7 @@ function Dashboard() {
 
   return (
     <div className="card" style={{ padding: 14 }}>
-      <div className="section-title" style={{ marginTop: 0 }}>Reviewer dashboard · this device</div>
+      <div className="section-title" style={{ marginTop: 0 }}>Reviewer dashboard · this operation</div>
       <div className="list">
         {learners.map((l) => {
           const a = latestExam(l)
@@ -480,7 +492,7 @@ function Dashboard() {
             </div>
           )
         })}
-        {!learners.length && <div className="subtle">No learners on this device yet.</div>}
+        {!learners.length && <div className="subtle">No learners yet.</div>}
       </div>
       {queue.length > 0 && (
         <p className="meta">Coaching queue — exam passed, practical not yet scored: {queue.map((l) => l.name).join(', ')}</p>
@@ -521,10 +533,10 @@ function ReviewTab({ learner }: { learner?: LearnerRecord }) {
             <button
               className="btn ghost danger"
               onClick={() => {
-                if (window.confirm(`Remove ${learner.name} and all their results from this device?`)) removeLearner(learner.id)
+                if (window.confirm(`Remove ${learner.name} and all their attempts and reviews? This syncs.`)) removeLearner(learner.id)
               }}
             >
-              Remove learner from this device
+              Remove learner and their records
             </button>
           )}
         </>

@@ -61,7 +61,7 @@ export default function ExamRunner() {
       </div>
 
       {!learner && (
-        <div className="banner warn">No learner selected — this attempt will not be saved. Choose one on the course page.</div>
+        <div className="banner warn">No learner selected — this attempt will not be saved. Start or choose one on the course page.</div>
       )}
       {!isBaseline && priorA.length > 0 && !attemptId && (
         <div className="banner warn">

@@ -2075,6 +2075,9 @@ export interface DBShape {
   templates: TemplateVersion[]
   cqmpReports: CqmpReport[]
   simRuns: SimRun[]
+  docLearners: DocLearner[]
+  docAttempts: DocAttempt[]
+  docReviews: DocReview[]
   settings: Settings
 }
 
@@ -2147,4 +2150,101 @@ export interface DailyEvalTemplate {
   texts: { id: string; label: string }[]
   /** The FTO's readiness call. Kept separate — it is not just another check. */
   readinessLabel: string
+}
+
+// ---------------------------------------------------------------------------
+// Ambulance Documentation & Review Academy (/doc-academy).
+//
+// Three collections, split by who writes them, because row-level security is
+// decided per row:
+//
+//   docLearners  the learner's own working record — track, lessons done, case
+//                work. Written by the learner (signed in) or an administrator.
+//   docAttempts  one row per exam attempt, written once and never edited.
+//   docReviews   the reviewer's side — practical score, the two leadership
+//                sign-offs, and the issued completion. Administrators only.
+//
+// Ownership is `userId` in the data, never `updated_by`: the server stamps
+// updated_by with whoever wrote last, so an educator scoring a practical would
+// otherwise take the learner's own record out of the learner's sight. See
+// supabase/migrations/2026-10-27-documentation-academy.sql.
+// ---------------------------------------------------------------------------
+
+export type DocTrack = 'learner' | 'fto' | 'manager' | 'educator'
+
+export interface DocCaseAttempt {
+  id: string
+  caseId: string
+  at: string
+  courseVersion: string
+  picked: string[]
+  insufficient: boolean
+}
+
+export interface DocLearner {
+  id: string
+  /** The learner's own account, when they take the course signed in. Absent for an instructor-led entry. */
+  userId?: string
+  name: string
+  track: DocTrack
+  createdAt: string
+  lessonsDone: Record<string, { at: string; version: string }>
+  caseAttempts: DocCaseAttempt[]
+  /** Narrative-workspace drafts by case id. PHI-checked before they are saved. */
+  drafts: Record<string, string>
+}
+
+export interface DocAttempt {
+  id: string
+  learnerId: string
+  userId?: string
+  form: 'baseline' | 'A'
+  at: string
+  courseVersion: string
+  answers: Record<string, string[]>
+  correct: number
+  total: number
+  pct: number
+  passed: boolean
+}
+
+export interface DocSignoff {
+  by: string
+  at: string
+}
+
+export interface DocPracticalReview {
+  caseId: string
+  reviewer: string
+  at: string
+  courseVersion: string
+  scores: Partial<Record<string, 0 | 1 | 2 | 'na'>>
+  naJustification: Partial<Record<string, string>>
+  criticalErrors: { id: string; resolved: boolean }[]
+  feedback: string
+}
+
+export interface DocCompletion {
+  id: string
+  learner: string
+  track: DocTrack
+  courseVersion: string
+  examPct: number
+  practicalPct: number
+  reviewer: string
+  date: string
+  instructionalMinutes: number
+}
+
+export interface DocReview {
+  /** Same as the learner id: one review record per learner. */
+  id: string
+  learnerId: string
+  /** Copied from the learner so they can read their own feedback and completion. */
+  userId?: string
+  practical?: DocPracticalReview
+  coachingApproved?: DocSignoff
+  auditPlanApproved?: DocSignoff
+  /** Never rewritten once issued; a later course version gets an update module instead. */
+  completion?: DocCompletion
 }

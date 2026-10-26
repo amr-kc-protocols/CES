@@ -75,14 +75,27 @@ as written. The blueprint sums to 30. 14/16 is 87.5%, which passes the 85% bar;
 
 ## What was decided while building
 
-- **Device-only pilot.** Progress and results are stored under their own
-  `localStorage` key, outside the synced store, and every screen says so. This
-  follows the brief's rule that a local prototype must label itself and cannot
-  promise durable completion records. Server-authoritative attempts and
-  completions are the step after the pilot.
-- **The answer key ships in the client bundle.** That is acceptable for a pilot.
-  It is not acceptable where assessment integrity matters (brief §7). Move
-  scoring server-side before results are used for anything formal.
+- **Records sync through Supabase.** These collections go through the same
+  shared `records` table and sync engine as everything else in CES:
+  `docLearners` (a learner's track, lessons and case work), `docAttempts`
+  (exam attempts, one row each) and `docReviews` (practical score, sign-offs
+  and completion, written by administrators only).
+- **The migration has to be run before non-admins can save progress.** Until
+  `supabase/migrations/2026-10-27-documentation-academy.sql` is applied, new
+  collections are admin-only by default, so an FTO's or new hire's progress
+  would be refused on push and discarded. The migration lets them read and
+  write their own rows, keyed on `data.userId` rather than `updated_by`.
+  `updated_by` is restamped on every write, so keying on it would hide a
+  learner's record from them the first time an educator scored it. The
+  migration also refuses a non-admin edit to an attempt already submitted.
+- **Policies are tested against real Postgres.** `npm run check:rls` builds a
+  throwaway database from `schema.sql` plus every migration, then acts as an
+  admin, two FTOs and a new hire using the same upsert the sync engine sends.
+  It needs local Postgres 16 and skips without it, so it is not part of
+  `npm run check`.
+- **The answer key ships in the client bundle,** and attempts are scored on the
+  device. That is acceptable for a pilot, but not where assessment integrity
+  matters (brief §7). The next step is an RPC like the selection exams use.
 - **Answer positions.** As authored, the correct answers sat at b or c in 29 of
   30 items. Display order is now dealt round-robin, and the check fails if any
   screen position holds more than 40% of the key.
@@ -105,4 +118,16 @@ as written. The blueprint sums to 30. 14/16 is 87.5%, which passes the 85% bar;
 4. Write vignettes for K04–K06, K09–K11 and K13–K16.
 5. Have the clinical educator, billing and the medical director review the
    lesson text, and move each lesson past `draft`.
-6. Decide where durable completion records live, and move attempts there.
+6. Run `supabase/migrations/2026-10-27-documentation-academy.sql` in the SQL
+   Editor before the pilot, then run its verification queries.
+7. Move exam scoring server-side before results count for anything formal.
+
+## Found along the way (not changed here)
+
+FTO exit-survey pushes are refused by the current policies. The FTO write
+policy allows inserting a `surveys` row, but FTOs cannot read surveys, and the
+sync engine pushes with an upsert. Postgres refuses an upsert whose row the
+writer cannot see. A survey filed from an FTO's signed-in phone is therefore
+discarded with the "needed permissions" notice. New hires are unaffected
+because they can read their own surveys. `check:rls` pins this as pre-existing
+behaviour, so a fix will have to update that line deliberately.

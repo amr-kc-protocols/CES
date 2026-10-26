@@ -1,167 +1,170 @@
 import { useSyncExternalStore } from 'react'
-import type { Track } from '../../data/docAcademy/types'
+import type {
+  DocAttempt,
+  DocCaseAttempt,
+  DocCompletion,
+  DocLearner,
+  DocPracticalReview,
+  DocReview,
+  DocSignoff,
+  DocTrack,
+} from '../../types'
 import { COURSE_VERSION } from '../../data/docAcademy/lessons'
-import type { Answers, DomainScore, PracticalInput } from './scoring'
-import type { RubricDomainId } from '../../data/docAcademy/types'
+import { getState, setState, useSelector } from '../../lib/store'
+import { getSyncStatus, useSyncStatus } from '../../lib/sync'
 import { uid } from '../../lib/id'
 
 // ---------------------------------------------------------------------------
-// Pilot persistence for the Documentation Academy: this device only.
+// Documentation Academy records, on the shared store.
 //
-// The brief is explicit that a local-only prototype may save device progress
-// but must say so, and cannot promise shared dashboards or durable completion
-// records. So this is its own localStorage key, deliberately outside the
-// synced store — and every screen that shows a result says where it lives.
-// Moving to server-authoritative records is the step after the pilot.
+// Everything here goes through lib/store, so it syncs to Supabase like every
+// other record (see lib/records.ts and the 2026-10-27 migration). A signed-in
+// FTO or new hire owns exactly one learner record — the one carrying their
+// userId — and the server refuses anything else they try to write. An
+// administrator, or a signed-out instructor install, can keep records for
+// anyone, which is how a classroom session on one laptop works.
 //
-// Only staff names, answers and synthetic-case work are kept here. No patient
-// information, ever: the narrative workspace refuses text that looks like an
-// identifier before it is saved.
+// The screens read a composed view, LearnerRecord: the learner's own row, their
+// attempts, and the reviewer's row, joined by learner id.
 // ---------------------------------------------------------------------------
 
-const KEY = 'ces.docacademy.v1'
+export type Attempt = DocAttempt
+export type CaseAttempt = DocCaseAttempt
+export type PracticalReview = DocPracticalReview
+export type Signoff = DocSignoff
+export type CompletionRecord = DocCompletion
 
-export interface Attempt {
-  id: string
-  form: 'baseline' | 'A'
-  at: string
-  courseVersion: string
-  answers: Answers
-  correct: number
-  total: number
-  pct: number
-  passed: boolean
+export interface LearnerRecord extends DocLearner {
+  attempts: DocAttempt[]
+  practical?: DocPracticalReview
+  coachingApproved?: DocSignoff
+  auditPlanApproved?: DocSignoff
+  completion?: DocCompletion
 }
 
-export interface CaseAttempt {
-  id: string
-  caseId: string
-  at: string
-  courseVersion: string
-  picked: string[]
-  insufficient: boolean
-}
-
-export interface Signoff {
-  by: string
-  at: string
-}
-
-export interface PracticalReview {
-  caseId: string
-  reviewer: string
-  at: string
-  courseVersion: string
-  scores: Partial<Record<RubricDomainId, DomainScore>>
-  naJustification: PracticalInput['naJustification']
-  criticalErrors: PracticalInput['criticalErrors']
-  feedback: string
-}
-
-export interface CompletionRecord {
-  id: string
-  learner: string
-  track: Track
-  courseVersion: string
-  examPct: number
-  practicalPct: number
-  reviewer: string
-  date: string
-  instructionalMinutes: number
-}
-
-export interface LearnerRecord {
-  id: string
-  name: string
-  track: Track
-  createdAt: string
-  lessonsDone: Record<string, { at: string; version: string }>
-  attempts: Attempt[]
-  caseAttempts: CaseAttempt[]
-  drafts: Record<string, string>
-  practical?: PracticalReview
-  coachingApproved?: Signoff
-  auditPlanApproved?: Signoff
-  /** Never rewritten once issued; a later course version gets an update module instead. */
-  completion?: CompletionRecord
-}
-
-interface Shape {
-  learners: LearnerRecord[]
-  activeId?: string
-}
-
-function read(): Shape {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as Shape
-  } catch {
-    // Private window or blocked storage: run without persistence.
+function compose(l: DocLearner, attempts: DocAttempt[], reviews: DocReview[]): LearnerRecord {
+  const r = reviews.find((x) => x.learnerId === l.id)
+  return {
+    ...l,
+    attempts: attempts.filter((a) => a.learnerId === l.id).sort((a, b) => a.at.localeCompare(b.at)),
+    practical: r?.practical,
+    coachingApproved: r?.coachingApproved,
+    auditPlanApproved: r?.auditPlanApproved,
+    completion: r?.completion,
   }
-  return { learners: [] }
 }
 
-let state: Shape = read()
-const listeners = new Set<() => void>()
+// ----- which learner this device is working as ------------------------------
+// A per-device choice, not a record, so it stays out of the synced store.
 
-function commit(next: Shape) {
-  state = next
+const ACTIVE_KEY = 'ces.docacademy.active'
+let activeId: string | undefined
+try {
+  activeId = localStorage.getItem(ACTIVE_KEY) ?? undefined
+} catch {
+  activeId = undefined
+}
+const activeListeners = new Set<() => void>()
+
+export function setActive(id: string | undefined) {
+  activeId = id
   try {
-    localStorage.setItem(KEY, JSON.stringify(state))
+    if (id) localStorage.setItem(ACTIVE_KEY, id)
+    else localStorage.removeItem(ACTIVE_KEY)
   } catch {
-    // Still usable for this session.
+    // Still selected for this session.
   }
-  listeners.forEach((l) => l())
+  activeListeners.forEach((l) => l())
 }
 
-export function getAcademy(): Shape {
-  return state
-}
-
-export function useAcademy(): Shape {
+function useActiveId(): string | undefined {
   return useSyncExternalStore(
     (cb) => {
-      listeners.add(cb)
-      return () => listeners.delete(cb)
+      activeListeners.add(cb)
+      return () => activeListeners.delete(cb)
     },
-    () => state,
+    () => activeId,
+    () => activeId,
   )
 }
 
+/** A signed-in non-admin keeps only their own record; everyone else may keep many. */
+export function selfOnly(): boolean {
+  const s = getSyncStatus()
+  return s.signedIn && s.role !== 'admin'
+}
+
+export function useAcademy(): { learners: LearnerRecord[]; activeId?: string } {
+  const learners = useSelector((db) => db.docLearners)
+  const attempts = useSelector((db) => db.docAttempts)
+  const reviews = useSelector((db) => db.docReviews)
+  const id = useActiveId()
+  return { learners: learners.map((l) => compose(l, attempts, reviews)), activeId: id }
+}
+
 export function useActiveLearner(): LearnerRecord | undefined {
-  const s = useAcademy()
-  return s.learners.find((l) => l.id === s.activeId)
+  const { learners, activeId: id } = useAcademy()
+  const { signedIn, role, userId } = useSyncStatus()
+  // A signed-in learner is always themselves, whatever the device last chose.
+  if (signedIn && role !== 'admin') return learners.find((l) => l.userId === userId)
+  return learners.find((l) => l.id === id)
 }
 
-function update(id: string, fn: (l: LearnerRecord) => LearnerRecord) {
-  commit({ ...state, learners: state.learners.map((l) => (l.id === id ? fn(l) : l)) })
+// ----- writes ------------------------------------------------------------------
+
+function updateLearner(id: string, fn: (l: DocLearner) => DocLearner) {
+  setState((db) => ({ ...db, docLearners: db.docLearners.map((l) => (l.id === id ? fn(l) : l)) }))
 }
 
-export function addLearner(name: string, track: Track): string {
-  const l: LearnerRecord = {
+function updateReview(learnerId: string, fn: (r: DocReview) => DocReview) {
+  setState((db) => {
+    const learner = db.docLearners.find((l) => l.id === learnerId)
+    const existing = db.docReviews.find((r) => r.learnerId === learnerId)
+    const base: DocReview = existing ?? { id: learnerId, learnerId, userId: learner?.userId }
+    const next = fn(base)
+    return {
+      ...db,
+      docReviews: existing ? db.docReviews.map((r) => (r === existing ? next : r)) : [...db.docReviews, next],
+    }
+  })
+}
+
+export function addLearner(name: string, track: DocTrack): string {
+  const s = getSyncStatus()
+  const own = selfOnly()
+  if (own) {
+    // One record per account: re-enrolling selects the one that exists.
+    const mine = getState().docLearners.find((l) => l.userId === s.userId)
+    if (mine) return mine.id
+  }
+  const l: DocLearner = {
     id: uid('dl'),
+    userId: own ? s.userId : undefined,
     name: name.trim(),
     track,
     createdAt: new Date().toISOString(),
     lessonsDone: {},
-    attempts: [],
     caseAttempts: [],
     drafts: {},
   }
-  commit({ learners: [...state.learners, l], activeId: l.id })
+  setState((db) => ({ ...db, docLearners: [...db.docLearners, l] }))
+  setActive(l.id)
   return l.id
 }
 
-export function setActive(id: string | undefined) {
-  commit({ ...state, activeId: id })
-}
-
+/** Administrators only — the server keeps a learner's rows from anyone else. */
 export function removeLearner(id: string) {
-  commit({ learners: state.learners.filter((l) => l.id !== id), activeId: state.activeId === id ? undefined : state.activeId })
+  setState((db) => ({
+    ...db,
+    docLearners: db.docLearners.filter((l) => l.id !== id),
+    docAttempts: db.docAttempts.filter((a) => a.learnerId !== id),
+    docReviews: db.docReviews.filter((r) => r.learnerId !== id),
+  }))
+  if (activeId === id) setActive(undefined)
 }
 
 export function markLesson(id: string, lessonId: string, version: string, done: boolean) {
-  update(id, (l) => {
+  updateLearner(id, (l) => {
     const lessonsDone = { ...l.lessonsDone }
     if (done) lessonsDone[lessonId] = { at: new Date().toISOString(), version }
     else delete lessonsDone[lessonId]
@@ -170,16 +173,23 @@ export function markLesson(id: string, lessonId: string, version: string, done: 
 }
 
 /** Idempotent by attempt id, so a double-submit or a replay cannot duplicate an attempt. */
-export function recordAttempt(id: string, a: Omit<Attempt, 'at' | 'courseVersion'>) {
-  update(id, (l) =>
-    l.attempts.some((x) => x.id === a.id)
-      ? l
-      : { ...l, attempts: [...l.attempts, { ...a, at: new Date().toISOString(), courseVersion: COURSE_VERSION }] },
-  )
+export function recordAttempt(learnerId: string, a: Omit<DocAttempt, 'at' | 'courseVersion' | 'learnerId' | 'userId'>) {
+  setState((db) => {
+    if (db.docAttempts.some((x) => x.id === a.id)) return db
+    const learner = db.docLearners.find((l) => l.id === learnerId)
+    const row: DocAttempt = {
+      ...a,
+      learnerId,
+      userId: learner?.userId,
+      at: new Date().toISOString(),
+      courseVersion: COURSE_VERSION,
+    }
+    return { ...db, docAttempts: [...db.docAttempts, row] }
+  })
 }
 
-export function recordCaseAttempt(id: string, a: Omit<CaseAttempt, 'at' | 'courseVersion'>) {
-  update(id, (l) =>
+export function recordCaseAttempt(id: string, a: Omit<DocCaseAttempt, 'at' | 'courseVersion'>) {
+  updateLearner(id, (l) =>
     l.caseAttempts.some((x) => x.id === a.id)
       ? l
       : { ...l, caseAttempts: [...l.caseAttempts, { ...a, at: new Date().toISOString(), courseVersion: COURSE_VERSION }] },
@@ -187,22 +197,22 @@ export function recordCaseAttempt(id: string, a: Omit<CaseAttempt, 'at' | 'cours
 }
 
 export function saveDraft(id: string, caseId: string, text: string) {
-  update(id, (l) => ({ ...l, drafts: { ...l.drafts, [caseId]: text } }))
+  updateLearner(id, (l) => ({ ...l, drafts: { ...l.drafts, [caseId]: text } }))
 }
 
-export function savePractical(id: string, p: Omit<PracticalReview, 'at' | 'courseVersion'>) {
-  update(id, (l) => ({ ...l, practical: { ...p, at: new Date().toISOString(), courseVersion: COURSE_VERSION } }))
+export function savePractical(learnerId: string, p: Omit<DocPracticalReview, 'at' | 'courseVersion'>) {
+  updateReview(learnerId, (r) => ({ ...r, practical: { ...p, at: new Date().toISOString(), courseVersion: COURSE_VERSION } }))
 }
 
-export function setSignoff(id: string, which: 'coachingApproved' | 'auditPlanApproved', by: string | undefined) {
-  update(id, (l) => ({ ...l, [which]: by?.trim() ? { by: by.trim(), at: new Date().toISOString() } : undefined }))
+export function setSignoff(learnerId: string, which: 'coachingApproved' | 'auditPlanApproved', by: string | undefined) {
+  updateReview(learnerId, (r) => ({ ...r, [which]: by?.trim() ? { by: by.trim(), at: new Date().toISOString() } : undefined }))
 }
 
-export function issueCompletion(id: string, rec: Omit<CompletionRecord, 'id' | 'courseVersion'>) {
-  update(id, (l) => (l.completion ? l : { ...l, completion: { ...rec, id: uid('dc'), courseVersion: COURSE_VERSION } }))
+export function issueCompletion(learnerId: string, rec: Omit<DocCompletion, 'id' | 'courseVersion'>) {
+  updateReview(learnerId, (r) => (r.completion ? r : { ...r, completion: { ...rec, id: uid('dc'), courseVersion: COURSE_VERSION } }))
 }
 
-export function latestExam(l: LearnerRecord, form: Attempt['form'] = 'A'): Attempt | undefined {
+export function latestExam(l: LearnerRecord, form: DocAttempt['form'] = 'A'): DocAttempt | undefined {
   return [...l.attempts].reverse().find((a) => a.form === form)
 }
 

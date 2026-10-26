@@ -164,6 +164,17 @@ const SLICES: SliceDef[] = [
   // admin-only in both directions without a migration. Runs are written once
   // at the end of a scenario and never edited, so they only ever grow.
   { collection: 'simRuns', slice: 'simRuns', idOf: id as SliceDef['idOf'] },
+
+  // ----- Documentation Academy ------------------------------------------------
+  // Unlike CQMP and the simulator these are NOT admin-only: every account takes
+  // the course and must keep its own progress. The migration
+  // 2026-10-27-documentation-academy.sql lets an FTO or new hire read and write
+  // the rows whose data.userId is their own, keeps docReviews admin-written,
+  // and refuses a non-admin edit to an attempt already submitted. Attempts are
+  // written once, so they only ever grow.
+  { collection: 'docLearners', slice: 'docLearners', idOf: id as SliceDef['idOf'] },
+  { collection: 'docAttempts', slice: 'docAttempts', idOf: id as SliceDef['idOf'] },
+  { collection: 'docReviews', slice: 'docReviews', idOf: id as SliceDef['idOf'] },
 ]
 
 const SETTINGS_COLLECTION = 'settings'
