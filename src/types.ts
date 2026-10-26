@@ -2167,7 +2167,7 @@ export interface DailyEvalTemplate {
 // Ownership is `userId` in the data, never `updated_by`: the server stamps
 // updated_by with whoever wrote last, so an educator scoring a practical would
 // otherwise take the learner's own record out of the learner's sight. See
-// supabase/migrations/2026-10-27-documentation-academy.sql.
+// supabase/migrations/2026-10-26-1-documentation-academy.sql.
 // ---------------------------------------------------------------------------
 
 export type DocTrack = 'learner' | 'fto' | 'manager' | 'educator'

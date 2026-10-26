@@ -168,7 +168,7 @@ const SLICES: SliceDef[] = [
   // ----- Documentation Academy ------------------------------------------------
   // Unlike CQMP and the simulator these are NOT admin-only: every account takes
   // the course and must keep its own progress. The migration
-  // 2026-10-27-documentation-academy.sql lets an FTO or new hire read and write
+  // 2026-10-26-1-documentation-academy.sql lets an FTO or new hire read and write
   // the rows whose data.userId is their own, keeps docReviews admin-written,
   // and refuses a non-admin edit to an attempt already submitted. Attempts are
   // written once, so they only ever grow.

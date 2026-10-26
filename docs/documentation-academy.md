@@ -81,7 +81,7 @@ as written. The blueprint sums to 30. 14/16 is 87.5%, which passes the 85% bar;
   (exam attempts, one row each) and `docReviews` (practical score, sign-offs
   and completion, written by administrators only).
 - **The migration has to be run before non-admins can save progress.** Until
-  `supabase/migrations/2026-10-27-documentation-academy.sql` is applied, new
+  `supabase/migrations/2026-10-26-1-documentation-academy.sql` is applied, new
   collections are admin-only by default, so an FTO's or new hire's progress
   would be refused on push and discarded. The migration lets them read and
   write their own rows, keyed on `data.userId` rather than `updated_by`.
@@ -118,16 +118,37 @@ as written. The blueprint sums to 30. 14/16 is 87.5%, which passes the 85% bar;
 4. Write vignettes for K04–K06, K09–K11 and K13–K16.
 5. Have the clinical educator, billing and the medical director review the
    lesson text, and move each lesson past `draft`.
-6. Run `supabase/migrations/2026-10-27-documentation-academy.sql` in the SQL
-   Editor before the pilot, then run its verification queries.
+6. Run `supabase/migrations/2026-10-26-1-documentation-academy.sql`, then
+   `2026-10-26-2-fto-survey-push.sql`, in the SQL Editor. Run each file's
+   verification queries afterwards.
 7. Move exam scoring server-side before results count for anything formal.
 
-## Found along the way (not changed here)
+## FTO exit surveys (fixed alongside)
 
-FTO exit-survey pushes are refused by the current policies. The FTO write
-policy allows inserting a `surveys` row, but FTOs cannot read surveys, and the
-sync engine pushes with an upsert. Postgres refuses an upsert whose row the
-writer cannot see. A survey filed from an FTO's signed-in phone is therefore
-discarded with the "needed permissions" notice. New hires are unaffected
-because they can read their own surveys. `check:rls` pins this as pre-existing
-behaviour, so a fix will have to update that line deliberately.
+**The bug.** Every exit survey pushed from an FTO's signed-in device was
+refused. Trainees often fill the survey in on the FTO's device, so FTOs may
+write `surveys`; but FTOs may not read surveys, because the feedback is about
+them. The sync engine pushes with an upsert, and Postgres refuses an upsert
+whose row the writer cannot see. The app treated the refusal as permanent:
+the survey left the push queue, stayed on that one device, and the FTO saw
+"needed permissions this account doesn't have". New hires filing on their own
+phones were unaffected.
+
+**The fix** has two parts:
+
+1. `supabase/migrations/2026-10-26-2-fto-survey-push.sql` lets an FTO read the
+   survey rows their own account wrote, which is content already on their
+   device. Surveys a trainee filed on their own phone stay invisible to every
+   FTO. So does any survey an administrator has since edited or removed, and
+   an FTO's device can no longer overwrite or resurrect one.
+2. `requeueStrandedSurveys` in `lib/sync.ts` re-sends, once, the surveys
+   earlier refusals stranded on FTO devices.
+   - It counts as done only once the server accepts a survey; having nothing to
+     send does not count.
+   - If the app update reaches a phone before the migration has been run, it
+     tries again at the next sign-in.
+   - A network failure does not use up an attempt.
+   - It stops after 10 refusals.
+
+`check:rls` asserts the boundaries against real Postgres, and
+`check:requeue` drives the re-send through each of those cases.

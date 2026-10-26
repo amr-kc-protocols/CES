@@ -159,11 +159,16 @@ Hunter's head:
   synthetic chart-review lab, a blueprinted 30-item exam, reviewer-scored
   practical and an "Internal training completed" record. Not CADS, not
   NAAC-endorsed. Learners, attempts and reviews sync through Supabase — run
-  `supabase/migrations/2026-10-27-documentation-academy.sql` so FTOs and new
+  `supabase/migrations/2026-10-26-1-documentation-academy.sql` so FTOs and new
   hires can keep their own (`npm run check:rls` tests the policies against
   real Postgres). Content in `src/data/docAcademy/`, acceptance criteria in
   `npm run check:docacademy`, source verification and open items in
   `docs/documentation-academy.md`.
+- **FTO exit-survey pushes** were refused and stranded on FTO devices: an FTO
+  could write a survey but not read one, and the sync engine's upsert needs
+  both. `supabase/migrations/2026-10-26-2-fto-survey-push.sql` lets an FTO read
+  only the surveys their own account wrote, and the app re-sends the stranded
+  ones once (see `docs/documentation-academy.md`).
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

@@ -260,6 +260,75 @@ async function loadRole(userId: string): Promise<void> {
   // on a page that is going away.
   if (reconcileMarket(row?.market)) return
   setStatus({ marketAccess: row?.market, market: activeMarket() })
+  if (role === 'fto') void requeueStrandedSurveys()
+}
+
+// ----- stranded FTO surveys ------------------------------------------------------
+//
+// Until supabase/migrations/2026-10-26-2-fto-survey-push.sql, every exit survey
+// pushed from an FTO's signed-in device was refused (the upsert needs the row
+// to be readable by its writer, and FTOs could read no surveys). The refusal
+// was treated as permanent: the record left the outbox but stayed in local
+// state, and since a push only ever sends what CHANGED, nothing would send it
+// again. Those surveys exist on that one device and nowhere else.
+//
+// This sends them once more. It goes straight to the table rather than through
+// the outbox, so a refusal here is silent and drops nothing: if the migration
+// has not been applied yet, the next sign-in simply tries again. It counts as
+// done once the server accepts something — the proof the migration is live,
+// after which the ordinary push works. Re-sending
+// a survey the server already holds unchanged is harmless; one an
+// administrator has since edited or removed is refused, so this cannot undo
+// that. Capped so a survey that will always be refused does not retry forever.
+
+const SURVEY_REQUEUE_KEY = marketKey('ces.cloud.surveyRequeue.v1')
+const SURVEY_REQUEUE_MAX_TRIES = 10
+
+/** Exported for scripts/check-survey-requeue.mjs, which passes its own client. */
+export async function requeueStrandedSurveys(
+  client?: Pick<SupabaseClient, 'from'> | null,
+  signedIn = status.signedIn,
+): Promise<void> {
+  let state: { done?: boolean; tries?: number } = {}
+  try {
+    state = JSON.parse(localStorage.getItem(SURVEY_REQUEUE_KEY) ?? '{}')
+  } catch {
+    state = {}
+  }
+  if (state.done || (state.tries ?? 0) >= SURVEY_REQUEUE_MAX_TRIES) return
+  const save = (next: typeof state) => {
+    try {
+      localStorage.setItem(SURVEY_REQUEUE_KEY, JSON.stringify(next))
+    } catch {
+      // Tried again next sign-in.
+    }
+  }
+
+  // Nothing to send is not done: until the server has accepted a survey there
+  // is no proof the migration is live, and a survey filed before it is would
+  // be stranded the same way and need this again.
+  const surveys = [...toRecords(getState()).values()].filter((r) => r.collection === 'surveys')
+  if (surveys.length === 0) return
+
+  const c = client ?? (await getClient())
+  if (!c || !signedIn) return
+  const market = activeMarket()
+  let accepted = 0
+  for (const r of surveys) {
+    let error: { code?: string; message?: string } | null
+    try {
+      ;({ error } = await c
+        .from('records')
+        .upsert({ market, collection: r.collection, id: r.id, data: r.data, deleted: false }, { onConflict: 'market,collection,id' }))
+    } catch (e) {
+      error = { message: String(e) }
+    }
+    if (!error) accepted++
+    // Offline or a server fault: not an answer about this survey. Leave the
+    // whole re-send for next time rather than finishing with some unsent.
+    else if (!isPermissionError(error)) return
+  }
+  save(accepted > 0 ? { done: true } : { tries: (state.tries ?? 0) + 1 })
 }
 
 function scheduleFlush(): void {

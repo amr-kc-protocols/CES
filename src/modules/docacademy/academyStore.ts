@@ -18,7 +18,7 @@ import { uid } from '../../lib/id'
 // Documentation Academy records, on the shared store.
 //
 // Everything here goes through lib/store, so it syncs to Supabase like every
-// other record (see lib/records.ts and the 2026-10-27 migration). A signed-in
+// other record (see lib/records.ts and the 2026-10-26-1 migration). A signed-in
 // FTO or new hire owns exactly one learner record — the one carrying their
 // userId — and the server refuses anything else they try to write. An
 // administrator, or a signed-out instructor install, can keep records for

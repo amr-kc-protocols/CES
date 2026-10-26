@@ -1,4 +1,5 @@
-// Row-level security check for the Documentation Academy collections.
+// Row-level security check: the Documentation Academy collections, and FTO
+// exit-survey pushes.
 //
 // Unlike every other check here this one needs a real Postgres, because the
 // thing under test is the database's own policy evaluation — a mock would
@@ -9,14 +10,14 @@
 // upsert the sync engine sends (lib/sync.ts).
 //
 // The upsert matters. INSERT … ON CONFLICT DO UPDATE requires the written row
-// to be visible to the writer, which is why a role that cannot read its own
-// rows has its pushes refused. That is already true of FTO exit surveys —
-// pinned below as pre-existing so a change in either direction is noticed.
+// to be visible to the writer, so a role that cannot read its own rows has its
+// pushes refused. That is how every FTO exit survey was being discarded until
+// 2026-10-26-2-fto-survey-push.sql.
 //
 // Needs the Postgres 16 server binaries (initdb, pg_ctl) and psql. Without
 // them it SKIPS, loudly. Not in `npm run check` for that reason.
 //
-// Run: node scripts/check-doc-academy-rls.mjs  (or `npm run check:rls`)
+// Run: node scripts/check-rls.mjs  (or `npm run check:rls`)
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, rmSync, chmodSync, chownSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -24,7 +25,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { skip } from './lib/check-kit.mjs'
 
-const SCRIPT = 'check-doc-academy-rls'
+const SCRIPT = 'check-rls'
 const here = dirname(fileURLToPath(import.meta.url))
 const SUPA = join(here, '..', 'supabase')
 
@@ -155,13 +156,25 @@ try {
   eq('new hire sees only their own', count(N, 'docLearners'), 1)
 
   // Nothing else moved.
-  eq('FTO still cannot read surveys', count(F, 'surveys'), 0)
   refused('FTO still cannot write AEMT', up(F, 'aemtCourses', 'c1', { id: 'c1', userId: F }))
   refused('FTO still cannot write CQMP', up(F, 'cqmpReports', 'r1', { id: 'r1', userId: F }))
-  // PRE-EXISTING, not introduced here: an FTO may insert a survey but cannot
-  // read one, so the sync engine's upsert of a survey is refused. Pinned so
-  // that fixing it — or making it worse — is a deliberate change to this line.
-  refused('pre-existing: an FTO survey upsert is refused', up(F, 'surveys', 's1', { id: 's1' }))
+
+  // Exit surveys. A trainee often fills one in on the FTO's device, so the
+  // FTO's account pushes it; the feedback is about the FTO, so they must still
+  // see nothing they did not file themselves.
+  allowed('FTO device pushes a survey filed on it', up(F, 'surveys', 's_f', { id: 's_f' }))
+  allowed('re-sending that survey unchanged is accepted', up(F, 'surveys', 's_f', { id: 's_f' }))
+  eq('FTO sees the survey their device filed', count(F, 'surveys'), 1)
+  allowed("new hire files their own survey on their own phone", up(N, 'surveys', 's_n', { id: 's_n' }))
+  eq("FTO cannot see a survey the trainee filed", count(F, 'surveys'), 1)
+  eq("a second FTO cannot see the first FTO's survey", count(G, 'surveys'), 0)
+  refused("FTO cannot overwrite the trainee's own survey", up(F, 'surveys', 's_n', { id: 's_n', tampered: true }))
+  eq("the trainee's survey is untouched", as(A, "select data->>'tampered' from public.records where id = 's_n';").stdout.trim(), '')
+  allowed('admin removes the FTO-filed survey', up(A, 'surveys', 's_f', {}, { deleted: true }))
+  eq('FTO loses sight of it once an admin has acted on it', count(F, 'surveys'), 0)
+  refused("FTO device cannot resurrect a survey an admin removed", up(F, 'surveys', 's_f', { id: 's_f' }))
+  eq('it stays removed', as(A, "select deleted from public.records where id = 's_f';").stdout.trim(), 't')
+  eq('admin sees every survey', count(A, 'surveys'), 2)
 } finally {
   try {
     sh(join(BIN, 'pg_ctl'), ['-D', dir, '-m', 'immediate', 'stop'])
