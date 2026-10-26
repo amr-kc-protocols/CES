@@ -34,6 +34,7 @@ export default function TrainingHub() {
 
   const neopItem = itemAt(section, '/academy')
   const aemtItem = itemAt(section, '/aemt')
+  const docItem = itemAt(section, '/doc-academy')
   const aemtRunning = db.aemtCourses.filter((c) => c.startDate <= today && today <= c.endDate).length
   const aemtStudents = db.aemtStudents.filter((s) => s.status === 'active').length
 
@@ -96,6 +97,7 @@ export default function TrainingHub() {
             }
           />
         )}
+        {docItem && <HubRow item={docItem} meta="6 h common core · 2 h leadership practicum · draft for pilot" />}
       </div>
 
       {running.length > 0 && (

@@ -172,6 +172,7 @@ const everyLeaf = SECTIONS.flatMap((s) => s.items.map((i) => i.to)).sort()
 const EXPECTED_GATES = {
   '/academy': 'always',
   '/aemt': 'manageAemt',
+  '/doc-academy': 'always',
   '/review': 'reviewCharts',
   '/simulator': 'manageAcademy',
   '/qa': 'always',
@@ -217,7 +218,7 @@ eq(
   ['/training', '/reference', '/more'],
   'a signed-in FTO should see Training, Reference and More — and no Tools tab leading to an apology',
 )
-eq(leavesOf(fto), ['/academy', '/courses', '/ems', '/settings'], 'the FTO leaf set is wrong')
+eq(leavesOf(fto), ['/academy', '/courses', '/doc-academy', '/ems', '/settings'], 'the FTO leaf set is wrong')
 
 const localOnly = visibleSections({ manageAcademy: true, manageAemt: true, reviewCharts: true, adminSignedIn: false })
 ok(

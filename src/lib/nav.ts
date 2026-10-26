@@ -72,7 +72,7 @@ export const SECTIONS: NavSection[] = [
     label: 'Training',
     icon: 'training',
     title: 'Training',
-    blurb: 'The two programs that carry cohorts, students and records',
+    blurb: 'The programs that carry cohorts, students and records, and the documentation course',
     items: [
       {
         to: '/academy',
@@ -90,6 +90,15 @@ export const SECTIONS: NavSection[] = [
         icon: 'aemt',
         blurb: 'Kansas-approved certification course — roster, hours and records',
         gate: 'manageAemt',
+      },
+      // Synthetic charts only — no patient records — so every account can take
+      // it. Practical scoring and sign-off are gated on the screen itself.
+      {
+        to: '/doc-academy',
+        label: 'Documentation',
+        icon: 'clipboard',
+        blurb: 'Ambulance Documentation & Review Academy — internal course',
+        gate: 'always',
       },
     ],
   },

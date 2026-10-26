@@ -153,6 +153,14 @@ Hunter's head:
   exactly one record, every command a record names is real, a make-up documents
   competency without erasing the absence, and a student who evaluated one of
   two instructors is not finished.
+- **Documentation Academy (`/doc-academy`):** the Ambulance Documentation &
+  Review Academy — an original internal course (6 h common core for every
+  track, 2 h leadership practicum for FTOs, managers and educators) with a
+  synthetic chart-review lab, a blueprinted 30-item exam, reviewer-scored
+  practical and an "Internal training completed" record. Not CADS, not
+  NAAC-endorsed. Pilot results are device-only. Content in
+  `src/data/docAcademy/`, acceptance criteria in `npm run check:docacademy`,
+  source verification and open items in `docs/documentation-academy.md`.
 - **Module E — Dashboard:** one glance at what's at risk right now.
 - **Module F — CQMP KPI review (administrators only):** the monthly Clinical
   Quality Management Plan deck. Enter each KPI off the GMR Clinical Analytics

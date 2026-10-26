@@ -31,6 +31,10 @@ const AemtList = lazy(() => import('./modules/aemt/AemtList'))
 const AemtCourseView = lazy(() => import('./modules/aemt/AemtCourseView'))
 const HistoryView = lazy(() => import('./modules/history/HistoryView'))
 const LearningView = lazy(() => import('./modules/learning/LearningView'))
+const DocAcademyView = lazy(() => import('./modules/docacademy/DocAcademyView'))
+const DocLessonPlayer = lazy(() => import('./modules/docacademy/LessonPlayer'))
+const DocCaseLab = lazy(() => import('./modules/docacademy/CaseLab'))
+const DocExamRunner = lazy(() => import('./modules/docacademy/ExamRunner'))
 const CourseViewer = lazy(() => import('./modules/learning/CourseViewer'))
 const EmsReference = lazy(() => import('./modules/reference/EmsReference'))
 const IntakeForm = lazy(() => import('./modules/intake/IntakeForm'))
@@ -367,6 +371,12 @@ export default function App() {
             </SimulatorOnly>
           }
         />
+        {/* Documentation Academy: synthetic cases only, so no chart-review gate.
+            Reviewer scoring and sign-off gate themselves on manageAcademy. */}
+        <Route path="doc-academy" element={<DocAcademyView />} />
+        <Route path="doc-academy/lesson/:lessonId" element={<DocLessonPlayer />} />
+        <Route path="doc-academy/case/:caseId" element={<DocCaseLab />} />
+        <Route path="doc-academy/exam/:form" element={<DocExamRunner />} />
         <Route path="courses" element={<LearningView />} />
         <Route path="courses/view" element={<CourseViewer />} />
         <Route path="ems" element={<EmsReference />} />
