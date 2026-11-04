@@ -10,7 +10,8 @@
 --      add them on each hire's record in the app.
 --   2. Sets the academy schedule:
 --        HR & Systems Onboarding .......... Tue Nov 10, 0900  (first day)
---        EVOC Road Course ................. Mon Nov 16, 0800  (confirmed)
+--        EVOC Road Course ................. Mon Nov 16, 0800  (confirmed;
+--                                           note changed to "Meet HQ 8 AM")
 --        EVOC Classroom ................... date open, 0900
 --        Documentation (PCR / ImageTrend) . date open, 0900
 --        Stretcher / patient movement lab
@@ -89,6 +90,7 @@ declare
   v_arr_id text;
   v_existing jsonb;
   v_patch jsonb;
+  v_blocks jsonb;
 begin
   -- ---- the cohort ---------------------------------------------------------
   if v_cohort = '' then
@@ -192,6 +194,22 @@ begin
     v_patch := jsonb_build_object('cohortId', v_cohort, 'sessionId', v_sid, 'startTime', v_sched.start);
     if v_sched.date is not null then
       v_patch := v_patch || jsonb_build_object('date', v_sched.date);
+    end if;
+
+    -- The road-course note was written for the summer 0700 start ("Starts
+    -- 0700 to beat the heat. Meet HQ 7 AM") and prints on the agenda. Give
+    -- this class its own copy of the blocks with the 0800 wording, unless the
+    -- class already has edited blocks for that day.
+    if v_sched.label = 'EVOC road course' and v_existing -> 'blocks' is null
+       and v_sessions is not null then
+      select s -> 'blocks' into v_blocks
+      from jsonb_array_elements(v_sessions) s where s ->> 'id' = v_sid;
+      if v_blocks is not null then
+        v_blocks := replace(replace(v_blocks::text,
+          'Starts 0700 to beat the heat. ', ''), 'Meet HQ 7 AM', 'Meet HQ 8 AM')::jsonb;
+        v_patch := v_patch || jsonb_build_object('blocks', v_blocks);
+        raise notice 'Schedule: EVOC road course note now reads "Meet HQ 8 AM".';
+      end if;
     end if;
 
     raise notice 'Schedule: % (%) -> %, %', v_sched.label, v_sid,
