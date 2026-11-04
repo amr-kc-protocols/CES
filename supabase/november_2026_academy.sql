@@ -16,10 +16,12 @@
 --        Documentation (PCR / ImageTrend) . date open, 0900
 --        Stretcher / patient movement lab
 --          + equipment check-off .......... date open, 0900
+--        Week 2 (all sessions) ............ skipped for this class
+--                                           (Week 1 only; all EMTs)
 --
 -- WHAT IT LEAVES ALONE
 --
---   The cohort's own start date (Nov 9), any other sessions, and any date
+--   The cohort's own start date (Nov 9), the KC NEOP itself, and any date
 --   already set on the three open sessions. A hire whose name is already on
 --   the roster is not added twice, so the file is safe to re-run.
 --
@@ -219,6 +221,33 @@ begin
     if v_commit then
       insert into public.records (market, collection, id, data, deleted)
       values ('kc', 'arrangements', v_arr_id, coalesce(v_existing, '{}'::jsonb) || v_patch, false)
+      on conflict (market, collection, id)
+      do update set data = excluded.data, deleted = false;
+    end if;
+  end loop;
+
+  -- ---- Week 2: not run for this class -----------------------------------
+  -- All four hires are EMTs and this class runs Week 1 only. Each Week 2
+  -- session is marked skipped for THIS cohort, which is how the app's own
+  -- "skip for this class" works: it drops off the schedule, attendance and
+  -- printouts, and can be restored in the app. The KC NEOP is not touched.
+  for v_sid in
+    select s ->> 'id' from jsonb_array_elements(v_sessions) s where (s ->> 'week')::int = 2
+    union all
+    select x from unnest(array['p2s2', 'p2s3', 'p2s4', 'p2s5']) x where v_sessions is null
+  loop
+    v_arr_id := v_cohort || ':' || v_sid;
+    select data into v_existing
+    from public.records
+    where market = 'kc' and collection = 'arrangements' and id = v_arr_id and not deleted;
+
+    raise notice 'Schedule: Week 2 session % -> skipped for this class', v_sid;
+    if v_commit then
+      insert into public.records (market, collection, id, data, deleted)
+      values ('kc', 'arrangements', v_arr_id,
+        coalesce(v_existing, '{}'::jsonb)
+          || jsonb_build_object('cohortId', v_cohort, 'sessionId', v_sid, 'skipped', true),
+        false)
       on conflict (market, collection, id)
       do update set data = excluded.data, deleted = false;
     end if;
